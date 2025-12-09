@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Modal,
   FlatList,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -28,6 +29,7 @@ export const SelectFilter = ({
   style,
 }) => {
   const [modalVisible, setModalVisible] = useState(false);
+  const [searchText, setSearchText] = useState("");
 
   const selectedOption = options.find(
     (opt) => opt.id === value || opt === value
@@ -36,10 +38,28 @@ export const SelectFilter = ({
     ? selectedOption.name || selectedOption
     : placeholder;
 
+  // Filtrar opciones basándose en el texto de búsqueda
+  const filteredOptions = useMemo(() => {
+    if (!searchText.trim()) {
+      return options;
+    }
+    const searchLower = searchText.toLowerCase().trim();
+    return options.filter((option) => {
+      const optionName = (option.name || option || "").toLowerCase();
+      return optionName.includes(searchLower);
+    });
+  }, [options, searchText]);
+
   const handleSelect = (option) => {
     const optionValue = option.id || option;
     onSelect(optionValue === value ? "" : optionValue);
     setModalVisible(false);
+    setSearchText(""); // Limpiar búsqueda al seleccionar
+  };
+
+  const handleModalClose = () => {
+    setModalVisible(false);
+    setSearchText(""); // Limpiar búsqueda al cerrar el modal
   };
 
   const renderOption = ({ item }) => {
@@ -62,6 +82,18 @@ export const SelectFilter = ({
       </TouchableOpacity>
     );
   };
+
+  // Preparar datos para la lista (incluir opción de limpiar si hay selección)
+  const listData = useMemo(() => {
+    const data = [];
+    // Agregar opción de limpiar selección solo si hay una selección activa
+    if (value) {
+      data.push({ id: "", name: placeholder });
+    }
+    // Agregar opciones filtradas
+    data.push(...filteredOptions);
+    return data;
+  }, [filteredOptions, value, placeholder]);
 
   return (
     <View style={[styles.container, style]}>
@@ -87,31 +119,67 @@ export const SelectFilter = ({
         visible={modalVisible}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={handleModalClose}
       >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setModalVisible(false)}
+          onPress={handleModalClose}
         >
-          <View style={styles.modalContent}>
+          <View
+            style={styles.modalContent}
+            onStartShouldSetResponder={() => true}
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{label}</Text>
               <TouchableOpacity
-                onPress={() => setModalVisible(false)}
+                onPress={handleModalClose}
                 style={styles.closeButton}
               >
                 <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
 
+            {/* Campo de búsqueda */}
+            <View style={styles.searchContainer}>
+              <Ionicons
+                name="search"
+                size={20}
+                color="#999"
+                style={styles.searchIcon}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Buscar..."
+                placeholderTextColor="#999"
+                value={searchText}
+                onChangeText={setSearchText}
+                autoFocus={false}
+              />
+              {searchText.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setSearchText("")}
+                  style={styles.clearSearchButton}
+                >
+                  <Ionicons name="close-circle" size={20} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
+
             <FlatList
-              data={[{ id: "", name: placeholder }, ...options]}
+              data={listData}
               renderItem={renderOption}
               keyExtractor={(item, index) =>
                 (item.id || item).toString() + index
               }
               style={styles.optionsList}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>
+                    No se encontraron resultados
+                  </Text>
+                </View>
+              }
             />
           </View>
         </TouchableOpacity>
@@ -178,8 +246,42 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 4,
   },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+    paddingHorizontal: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: "#1a1a1a",
+  },
+  clearSearchButton: {
+    padding: 4,
+    marginLeft: 4,
+  },
   optionsList: {
     maxHeight: 400,
+  },
+  emptyContainer: {
+    padding: 32,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#999",
+    textAlign: "center",
   },
   optionItem: {
     flexDirection: "row",
