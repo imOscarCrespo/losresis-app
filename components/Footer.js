@@ -29,7 +29,7 @@ export const Footer = ({
         activeOpacity={0.7}
       >
         <Ionicons
-          name="medical"
+          name="business"
           size={24}
           color={activeTab === "hospital" ? activeColor : inactiveColor}
         />
