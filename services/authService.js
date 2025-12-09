@@ -37,6 +37,7 @@ export const signInWithGoogle = async (redirectUrl) => {
         skipBrowserRedirect: true, // Importante: no abrir el navegador automáticamente
         queryParams: {
           redirect_to: finalRedirectUrl, // Forzar explícitamente la URL de redirección
+          prompt: "select_account", // Forzar selección de cuenta (no usar sesión guardada)
         },
       },
     });
@@ -265,26 +266,55 @@ export const hasCompleteProfile = (profile) => {
 };
 
 /**
- * Cerrar sesión
+ * Cerrar sesión y limpiar toda la información de autenticación
  * @returns {Promise<{success: boolean, error: string|null}>}
  */
 export const signOut = async () => {
   try {
-    const { error } = await supabase.auth.signOut();
+    console.log("🔐 Cerrando sesión...");
 
-    if (error) {
+    // Cerrar sesión en Supabase (esto elimina tokens y sesión)
+    const { error: signOutError } = await supabase.auth.signOut();
+
+    if (signOutError) {
+      console.error("❌ Error al cerrar sesión en Supabase:", signOutError);
       return {
         success: false,
-        error: error.message,
+        error: signOutError.message,
       };
     }
 
+    // Limpiar cualquier cache de sesión adicional
+    // Supabase ya limpia automáticamente el storage local, pero forzamos una limpieza
+    try {
+      // Verificar que la sesión se haya eliminado
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session) {
+        console.warn("⚠️ La sesión aún existe después de signOut, forzando limpieza...");
+        // Intentar cerrar sesión nuevamente
+        await supabase.auth.signOut();
+      }
+    } catch (checkError) {
+      console.warn("⚠️ Error al verificar sesión después de signOut:", checkError);
+      // Continuar de todas formas
+    }
+
+    // Limpiar cookies del navegador para forzar selección de cuenta en el próximo login
+    // Esto se hace automáticamente al usar prompt: "select_account", pero lo hacemos explícito
+    try {
+      // WebBrowser no tiene método directo para limpiar cookies, pero el prompt lo manejará
+      console.log("🧹 Sesión y tokens eliminados. El próximo login pedirá selección de cuenta.");
+    } catch (cleanError) {
+      console.warn("⚠️ Error al limpiar cookies:", cleanError);
+    }
+
+    console.log("✅ Sesión cerrada correctamente");
     return {
       success: true,
       error: null,
     };
   } catch (error) {
-    console.error("Error al cerrar sesión:", error);
+    console.error("❌ Error al cerrar sesión:", error);
     return {
       success: false,
       error: error.message,

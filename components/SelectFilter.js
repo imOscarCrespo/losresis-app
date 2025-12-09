@@ -96,8 +96,8 @@ export const SelectFilter = ({
   }, [filteredOptions, value, placeholder]);
 
   return (
-    <View style={[styles.container, style]}>
-      <Text style={styles.label}>{label}</Text>
+    <View style={[styles.container, !label && styles.containerNoLabel, style]}>
+      {label ? <Text style={styles.label}>{label}</Text> : null}
       <TouchableOpacity
         style={styles.selectButton}
         onPress={() => setModalVisible(true)}
@@ -191,6 +191,9 @@ export const SelectFilter = ({
 const styles = StyleSheet.create({
   container: {
     marginBottom: 16,
+  },
+  containerNoLabel: {
+    marginBottom: 0,
   },
   label: {
     fontSize: 14,

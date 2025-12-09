@@ -27,13 +27,20 @@ export default function App() {
     setIsAuthenticated(true);
   };
 
+  const handleSignOut = async () => {
+    // Forzar que el usuario vuelva a hacer login
+    setIsAuthenticated(false);
+    // Recargar la verificación de autenticación para asegurar que no hay sesión
+    await checkAuth();
+  };
+
   if (isLoading) {
     return null;
   }
 
   // Renderizar condicionalmente sin navegación por ahora
   if (isAuthenticated) {
-    return <DashboardScreen />;
+    return <DashboardScreen onSignOut={handleSignOut} />;
   }
 
   return <WelcomeScreen onAuthSuccess={handleAuthSuccess} />;

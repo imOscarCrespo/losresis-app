@@ -17,6 +17,7 @@ export default function HospitalsScreen({
   onHospitalPress,
   onStudentPress,
   onReviewsPress,
+  onProfilePress,
 }) {
   const {
     filteredHospitals,
@@ -159,7 +160,18 @@ export default function HospitalsScreen({
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Hospitales</Text>
+          <View style={styles.headerTop}>
+            <Text style={styles.title}>Hospitales</Text>
+            {onProfilePress && (
+              <TouchableOpacity
+                style={styles.profileButton}
+                onPress={onProfilePress}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="person-circle" size={28} color="#007AFF" />
+              </TouchableOpacity>
+            )}
+          </View>
           <Text style={styles.resultsText}>
             Mostrando{" "}
             <Text style={styles.resultsNumber}>{filteredHospitals.length}</Text>{" "}
@@ -211,11 +223,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#E5E5EA",
   },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   title: {
     fontSize: 28,
     fontWeight: "bold",
     color: "#1a1a1a",
-    marginBottom: 8,
+    flex: 1,
+  },
+  profileButton: {
+    padding: 4,
   },
   resultsText: {
     fontSize: 14,

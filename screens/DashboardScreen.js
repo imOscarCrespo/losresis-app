@@ -4,8 +4,9 @@ import { ScreenLayout } from "../components/ScreenLayout";
 import HospitalsScreen from "./HospitalsScreen";
 import HospitalDetailScreen from "./HospitalDetailScreen";
 import MirSimulatorScreen from "./MirSimulatorScreen";
+import ProfileScreen from "./ProfileScreen";
 
-export default function DashboardScreen() {
+export default function DashboardScreen({ onSignOut }) {
   const [currentScreen, setCurrentScreen] = useState("hospitals");
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState(null);
@@ -42,6 +43,14 @@ export default function DashboardScreen() {
     setCurrentScreen("hospitals");
   };
 
+  const handleBackFromProfile = () => {
+    setCurrentScreen("hospitals");
+  };
+
+  const handleProfilePress = () => {
+    setCurrentScreen("profile");
+  };
+
   // Si estamos en la pantalla de detalle del hospital
   if (currentScreen === "hospitalDetail" && selectedHospital) {
     return (
@@ -61,6 +70,19 @@ export default function DashboardScreen() {
     return <MirSimulatorScreen onBack={handleBackFromMirSimulator} />;
   }
 
+  // Si estamos en la pantalla de perfil
+  if (currentScreen === "profile") {
+    return (
+      <ProfileScreen
+        onBack={handleBackFromProfile}
+        onHospitalPress={handleHospitalPress}
+        onStudentPress={handleStudentPress}
+        onReviewsPress={handleReviewsPress}
+        onSignOut={onSignOut}
+      />
+    );
+  }
+
   // Si estamos en la pantalla de hospitales, renderizar HospitalsScreen directamente
   if (currentScreen === "hospitals") {
     return (
@@ -69,6 +91,7 @@ export default function DashboardScreen() {
         onHospitalPress={handleHospitalPress}
         onStudentPress={handleStudentPress}
         onReviewsPress={handleReviewsPress}
+        onProfilePress={handleProfilePress}
       />
     );
   }
