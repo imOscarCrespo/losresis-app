@@ -1,0 +1,8 @@
+// Exportar todos los componentes reutilizables desde aquí
+export { Button } from "./Button";
+export { Card } from "./Card";
+export { Footer } from "./Footer";
+export { ScreenLayout } from "./ScreenLayout";
+export { Filters } from "./Filters";
+export { SearchFilter } from "./SearchFilter";
+export { SelectFilter } from "./SelectFilter";

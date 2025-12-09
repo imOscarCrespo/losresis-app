@@ -1,0 +1,324 @@
+/**
+ * Servicio de autenticación con Supabase
+ * Maneja login con Google OAuth y verificación de sesión
+ */
+
+import { supabase } from "../config/supabase";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
+
+// Necesario para que WebBrowser funcione correctamente
+WebBrowser.maybeCompleteAuthSession();
+
+/**
+ * Iniciar sesión con Google OAuth
+ * @param {string} redirectUrl - URL de redirección después del login
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export const signInWithGoogle = async (redirectUrl) => {
+  try {
+    console.log("🔐 Iniciando OAuth con Google...");
+    console.log("📍 Redirect URL:", redirectUrl);
+
+    // Obtener la URL de OAuth de Supabase
+    // IMPORTANTE: Usar la URL de la app móvil, no la web
+    // La URL debe ser el scheme de la app (losresis://) no una URL web
+    console.log("🔗 URL de redirección que se usará:", redirectUrl);
+
+    // Asegurar que la URL de redirección sea la de la app móvil
+    // Forzar siempre losresis://auth/callback para evitar que use la URL web
+    const finalRedirectUrl = "losresis://auth/callback";
+    console.log("🔗 URL de redirección forzada a móvil:", finalRedirectUrl);
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: finalRedirectUrl,
+        skipBrowserRedirect: true, // Importante: no abrir el navegador automáticamente
+        queryParams: {
+          redirect_to: finalRedirectUrl, // Forzar explícitamente la URL de redirección
+        },
+      },
+    });
+
+    if (error) {
+      console.error("❌ Error en Google OAuth:", error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    if (!data?.url) {
+      console.error("❌ No se recibió URL de OAuth");
+      return {
+        success: false,
+        error: "No se recibió URL de autenticación",
+      };
+    }
+
+    console.log("🌐 Abriendo navegador con URL:", data.url);
+
+    // Abrir el navegador con la URL de OAuth
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+
+    console.log("🔙 Resultado del navegador:", result);
+
+    if (result.type === "success" && result.url) {
+      console.log("✅ URL de callback recibida:", result.url);
+
+      // Extraer tokens del hash de la URL (#access_token=...)
+      // Linking.parse() no extrae parámetros del hash, necesitamos hacerlo manualmente
+      const extractHashParams = (url) => {
+        const hashIndex = url.indexOf("#");
+        if (hashIndex === -1) return {};
+
+        const hash = url.substring(hashIndex + 1);
+        const params = {};
+        hash.split("&").forEach((param) => {
+          const [key, value] = param.split("=");
+          if (key && value) {
+            params[key] = decodeURIComponent(value);
+          }
+        });
+        return params;
+      };
+
+      const hashParams = extractHashParams(result.url);
+      console.log("📋 Parámetros del hash extraídos:", Object.keys(hashParams));
+
+      // Intentar obtener la sesión actual primero
+      let { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+
+      // Si no hay sesión, intentar establecerla con los tokens del hash
+      if (sessionError || !sessionData?.session) {
+        console.log(
+          "🔄 No hay sesión activa, intentando establecer con tokens del hash..."
+        );
+
+        const accessToken = hashParams.access_token;
+        const refreshToken = hashParams.refresh_token;
+
+        if (accessToken && refreshToken) {
+          console.log("🔑 Estableciendo sesión con tokens del hash...");
+          const { data: manualSession, error: manualError } =
+            await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+          if (manualError) {
+            console.error(
+              "❌ Error al establecer sesión manualmente:",
+              manualError
+            );
+            return {
+              success: false,
+              error: manualError.message,
+            };
+          }
+
+          if (manualSession?.session) {
+            console.log("✅ Sesión establecida correctamente");
+            return {
+              success: true,
+              data: manualSession,
+            };
+          }
+        }
+
+        // Si aún no funciona, intentar usar exchangeCodeForSession si hay un code
+        if (hashParams.code) {
+          console.log("🔄 Intentando intercambiar código por sesión...");
+          const { data: codeSession, error: codeError } =
+            await supabase.auth.exchangeCodeForSession(hashParams.code);
+
+          if (!codeError && codeSession?.session) {
+            console.log("✅ Sesión obtenida mediante código");
+            return {
+              success: true,
+              data: codeSession,
+            };
+          }
+        }
+
+        return {
+          success: false,
+          error: sessionError?.message || "No se pudo establecer la sesión",
+        };
+      }
+
+      if (sessionData?.session) {
+        console.log("✅ Sesión obtenida correctamente");
+        return {
+          success: true,
+          data: sessionData,
+        };
+      } else {
+        console.error("❌ No se pudo obtener la sesión");
+        return {
+          success: false,
+          error: "No se pudo establecer la sesión",
+        };
+      }
+    } else if (result.type === "cancel") {
+      console.log("⚠️ Usuario canceló el login");
+      return {
+        success: false,
+        error: "Login cancelado por el usuario",
+      };
+    } else {
+      console.error("❌ Error en el flujo de OAuth:", result);
+      return {
+        success: false,
+        error: "Error en el flujo de autenticación",
+      };
+    }
+  } catch (error) {
+    console.error("❌ Error al iniciar sesión con Google:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
+
+/**
+ * Obtener el usuario actual
+ * @returns {Promise<{success: boolean, user: object|null, error: string|null}>}
+ */
+export const getCurrentUser = async () => {
+  try {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error) {
+      return {
+        success: false,
+        user: null,
+        error: error.message,
+      };
+    }
+
+    return {
+      success: true,
+      user,
+      error: null,
+    };
+  } catch (error) {
+    console.error("Error al obtener usuario:", error);
+    return {
+      success: false,
+      user: null,
+      error: error.message,
+    };
+  }
+};
+
+/**
+ * Obtener el perfil completo del usuario desde la tabla users
+ * @param {string} userId - ID del usuario
+ * @returns {Promise<{success: boolean, profile: object|null, error: string|null}>}
+ */
+export const getUserProfile = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (error) {
+      return {
+        success: false,
+        profile: null,
+        error: error.message,
+      };
+    }
+
+    return {
+      success: true,
+      profile: data,
+      error: null,
+    };
+  } catch (error) {
+    console.error("Error al obtener perfil:", error);
+    return {
+      success: false,
+      profile: null,
+      error: error.message,
+    };
+  }
+};
+
+/**
+ * Verificar si el usuario tiene un perfil completo
+ * @param {object} profile - Perfil del usuario
+ * @returns {boolean}
+ */
+export const hasCompleteProfile = (profile) => {
+  if (!profile) return false;
+  return !!(profile.is_student || profile.is_resident || profile.is_doctor);
+};
+
+/**
+ * Cerrar sesión
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    return {
+      success: true,
+      error: null,
+    };
+  } catch (error) {
+    console.error("Error al cerrar sesión:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
+
+/**
+ * Obtener la sesión actual
+ * @returns {Promise<{success: boolean, session: object|null, error: string|null}>}
+ */
+export const getSession = async () => {
+  try {
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error) {
+      return {
+        success: false,
+        session: null,
+        error: error.message,
+      };
+    }
+
+    return {
+      success: true,
+      session: data.session,
+      error: null,
+    };
+  } catch (error) {
+    console.error("Error al obtener sesión:", error);
+    return {
+      success: false,
+      session: null,
+      error: error.message,
+    };
+  }
+};
