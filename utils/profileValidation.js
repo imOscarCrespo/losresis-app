@@ -8,6 +8,14 @@
  * @returns {{ isValid: boolean, error?: string }}
  */
 export const validateProfileForm = (formData) => {
+  // Validar que se haya seleccionado un tipo de usuario
+  if (!formData.is_student && !formData.is_resident && !formData.is_doctor) {
+    return {
+      isValid: false,
+      error: "Por favor, selecciona un tipo de usuario.",
+    };
+  }
+
   if (!formData.city?.trim()) {
     return {
       isValid: false,

@@ -7,6 +7,8 @@ import {
   Modal,
   FlatList,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -19,6 +21,7 @@ import { Ionicons } from "@expo/vector-icons";
  * @param {array} props.options - Array de opciones [{id: string, name: string}]
  * @param {string} props.placeholder - Texto placeholder cuando no hay selección
  * @param {object} props.style - Estilos adicionales
+ * @param {boolean} props.enableSearch - Si se habilita la búsqueda (por defecto true)
  */
 export const SelectFilter = ({
   label,
@@ -27,6 +30,7 @@ export const SelectFilter = ({
   options = [],
   placeholder = "Seleccionar...",
   style,
+  enableSearch = true,
 }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -126,62 +130,71 @@ export const SelectFilter = ({
           activeOpacity={1}
           onPress={handleModalClose}
         >
-          <View
-            style={styles.modalContent}
-            onStartShouldSetResponder={() => true}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.keyboardAvoidingView}
+            keyboardVerticalOffset={0}
           >
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{label}</Text>
-              <TouchableOpacity
-                onPress={handleModalClose}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Campo de búsqueda */}
-            <View style={styles.searchContainer}>
-              <Ionicons
-                name="search"
-                size={20}
-                color="#999"
-                style={styles.searchIcon}
-              />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Buscar..."
-                placeholderTextColor="#999"
-                value={searchText}
-                onChangeText={setSearchText}
-                autoFocus={false}
-              />
-              {searchText.length > 0 && (
+            <View
+              style={styles.modalContent}
+              onStartShouldSetResponder={() => true}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{label}</Text>
                 <TouchableOpacity
-                  onPress={() => setSearchText("")}
-                  style={styles.clearSearchButton}
+                  onPress={handleModalClose}
+                  style={styles.closeButton}
                 >
-                  <Ionicons name="close-circle" size={20} color="#999" />
+                  <Ionicons name="close" size={24} color="#666" />
                 </TouchableOpacity>
-              )}
-            </View>
+              </View>
 
-            <FlatList
-              data={listData}
-              renderItem={renderOption}
-              keyExtractor={(item, index) =>
-                (item.id || item).toString() + index
-              }
-              style={styles.optionsList}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>
-                    No se encontraron resultados
-                  </Text>
+              {/* Campo de búsqueda */}
+              {enableSearch && (
+                <View style={styles.searchContainer}>
+                  <Ionicons
+                    name="search"
+                    size={20}
+                    color="#999"
+                    style={styles.searchIcon}
+                  />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Buscar..."
+                    placeholderTextColor="#999"
+                    value={searchText}
+                    onChangeText={setSearchText}
+                    autoFocus={false}
+                  />
+                  {searchText.length > 0 && (
+                    <TouchableOpacity
+                      onPress={() => setSearchText("")}
+                      style={styles.clearSearchButton}
+                    >
+                      <Ionicons name="close-circle" size={20} color="#999" />
+                    </TouchableOpacity>
+                  )}
                 </View>
-              }
-            />
-          </View>
+              )}
+
+              <FlatList
+                data={listData}
+                renderItem={renderOption}
+                keyExtractor={(item, index) =>
+                  (item.id || item).toString() + index
+                }
+                style={styles.optionsList}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>
+                      No se encontraron resultados
+                    </Text>
+                  </View>
+                }
+              />
+            </View>
+          </KeyboardAvoidingView>
         </TouchableOpacity>
       </Modal>
     </View>
@@ -224,6 +237,10 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  keyboardAvoidingView: {
+    flex: 1,
     justifyContent: "flex-end",
   },
   modalContent: {

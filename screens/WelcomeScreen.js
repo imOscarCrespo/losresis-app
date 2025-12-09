@@ -14,8 +14,8 @@ import {
   signInWithGoogle,
   getCurrentUser,
   getUserProfile,
-  hasCompleteProfile,
 } from "../services/authService";
+import { isProfileComplete } from "../services/userService";
 import { supabase } from "../config/supabase";
 import * as Linking from "expo-linking";
 
@@ -76,7 +76,12 @@ export default function WelcomeScreen({ onAuthSuccess }) {
             session.user.id
           );
 
-          if (profileSuccess && profile && hasCompleteProfile(profile)) {
+          const complete = profileSuccess && profile && isProfileComplete(profile, {
+            hasActiveEmailReview: false,
+            isEmailValid: true,
+          });
+          
+          if (complete) {
             console.log("✅ Perfil completo, navegando al dashboard");
           } else {
             console.log(
@@ -121,21 +126,28 @@ export default function WelcomeScreen({ onAuthSuccess }) {
         if (profileSuccess && profile) {
           console.log("✅ Perfil de usuario obtenido:", profile);
 
-          if (hasCompleteProfile(profile)) {
+          const complete = isProfileComplete(profile, {
+            hasActiveEmailReview: false,
+            isEmailValid: true,
+          });
+
+          if (complete) {
             console.log("✅ Usuario con perfil completo, redirigiendo...");
             if (onAuthSuccess) {
               onAuthSuccess();
             }
           } else {
             console.log(
-              "⚠️ Usuario sin tipo definido, redirigiendo al dashboard"
+              "⚠️ Usuario sin perfil completo, será redirigido a onboarding"
             );
+            // Llamar a onAuthSuccess para que App.js maneje el onboarding
             if (onAuthSuccess) {
               onAuthSuccess();
             }
           }
         } else {
-          console.log("⚠️ Perfil no existe, redirigiendo al dashboard");
+          console.log("⚠️ Perfil no existe, será redirigido a onboarding");
+          // Llamar a onAuthSuccess para que App.js maneje el onboarding
           if (onAuthSuccess) {
             onAuthSuccess();
           }

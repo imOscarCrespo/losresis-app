@@ -13,7 +13,7 @@ const INITIAL_FORM_DATA = {
   hospital_id: "",
   speciality_id: "",
   resident_year: "",
-  is_student: false,
+  is_student: true, // Por defecto, estudiante
   is_resident: false,
   is_doctor: false,
 };
@@ -59,6 +59,14 @@ export const useProfileForm = () => {
           is_student: profile.is_student || false,
           is_resident: profile.is_resident || false,
           is_doctor: profile.is_doctor || false,
+        });
+      } else {
+        // Si no hay perfil, establecer estudiante por defecto
+        setFormData({
+          ...INITIAL_FORM_DATA,
+          is_student: true,
+          is_resident: false,
+          is_doctor: false,
         });
       }
     } catch (error) {
@@ -194,6 +202,9 @@ export const useProfileForm = () => {
         setTimeout(() => {
           loadUserProfile();
         }, 1000);
+        
+        // Retornar éxito para que el componente padre pueda manejar la redirección
+        return { success: true, profile };
       } catch (error) {
         console.error("Exception updating profile:", error);
         setMessage({

@@ -36,6 +36,8 @@ export default function ProfileScreen({
   onStudentPress,
   onReviewsPress,
   onSignOut,
+  isOnboarding = false,
+  onProfileComplete,
 }) {
   const { hospitals, specialties, uniqueCities } = useHospitals();
   const { validateEmailDomain, loading: validatingEmail } =
@@ -56,8 +58,14 @@ export default function ProfileScreen({
     handleUserTypeChange,
     getCurrentUserType,
     handleWorkEmailChange,
-    handleSubmit,
+    handleSubmit: originalHandleSubmit,
   } = useProfileForm();
+
+  // Wrapper para handleSubmit que maneja el modo onboarding
+  const handleSubmit = async () => {
+    await originalHandleSubmit(validateEmailDomain);
+    // El useEffect manejará la redirección cuando el perfil esté completo
+  };
 
   const {
     submitting: emailReviewSubmitting,
@@ -241,6 +249,35 @@ export default function ProfileScreen({
     [formData, hasActiveEmailReview, isEmailValid]
   );
 
+  // Redirigir automáticamente cuando el perfil se completa en modo onboarding
+  useEffect(() => {
+    if (
+      isOnboarding &&
+      profileComplete &&
+      userProfile &&
+      onProfileComplete &&
+      !loading &&
+      !loadingProfile &&
+      !validatingEmail
+    ) {
+      console.log("✅ Perfil completo en onboarding, redirigiendo...");
+      // Pequeño delay para que el usuario vea el mensaje de éxito
+      const timeoutId = setTimeout(() => {
+        onProfileComplete();
+      }, 1500);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [
+    isOnboarding,
+    profileComplete,
+    userProfile,
+    onProfileComplete,
+    loading,
+    loadingProfile,
+    validatingEmail,
+  ]);
+
   const isEmailInputDisabled = !formData.hospital_id || !formData.speciality_id;
 
   if (loadingProfile) {
@@ -269,14 +306,23 @@ export default function ProfileScreen({
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBack}
-            activeOpacity={0.7}
+          {!isOnboarding && (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={onBack}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
+            </TouchableOpacity>
+          )}
+          <Text
+            style={[
+              styles.headerTitle,
+              isOnboarding && styles.headerTitleCentered,
+            ]}
           >
-            <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Mi Perfil</Text>
+            {isOnboarding ? "Completa tu Perfil" : "Mi Perfil"}
+          </Text>
         </View>
 
         {/* Profile Status */}
@@ -359,6 +405,7 @@ export default function ProfileScreen({
                   onSelect={(city) => updateField("city", city)}
                   options={cityOptions}
                   placeholder="Selecciona tu ciudad"
+                  enableSearch={false}
                 />
               </View>
             </View>
@@ -378,6 +425,7 @@ export default function ProfileScreen({
                     onSelect={(year) => updateField("resident_year", year)}
                     options={RESIDENT_YEAR_OPTIONS}
                     placeholder="Selecciona el año"
+                    enableSearch={false}
                   />
                 </View>
               )}
@@ -392,6 +440,7 @@ export default function ProfileScreen({
                   }
                   options={hospitalOptions}
                   placeholder="Selecciona tu hospital"
+                  enableSearch={false}
                 />
               </View>
 
@@ -405,6 +454,7 @@ export default function ProfileScreen({
                   }
                   options={specialtyOptions}
                   placeholder="Selecciona tu especialidad"
+                  enableSearch={false}
                 />
               </View>
 
@@ -487,20 +537,26 @@ export default function ProfileScreen({
           <View style={styles.actionsContainer}>
             <Button
               title={
-                loading || validatingEmail ? "Guardando..." : "Guardar Cambios"
+                loading || validatingEmail
+                  ? "Guardando..."
+                  : isOnboarding
+                  ? "Continuar"
+                  : "Guardar Cambios"
               }
-              onPress={() => handleSubmit(validateEmailDomain)}
+              onPress={handleSubmit}
               loading={loading || validatingEmail}
               disabled={loading || validatingEmail}
               variant="primary"
               style={styles.saveButton}
             />
-            <Button
-              title="Cerrar Sesión"
-              onPress={handleSignOut}
-              variant="secondary"
-              style={styles.signOutButton}
-            />
+            {!isOnboarding && (
+              <Button
+                title="Cerrar Sesión"
+                onPress={handleSignOut}
+                variant="secondary"
+                style={styles.signOutButton}
+              />
+            )}
           </View>
         </View>
       </ScrollView>
@@ -540,6 +596,10 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     color: "#1a1a1a",
+  },
+  headerTitleCentered: {
+    flex: 1,
+    textAlign: "center",
   },
   formCard: {
     backgroundColor: "#ffffff",
