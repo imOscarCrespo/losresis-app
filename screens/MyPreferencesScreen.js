@@ -186,10 +186,10 @@ const AddPreferenceModal = ({
   const hospitalOptions = useMemo(() => {
     // Usar hospitals que tiene todos los hospitales cargados
     const allHospitals = hospitals.length > 0 ? hospitals : initialHospitals;
-    
+
     // Usar la misma función de preparación que ProfileScreen para mantener consistencia
     const prepared = prepareHospitalOptions(allHospitals);
-    
+
     // Ajustar el formato para incluir la región (ProfileScreen solo muestra ciudad)
     return prepared.map((option) => {
       // Buscar el hospital original para obtener la región
@@ -307,10 +307,7 @@ const AddPreferenceModal = ({
                 <Text style={styles.addButtonText}>Añadir Preferencia</Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={handleClose}
-            >
+            <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
               <Text style={styles.cancelButtonText}>Cancelar</Text>
             </TouchableOpacity>
           </View>

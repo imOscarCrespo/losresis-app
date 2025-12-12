@@ -1,17 +1,7 @@
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-const COLORS = {
-  PRIMARY: "#007AFF",
-  GRAY: "#8E8E93",
-  GRAY_LIGHT: "#F5F5F5",
-  GRAY_DARK: "#1a1a1a",
-};
+import { COLORS } from "../constants/colors";
 
 const GRID_COLUMNS = 3;
 const ICON_SIZE = 32;

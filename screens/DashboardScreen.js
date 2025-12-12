@@ -11,6 +11,8 @@ import MyPreferencesScreen from "./MyPreferencesScreen";
 import ComunityScreen from "./ComunityScreen";
 import MyReviewScreen from "./MyReviewScreen";
 import ResidenceLibraryScreen from "./ResidenceLibraryScreen";
+import ReviewsScreen from "./ReviewsScreen";
+import ReviewDetailScreen from "./ReviewDetailScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 
@@ -20,6 +22,7 @@ export default function DashboardScreen({ onSignOut }) {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState(null);
+  const [selectedReviewId, setSelectedReviewId] = useState(null);
 
   // Determinar sección inicial según el tipo de usuario
   const getInitialSection = (profile) => {
@@ -64,12 +67,17 @@ export default function DashboardScreen({ onSignOut }) {
     }
   };
 
-  const handleSectionChange = (sectionId) => {
+  const handleSectionChange = (sectionId, params = {}) => {
     setCurrentSection(sectionId);
     // Limpiar selecciones cuando cambiamos de sección
-    if (sectionId !== "hospitalDetail") {
+    if (sectionId !== "hospitalDetail" && sectionId !== "reviewDetail") {
       setSelectedHospital(null);
       setSelectedSpecialtyId(null);
+      setSelectedReviewId(null);
+    }
+    // Si es reviewDetail, guardar el reviewId
+    if (sectionId === "reviewDetail" && params.reviewId) {
+      setSelectedReviewId(params.reviewId);
     }
   };
 
@@ -108,10 +116,31 @@ export default function DashboardScreen({ onSignOut }) {
         isProfileIncomplete={isProfileIncomplete}
         onSectionChange={handleSectionChange}
       >
-      <HospitalDetailScreen
-        hospital={selectedHospital}
-        selectedSpecialtyId={selectedSpecialtyId}
-        onBack={handleBackFromDetail}
+        <HospitalDetailScreen
+          hospital={selectedHospital}
+          selectedSpecialtyId={selectedSpecialtyId}
+          onBack={handleBackFromDetail}
+        />
+      </ScreenLayout>
+    );
+  }
+
+  // Si estamos en la pantalla de detalle de reseña
+  if (selectedReviewId) {
+    return (
+      <ScreenLayout
+        userProfile={userProfile}
+        activeSection={currentSection}
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <ReviewDetailScreen
+          reviewId={selectedReviewId}
+          onBack={() => {
+            setSelectedReviewId(null);
+            setCurrentSection("reseñas");
+          }}
+          userProfile={userProfile}
         />
       </ScreenLayout>
     );
@@ -180,7 +209,6 @@ export default function DashboardScreen({ onSignOut }) {
       case "guardias":
       case "libro-residente":
       case "rotaciones-externas":
-      case "reseñas":
       case "foro":
       case "cursos":
       case "articulos":
@@ -189,6 +217,16 @@ export default function DashboardScreen({ onSignOut }) {
       case "faq-reseñas":
       case "contacto":
         return <PlaceholderScreen title={currentSection} />;
+
+      // Pantalla de reseñas
+      case "reseñas":
+        return (
+          <ReviewsScreen
+            onSectionChange={handleSectionChange}
+            currentSection={currentSection}
+            userProfile={userProfile}
+          />
+        );
 
       default:
         // Fallback: mostrar placeholder genérico
