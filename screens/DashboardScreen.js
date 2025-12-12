@@ -108,10 +108,10 @@ export default function DashboardScreen({ onSignOut }) {
         isProfileIncomplete={isProfileIncomplete}
         onSectionChange={handleSectionChange}
       >
-        <HospitalDetailScreen
-          hospital={selectedHospital}
-          selectedSpecialtyId={selectedSpecialtyId}
-          onBack={handleBackFromDetail}
+      <HospitalDetailScreen
+        hospital={selectedHospital}
+        selectedSpecialtyId={selectedSpecialtyId}
+        onBack={handleBackFromDetail}
         />
       </ScreenLayout>
     );
@@ -134,22 +134,28 @@ export default function DashboardScreen({ onSignOut }) {
 
       case "mirSimulator":
       case "nota-mir":
-        return <MirSimulatorScreen onBack={handleBackFromMirSimulator} />;
+    return <MirSimulatorScreen onBack={handleBackFromMirSimulator} />;
 
       case "profile":
       case "usuario":
-        return (
-          <ProfileScreen
-            onBack={handleBackFromProfile}
-            onSignOut={onSignOut}
+    return (
+      <ProfileScreen
+        onBack={handleBackFromProfile}
+        onSignOut={onSignOut}
             onSectionChange={handleSectionChange}
             currentSection={currentSection}
-          />
-        );
+      />
+    );
 
       // Nuevas pantallas placeholder
       case "menu":
-        return <MenuScreen />;
+        return (
+          <MenuScreen
+            onSectionChange={handleSectionChange}
+            currentSection={currentSection}
+            userProfile={userProfile}
+          />
+        );
 
       case "myPreferences":
         return (
@@ -169,6 +175,20 @@ export default function DashboardScreen({ onSignOut }) {
 
       case "residenceLibrary":
         return <ResidenceLibraryScreen />;
+
+      // Secciones del menú (placeholder)
+      case "guardias":
+      case "libro-residente":
+      case "rotaciones-externas":
+      case "reseñas":
+      case "foro":
+      case "cursos":
+      case "articulos":
+      case "vivienda":
+      case "jobs":
+      case "faq-reseñas":
+      case "contacto":
+        return <PlaceholderScreen title={currentSection} />;
 
       default:
         // Fallback: mostrar placeholder genérico
