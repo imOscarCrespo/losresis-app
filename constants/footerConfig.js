@@ -93,4 +93,3 @@ export const getFooterConfig = (userProfile) => {
   // Por defecto, footer de estudiante
   return STUDENT_FOOTER_ITEMS;
 };
-

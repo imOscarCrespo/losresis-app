@@ -140,7 +140,7 @@ export const SelectFilter = ({
               onStartShouldSetResponder={() => true}
             >
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{label}</Text>
+                <Text style={styles.modalTitle}>{label || placeholder}</Text>
                 <TouchableOpacity
                   onPress={handleModalClose}
                   style={styles.closeButton}
@@ -184,6 +184,7 @@ export const SelectFilter = ({
                   (item.id || item).toString() + index
                 }
                 style={styles.optionsList}
+                contentContainerStyle={styles.optionsListContent}
                 keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>
@@ -247,8 +248,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    height: "70%",
     maxHeight: "70%",
-    paddingBottom: 20,
   },
   modalHeader: {
     flexDirection: "row",
@@ -292,7 +293,10 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   optionsList: {
-    maxHeight: 400,
+    flex: 1,
+  },
+  optionsListContent: {
+    paddingBottom: 20,
   },
   emptyContainer: {
     padding: 32,

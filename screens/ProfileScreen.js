@@ -289,262 +289,262 @@ export default function ProfileScreen({
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          {!isOnboarding && (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={onBack}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-            </TouchableOpacity>
+      {/* Header */}
+      <View style={styles.header}>
+        {!isOnboarding && (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={onBack}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
+          </TouchableOpacity>
+        )}
+        <Text
+          style={[
+            styles.headerTitle,
+            isOnboarding && styles.headerTitleCentered,
+          ]}
+        >
+          {isOnboarding ? "Completa tu Perfil" : "Mi Perfil"}
+        </Text>
+      </View>
+
+      {/* Profile Status */}
+      <ProfileStatusCard isComplete={profileComplete} />
+
+      {/* Form Card */}
+      <View style={styles.formCard}>
+        {/* User Type Selection */}
+        <UserTypeSelector
+          selectedType={getCurrentUserType()}
+          onTypeChange={handleUserTypeChange}
+        />
+
+        {/* Personal Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Información Personal</Text>
+          <View style={styles.inputRow}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Nombre *</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons
+                  name="person"
+                  size={20}
+                  color="#999"
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Tu nombre"
+                  value={formData.name}
+                  onChangeText={(text) => updateField("name", text)}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Apellidos *</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons
+                  name="person"
+                  size={20}
+                  color="#999"
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Tus apellidos"
+                  value={formData.surname}
+                  onChangeText={(text) => updateField("surname", text)}
+                />
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.inputRow}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Teléfono</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons
+                  name="call"
+                  size={20}
+                  color="#999"
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="+34 600 000 000"
+                  value={formData.phone}
+                  onChangeText={(text) => updateField("phone", text)}
+                  keyboardType="phone-pad"
+                />
+              </View>
+            </View>
+
+            <View style={[styles.inputGroup, styles.inputGroupLast]}>
+              <Text style={styles.inputLabel}>Ciudad *</Text>
+              <SelectFilter
+                label=""
+                value={formData.city}
+                onSelect={(city) => updateField("city", city)}
+                options={cityOptions}
+                placeholder="Selecciona tu ciudad"
+                enableSearch={false}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Professional Information */}
+        {(formData.is_resident || formData.is_doctor) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Información Profesional</Text>
+
+            {formData.is_resident && (
+              <View style={styles.professionalInputGroup}>
+                <Text style={styles.inputLabel}>Año de residencia *</Text>
+                <SelectFilter
+                  label=""
+                  value={formData.resident_year}
+                  onSelect={(year) => updateField("resident_year", year)}
+                  options={RESIDENT_YEAR_OPTIONS}
+                  placeholder="Selecciona el año"
+                  enableSearch={false}
+                />
+              </View>
+            )}
+
+            <View style={styles.professionalInputGroup}>
+              <Text style={styles.inputLabel}>Hospital *</Text>
+              <SelectFilter
+                label=""
+                value={formData.hospital_id}
+                onSelect={(hospitalId) =>
+                  updateField("hospital_id", hospitalId)
+                }
+                options={hospitalOptions}
+                placeholder="Selecciona tu hospital"
+                enableSearch={false}
+              />
+            </View>
+
+            <View style={styles.professionalInputGroup}>
+              <Text style={styles.inputLabel}>Especialidad *</Text>
+              <SelectFilter
+                label=""
+                value={formData.speciality_id}
+                onSelect={(specialtyId) =>
+                  updateField("speciality_id", specialtyId)
+                }
+                options={specialtyOptions}
+                placeholder="Selecciona tu especialidad"
+                enableSearch={false}
+              />
+            </View>
+
+            <View style={styles.professionalInputGroup}>
+              <Text style={styles.inputLabel}>
+                Email de trabajo *
+                {isEmailInputDisabled && (
+                  <Text style={styles.inputHint}>
+                    {" "}
+                    (Selecciona hospital y especialidad primero)
+                  </Text>
+                )}
+              </Text>
+              <View style={styles.inputContainer}>
+                <Ionicons
+                  name="mail"
+                  size={20}
+                  color={isEmailInputDisabled ? "#CCC" : "#999"}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={[
+                    styles.input,
+                    isEmailInputDisabled && styles.inputDisabled,
+                  ]}
+                  placeholder={
+                    isEmailInputDisabled
+                      ? "Selecciona hospital y especialidad primero"
+                      : "tu.email@hospital.com"
+                  }
+                  value={formData.work_email}
+                  onChangeText={handleWorkEmailChange}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!isEmailInputDisabled}
+                />
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Email Review Request Section */}
+        {showEmailReviewSection &&
+          formData.is_resident &&
+          formData.work_email &&
+          formData.hospital_id && (
+            <EmailReviewSection
+              workEmail={formData.work_email}
+              onSubmit={handleSubmitEmailReview}
+              onCancel={handleCancelEmailReview}
+              isSubmitting={emailReviewSubmitting}
+              isSubmitted={emailReviewSubmitted}
+            />
           )}
-          <Text
+
+        {/* Message Display */}
+        {message && (
+          <View
             style={[
-              styles.headerTitle,
-              isOnboarding && styles.headerTitleCentered,
+              styles.messageContainer,
+              message.type === "success"
+                ? styles.messageSuccess
+                : styles.messageError,
             ]}
           >
-            {isOnboarding ? "Completa tu Perfil" : "Mi Perfil"}
-          </Text>
-        </View>
-
-        {/* Profile Status */}
-        <ProfileStatusCard isComplete={profileComplete} />
-
-        {/* Form Card */}
-        <View style={styles.formCard}>
-          {/* User Type Selection */}
-          <UserTypeSelector
-            selectedType={getCurrentUserType()}
-            onTypeChange={handleUserTypeChange}
-          />
-
-          {/* Personal Information */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Información Personal</Text>
-            <View style={styles.inputRow}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Nombre *</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons
-                    name="person"
-                    size={20}
-                    color="#999"
-                    style={styles.inputIcon}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Tu nombre"
-                    value={formData.name}
-                    onChangeText={(text) => updateField("name", text)}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Apellidos *</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons
-                    name="person"
-                    size={20}
-                    color="#999"
-                    style={styles.inputIcon}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Tus apellidos"
-                    value={formData.surname}
-                    onChangeText={(text) => updateField("surname", text)}
-                  />
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.inputRow}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Teléfono</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons
-                    name="call"
-                    size={20}
-                    color="#999"
-                    style={styles.inputIcon}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="+34 600 000 000"
-                    value={formData.phone}
-                    onChangeText={(text) => updateField("phone", text)}
-                    keyboardType="phone-pad"
-                  />
-                </View>
-              </View>
-
-              <View style={[styles.inputGroup, styles.inputGroupLast]}>
-                <Text style={styles.inputLabel}>Ciudad *</Text>
-                <SelectFilter
-                  label=""
-                  value={formData.city}
-                  onSelect={(city) => updateField("city", city)}
-                  options={cityOptions}
-                  placeholder="Selecciona tu ciudad"
-                  enableSearch={false}
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* Professional Information */}
-          {(formData.is_resident || formData.is_doctor) && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Información Profesional</Text>
-
-              {formData.is_resident && (
-                <View style={styles.professionalInputGroup}>
-                  <Text style={styles.inputLabel}>Año de residencia *</Text>
-                  <SelectFilter
-                    label=""
-                    value={formData.resident_year}
-                    onSelect={(year) => updateField("resident_year", year)}
-                    options={RESIDENT_YEAR_OPTIONS}
-                    placeholder="Selecciona el año"
-                    enableSearch={false}
-                  />
-                </View>
-              )}
-
-              <View style={styles.professionalInputGroup}>
-                <Text style={styles.inputLabel}>Hospital *</Text>
-                <SelectFilter
-                  label=""
-                  value={formData.hospital_id}
-                  onSelect={(hospitalId) =>
-                    updateField("hospital_id", hospitalId)
-                  }
-                  options={hospitalOptions}
-                  placeholder="Selecciona tu hospital"
-                  enableSearch={false}
-                />
-              </View>
-
-              <View style={styles.professionalInputGroup}>
-                <Text style={styles.inputLabel}>Especialidad *</Text>
-                <SelectFilter
-                  label=""
-                  value={formData.speciality_id}
-                  onSelect={(specialtyId) =>
-                    updateField("speciality_id", specialtyId)
-                  }
-                  options={specialtyOptions}
-                  placeholder="Selecciona tu especialidad"
-                  enableSearch={false}
-                />
-              </View>
-
-              <View style={styles.professionalInputGroup}>
-                <Text style={styles.inputLabel}>
-                  Email de trabajo *
-                  {isEmailInputDisabled && (
-                    <Text style={styles.inputHint}>
-                      {" "}
-                      (Selecciona hospital y especialidad primero)
-                    </Text>
-                  )}
-                </Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons
-                    name="mail"
-                    size={20}
-                    color={isEmailInputDisabled ? "#CCC" : "#999"}
-                    style={styles.inputIcon}
-                  />
-                  <TextInput
-                    style={[
-                      styles.input,
-                      isEmailInputDisabled && styles.inputDisabled,
-                    ]}
-                    placeholder={
-                      isEmailInputDisabled
-                        ? "Selecciona hospital y especialidad primero"
-                        : "tu.email@hospital.com"
-                    }
-                    value={formData.work_email}
-                    onChangeText={handleWorkEmailChange}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    editable={!isEmailInputDisabled}
-                  />
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Email Review Request Section */}
-          {showEmailReviewSection &&
-            formData.is_resident &&
-            formData.work_email &&
-            formData.hospital_id && (
-              <EmailReviewSection
-                workEmail={formData.work_email}
-                onSubmit={handleSubmitEmailReview}
-                onCancel={handleCancelEmailReview}
-                isSubmitting={emailReviewSubmitting}
-                isSubmitted={emailReviewSubmitted}
-              />
-            )}
-
-          {/* Message Display */}
-          {message && (
-            <View
+            <Text
               style={[
-                styles.messageContainer,
+                styles.messageText,
                 message.type === "success"
-                  ? styles.messageSuccess
-                  : styles.messageError,
+                  ? styles.messageTextSuccess
+                  : styles.messageTextError,
               ]}
             >
-              <Text
-                style={[
-                  styles.messageText,
-                  message.type === "success"
-                    ? styles.messageTextSuccess
-                    : styles.messageTextError,
-                ]}
-              >
-                {message.text}
-              </Text>
-            </View>
-          )}
-
-          {/* Action Buttons */}
-          <View style={styles.actionsContainer}>
-            <Button
-              title={
-                loading || validatingEmail
-                  ? "Guardando..."
-                  : isOnboarding
-                  ? "Continuar"
-                  : "Guardar Cambios"
-              }
-              onPress={handleSubmit}
-              loading={loading || validatingEmail}
-              disabled={loading || validatingEmail}
-              variant="primary"
-              style={styles.saveButton}
-            />
-            {!isOnboarding && (
-              <Button
-                title="Cerrar Sesión"
-                onPress={handleSignOut}
-                variant="secondary"
-                style={styles.signOutButton}
-              />
-            )}
+              {message.text}
+            </Text>
           </View>
+        )}
+
+        {/* Action Buttons */}
+        <View style={styles.actionsContainer}>
+          <Button
+            title={
+              loading || validatingEmail
+                ? "Guardando..."
+                : isOnboarding
+                ? "Continuar"
+                : "Guardar Cambios"
+            }
+            onPress={handleSubmit}
+            loading={loading || validatingEmail}
+            disabled={loading || validatingEmail}
+            variant="primary"
+            style={styles.saveButton}
+          />
+          {!isOnboarding && (
+            <Button
+              title="Cerrar Sesión"
+              onPress={handleSignOut}
+              variant="secondary"
+              style={styles.signOutButton}
+            />
+          )}
         </View>
-      </ScrollView>
+      </View>
+    </ScrollView>
   );
 }
 

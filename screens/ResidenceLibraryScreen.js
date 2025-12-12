@@ -7,4 +7,3 @@ import { PlaceholderScreen } from "../components/PlaceholderScreen";
 export default function ResidenceLibraryScreen() {
   return <PlaceholderScreen title="residenceLibrary" />;
 }
-

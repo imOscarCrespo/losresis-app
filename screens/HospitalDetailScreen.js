@@ -283,71 +283,69 @@ export default function HospitalDetailScreen({
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Header con botón de volver */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-          </TouchableOpacity>
+      {/* Header con botón de volver */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={onBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Card de información del hospital */}
+      <View style={styles.hospitalCard}>
+        <View style={styles.hospitalIconContainer}>
+          <Ionicons name="medical" size={32} color="#8B5CF6" />
         </View>
+        <Text style={styles.hospitalName}>{hospital.name}</Text>
 
-        {/* Card de información del hospital */}
-        <View style={styles.hospitalCard}>
-          <View style={styles.hospitalIconContainer}>
-            <Ionicons name="medical" size={32} color="#8B5CF6" />
-          </View>
-          <Text style={styles.hospitalName}>{hospital.name}</Text>
-
-          <View style={styles.hospitalInfoRow}>
-            <Ionicons name="location" size={16} color="#666" />
-            <Text style={styles.hospitalLocation}>
-              {hospital.city}, {hospital.region}
-            </Text>
-          </View>
-
-          {hospital.specialtyCount !== undefined && (
-            <View style={styles.hospitalInfoRow}>
-              <Ionicons name="school" size={16} color="#8B5CF6" />
-              <Text style={styles.specialtyCount}>
-                {hospital.specialtyCount} especialidades disponibles
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Header de especialidades */}
-        <View style={styles.specialtiesHeader}>
-          <Ionicons name="school" size={24} color="#8B5CF6" />
-          <Text style={styles.specialtiesHeaderText}>
-            Especialidades Disponibles
+        <View style={styles.hospitalInfoRow}>
+          <Ionicons name="location" size={16} color="#666" />
+          <Text style={styles.hospitalLocation}>
+            {hospital.city}, {hospital.region}
           </Text>
         </View>
 
-        {/* Lista de especialidades */}
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#8B5CF6" />
-            <Text style={styles.loadingText}>Cargando especialidades...</Text>
-          </View>
-        ) : filteredSpecialties.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              No se encontraron especialidades
+        {hospital.specialtyCount !== undefined && (
+          <View style={styles.hospitalInfoRow}>
+            <Ionicons name="school" size={16} color="#8B5CF6" />
+            <Text style={styles.specialtyCount}>
+              {hospital.specialtyCount} especialidades disponibles
             </Text>
           </View>
-        ) : (
-          <FlatList
-            data={filteredSpecialties}
-            renderItem={renderSpecialtyItem}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            contentContainerStyle={styles.specialtiesList}
-          />
         )}
-      </ScrollView>
+      </View>
+
+      {/* Header de especialidades */}
+      <View style={styles.specialtiesHeader}>
+        <Ionicons name="school" size={24} color="#8B5CF6" />
+        <Text style={styles.specialtiesHeaderText}>
+          Especialidades Disponibles
+        </Text>
+      </View>
+
+      {/* Lista de especialidades */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#8B5CF6" />
+          <Text style={styles.loadingText}>Cargando especialidades...</Text>
+        </View>
+      ) : filteredSpecialties.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No se encontraron especialidades</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredSpecialties}
+          renderItem={renderSpecialtyItem}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={false}
+          contentContainerStyle={styles.specialtiesList}
+        />
+      )}
+    </ScrollView>
   );
 }
 

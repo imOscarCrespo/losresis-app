@@ -117,4 +117,3 @@ export const getIconName = (icon) => {
   console.warn(`Footer: No se pudo determinar el icono para:`, icon);
   return "ellipse";
 };
-

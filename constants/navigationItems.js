@@ -22,7 +22,8 @@ export const NAVIGATION_ITEMS = [
     id: "hospitales",
     name: "Hospitales",
     icon: "business",
-    description: "Explora los hospitales y encuentra el mejor para tu residencia médica",
+    description:
+      "Explora los hospitales y encuentra el mejor para tu residencia médica",
     studentOnly: true,
   },
   {
@@ -43,7 +44,8 @@ export const NAVIGATION_ITEMS = [
     id: "nota-mir",
     name: "Simulador MIR",
     icon: "school",
-    description: "Consulta las probabilidades de acceso a hospitales según tu nota del MIR",
+    description:
+      "Consulta las probabilidades de acceso a hospitales según tu nota del MIR",
     studentOnly: true,
   },
   {
@@ -64,7 +66,8 @@ export const NAVIGATION_ITEMS = [
     id: "reseñas",
     name: "Reseñas",
     icon: "document-text",
-    description: "Consulta las reseñas de residentes sobre hospitales y especialidades",
+    description:
+      "Consulta las reseñas de residentes sobre hospitales y especialidades",
   },
   {
     id: "foro",
@@ -137,4 +140,3 @@ export const IMPLEMENTED_SECTIONS = [
 export const isSectionImplemented = (sectionId) => {
   return IMPLEMENTED_SECTIONS.includes(sectionId);
 };
-

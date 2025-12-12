@@ -183,9 +183,7 @@ export default function HospitalsScreen({
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                No se encontraron hospitales
-              </Text>
+              <Text style={styles.emptyText}>No se encontraron hospitales</Text>
             </View>
           }
         />

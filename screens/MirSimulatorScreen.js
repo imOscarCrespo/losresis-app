@@ -176,126 +176,124 @@ export default function MirSimulatorScreen({ onBack }) {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Header con botón de volver */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Simulador MIR</Text>
-        </View>
+      {/* Header con botón de volver */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={onBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Simulador MIR</Text>
+      </View>
 
-        {/* Form */}
-        <View style={styles.formCard}>
-          <View style={styles.formRow}>
-            {/* MIR Score Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Tu posición en el MIR *</Text>
-              <TextInput
-                style={styles.numberInput}
-                placeholder="1950"
-                keyboardType="numeric"
-                value={mirScore.toString()}
-                onChangeText={(text) => {
-                  const num = text === "" ? "" : parseFloat(text);
-                  if (text === "" || (!isNaN(num) && num >= 0)) {
-                    setMirScore(text);
-                  }
-                }}
-                maxLength={5}
-              />
-            </View>
-
-            {/* Specialty Selection */}
-            <View style={styles.inputGroup}>
-              <SelectFilter
-                label="Filtrar por especialidad *"
-                value={selectedSpecialty}
-                onSelect={setSelectedSpecialty}
-                options={specialtyOptions}
-                placeholder="Selecciona una especialidad"
-              />
-            </View>
-
-            {/* Region Selection */}
-            <View style={styles.inputGroup}>
-              <SelectFilter
-                label="Filtrar por comunidad autónoma"
-                value={selectedRegion}
-                onSelect={setSelectedRegion}
-                options={regionOptions}
-                placeholder="Todas las comunidades autónomas"
-              />
-            </View>
-          </View>
-
-          {/* Calculate Button */}
-          <TouchableOpacity
-            style={[
-              styles.calculateButton,
-              !canCalculate && styles.calculateButtonDisabled,
-            ]}
-            onPress={handleCalculate}
-            disabled={!canCalculate}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <View style={styles.buttonContent}>
-                <ActivityIndicator size="small" color="#ffffff" />
-                <Text style={styles.calculateButtonText}>Calculando...</Text>
-              </View>
-            ) : (
-              <Text style={styles.calculateButtonText}>
-                Calcular probabilidades
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Results */}
-        {results.length > 0 && (
-          <View style={styles.resultsCard}>
-            <View style={styles.resultsHeader}>
-              <Text style={styles.resultsTitle}>
-                Resultados de probabilidad
-              </Text>
-              <Text style={styles.resultsSubtitle}>
-                Basado en las notas de corte de los últimos 7 años (2019-2025)
-              </Text>
-            </View>
-
-            <FlatList
-              data={results}
-              renderItem={renderResultItem}
-              keyExtractor={(item) => item.hospital.id}
-              scrollEnabled={false}
-              contentContainerStyle={styles.resultsList}
+      {/* Form */}
+      <View style={styles.formCard}>
+        <View style={styles.formRow}>
+          {/* MIR Score Input */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Tu posición en el MIR *</Text>
+            <TextInput
+              style={styles.numberInput}
+              placeholder="1950"
+              keyboardType="numeric"
+              value={mirScore.toString()}
+              onChangeText={(text) => {
+                const num = text === "" ? "" : parseFloat(text);
+                if (text === "" || (!isNaN(num) && num >= 0)) {
+                  setMirScore(text);
+                }
+              }}
+              maxLength={5}
             />
           </View>
-        )}
 
-        {/* Help Text */}
-        <View style={styles.helpCard}>
-          <View style={styles.helpHeader}>
-            <Ionicons name="school" size={20} color="#2563EB" />
-            <Text style={styles.helpTitle}>
-              ¿Cómo se calcula la probabilidad?
+          {/* Specialty Selection */}
+          <View style={styles.inputGroup}>
+            <SelectFilter
+              label="Filtrar por especialidad *"
+              value={selectedSpecialty}
+              onSelect={setSelectedSpecialty}
+              options={specialtyOptions}
+              placeholder="Selecciona una especialidad"
+            />
+          </View>
+
+          {/* Region Selection */}
+          <View style={styles.inputGroup}>
+            <SelectFilter
+              label="Filtrar por comunidad autónoma"
+              value={selectedRegion}
+              onSelect={setSelectedRegion}
+              options={regionOptions}
+              placeholder="Todas las comunidades autónomas"
+            />
+          </View>
+        </View>
+
+        {/* Calculate Button */}
+        <TouchableOpacity
+          style={[
+            styles.calculateButton,
+            !canCalculate && styles.calculateButtonDisabled,
+          ]}
+          onPress={handleCalculate}
+          disabled={!canCalculate}
+          activeOpacity={0.8}
+        >
+          {loading ? (
+            <View style={styles.buttonContent}>
+              <ActivityIndicator size="small" color="#ffffff" />
+              <Text style={styles.calculateButtonText}>Calculando...</Text>
+            </View>
+          ) : (
+            <Text style={styles.calculateButtonText}>
+              Calcular probabilidades
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Results */}
+      {results.length > 0 && (
+        <View style={styles.resultsCard}>
+          <View style={styles.resultsHeader}>
+            <Text style={styles.resultsTitle}>Resultados de probabilidad</Text>
+            <Text style={styles.resultsSubtitle}>
+              Basado en las notas de corte de los últimos 7 años (2019-2025)
             </Text>
           </View>
-          <Text style={styles.helpText}>
-            La probabilidad se basa en los años disponibles de notas de corte
-            (2019-2025). Solo se incluyen en el cálculo los años que tienen
-            datos válidos. En el MIR, los números más bajos representan mejores
-            posiciones (como un ranking). Si tu posición es igual o mejor
-            (menor) que la nota de corte, podrías haber accedido ese año. El
-            porcentaje muestra en cuántos de esos años con datos habrías tenido
-            oportunidad de conseguir plaza.
+
+          <FlatList
+            data={results}
+            renderItem={renderResultItem}
+            keyExtractor={(item) => item.hospital.id}
+            scrollEnabled={false}
+            contentContainerStyle={styles.resultsList}
+          />
+        </View>
+      )}
+
+      {/* Help Text */}
+      <View style={styles.helpCard}>
+        <View style={styles.helpHeader}>
+          <Ionicons name="school" size={20} color="#2563EB" />
+          <Text style={styles.helpTitle}>
+            ¿Cómo se calcula la probabilidad?
           </Text>
         </View>
-      </ScrollView>
+        <Text style={styles.helpText}>
+          La probabilidad se basa en los años disponibles de notas de corte
+          (2019-2025). Solo se incluyen en el cálculo los años que tienen datos
+          válidos. En el MIR, los números más bajos representan mejores
+          posiciones (como un ranking). Si tu posición es igual o mejor (menor)
+          que la nota de corte, podrías haber accedido ese año. El porcentaje
+          muestra en cuántos de esos años con datos habrías tenido oportunidad
+          de conseguir plaza.
+        </Text>
+      </View>
+    </ScrollView>
   );
 }
 

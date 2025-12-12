@@ -7,4 +7,3 @@ import { PlaceholderScreen } from "../components/PlaceholderScreen";
 export default function MyReviewScreen() {
   return <PlaceholderScreen title="myReview" />;
 }
-

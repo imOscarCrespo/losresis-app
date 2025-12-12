@@ -28,7 +28,9 @@ export default function DashboardScreen({ onSignOut }) {
     return footerConfig[0]?.screen || "hospitales";
   };
 
-  const [currentSection, setCurrentSection] = useState(() => getInitialSection(null));
+  const [currentSection, setCurrentSection] = useState(() =>
+    getInitialSection(null)
+  );
 
   // Cargar perfil del usuario
   useEffect(() => {
@@ -150,7 +152,14 @@ export default function DashboardScreen({ onSignOut }) {
         return <MenuScreen />;
 
       case "myPreferences":
-        return <MyPreferencesScreen />;
+        return (
+          <MyPreferencesScreen
+            onSectionChange={handleSectionChange}
+            currentSection={currentSection}
+            userProfile={userProfile}
+            onHospitalSelect={handleHospitalSelect}
+          />
+        );
 
       case "comunity":
         return <ComunityScreen />;
@@ -163,9 +172,7 @@ export default function DashboardScreen({ onSignOut }) {
 
       default:
         // Fallback: mostrar placeholder genérico
-        return (
-          <PlaceholderScreen title={currentSection} />
-        );
+        return <PlaceholderScreen title={currentSection} />;
     }
   };
 
