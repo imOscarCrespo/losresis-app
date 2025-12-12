@@ -121,7 +121,9 @@ export const isProfileComplete = (
   if (!profile) return false;
 
   const hasRequiredBasicInfo = !!(
-    profile.name && profile.surname && profile.city
+    profile.name &&
+    profile.surname &&
+    profile.city
   );
 
   if (profile.is_student) {
@@ -165,4 +167,3 @@ export const isProfileComplete = (
 
   return false;
 };
-

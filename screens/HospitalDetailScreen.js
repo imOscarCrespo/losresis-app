@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenLayout } from "../components/ScreenLayout";
 import {
   getHospitalSpecialties,
   getDetailedGrades,
@@ -68,18 +67,6 @@ export default function HospitalDetailScreen({
     }
     return specialties;
   }, [specialties, selectedSpecialtyId]);
-
-  const handleHospitalPress = () => {
-    if (onBack) onBack();
-  };
-
-  const handleStudentPress = () => {
-    if (onBack) onBack();
-  };
-
-  const handleReviewsPress = () => {
-    if (onBack) onBack();
-  };
 
   const handleMoreInfo = async (specialty) => {
     // Si ya está expandida, colapsarla
@@ -288,27 +275,14 @@ export default function HospitalDetailScreen({
 
   if (!hospital) {
     return (
-      <ScreenLayout
-        onHospitalPress={handleHospitalPress}
-        onStudentPress={handleStudentPress}
-        onReviewsPress={handleReviewsPress}
-        activeTab="hospital"
-      >
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>No se encontró el hospital</Text>
-        </View>
-      </ScreenLayout>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>No se encontró el hospital</Text>
+      </View>
     );
   }
 
   return (
-    <ScreenLayout
-      onHospitalPress={handleHospitalPress}
-      onStudentPress={handleStudentPress}
-      onReviewsPress={handleReviewsPress}
-      activeTab="hospital"
-    >
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Header con botón de volver */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -374,7 +348,6 @@ export default function HospitalDetailScreen({
           />
         )}
       </ScrollView>
-    </ScreenLayout>
   );
 }
 

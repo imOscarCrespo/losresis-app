@@ -2,7 +2,10 @@ import { useState, useCallback } from "react";
 import { Alert } from "react-native";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { updateUserProfile } from "../services/userService";
-import { validateProfileForm, shouldShowEmailReview } from "../utils/profileValidation";
+import {
+  validateProfileForm,
+  shouldShowEmailReview,
+} from "../utils/profileValidation";
 
 const INITIAL_FORM_DATA = {
   name: "",
@@ -36,7 +39,8 @@ export const useProfileForm = () => {
   const loadUserProfile = useCallback(async () => {
     setLoadingProfile(true);
     try {
-      const { success: userSuccess, user: currentUser } = await getCurrentUser();
+      const { success: userSuccess, user: currentUser } =
+        await getCurrentUser();
       if (!userSuccess || !currentUser) {
         Alert.alert("Error", "No se pudo obtener el usuario actual");
         return;
@@ -116,13 +120,16 @@ export const useProfileForm = () => {
   /**
    * Maneja el cambio de email de trabajo
    */
-  const handleWorkEmailChange = useCallback((text) => {
-    updateField("work_email", text);
-    // Ocultar sección de revisión cuando el usuario cambia el email
-    if (showEmailReviewSection) {
-      setShowEmailReviewSection(false);
-    }
-  }, [showEmailReviewSection, updateField]);
+  const handleWorkEmailChange = useCallback(
+    (text) => {
+      updateField("work_email", text);
+      // Ocultar sección de revisión cuando el usuario cambia el email
+      if (showEmailReviewSection) {
+        setShowEmailReviewSection(false);
+      }
+    },
+    [showEmailReviewSection, updateField]
+  );
 
   /**
    * Valida y envía el formulario
@@ -163,7 +170,9 @@ export const useProfileForm = () => {
             } else {
               setMessage({
                 type: "error",
-                text: emailValidation.error || "Error al validar el email de trabajo.",
+                text:
+                  emailValidation.error ||
+                  "Error al validar el email de trabajo.",
               });
             }
             setLoading(false);
@@ -202,7 +211,7 @@ export const useProfileForm = () => {
         setTimeout(() => {
           loadUserProfile();
         }, 1000);
-        
+
         // Retornar éxito para que el componente padre pueda manejar la redirección
         return { success: true, profile };
       } catch (error) {
@@ -236,4 +245,3 @@ export const useProfileForm = () => {
     handleSubmit,
   };
 };
-

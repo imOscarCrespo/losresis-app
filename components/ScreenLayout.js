@@ -8,19 +8,19 @@ import { Footer } from "./Footer";
  * Componente Layout que envuelve las pantallas con Footer fijo de navegación
  * @param {object} props
  * @param {React.ReactNode} props.children - Contenido de la pantalla
+ * @param {object} props.userProfile - Perfil del usuario
+ * @param {string} props.activeSection - ID de la sección activa
+ * @param {boolean} props.isProfileIncomplete - Si el perfil está incompleto
+ * @param {function} props.onSectionChange - Callback cuando se cambia de sección
  * @param {object} props.style - Estilos adicionales para el contenedor
- * @param {function} props.onHospitalPress - Callback cuando se presiona el icono de hospital
- * @param {function} props.onStudentPress - Callback cuando se presiona el icono de estudiante
- * @param {function} props.onReviewsPress - Callback cuando se presiona el icono de reseñas
- * @param {string} props.activeTab - Tab activo: 'hospital', 'student', 'reviews'
  */
 export const ScreenLayout = ({
   children,
+  userProfile,
+  activeSection,
+  isProfileIncomplete = false,
+  onSectionChange,
   style,
-  onHospitalPress,
-  onStudentPress,
-  onReviewsPress,
-  activeTab,
 }) => {
   return (
     <SafeAreaView style={[styles.container, style]}>
@@ -28,10 +28,10 @@ export const ScreenLayout = ({
       <View style={styles.content}>{children}</View>
       <View style={styles.footerWrapper}>
         <Footer
-          onHospitalPress={onHospitalPress}
-          onStudentPress={onStudentPress}
-          onReviewsPress={onReviewsPress}
-          activeTab={activeTab}
+          userProfile={userProfile}
+          activeSection={activeSection}
+          isProfileIncomplete={isProfileIncomplete}
+          onSectionChange={onSectionChange}
         />
       </View>
     </SafeAreaView>

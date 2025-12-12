@@ -1,5 +1,11 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 /**
@@ -15,7 +21,7 @@ export const EmailReviewSection = ({
 }) => {
   const instructions = [
     "Verifica que el email que has puesto es realmente tu email de trabajo del hospital",
-    "Haz clic en \"Solicitar revisión manual\" para que nuestro equipo revise tu caso",
+    'Haz clic en "Solicitar revisión manual" para que nuestro equipo revise tu caso',
     "Te contactaremos pronto para confirmar tu email y activar tu cuenta",
   ];
 
@@ -220,6 +226,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-
-
-

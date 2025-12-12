@@ -32,10 +32,7 @@ export const UserTypeSelector = ({ selectedType, onTypeChange }) => {
           return (
             <TouchableOpacity
               key={type.id}
-              style={[
-                styles.card,
-                isSelected && styles.cardActive,
-              ]}
+              style={[styles.card, isSelected && styles.cardActive]}
               onPress={() => onTypeChange(type.id)}
               activeOpacity={0.7}
             >
@@ -45,10 +42,7 @@ export const UserTypeSelector = ({ selectedType, onTypeChange }) => {
                 color={isSelected ? type.color : "#6B7280"}
               />
               <Text
-                style={[
-                  styles.cardTitle,
-                  isSelected && { color: type.color },
-                ]}
+                style={[styles.cardTitle, isSelected && { color: type.color }]}
               >
                 {type.label}
               </Text>
@@ -101,6 +95,3 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
-
-
-

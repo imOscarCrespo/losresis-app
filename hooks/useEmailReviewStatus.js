@@ -46,6 +46,3 @@ export const useEmailReviewStatus = (userId) => {
     refresh: loadReviewStatus,
   };
 };
-
-
-

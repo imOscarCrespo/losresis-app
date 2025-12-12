@@ -48,6 +48,3 @@ export const prepareCityOptions = (cities) => {
       name: city,
     }));
 };
-
-
-

@@ -290,12 +290,17 @@ export const signOut = async () => {
       // Verificar que la sesión se haya eliminado
       const { data: sessionData } = await supabase.auth.getSession();
       if (sessionData?.session) {
-        console.warn("⚠️ La sesión aún existe después de signOut, forzando limpieza...");
+        console.warn(
+          "⚠️ La sesión aún existe después de signOut, forzando limpieza..."
+        );
         // Intentar cerrar sesión nuevamente
         await supabase.auth.signOut();
       }
     } catch (checkError) {
-      console.warn("⚠️ Error al verificar sesión después de signOut:", checkError);
+      console.warn(
+        "⚠️ Error al verificar sesión después de signOut:",
+        checkError
+      );
       // Continuar de todas formas
     }
 
@@ -303,7 +308,9 @@ export const signOut = async () => {
     // Esto se hace automáticamente al usar prompt: "select_account", pero lo hacemos explícito
     try {
       // WebBrowser no tiene método directo para limpiar cookies, pero el prompt lo manejará
-      console.log("🧹 Sesión y tokens eliminados. El próximo login pedirá selección de cuenta.");
+      console.log(
+        "🧹 Sesión y tokens eliminados. El próximo login pedirá selección de cuenta."
+      );
     } catch (cleanError) {
       console.warn("⚠️ Error al limpiar cookies:", cleanError);
     }

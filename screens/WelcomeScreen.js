@@ -76,11 +76,14 @@ export default function WelcomeScreen({ onAuthSuccess }) {
             session.user.id
           );
 
-          const complete = profileSuccess && profile && isProfileComplete(profile, {
-            hasActiveEmailReview: false,
-            isEmailValid: true,
-          });
-          
+          const complete =
+            profileSuccess &&
+            profile &&
+            isProfileComplete(profile, {
+              hasActiveEmailReview: false,
+              isEmailValid: true,
+            });
+
           if (complete) {
             console.log("✅ Perfil completo, navegando al dashboard");
           } else {

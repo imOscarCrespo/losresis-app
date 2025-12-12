@@ -10,7 +10,6 @@ import {
   FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenLayout } from "../components/ScreenLayout";
 import { SelectFilter } from "../components/SelectFilter";
 import { useHospitals } from "../hooks/useHospitals";
 import { calculateMIRProbabilities } from "../services/mirSimulatorService";
@@ -175,27 +174,8 @@ export default function MirSimulatorScreen({ onBack }) {
     );
   };
 
-  const handleHospitalPress = () => {
-    if (onBack) onBack();
-  };
-
-  const handleStudentPress = () => {
-    // Esta es la pantalla del simulador MIR (estudiante)
-    // No hacer nada, ya estamos aquí
-  };
-
-  const handleReviewsPress = () => {
-    if (onBack) onBack();
-  };
-
   return (
-    <ScreenLayout
-      onHospitalPress={handleHospitalPress}
-      onStudentPress={handleStudentPress}
-      onReviewsPress={handleReviewsPress}
-      activeTab="student"
-    >
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Header con botón de volver */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -316,7 +296,6 @@ export default function MirSimulatorScreen({ onBack }) {
           </Text>
         </View>
       </ScrollView>
-    </ScreenLayout>
   );
 }
 

@@ -10,7 +10,6 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenLayout } from "../components/ScreenLayout";
 import { SelectFilter } from "../components/SelectFilter";
 import { Button } from "../components/Button";
 import { EmailReviewSection } from "../components/EmailReviewSection";
@@ -32,10 +31,9 @@ import {
 
 export default function ProfileScreen({
   onBack,
-  onHospitalPress,
-  onStudentPress,
-  onReviewsPress,
   onSignOut,
+  onSectionChange,
+  currentSection,
   isOnboarding = false,
   onProfileComplete,
 }) {
@@ -282,28 +280,15 @@ export default function ProfileScreen({
 
   if (loadingProfile) {
     return (
-      <ScreenLayout
-        onHospitalPress={onHospitalPress}
-        onStudentPress={onStudentPress}
-        onReviewsPress={onReviewsPress}
-        activeTab=""
-      >
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Cargando perfil...</Text>
-        </View>
-      </ScreenLayout>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Cargando perfil...</Text>
+      </View>
     );
   }
 
   return (
-    <ScreenLayout
-      onHospitalPress={onHospitalPress}
-      onStudentPress={onStudentPress}
-      onReviewsPress={onReviewsPress}
-      activeTab=""
-    >
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           {!isOnboarding && (
@@ -560,7 +545,6 @@ export default function ProfileScreen({
           </View>
         </View>
       </ScrollView>
-    </ScreenLayout>
   );
 }
 

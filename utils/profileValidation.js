@@ -47,4 +47,3 @@ export const shouldShowEmailReview = (formData, emailValidation) => {
     formData.hospital_id
   );
 };
-

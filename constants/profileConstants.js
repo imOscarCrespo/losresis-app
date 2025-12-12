@@ -9,6 +9,3 @@ export const RESIDENT_YEAR_OPTIONS = [
   { id: "4", name: "R4 - Cuarto año" },
   { id: "5", name: "R5 - Quinto año" },
 ];
-
-
-

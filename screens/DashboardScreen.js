@@ -1,134 +1,209 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { ScreenLayout } from "../components/ScreenLayout";
+import { PlaceholderScreen } from "../components/PlaceholderScreen";
 import HospitalsScreen from "./HospitalsScreen";
 import HospitalDetailScreen from "./HospitalDetailScreen";
 import MirSimulatorScreen from "./MirSimulatorScreen";
 import ProfileScreen from "./ProfileScreen";
+import MenuScreen from "./MenuScreen";
+import MyPreferencesScreen from "./MyPreferencesScreen";
+import ComunityScreen from "./ComunityScreen";
+import MyReviewScreen from "./MyReviewScreen";
+import ResidenceLibraryScreen from "./ResidenceLibraryScreen";
+import { getCurrentUser, getUserProfile } from "../services/authService";
+import { getFooterConfig } from "../constants/footerConfig";
 
 export default function DashboardScreen({ onSignOut }) {
-  const [currentScreen, setCurrentScreen] = useState("hospitals");
+  const [userProfile, setUserProfile] = useState(null);
+  const [isProfileIncomplete, setIsProfileIncomplete] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState(null);
 
-  const handleHospitalPress = () => {
-    setCurrentScreen("hospitals");
-    setSelectedHospital(null);
-    setSelectedSpecialtyId(null);
+  // Determinar sección inicial según el tipo de usuario
+  const getInitialSection = (profile) => {
+    if (!profile) return "hospitales";
+    const footerConfig = getFooterConfig(profile);
+    return footerConfig[0]?.screen || "hospitales";
   };
 
-  const handleStudentPress = () => {
-    setCurrentScreen("mirSimulator");
+  const [currentSection, setCurrentSection] = useState(() => getInitialSection(null));
+
+  // Cargar perfil del usuario
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  // Actualizar sección inicial cuando se carga el perfil
+  useEffect(() => {
+    if (userProfile && !loadingProfile) {
+      const initialSection = getInitialSection(userProfile);
+      setCurrentSection(initialSection);
+    }
+  }, [userProfile, loadingProfile]);
+
+  const loadUserProfile = async () => {
+    try {
+      setLoadingProfile(true);
+      const { success: userSuccess, user } = await getCurrentUser();
+      if (userSuccess && user) {
+        const { success: profileSuccess, profile } = await getUserProfile(
+          user.id
+        );
+        if (profileSuccess && profile) {
+          setUserProfile(profile);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading user profile:", error);
+    } finally {
+      setLoadingProfile(false);
+    }
   };
 
-  const handleReviewsPress = () => {
-    // TODO: Navegar a pantalla de reseñas
-    console.log("Navegar a Reseñas");
-    setCurrentScreen("dashboard");
+  const handleSectionChange = (sectionId) => {
+    setCurrentSection(sectionId);
+    // Limpiar selecciones cuando cambiamos de sección
+    if (sectionId !== "hospitalDetail") {
+      setSelectedHospital(null);
+      setSelectedSpecialtyId(null);
+    }
   };
 
   const handleHospitalSelect = (hospital, specialtyId) => {
     setSelectedHospital(hospital);
     setSelectedSpecialtyId(specialtyId || null);
-    setCurrentScreen("hospitalDetail");
+    // No cambiar currentSection aquí, se maneja en HospitalsScreen
+  };
+
+  // Obtener la primera sección del footer según el tipo de usuario
+  const getDefaultSection = () => {
+    const footerConfig = getFooterConfig(userProfile);
+    return footerConfig[0]?.screen || "hospitales";
   };
 
   const handleBackFromDetail = () => {
     setSelectedHospital(null);
     setSelectedSpecialtyId(null);
-    setCurrentScreen("hospitals");
+    setCurrentSection(getDefaultSection());
   };
 
   const handleBackFromMirSimulator = () => {
-    setCurrentScreen("hospitals");
+    setCurrentSection(getDefaultSection());
   };
 
   const handleBackFromProfile = () => {
-    setCurrentScreen("hospitals");
-  };
-
-  const handleProfilePress = () => {
-    setCurrentScreen("profile");
+    setCurrentSection(getDefaultSection());
   };
 
   // Si estamos en la pantalla de detalle del hospital
-  if (currentScreen === "hospitalDetail" && selectedHospital) {
+  if (selectedHospital) {
     return (
-      <HospitalDetailScreen
-        hospital={selectedHospital}
-        selectedSpecialtyId={selectedSpecialtyId}
-        onBack={handleBackFromDetail}
-        onHospitalPress={handleHospitalPress}
-        onStudentPress={handleStudentPress}
-        onReviewsPress={handleReviewsPress}
-      />
+      <ScreenLayout
+        userProfile={userProfile}
+        activeSection={currentSection}
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <HospitalDetailScreen
+          hospital={selectedHospital}
+          selectedSpecialtyId={selectedSpecialtyId}
+          onBack={handleBackFromDetail}
+        />
+      </ScreenLayout>
     );
   }
 
-  // Si estamos en la pantalla de simulador MIR
-  if (currentScreen === "mirSimulator") {
-    return <MirSimulatorScreen onBack={handleBackFromMirSimulator} />;
-  }
+  // Renderizar según la sección activa
+  const renderSection = () => {
+    switch (currentSection) {
+      // Secciones existentes
+      case "hospitals":
+      case "hospitales":
+        return (
+          <HospitalsScreen
+            onHospitalSelect={handleHospitalSelect}
+            onSectionChange={handleSectionChange}
+            currentSection={currentSection}
+            userProfile={userProfile}
+          />
+        );
 
-  // Si estamos en la pantalla de perfil
-  if (currentScreen === "profile") {
-    return (
-      <ProfileScreen
-        onBack={handleBackFromProfile}
-        onHospitalPress={handleHospitalPress}
-        onStudentPress={handleStudentPress}
-        onReviewsPress={handleReviewsPress}
-        onSignOut={onSignOut}
-      />
-    );
-  }
+      case "mirSimulator":
+      case "nota-mir":
+        return <MirSimulatorScreen onBack={handleBackFromMirSimulator} />;
 
-  // Si estamos en la pantalla de hospitales, renderizar HospitalsScreen directamente
-  if (currentScreen === "hospitals") {
+      case "profile":
+      case "usuario":
+        return (
+          <ProfileScreen
+            onBack={handleBackFromProfile}
+            onSignOut={onSignOut}
+            onSectionChange={handleSectionChange}
+            currentSection={currentSection}
+          />
+        );
+
+      // Nuevas pantallas placeholder
+      case "menu":
+        return <MenuScreen />;
+
+      case "myPreferences":
+        return <MyPreferencesScreen />;
+
+      case "comunity":
+        return <ComunityScreen />;
+
+      case "myReview":
+        return <MyReviewScreen />;
+
+      case "residenceLibrary":
+        return <ResidenceLibraryScreen />;
+
+      default:
+        // Fallback: mostrar placeholder genérico
+        return (
+          <PlaceholderScreen title={currentSection} />
+        );
+    }
+  };
+
+  if (loadingProfile) {
     return (
-      <HospitalsScreen
-        onHospitalSelect={handleHospitalSelect}
-        onHospitalPress={handleHospitalPress}
-        onStudentPress={handleStudentPress}
-        onReviewsPress={handleReviewsPress}
-        onProfilePress={handleProfilePress}
-      />
+      <ScreenLayout
+        userProfile={userProfile}
+        activeSection={currentSection}
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Cargando...</Text>
+        </View>
+      </ScreenLayout>
     );
   }
 
   return (
     <ScreenLayout
-      onHospitalPress={handleHospitalPress}
-      onStudentPress={handleStudentPress}
-      onReviewsPress={handleReviewsPress}
-      activeTab="hospital"
+      userProfile={userProfile}
+      activeSection={currentSection}
+      isProfileIncomplete={isProfileIncomplete}
+      onSectionChange={handleSectionChange}
     >
-      <View style={styles.content}>
-        <Text style={styles.title}>Dashboard</Text>
-        <Text style={styles.subtitle}>
-          Pantalla en blanco después del login
-        </Text>
-      </View>
+      {renderSection()}
     </ScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
+  loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-    marginBottom: 12,
-  },
-  subtitle: {
+  loadingText: {
     fontSize: 16,
     color: "#666",
-    textAlign: "center",
   },
 });

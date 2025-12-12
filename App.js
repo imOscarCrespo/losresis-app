@@ -2,7 +2,11 @@ import React, { useState, useEffect } from "react";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import DashboardScreen from "./screens/DashboardScreen";
 import ProfileScreen from "./screens/ProfileScreen";
-import { getSession, getCurrentUser, getUserProfile } from "./services/authService";
+import {
+  getSession,
+  getCurrentUser,
+  getUserProfile,
+} from "./services/authService";
 import { isProfileComplete } from "./services/userService";
 
 export default function App() {
@@ -18,20 +22,22 @@ export default function App() {
     try {
       const { success, session } = await getSession();
       const hasSession = Boolean(success && session);
-      
+
       if (hasSession) {
         // Verificar si el usuario tiene perfil completo
         const { success: userSuccess, user } = await getCurrentUser();
         if (userSuccess && user) {
-          const { success: profileSuccess, profile } = await getUserProfile(user.id);
-          
+          const { success: profileSuccess, profile } = await getUserProfile(
+            user.id
+          );
+
           if (profileSuccess && profile) {
             // Verificar si el perfil está completo
             const complete = isProfileComplete(profile, {
               hasActiveEmailReview: false, // No verificamos esto en el check inicial
               isEmailValid: true, // Asumimos válido en el check inicial
             });
-            
+
             setIsAuthenticated(true);
             setNeedsOnboarding(!complete);
           } else {
@@ -60,8 +66,10 @@ export default function App() {
     // Después del login, verificar si necesita onboarding
     const { success: userSuccess, user } = await getCurrentUser();
     if (userSuccess && user) {
-      const { success: profileSuccess, profile } = await getUserProfile(user.id);
-      
+      const { success: profileSuccess, profile } = await getUserProfile(
+        user.id
+      );
+
       if (profileSuccess && profile) {
         const complete = isProfileComplete(profile, {
           hasActiveEmailReview: false,

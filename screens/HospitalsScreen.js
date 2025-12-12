@@ -8,16 +8,14 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenLayout } from "../components/ScreenLayout";
 import { Filters } from "../components/Filters";
 import { useHospitals } from "../hooks/useHospitals";
 
 export default function HospitalsScreen({
   onHospitalSelect,
-  onHospitalPress,
-  onStudentPress,
-  onReviewsPress,
-  onProfilePress,
+  onSectionChange,
+  currentSection,
+  userProfile,
 }) {
   const {
     filteredHospitals,
@@ -151,64 +149,48 @@ export default function HospitalsScreen({
   );
 
   return (
-    <ScreenLayout
-      onHospitalPress={onHospitalPress}
-      onStudentPress={onStudentPress}
-      onReviewsPress={onReviewsPress}
-      activeTab="hospital"
-    >
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <Text style={styles.title}>Hospitales</Text>
-            {onProfilePress && (
-              <TouchableOpacity
-                style={styles.profileButton}
-                onPress={onProfilePress}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="person-circle" size={28} color="#007AFF" />
-              </TouchableOpacity>
-            )}
-          </View>
-          <Text style={styles.resultsText}>
-            Mostrando{" "}
-            <Text style={styles.resultsNumber}>{filteredHospitals.length}</Text>{" "}
-            de {filteredHospitals.length} hospitales
-          </Text>
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <Text style={styles.title}>Hospitales</Text>
         </View>
-
-        {/* Filtros genéricos */}
-        <Filters
-          filters={filtersConfig}
-          onClearFilters={clearFilters}
-          hasActiveFilters={hasActiveFilters}
-        />
-
-        {/* Lista de hospitales */}
-        {loadingHospitals || loadingSpecialtyFilter ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.loadingText}>Cargando hospitales...</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={filteredHospitals}
-            renderItem={renderHospitalItem}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={styles.listContent}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>
-                  No se encontraron hospitales
-                </Text>
-              </View>
-            }
-          />
-        )}
+        <Text style={styles.resultsText}>
+          Mostrando{" "}
+          <Text style={styles.resultsNumber}>{filteredHospitals.length}</Text>{" "}
+          de {filteredHospitals.length} hospitales
+        </Text>
       </View>
-    </ScreenLayout>
+
+      {/* Filtros genéricos */}
+      <Filters
+        filters={filtersConfig}
+        onClearFilters={clearFilters}
+        hasActiveFilters={hasActiveFilters}
+      />
+
+      {/* Lista de hospitales */}
+      {loadingHospitals || loadingSpecialtyFilter ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Cargando hospitales...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredHospitals}
+          renderItem={renderHospitalItem}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                No se encontraron hospitales
+              </Text>
+            </View>
+          }
+        />
+      )}
+    </View>
   );
 }
 
