@@ -269,5 +269,3 @@ export const getInitialHospitals = async () => {
     };
   }
 };
-
-
