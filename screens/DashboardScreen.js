@@ -18,6 +18,7 @@ import ArticleDetailScreen from "./ArticleDetailScreen";
 import HousingScreen from "./HousingScreen";
 import HousingAdDetailScreen from "./HousingAdDetailScreen";
 import CreateHousingAdScreen from "./CreateHousingAdScreen";
+import ContactScreen from "./ContactScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 
@@ -364,6 +365,10 @@ export default function DashboardScreen({ onSignOut }) {
           />
         );
 
+      // Pantalla de contacto
+      case "contacto":
+        return <ContactScreen userProfile={userProfile} />;
+
       // Secciones del menú (placeholder)
       case "guardias":
       case "libro-residente":
@@ -372,7 +377,6 @@ export default function DashboardScreen({ onSignOut }) {
       case "cursos":
       case "jobs":
       case "faq-reseñas":
-      case "contacto":
         return <PlaceholderScreen title={currentSection} />;
 
       // Pantalla de reseñas
