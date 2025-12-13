@@ -66,3 +66,24 @@ export const formatSimpleDate = (dateString) => {
     return "";
   }
 };
+
+/**
+ * Formatea una fecha a formato largo sin hora (ej: "23 de noviembre de 2025")
+ * @param {string|Date} dateString - Fecha en formato string o Date
+ * @returns {string} Fecha formateada
+ */
+export const formatDateOnly = (dateString) => {
+  if (!dateString) return "";
+
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("es-ES", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  } catch (error) {
+    console.error("Error formatting date only:", error);
+    return "";
+  }
+};

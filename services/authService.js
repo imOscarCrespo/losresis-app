@@ -6,6 +6,10 @@
 import { supabase } from "../config/supabase";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+// Clave para almacenar el userId en AsyncStorage
+const USER_ID_KEY = "@losresis:userId";
 
 // Necesario para que WebBrowser funcione correctamente
 WebBrowser.maybeCompleteAuthSession();
@@ -122,6 +126,13 @@ export const signInWithGoogle = async (redirectUrl) => {
 
           if (manualSession?.session) {
             console.log("✅ Sesión establecida correctamente");
+            
+            // Guardar userId en AsyncStorage
+            if (manualSession.session.user?.id) {
+              await saveUserId(manualSession.session.user.id);
+              console.log("💾 userId guardado en caché:", manualSession.session.user.id);
+            }
+            
             return {
               success: true,
               data: manualSession,
@@ -137,6 +148,13 @@ export const signInWithGoogle = async (redirectUrl) => {
 
           if (!codeError && codeSession?.session) {
             console.log("✅ Sesión obtenida mediante código");
+            
+            // Guardar userId en AsyncStorage
+            if (codeSession.session.user?.id) {
+              await saveUserId(codeSession.session.user.id);
+              console.log("💾 userId guardado en caché:", codeSession.session.user.id);
+            }
+            
             return {
               success: true,
               data: codeSession,
@@ -152,6 +170,13 @@ export const signInWithGoogle = async (redirectUrl) => {
 
       if (sessionData?.session) {
         console.log("✅ Sesión obtenida correctamente");
+        
+        // Guardar userId en AsyncStorage
+        if (sessionData.session.user?.id) {
+          await saveUserId(sessionData.session.user.id);
+          console.log("💾 userId guardado en caché:", sessionData.session.user.id);
+        }
+        
         return {
           success: true,
           data: sessionData,
@@ -315,6 +340,10 @@ export const signOut = async () => {
       console.warn("⚠️ Error al limpiar cookies:", cleanError);
     }
 
+    // Limpiar userId de AsyncStorage
+    await clearUserId();
+    console.log("🧹 userId eliminado de caché");
+    
     console.log("✅ Sesión cerrada correctamente");
     return {
       success: true,
@@ -357,5 +386,48 @@ export const getSession = async () => {
       session: null,
       error: error.message,
     };
+  }
+};
+
+// ============================================================================
+// FUNCIONES DE CACHÉ DE USERID
+// ============================================================================
+
+/**
+ * Guardar userId en AsyncStorage
+ * @param {string} userId - ID del usuario
+ */
+export const saveUserId = async (userId) => {
+  try {
+    await AsyncStorage.setItem(USER_ID_KEY, userId);
+    console.log("💾 userId guardado:", userId);
+  } catch (error) {
+    console.error("Error al guardar userId:", error);
+  }
+};
+
+/**
+ * Obtener userId desde AsyncStorage
+ * @returns {Promise<string|null>} - userId o null si no existe
+ */
+export const getCachedUserId = async () => {
+  try {
+    const userId = await AsyncStorage.getItem(USER_ID_KEY);
+    return userId;
+  } catch (error) {
+    console.error("Error al obtener userId:", error);
+    return null;
+  }
+};
+
+/**
+ * Limpiar userId de AsyncStorage
+ */
+export const clearUserId = async () => {
+  try {
+    await AsyncStorage.removeItem(USER_ID_KEY);
+    console.log("🧹 userId eliminado de caché");
+  } catch (error) {
+    console.error("Error al limpiar userId:", error);
   }
 };

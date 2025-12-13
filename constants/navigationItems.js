@@ -140,6 +140,7 @@ export const IMPLEMENTED_SECTIONS = [
   "reseñas",
   "reviewDetail",
   "articulos",
+  "vivienda",
 ];
 
 /**

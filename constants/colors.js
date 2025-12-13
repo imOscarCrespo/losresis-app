@@ -30,5 +30,19 @@ export const COLORS = {
   GREEN_LIGHT: "#D1FAE5",
   YELLOW_LIGHT: "#FEF3C7",
   RED_LIGHT: "#FEE2E2",
+  SUCCESS_LIGHT: "#D1FAE5",
+  
+  // Colores adicionales
+  BACKGROUND_LIGHT: "#F5F5F5",
+  TEXT_DARK: "#1a1a1a",
+  TEXT_MEDIUM: "#666666",
+  TEXT_LIGHT: "#8E8E93",
+  BORDER: "#E5E5EA",
+  CARD_BACKGROUND: "#FFFFFF",
+  BLACK: "#000000",
+  
+  // Badges
+  BADGE_BLUE_BG: "#E3F2FD",
+  BADGE_BLUE_TEXT: "#007AFF",
 };
 

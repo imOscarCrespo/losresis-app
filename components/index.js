@@ -9,3 +9,5 @@ export { SelectFilter } from "./SelectFilter";
 export { EmailReviewSection } from "./EmailReviewSection";
 export { ProfileStatusCard } from "./ProfileStatusCard";
 export { UserTypeSelector } from "./UserTypeSelector";
+export { FloatingActionButton } from "./FloatingActionButton";
+export { DatePickerInput } from "./DatePickerInput";

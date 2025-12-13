@@ -15,6 +15,9 @@ import ReviewsScreen from "./ReviewsScreen";
 import ReviewDetailScreen from "./ReviewDetailScreen";
 import ArticlesScreen from "./ArticlesScreen";
 import ArticleDetailScreen from "./ArticleDetailScreen";
+import HousingScreen from "./HousingScreen";
+import HousingAdDetailScreen from "./HousingAdDetailScreen";
+import CreateHousingAdScreen from "./CreateHousingAdScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 
@@ -26,6 +29,9 @@ export default function DashboardScreen({ onSignOut }) {
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState(null);
   const [selectedReviewId, setSelectedReviewId] = useState(null);
   const [selectedArticleId, setSelectedArticleId] = useState(null);
+  const [selectedHousingAdId, setSelectedHousingAdId] = useState(null);
+  const [creatingHousingAd, setCreatingHousingAd] = useState(false);
+  const [editingHousingAdId, setEditingHousingAdId] = useState(null);
 
   // Determinar sección inicial según el tipo de usuario
   const getInitialSection = (profile) => {
@@ -76,12 +82,18 @@ export default function DashboardScreen({ onSignOut }) {
     if (
       sectionId !== "hospitalDetail" &&
       sectionId !== "reviewDetail" &&
-      sectionId !== "articleDetail"
+      sectionId !== "articleDetail" &&
+      sectionId !== "housingDetail" &&
+      sectionId !== "createHousingAd" &&
+      sectionId !== "editHousingAd"
     ) {
       setSelectedHospital(null);
       setSelectedSpecialtyId(null);
       setSelectedReviewId(null);
       setSelectedArticleId(null);
+      setSelectedHousingAdId(null);
+      setCreatingHousingAd(false);
+      setEditingHousingAdId(null);
     }
     // Si es reviewDetail, guardar el reviewId
     if (sectionId === "reviewDetail" && params.reviewId) {
@@ -90,6 +102,18 @@ export default function DashboardScreen({ onSignOut }) {
     // Si es articleDetail, guardar el articleId
     if (sectionId === "articleDetail" && params.articleId) {
       setSelectedArticleId(params.articleId);
+    }
+    // Si es housingDetail, guardar el adId
+    if (sectionId === "housingDetail" && params.adId) {
+      setSelectedHousingAdId(params.adId);
+    }
+    // Si es createHousingAd, activar modo creación
+    if (sectionId === "createHousingAd") {
+      setCreatingHousingAd(true);
+    }
+    // Si es editHousingAd, activar modo edición
+    if (sectionId === "editHousingAd" && params.adId) {
+      setEditingHousingAdId(params.adId);
     }
   };
 
@@ -179,6 +203,89 @@ export default function DashboardScreen({ onSignOut }) {
     );
   }
 
+  // Si estamos en la pantalla de detalle del anuncio de vivienda
+  if (selectedHousingAdId) {
+    return (
+      <ScreenLayout
+        userProfile={userProfile}
+        activeSection={currentSection}
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <HousingAdDetailScreen
+          adId={selectedHousingAdId}
+          onBack={() => {
+            setSelectedHousingAdId(null);
+            setCurrentSection("vivienda");
+          }}
+          userProfile={userProfile}
+          onEdit={(adId) => {
+            // Por ahora solo volvemos, luego se puede implementar edición
+            console.log("Edit housing ad:", adId);
+            setSelectedHousingAdId(null);
+            setCurrentSection("vivienda");
+          }}
+          onDelete={(adId) => {
+            // El delete se maneja dentro del componente
+            setSelectedHousingAdId(null);
+            setCurrentSection("vivienda");
+          }}
+        />
+      </ScreenLayout>
+    );
+  }
+
+  // Si estamos en la pantalla de crear anuncio de vivienda
+  if (creatingHousingAd) {
+    return (
+      <ScreenLayout
+        userProfile={userProfile}
+        activeSection={currentSection}
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <CreateHousingAdScreen
+          onBack={() => {
+            setCreatingHousingAd(false);
+            setCurrentSection("vivienda");
+          }}
+          onSuccess={() => {
+            // Anuncio creado exitosamente
+            setCreatingHousingAd(false);
+            setCurrentSection("vivienda");
+          }}
+          userProfile={userProfile}
+        />
+      </ScreenLayout>
+    );
+  }
+
+  // Si estamos en la pantalla de editar anuncio de vivienda
+  if (editingHousingAdId) {
+    return (
+      <ScreenLayout
+        userProfile={userProfile}
+        activeSection={currentSection}
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <CreateHousingAdScreen
+          adId={editingHousingAdId}
+          onBack={() => {
+            setEditingHousingAdId(null);
+            setCurrentSection("vivienda");
+          }}
+          onSuccess={() => {
+            // Anuncio editado exitosamente
+            setEditingHousingAdId(null);
+            setCurrentSection("vivienda");
+          }}
+          userProfile={userProfile}
+        />
+      </ScreenLayout>
+    );
+  }
+
   // Renderizar según la sección activa
   const renderSection = () => {
     switch (currentSection) {
@@ -247,13 +354,22 @@ export default function DashboardScreen({ onSignOut }) {
           />
         );
 
+      // Pantalla de vivienda
+      case "vivienda":
+        return (
+          <HousingScreen
+            onSectionChange={handleSectionChange}
+            currentSection={currentSection}
+            userProfile={userProfile}
+          />
+        );
+
       // Secciones del menú (placeholder)
       case "guardias":
       case "libro-residente":
       case "rotaciones-externas":
       case "foro":
       case "cursos":
-      case "vivienda":
       case "jobs":
       case "faq-reseñas":
       case "contacto":
