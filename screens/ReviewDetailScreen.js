@@ -204,7 +204,11 @@ export default function ReviewDetailScreen({ reviewId, onBack, userProfile }) {
                 <View style={styles.statusContainer}>
                   {review.approved_at ? (
                     <View style={styles.statusBadge}>
-                      <Ionicons name="checkmark-circle" size={16} color={COLORS.SUCCESS} />
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color={COLORS.SUCCESS}
+                      />
                       <Text style={styles.statusTextApproved}>Aprobada</Text>
                     </View>
                   ) : (
@@ -235,9 +239,7 @@ export default function ReviewDetailScreen({ reviewId, onBack, userProfile }) {
             <View style={styles.infoRow}>
               <Ionicons name="school" size={20} color={COLORS.PURPLE} />
               <View style={styles.infoContent}>
-                <Text style={styles.infoValue}>
-                  {review.speciality?.name}
-                </Text>
+                <Text style={styles.infoValue}>{review.speciality?.name}</Text>
                 <Text style={styles.infoLabel}>Especialidad</Text>
               </View>
             </View>
@@ -259,7 +261,10 @@ export default function ReviewDetailScreen({ reviewId, onBack, userProfile }) {
                 </Text>
                 <View style={styles.ratingList}>
                   {ratingAnswers.map((answer) => (
-                    <View key={`${answer.review_id}-${answer.question_id}`} style={styles.ratingCard}>
+                    <View
+                      key={`${answer.review_id}-${answer.question_id}`}
+                      style={styles.ratingCard}
+                    >
                       <Text style={styles.questionText}>
                         {answer.question?.text}
                       </Text>
@@ -328,7 +333,9 @@ export default function ReviewDetailScreen({ reviewId, onBack, userProfile }) {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>
           Imágenes de la reseña{" "}
-          {review.images && review.images.length > 0 && `(${review.images.length})`}
+          {review.images &&
+            review.images.length > 0 &&
+            `(${review.images.length})`}
         </Text>
         {review.images && review.images.length > 0 ? (
           <View style={styles.imagesGrid}>
@@ -667,4 +674,3 @@ const styles = StyleSheet.create({
     height: SCREEN_WIDTH - 32,
   },
 });
-

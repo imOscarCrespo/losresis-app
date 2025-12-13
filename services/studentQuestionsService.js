@@ -80,7 +80,8 @@ export const createStudentQuestion = async (
       return {
         success: false,
         question: null,
-        error: "Hospital ID, Speciality ID, User ID and question text are required",
+        error:
+          "Hospital ID, Speciality ID, User ID and question text are required",
       };
     }
 

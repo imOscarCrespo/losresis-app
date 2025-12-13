@@ -163,18 +163,18 @@ export default function DashboardScreen({ onSignOut }) {
 
       case "mirSimulator":
       case "nota-mir":
-    return <MirSimulatorScreen onBack={handleBackFromMirSimulator} />;
+        return <MirSimulatorScreen onBack={handleBackFromMirSimulator} />;
 
       case "profile":
       case "usuario":
-    return (
-      <ProfileScreen
-        onBack={handleBackFromProfile}
-        onSignOut={onSignOut}
+        return (
+          <ProfileScreen
+            onBack={handleBackFromProfile}
+            onSignOut={onSignOut}
             onSectionChange={handleSectionChange}
             currentSection={currentSection}
-      />
-    );
+          />
+        );
 
       // Nuevas pantallas placeholder
       case "menu":

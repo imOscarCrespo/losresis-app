@@ -10,7 +10,7 @@
  */
 export const formatShortDate = (dateString) => {
   if (!dateString) return "";
-  
+
   try {
     const date = new Date(dateString);
     return date.toLocaleDateString("es-ES", {
@@ -30,7 +30,7 @@ export const formatShortDate = (dateString) => {
  */
 export const formatLongDate = (dateString) => {
   if (!dateString) return "";
-  
+
   try {
     const date = new Date(dateString);
     return date.toLocaleDateString("es-ES", {
@@ -53,7 +53,7 @@ export const formatLongDate = (dateString) => {
  */
 export const formatSimpleDate = (dateString) => {
   if (!dateString) return "";
-  
+
   try {
     const date = new Date(dateString);
     return date.toLocaleDateString("es-ES", {
@@ -66,4 +66,3 @@ export const formatSimpleDate = (dateString) => {
     return "";
   }
 };
-

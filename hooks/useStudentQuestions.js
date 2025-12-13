@@ -28,8 +28,11 @@ export const useStudentQuestions = () => {
     setError(null);
 
     try {
-      const { success, questions: questionsData, error: err } =
-        await getStudentQuestions(hospitalId, specialityId);
+      const {
+        success,
+        questions: questionsData,
+        error: err,
+      } = await getStudentQuestions(hospitalId, specialityId);
 
       if (success) {
         setQuestions(questionsData || []);
@@ -56,7 +59,11 @@ export const useStudentQuestions = () => {
       setError(null);
 
       try {
-        const { success, question, error: err } = await createStudentQuestion(
+        const {
+          success,
+          question,
+          error: err,
+        } = await createStudentQuestion(
           hospitalId,
           specialityId,
           userProfile.id,
@@ -98,11 +105,11 @@ export const useStudentQuestions = () => {
       setError(null);
 
       try {
-        const { success, answer, error: err } = await answerStudentQuestion(
-          questionId,
-          userProfile.id,
-          answerText
-        );
+        const {
+          success,
+          answer,
+          error: err,
+        } = await answerStudentQuestion(questionId, userProfile.id, answerText);
 
         if (success) {
           // Actualizar la pregunta con la nueva respuesta
@@ -146,8 +153,15 @@ export const useStudentQuestions = () => {
       }
 
       try {
-        const { success, canAnswer, error: err } =
-          await checkCanAnswerQuestions(hospitalId, specialityId, userProfile.id);
+        const {
+          success,
+          canAnswer,
+          error: err,
+        } = await checkCanAnswerQuestions(
+          hospitalId,
+          specialityId,
+          userProfile.id
+        );
 
         if (success) {
           return canAnswer;
@@ -178,10 +192,11 @@ export const useStudentQuestions = () => {
       setError(null);
 
       try {
-        const { success, question, error: err } = await editStudentQuestion(
-          questionId,
-          newText
-        );
+        const {
+          success,
+          question,
+          error: err,
+        } = await editStudentQuestion(questionId, newText);
 
         if (success) {
           setQuestions((prev) =>
@@ -255,10 +270,11 @@ export const useStudentQuestions = () => {
       setError(null);
 
       try {
-        const { success, answer, error: err } = await editStudentAnswer(
-          answerId,
-          newText
-        );
+        const {
+          success,
+          answer,
+          error: err,
+        } = await editStudentAnswer(answerId, newText);
 
         if (success) {
           setQuestions((prev) =>

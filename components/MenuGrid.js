@@ -128,10 +128,10 @@ export const MenuGrid = ({
 
     // Mapeo manual para items que no están en el footer
     const idMap = {
-      "comunidad": "comunity",
+      comunidad: "comunity",
       "mi-resena": "myReview",
       "libro-residente": "residenceLibrary",
-      "preferencias": "myPreferences",
+      preferencias: "myPreferences",
     };
     return idMap[itemId] || itemId;
   };
@@ -167,7 +167,9 @@ export const MenuGrid = ({
           {/* Rellenar espacios vacíos en la última fila */}
           {row.length < GRID_COLUMNS &&
             Array.from({ length: GRID_COLUMNS - row.length }).map(
-              (_, index) => <View key={`empty-${index}`} style={styles.gridItem} />
+              (_, index) => (
+                <View key={`empty-${index}`} style={styles.gridItem} />
+              )
             )}
         </View>
       ))}
@@ -236,4 +238,3 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
-

@@ -79,7 +79,12 @@ export const StudentQuestionsSection = ({
     if (!newQuestion.trim() || !userProfile) return;
 
     try {
-      await createQuestion(hospitalId, specialityId, newQuestion.trim(), userProfile);
+      await createQuestion(
+        hospitalId,
+        specialityId,
+        newQuestion.trim(),
+        userProfile
+      );
       setNewQuestion("");
     } catch (error) {
       Alert.alert("Error", "Error al crear la pregunta. Inténtalo de nuevo.");
@@ -94,7 +99,10 @@ export const StudentQuestionsSection = ({
       await answerQuestion(questionId, answerText.trim(), userProfile);
       setAnswerTexts((prev) => ({ ...prev, [questionId]: "" }));
     } catch (error) {
-      Alert.alert("Error", "Error al responder la pregunta. Inténtalo de nuevo.");
+      Alert.alert(
+        "Error",
+        "Error al responder la pregunta. Inténtalo de nuevo."
+      );
     }
   };
 
@@ -138,7 +146,10 @@ export const StudentQuestionsSection = ({
               await deleteQuestion(questionId, userProfile);
               setDeletingQuestion(null);
             } catch (error) {
-              Alert.alert("Error", error.message || "Error al eliminar la pregunta.");
+              Alert.alert(
+                "Error",
+                error.message || "Error al eliminar la pregunta."
+              );
             }
           },
         },
@@ -186,7 +197,10 @@ export const StudentQuestionsSection = ({
               await deleteAnswer(answerId, userProfile);
               setDeletingAnswer(null);
             } catch (error) {
-              Alert.alert("Error", error.message || "Error al eliminar la respuesta.");
+              Alert.alert(
+                "Error",
+                error.message || "Error al eliminar la respuesta."
+              );
             }
           },
         },
@@ -218,7 +232,11 @@ export const StudentQuestionsSection = ({
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Ionicons name="chatbubbles-outline" size={20} color={COLORS.PRIMARY} />
+          <Ionicons
+            name="chatbubbles-outline"
+            size={20}
+            color={COLORS.PRIMARY}
+          />
           <Text style={styles.title}>Preguntas de Estudiantes</Text>
         </View>
         <View style={styles.loadingContainer}>
@@ -312,11 +330,18 @@ export const StudentQuestionsSection = ({
                     <>
                       <TouchableOpacity
                         onPress={() =>
-                          handleEditQuestion(question.id, question.question_text)
+                          handleEditQuestion(
+                            question.id,
+                            question.question_text
+                          )
                         }
                         style={styles.actionButton}
                       >
-                        <Ionicons name="pencil" size={16} color={COLORS.PRIMARY} />
+                        <Ionicons
+                          name="pencil"
+                          size={16}
+                          color={COLORS.PRIMARY}
+                        />
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => handleDeleteQuestion(question.id)}
@@ -374,7 +399,9 @@ export const StudentQuestionsSection = ({
                   </View>
                 </View>
               ) : (
-                <Text style={styles.questionText}>{question.question_text}</Text>
+                <Text style={styles.questionText}>
+                  {question.question_text}
+                </Text>
               )}
 
               {/* Info de la pregunta */}
@@ -421,7 +448,10 @@ export const StudentQuestionsSection = ({
                               <View style={styles.actionButtons}>
                                 <TouchableOpacity
                                   onPress={() =>
-                                    handleEditAnswer(answer.id, answer.answer_text)
+                                    handleEditAnswer(
+                                      answer.id,
+                                      answer.answer_text
+                                    )
                                   }
                                   style={styles.actionButton}
                                 >
@@ -467,20 +497,31 @@ export const StudentQuestionsSection = ({
                                   </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                  style={[styles.editButton, styles.cancelButton]}
+                                  style={[
+                                    styles.editButton,
+                                    styles.cancelButton,
+                                  ]}
                                   onPress={handleCancelAnswerEdit}
                                   disabled={submitting}
                                 >
-                                  <Text style={styles.editButtonText}>Cancelar</Text>
+                                  <Text style={styles.editButtonText}>
+                                    Cancelar
+                                  </Text>
                                 </TouchableOpacity>
                               </View>
                             </View>
                           ) : (
-                            <Text style={styles.answerText}>{answer.answer_text}</Text>
+                            <Text style={styles.answerText}>
+                              {answer.answer_text}
+                            </Text>
                           )}
 
                           <View style={styles.answerInfo}>
-                            <Ionicons name="time" size={12} color={COLORS.GRAY} />
+                            <Ionicons
+                              name="time"
+                              size={12}
+                              color={COLORS.GRAY}
+                            />
                             <Text style={styles.answerDate}>
                               {formatLongDate(answer.created_at)}
                             </Text>
@@ -511,8 +552,7 @@ export const StudentQuestionsSection = ({
                       <TouchableOpacity
                         style={[
                           styles.answerButton,
-                          (!answerTexts[question.id]?.trim() ||
-                            submitting) &&
+                          (!answerTexts[question.id]?.trim() || submitting) &&
                             styles.answerButtonDisabled,
                         ]}
                         onPress={() => handleSubmitAnswer(question.id)}

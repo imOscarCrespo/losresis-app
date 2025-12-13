@@ -70,7 +70,11 @@ ReviewSummaryCard.displayName = "ReviewSummaryCard";
 /**
  * Pantalla de listado de reseñas
  */
-export default function ReviewsScreen({ onSectionChange, currentSection, userProfile }) {
+export default function ReviewsScreen({
+  onSectionChange,
+  currentSection,
+  userProfile,
+}) {
   const {
     reviewSummaries,
     loading,
@@ -191,7 +195,11 @@ export default function ReviewsScreen({ onSectionChange, currentSection, userPro
           contentContainerStyle={styles.emptyContentContainer}
         >
           <View style={styles.emptyContainer}>
-            <Ionicons name="document-text-outline" size={64} color={COLORS.GRAY} />
+            <Ionicons
+              name="document-text-outline"
+              size={64}
+              color={COLORS.GRAY}
+            />
             <Text style={styles.emptyTitle}>
               Aún no hay reseñas disponibles
             </Text>
@@ -374,4 +382,3 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
 });
-

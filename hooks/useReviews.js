@@ -26,9 +26,11 @@ export const useReviews = () => {
         hospitalSearchTerm: internalSearchTerm || undefined,
       };
 
-      const { success, summaries, error: err } = await getReviewSummaries(
-        filters
-      );
+      const {
+        success,
+        summaries,
+        error: err,
+      } = await getReviewSummaries(filters);
 
       if (success) {
         setReviewSummaries(summaries || []);
@@ -52,10 +54,13 @@ export const useReviews = () => {
   ).current;
 
   // Actualizar búsqueda con debounce
-  const handleSearchChange = useCallback((value) => {
-    setHospitalSearchTerm(value);
-    debouncedSearch(value);
-  }, [debouncedSearch]);
+  const handleSearchChange = useCallback(
+    (value) => {
+      setHospitalSearchTerm(value);
+      debouncedSearch(value);
+    },
+    [debouncedSearch]
+  );
 
   // Limpiar filtros
   const clearFilters = useCallback(() => {
@@ -84,4 +89,3 @@ export const useReviews = () => {
     refreshReviews: fetchReviewSummaries,
   };
 };
-

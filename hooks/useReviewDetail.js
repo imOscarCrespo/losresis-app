@@ -20,8 +20,11 @@ export const useReviewDetail = () => {
     setReview(null);
 
     try {
-      const { success, review: reviewData, error: err } =
-        await getReviewDetail(reviewId);
+      const {
+        success,
+        review: reviewData,
+        error: err,
+      } = await getReviewDetail(reviewId);
 
       if (success) {
         setReview(reviewData);
@@ -42,4 +45,3 @@ export const useReviewDetail = () => {
     fetchReviewDetail,
   };
 };
-

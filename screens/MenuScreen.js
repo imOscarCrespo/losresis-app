@@ -8,7 +8,11 @@ import { getFooterConfig } from "../constants/footerConfig";
  * Pantalla de Menú con grid de opciones
  * Muestra todas las opciones de navegación excluyendo las del footer
  */
-export default function MenuScreen({ onSectionChange, currentSection, userProfile }) {
+export default function MenuScreen({
+  onSectionChange,
+  currentSection,
+  userProfile,
+}) {
   // Obtener items del footer para excluirlos
   const footerItems = getFooterConfig(userProfile);
 

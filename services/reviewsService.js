@@ -82,15 +82,23 @@ export const getReviewSummaries = async (filters = {}) => {
       // Nota: Los nombres pueden variar según la sintaxis de la relación
       const hospital = review.hospital || review.hospitals;
       const speciality = review.speciality || review.specialities;
-      
-      if (!review?.hospital_id || !review?.speciality_id || !hospital || !speciality) {
+
+      if (
+        !review?.hospital_id ||
+        !review?.speciality_id ||
+        !hospital ||
+        !speciality
+      ) {
         return; // Saltar reviews inválidas
       }
 
       const key = `${review.hospital_id}-${review.speciality_id}`;
       const existing = summariesMap.get(key);
 
-      if (!existing || new Date(review.created_at) > new Date(existing.created_at)) {
+      if (
+        !existing ||
+        new Date(review.created_at) > new Date(existing.created_at)
+      ) {
         summariesMap.set(key, {
           review_id: review.id,
           hospital_id: review.hospital_id,
@@ -231,4 +239,3 @@ export const getReviewDetail = async (reviewId) => {
     };
   }
 };
-
