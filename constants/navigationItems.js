@@ -132,6 +132,14 @@ export const IMPLEMENTED_SECTIONS = [
   "nota-mir",
   "usuario",
   "mi-resena",
+  "myPreferences",
+  "comunity",
+  "myReview",
+  "residenceLibrary",
+  "menu",
+  "reseñas",
+  "reviewDetail",
+  "articulos",
 ];
 
 /**

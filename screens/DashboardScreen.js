@@ -13,6 +13,8 @@ import MyReviewScreen from "./MyReviewScreen";
 import ResidenceLibraryScreen from "./ResidenceLibraryScreen";
 import ReviewsScreen from "./ReviewsScreen";
 import ReviewDetailScreen from "./ReviewDetailScreen";
+import ArticlesScreen from "./ArticlesScreen";
+import ArticleDetailScreen from "./ArticleDetailScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 
@@ -23,6 +25,7 @@ export default function DashboardScreen({ onSignOut }) {
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState(null);
   const [selectedReviewId, setSelectedReviewId] = useState(null);
+  const [selectedArticleId, setSelectedArticleId] = useState(null);
 
   // Determinar sección inicial según el tipo de usuario
   const getInitialSection = (profile) => {
@@ -70,14 +73,23 @@ export default function DashboardScreen({ onSignOut }) {
   const handleSectionChange = (sectionId, params = {}) => {
     setCurrentSection(sectionId);
     // Limpiar selecciones cuando cambiamos de sección
-    if (sectionId !== "hospitalDetail" && sectionId !== "reviewDetail") {
+    if (
+      sectionId !== "hospitalDetail" &&
+      sectionId !== "reviewDetail" &&
+      sectionId !== "articleDetail"
+    ) {
       setSelectedHospital(null);
       setSelectedSpecialtyId(null);
       setSelectedReviewId(null);
+      setSelectedArticleId(null);
     }
     // Si es reviewDetail, guardar el reviewId
     if (sectionId === "reviewDetail" && params.reviewId) {
       setSelectedReviewId(params.reviewId);
+    }
+    // Si es articleDetail, guardar el articleId
+    if (sectionId === "articleDetail" && params.articleId) {
+      setSelectedArticleId(params.articleId);
     }
   };
 
@@ -146,6 +158,27 @@ export default function DashboardScreen({ onSignOut }) {
     );
   }
 
+  // Si estamos en la pantalla de detalle del artículo
+  if (selectedArticleId) {
+    return (
+      <ScreenLayout
+        userProfile={userProfile}
+        activeSection={currentSection}
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <ArticleDetailScreen
+          articleId={selectedArticleId}
+          onBack={() => {
+            setSelectedArticleId(null);
+            setCurrentSection("articulos");
+          }}
+          userProfile={userProfile}
+        />
+      </ScreenLayout>
+    );
+  }
+
   // Renderizar según la sección activa
   const renderSection = () => {
     switch (currentSection) {
@@ -205,13 +238,21 @@ export default function DashboardScreen({ onSignOut }) {
       case "residenceLibrary":
         return <ResidenceLibraryScreen />;
 
+      // Pantalla de artículos
+      case "articulos":
+        return (
+          <ArticlesScreen
+            onSectionChange={handleSectionChange}
+            userProfile={userProfile}
+          />
+        );
+
       // Secciones del menú (placeholder)
       case "guardias":
       case "libro-residente":
       case "rotaciones-externas":
       case "foro":
       case "cursos":
-      case "articulos":
       case "vivienda":
       case "jobs":
       case "faq-reseñas":
