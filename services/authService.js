@@ -126,13 +126,16 @@ export const signInWithGoogle = async (redirectUrl) => {
 
           if (manualSession?.session) {
             console.log("✅ Sesión establecida correctamente");
-            
+
             // Guardar userId en AsyncStorage
             if (manualSession.session.user?.id) {
               await saveUserId(manualSession.session.user.id);
-              console.log("💾 userId guardado en caché:", manualSession.session.user.id);
+              console.log(
+                "💾 userId guardado en caché:",
+                manualSession.session.user.id
+              );
             }
-            
+
             return {
               success: true,
               data: manualSession,
@@ -148,13 +151,16 @@ export const signInWithGoogle = async (redirectUrl) => {
 
           if (!codeError && codeSession?.session) {
             console.log("✅ Sesión obtenida mediante código");
-            
+
             // Guardar userId en AsyncStorage
             if (codeSession.session.user?.id) {
               await saveUserId(codeSession.session.user.id);
-              console.log("💾 userId guardado en caché:", codeSession.session.user.id);
+              console.log(
+                "💾 userId guardado en caché:",
+                codeSession.session.user.id
+              );
             }
-            
+
             return {
               success: true,
               data: codeSession,
@@ -170,13 +176,16 @@ export const signInWithGoogle = async (redirectUrl) => {
 
       if (sessionData?.session) {
         console.log("✅ Sesión obtenida correctamente");
-        
+
         // Guardar userId en AsyncStorage
         if (sessionData.session.user?.id) {
           await saveUserId(sessionData.session.user.id);
-          console.log("💾 userId guardado en caché:", sessionData.session.user.id);
+          console.log(
+            "💾 userId guardado en caché:",
+            sessionData.session.user.id
+          );
         }
-        
+
         return {
           success: true,
           data: sessionData,
@@ -343,7 +352,7 @@ export const signOut = async () => {
     // Limpiar userId de AsyncStorage
     await clearUserId();
     console.log("🧹 userId eliminado de caché");
-    
+
     console.log("✅ Sesión cerrada correctamente");
     return {
       success: true,

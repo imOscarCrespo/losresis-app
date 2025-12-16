@@ -17,7 +17,12 @@ import { COLORS } from "../constants/colors";
  * @param {function} onChange - Callback cuando cambia la fecha
  * @param {string} placeholder - Texto cuando no hay fecha
  */
-export const DatePickerInput = ({ label, value, onChange, placeholder = "Seleccionar fecha" }) => {
+export const DatePickerInput = ({
+  label,
+  value,
+  onChange,
+  placeholder = "Seleccionar fecha",
+}) => {
   const [show, setShow] = useState(false);
 
   // Convertir string YYYY-MM-DD a Date object
@@ -66,7 +71,7 @@ export const DatePickerInput = ({ label, value, onChange, placeholder = "Selecci
   return (
     <View style={styles.container}>
       {label && <Text style={styles.label}>{label}</Text>}
-      
+
       <TouchableOpacity
         style={styles.input}
         onPress={handlePress}
@@ -172,6 +177,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-
-
-

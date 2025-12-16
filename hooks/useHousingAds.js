@@ -60,8 +60,13 @@ export const useHousingAds = () => {
           user_id: showMyAds && currentUserId ? currentUserId : undefined,
         };
 
-        const { success, ads, total, hasMore: hasMoreData, error: err } =
-          await getHousingAds(page, ITEMS_PER_PAGE, filters);
+        const {
+          success,
+          ads,
+          total,
+          hasMore: hasMoreData,
+          error: err,
+        } = await getHousingAds(page, ITEMS_PER_PAGE, filters);
 
         if (success) {
           if (reset) {
@@ -161,9 +166,7 @@ export const useHousingAds = () => {
 
       if (success) {
         // Actualizar el anuncio en la lista
-        setHousingAds((prev) =>
-          prev.map((a) => (a.id === adId ? ad : a))
-        );
+        setHousingAds((prev) => prev.map((a) => (a.id === adId ? ad : a)));
         return ad;
       } else {
         setError(err || "Error al actualizar el anuncio");
@@ -207,12 +210,17 @@ export const useHousingAds = () => {
     try {
       setError(null);
 
-      const { success, error: err } = await toggleHousingAdStatus(adId, isActive);
+      const { success, error: err } = await toggleHousingAdStatus(
+        adId,
+        isActive
+      );
 
       if (success) {
         // Actualizar el estado en la lista
         setHousingAds((prev) =>
-          prev.map((ad) => (ad.id === adId ? { ...ad, is_active: isActive } : ad))
+          prev.map((ad) =>
+            ad.id === adId ? { ...ad, is_active: isActive } : ad
+          )
         );
         return true;
       } else {
@@ -262,4 +270,3 @@ export const useHousingAds = () => {
     toggleAdStatus: toggleStatus,
   };
 };
-

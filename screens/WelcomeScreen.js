@@ -70,13 +70,13 @@ export default function WelcomeScreen({ onAuthSuccess }) {
 
         if (session) {
           console.log("✅ Usuario autenticado via callback, redirigiendo...");
-          
+
           // Guardar userId en caché
           if (session.user?.id) {
             await saveUserId(session.user.id);
             console.log("💾 userId guardado en caché:", session.user.id);
           }
-          
+
           setIsChecking(false);
 
           // Verificar perfil y navegar
@@ -129,7 +129,7 @@ export default function WelcomeScreen({ onAuthSuccess }) {
 
       if (success && user) {
         console.log("✅ Usuario ya autenticado, verificando perfil...");
-        
+
         // Guardar userId en caché si aún no está guardado
         if (user.id) {
           await saveUserId(user.id);

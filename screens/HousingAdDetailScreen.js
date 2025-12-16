@@ -68,7 +68,13 @@ const getImageUrl = (imagePath) => {
 /**
  * Pantalla de detalle de anuncio de vivienda
  */
-export default function HousingAdDetailScreen({ adId, onBack, userProfile, onEdit, onDelete }) {
+export default function HousingAdDetailScreen({
+  adId,
+  onBack,
+  userProfile,
+  onEdit,
+  onDelete,
+}) {
   const { fetchHousingAdById, deleteHousingAd } = useHousingAds();
   const [ad, setAd] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -341,9 +347,11 @@ export default function HousingAdDetailScreen({ adId, onBack, userProfile, onEdi
           <View style={styles.dateContainer}>
             <Ionicons name="calendar" size={18} color={COLORS.GRAY} />
             <Text style={styles.dateText}>
-              {ad.available_from && `Disponible desde: ${formatDateOnly(ad.available_from)}`}
+              {ad.available_from &&
+                `Disponible desde: ${formatDateOnly(ad.available_from)}`}
               {ad.available_from && ad.available_to && "\n"}
-              {ad.available_to && `Disponible hasta: ${formatDateOnly(ad.available_to)}`}
+              {ad.available_to &&
+                `Disponible hasta: ${formatDateOnly(ad.available_to)}`}
             </Text>
           </View>
         )}
@@ -768,4 +776,3 @@ const styles = StyleSheet.create({
     height: SCREEN_WIDTH - 40,
   },
 });
-

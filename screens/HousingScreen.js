@@ -52,184 +52,223 @@ const getKindDisplayName = (kind) => {
  * Card de anuncio de vivienda
  * Memoizado para evitar re-renders innecesarios
  */
-const HousingAdCard = memo(({ ad, currentUserId, onPress, onDelete, onEdit }) => {
-  const handlePress = useCallback(() => {
-    if (onPress) {
-      onPress(ad.id);
-    }
-  }, [ad.id, onPress]);
-
-  const handleDelete = useCallback(
-    (e) => {
-      e.stopPropagation(); // Evitar que se active el onPress del card
-      if (onDelete) {
-        onDelete(ad.id);
+const HousingAdCard = memo(
+  ({ ad, currentUserId, onPress, onDelete, onEdit }) => {
+    const handlePress = useCallback(() => {
+      if (onPress) {
+        onPress(ad.id);
       }
-    },
-    [ad.id, onDelete]
-  );
+    }, [ad.id, onPress]);
 
-  const handleEdit = useCallback(
-    (e) => {
-      e.stopPropagation(); // Evitar que se active el onPress del card
-      if (onEdit) {
-        onEdit(ad.id);
-      }
-    },
-    [ad.id, onEdit]
-  );
+    const handleDelete = useCallback(
+      (e) => {
+        e.stopPropagation(); // Evitar que se active el onPress del card
+        if (onDelete) {
+          onDelete(ad.id);
+        }
+      },
+      [ad.id, onDelete]
+    );
 
-  const isMyAd = ad.user_id === currentUserId;
-  const kindColor = ad.kind === "offer" ? COLORS.SUCCESS : COLORS.PRIMARY;
+    const handleEdit = useCallback(
+      (e) => {
+        e.stopPropagation(); // Evitar que se active el onPress del card
+        if (onEdit) {
+          onEdit(ad.id);
+        }
+      },
+      [ad.id, onEdit]
+    );
 
-  return (
-    <TouchableOpacity
-      style={[
-        styles.adCard,
-        isMyAd && styles.adCardMine,
-      ]}
-      onPress={handlePress}
-      activeOpacity={0.7}
-    >
-      {/* Header con badges y botón eliminar */}
-      <View style={styles.cardHeader}>
-        <View style={styles.badgesContainer}>
-          <View style={[styles.kindBadge, { backgroundColor: kindColor === COLORS.SUCCESS ? COLORS.SUCCESS_LIGHT : COLORS.BADGE_BLUE_BG }]}>
-            <Text style={[styles.kindBadgeText, { color: kindColor === COLORS.SUCCESS ? COLORS.SUCCESS : COLORS.BADGE_BLUE_TEXT }]}>
-              {getKindDisplayName(ad.kind)}
-            </Text>
-          </View>
-          {isMyAd && (
-            <View style={styles.myAdBadge}>
-              <Text style={styles.myAdBadgeText}>✨ Mío</Text>
-            </View>
-          )}
-          {!ad.is_active && (
-            <View style={styles.inactiveBadge}>
-              <Ionicons name="eye-off-outline" size={12} color={COLORS.GRAY} />
-              <Text style={styles.inactiveBadgeText}>Inactivo</Text>
-            </View>
-          )}
-          {ad.images && ad.images.length > 0 && (
-            <View style={styles.imagesBadge}>
-              <Ionicons name="images-outline" size={12} color={COLORS.SUCCESS} />
-              <Text style={styles.imagesBadgeText}>{ad.images.length} img</Text>
-            </View>
-          )}
-        </View>
-        {/* Botones de acción para mis anuncios */}
-        {isMyAd && (onEdit || onDelete) && (
-          <View style={styles.actionButtons}>
-            {onEdit && (
-              <TouchableOpacity
-                style={styles.editButton}
-                onPress={handleEdit}
-                activeOpacity={0.7}
+    const isMyAd = ad.user_id === currentUserId;
+    const kindColor = ad.kind === "offer" ? COLORS.SUCCESS : COLORS.PRIMARY;
+
+    return (
+      <TouchableOpacity
+        style={[styles.adCard, isMyAd && styles.adCardMine]}
+        onPress={handlePress}
+        activeOpacity={0.7}
+      >
+        {/* Header con badges y botón eliminar */}
+        <View style={styles.cardHeader}>
+          <View style={styles.badgesContainer}>
+            <View
+              style={[
+                styles.kindBadge,
+                {
+                  backgroundColor:
+                    kindColor === COLORS.SUCCESS
+                      ? COLORS.SUCCESS_LIGHT
+                      : COLORS.BADGE_BLUE_BG,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.kindBadgeText,
+                  {
+                    color:
+                      kindColor === COLORS.SUCCESS
+                        ? COLORS.SUCCESS
+                        : COLORS.BADGE_BLUE_TEXT,
+                  },
+                ]}
               >
-                <Ionicons name="pencil-outline" size={20} color={COLORS.PRIMARY} />
-              </TouchableOpacity>
-            )}
-            {onDelete && (
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={handleDelete}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="trash-outline" size={20} color={COLORS.ERROR} />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-      </View>
-
-      {/* Título */}
-      <Text style={styles.cardTitle} numberOfLines={1}>
-        {ad.title}
-      </Text>
-
-      {/* Ciudad y precio */}
-      <View style={styles.locationPriceContainer}>
-        <View style={styles.locationContainer}>
-          <Ionicons name="location-outline" size={16} color={COLORS.GRAY} />
-          <Text style={styles.locationText} numberOfLines={1}>
-            {ad.city}
-          </Text>
-        </View>
-        {ad.price_eur && (
-          <View style={styles.priceContainer}>
-            <Ionicons name="cash-outline" size={16} color={COLORS.GRAY} />
-            <Text style={styles.priceText}>
-              {formatPrice(ad.price_eur)}/mes
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Descripción */}
-      <Text style={styles.cardDescription} numberOfLines={2}>
-        {ad.description}
-      </Text>
-
-      {/* Fechas disponibles */}
-      {(ad.available_from || ad.available_to) && (
-        <View style={styles.dateContainer}>
-          <Ionicons name="calendar-outline" size={14} color={COLORS.GRAY} />
-          <Text style={styles.dateText}>
-            {ad.available_from && `Desde: ${formatDateOnly(ad.available_from)}`}
-            {ad.available_from && ad.available_to && " - "}
-            {ad.available_to && `Hasta: ${formatDateOnly(ad.available_to)}`}
-          </Text>
-        </View>
-      )}
-
-      {/* Información del usuario (si no es mi anuncio) */}
-      {!isMyAd && ad.user && (
-        <View style={styles.userContainer}>
-          <Text style={styles.userText}>
-            Por: {ad.user.name} {ad.user.surname}
-          </Text>
-        </View>
-      )}
-
-      {/* Información de contacto (si no es mi anuncio) */}
-      {!isMyAd && (ad.contact_email || ad.contact_phone) && (
-        <View style={styles.contactContainer}>
-          <Text style={styles.contactLabel}>Contacto:</Text>
-          <View style={styles.contactItems}>
-            {ad.contact_email && (
-              <View style={styles.contactItem}>
-                <Ionicons name="mail-outline" size={12} color={COLORS.GRAY} />
-                <Text style={styles.contactText} numberOfLines={1}>
-                  {ad.contact_email}
-                </Text>
+                {getKindDisplayName(ad.kind)}
+              </Text>
+            </View>
+            {isMyAd && (
+              <View style={styles.myAdBadge}>
+                <Text style={styles.myAdBadgeText}>✨ Mío</Text>
               </View>
             )}
-            {ad.contact_phone && (
-              <View style={styles.contactItem}>
-                <Ionicons name="call-outline" size={12} color={COLORS.GRAY} />
-                <Text style={styles.contactText} numberOfLines={1}>
-                  {ad.contact_phone}
+            {!ad.is_active && (
+              <View style={styles.inactiveBadge}>
+                <Ionicons
+                  name="eye-off-outline"
+                  size={12}
+                  color={COLORS.GRAY}
+                />
+                <Text style={styles.inactiveBadgeText}>Inactivo</Text>
+              </View>
+            )}
+            {ad.images && ad.images.length > 0 && (
+              <View style={styles.imagesBadge}>
+                <Ionicons
+                  name="images-outline"
+                  size={12}
+                  color={COLORS.SUCCESS}
+                />
+                <Text style={styles.imagesBadgeText}>
+                  {ad.images.length} img
                 </Text>
               </View>
             )}
           </View>
-          {ad.preferred_contact && (
-            <Text style={styles.preferredContactText}>
-              Preferido: {ad.preferred_contact === "email" ? "Email" : "Teléfono"}
-            </Text>
+          {/* Botones de acción para mis anuncios */}
+          {isMyAd && (onEdit || onDelete) && (
+            <View style={styles.actionButtons}>
+              {onEdit && (
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={handleEdit}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="pencil-outline"
+                    size={20}
+                    color={COLORS.PRIMARY}
+                  />
+                </TouchableOpacity>
+              )}
+              {onDelete && (
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={handleDelete}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="trash-outline"
+                    size={20}
+                    color={COLORS.ERROR}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
           )}
         </View>
-      )}
 
-      {/* Footer con fecha de creación */}
-      <View style={styles.cardFooter}>
-        <Text style={styles.createdDateText}>
-          {formatDateOnly(ad.created_at)}
+        {/* Título */}
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          {ad.title}
         </Text>
-      </View>
-    </TouchableOpacity>
-  );
-});
+
+        {/* Ciudad y precio */}
+        <View style={styles.locationPriceContainer}>
+          <View style={styles.locationContainer}>
+            <Ionicons name="location-outline" size={16} color={COLORS.GRAY} />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {ad.city}
+            </Text>
+          </View>
+          {ad.price_eur && (
+            <View style={styles.priceContainer}>
+              <Ionicons name="cash-outline" size={16} color={COLORS.GRAY} />
+              <Text style={styles.priceText}>
+                {formatPrice(ad.price_eur)}/mes
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Descripción */}
+        <Text style={styles.cardDescription} numberOfLines={2}>
+          {ad.description}
+        </Text>
+
+        {/* Fechas disponibles */}
+        {(ad.available_from || ad.available_to) && (
+          <View style={styles.dateContainer}>
+            <Ionicons name="calendar-outline" size={14} color={COLORS.GRAY} />
+            <Text style={styles.dateText}>
+              {ad.available_from &&
+                `Desde: ${formatDateOnly(ad.available_from)}`}
+              {ad.available_from && ad.available_to && " - "}
+              {ad.available_to && `Hasta: ${formatDateOnly(ad.available_to)}`}
+            </Text>
+          </View>
+        )}
+
+        {/* Información del usuario (si no es mi anuncio) */}
+        {!isMyAd && ad.user && (
+          <View style={styles.userContainer}>
+            <Text style={styles.userText}>
+              Por: {ad.user.name} {ad.user.surname}
+            </Text>
+          </View>
+        )}
+
+        {/* Información de contacto (si no es mi anuncio) */}
+        {!isMyAd && (ad.contact_email || ad.contact_phone) && (
+          <View style={styles.contactContainer}>
+            <Text style={styles.contactLabel}>Contacto:</Text>
+            <View style={styles.contactItems}>
+              {ad.contact_email && (
+                <View style={styles.contactItem}>
+                  <Ionicons name="mail-outline" size={12} color={COLORS.GRAY} />
+                  <Text style={styles.contactText} numberOfLines={1}>
+                    {ad.contact_email}
+                  </Text>
+                </View>
+              )}
+              {ad.contact_phone && (
+                <View style={styles.contactItem}>
+                  <Ionicons name="call-outline" size={12} color={COLORS.GRAY} />
+                  <Text style={styles.contactText} numberOfLines={1}>
+                    {ad.contact_phone}
+                  </Text>
+                </View>
+              )}
+            </View>
+            {ad.preferred_contact && (
+              <Text style={styles.preferredContactText}>
+                Preferido:{" "}
+                {ad.preferred_contact === "email" ? "Email" : "Teléfono"}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Footer con fecha de creación */}
+        <View style={styles.cardFooter}>
+          <Text style={styles.createdDateText}>
+            {formatDateOnly(ad.created_at)}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+);
 
 HousingAdCard.displayName = "HousingAdCard";
 
@@ -240,7 +279,11 @@ HousingAdCard.displayName = "HousingAdCard";
 /**
  * Pantalla de listado de anuncios de vivienda
  */
-export default function HousingScreen({ onSectionChange, currentSection, userProfile }) {
+export default function HousingScreen({
+  onSectionChange,
+  currentSection,
+  userProfile,
+}) {
   const {
     housingAds,
     loading,
@@ -271,11 +314,14 @@ export default function HousingScreen({ onSectionChange, currentSection, userPro
     return [{ id: "", name: "Todos los hospitales" }, ...prepared];
   }, [hospitals]);
 
-  const kindOptions = useMemo(() => [
-    { id: "", name: "Todos los tipos" },
-    { id: "offer", name: "Oferta" },
-    { id: "seek", name: "Búsqueda" },
-  ], []);
+  const kindOptions = useMemo(
+    () => [
+      { id: "", name: "Todos los tipos" },
+      { id: "offer", name: "Oferta" },
+      { id: "seek", name: "Búsqueda" },
+    ],
+    []
+  );
 
   // Configurar los filtros para el componente genérico
   const filtersConfig = useMemo(() => {
@@ -307,7 +353,16 @@ export default function HousingScreen({ onSectionChange, currentSection, userPro
         placeholder: "Seleccionar hospital",
       },
     ];
-  }, [city, setCity, kind, setKind, hospitalId, setHospitalId, kindOptions, hospitalOptions]);
+  }, [
+    city,
+    setCity,
+    kind,
+    setKind,
+    hospitalId,
+    setHospitalId,
+    kindOptions,
+    hospitalOptions,
+  ]);
 
   // Verificar si hay filtros activos
   const hasActiveFilters = useMemo(() => {
@@ -383,16 +438,13 @@ export default function HousingScreen({ onSectionChange, currentSection, userPro
             <Text style={styles.title}>Vivienda</Text>
             <Text style={styles.resultsText}>
               Mostrando{" "}
-              <Text style={styles.resultsNumber}>{housingAds.length}</Text>{" "}
-              de {totalCount} anuncios
+              <Text style={styles.resultsNumber}>{housingAds.length}</Text> de{" "}
+              {totalCount} anuncios
             </Text>
           </View>
           {/* Toggle Mis Anuncios */}
           <TouchableOpacity
-            style={[
-              styles.myAdsToggle,
-              showMyAds && styles.myAdsToggleActive,
-            ]}
+            style={[styles.myAdsToggle, showMyAds && styles.myAdsToggleActive]}
             onPress={() => setShowMyAds(!showMyAds)}
             activeOpacity={0.7}
           >
@@ -430,7 +482,10 @@ export default function HousingScreen({ onSectionChange, currentSection, userPro
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={COLORS.ERROR} />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={refreshHousingAds} style={styles.retryButton}>
+          <TouchableOpacity
+            onPress={refreshHousingAds}
+            style={styles.retryButton}
+          >
             <Text style={styles.retryButtonText}>Reintentar</Text>
           </TouchableOpacity>
         </View>
@@ -439,7 +494,11 @@ export default function HousingScreen({ onSectionChange, currentSection, userPro
           style={styles.content}
           contentContainerStyle={styles.emptyContentContainer}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.PRIMARY]} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.PRIMARY]}
+            />
           }
         >
           <View style={styles.emptyContainer}>
@@ -455,7 +514,11 @@ export default function HousingScreen({ onSectionChange, currentSection, userPro
           style={styles.content}
           contentContainerStyle={styles.listContent}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.PRIMARY]} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.PRIMARY]}
+            />
           }
           onScrollEndDrag={() => {
             if (hasMore && !loading) {
@@ -479,7 +542,9 @@ export default function HousingScreen({ onSectionChange, currentSection, userPro
           {loading && hasMore && (
             <View style={styles.loadingMoreContainer}>
               <ActivityIndicator size="small" color={COLORS.PRIMARY} />
-              <Text style={styles.loadingMoreText}>Cargando más anuncios...</Text>
+              <Text style={styles.loadingMoreText}>
+                Cargando más anuncios...
+              </Text>
             </View>
           )}
         </ScrollView>
@@ -841,4 +906,3 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT_MEDIUM,
   },
 });
-

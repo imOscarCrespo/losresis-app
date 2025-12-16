@@ -17,8 +17,15 @@ import * as ImagePicker from "expo-image-picker";
 import { SelectFilter } from "../components/SelectFilter";
 import { DatePickerInput } from "../components/DatePickerInput";
 import { useHospitals } from "../hooks/useHospitals";
-import { prepareHospitalOptions, prepareCityOptions } from "../utils/profileOptions";
-import { createHousingAd, updateHousingAd, getHousingAdById } from "../services/housingService";
+import {
+  prepareHospitalOptions,
+  prepareCityOptions,
+} from "../utils/profileOptions";
+import {
+  createHousingAd,
+  updateHousingAd,
+  getHousingAdById,
+} from "../services/housingService";
 import { getCachedUserId } from "../services/authService";
 import { COLORS } from "../constants/colors";
 
@@ -30,7 +37,12 @@ import { COLORS } from "../constants/colors";
  * Pantalla para crear o editar un anuncio de vivienda
  * @param {string} adId - ID del anuncio a editar (opcional, si no se proporciona, se crea uno nuevo)
  */
-export default function CreateHousingAdScreen({ adId, onBack, onSuccess, userProfile }) {
+export default function CreateHousingAdScreen({
+  adId,
+  onBack,
+  onSuccess,
+  userProfile,
+}) {
   const isEditMode = !!adId;
   // Estados del formulario
   const [formData, setFormData] = useState({
@@ -74,7 +86,7 @@ export default function CreateHousingAdScreen({ adId, onBack, onSuccess, userPro
         try {
           setLoadingAd(true);
           const { success, ad, error: err } = await getHousingAdById(adId);
-          
+
           if (success && ad) {
             // Pre-llenar el formulario con los datos del anuncio
             setFormData({
@@ -90,7 +102,7 @@ export default function CreateHousingAdScreen({ adId, onBack, onSuccess, userPro
               contact_phone: ad.contact_phone || "",
               preferred_contact: ad.preferred_contact || "email",
             });
-            
+
             // Guardar las imágenes existentes
             if (ad.images && ad.images.length > 0) {
               setExistingImages(ad.images);
@@ -105,7 +117,7 @@ export default function CreateHousingAdScreen({ adId, onBack, onSuccess, userPro
           setLoadingAd(false);
         }
       };
-      
+
       loadAd();
     }
   }, [isEditMode, adId]);
@@ -113,7 +125,8 @@ export default function CreateHousingAdScreen({ adId, onBack, onSuccess, userPro
   // Solicitar permisos para la galería
   useEffect(() => {
     (async () => {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(
           "Permisos necesarios",
@@ -124,11 +137,14 @@ export default function CreateHousingAdScreen({ adId, onBack, onSuccess, userPro
   }, []);
 
   // Actualizar campo del formulario
-  const updateFormData = useCallback((field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    // Limpiar error cuando el usuario empiece a escribir
-    if (error) setError(null);
-  }, [error]);
+  const updateFormData = useCallback(
+    (field, value) => {
+      setFormData((prev) => ({ ...prev, [field]: value }));
+      // Limpiar error cuando el usuario empiece a escribir
+      if (error) setError(null);
+    },
+    [error]
+  );
 
   // Eliminar imagen existente
   const removeExistingImage = useCallback((index) => {
@@ -244,7 +260,9 @@ export default function CreateHousingAdScreen({ adId, onBack, onSuccess, userPro
         // Obtener userId desde caché
         const userId = await getCachedUserId();
         if (!userId) {
-          setError("No se pudo obtener el usuario. Por favor, inicia sesión nuevamente.");
+          setError(
+            "No se pudo obtener el usuario. Por favor, inicia sesión nuevamente."
+          );
           return;
         }
 
@@ -334,284 +352,310 @@ export default function CreateHousingAdScreen({ adId, onBack, onSuccess, userPro
           </View>
         ) : (
           <>
-        {/* Error Display */}
-        {error && (
-          <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle" size={20} color={COLORS.ERROR} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
+            {/* Error Display */}
+            {error && (
+              <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle" size={20} color={COLORS.ERROR} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
 
-        {/* Kind Selection */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tipo de anuncio *</Text>
-          <View style={styles.kindContainer}>
-            <TouchableOpacity
-              style={[
-                styles.kindButton,
-                formData.kind === "seek" && styles.kindButtonActiveSeek,
-              ]}
-              onPress={() => updateFormData("kind", "seek")}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="search"
-                size={24}
-                color={formData.kind === "seek" ? COLORS.PRIMARY : COLORS.GRAY}
-              />
-              <Text
-                style={[
-                  styles.kindButtonTitle,
-                  formData.kind === "seek" && styles.kindButtonTitleActive,
-                ]}
-              >
-                Busco habitación
-              </Text>
-              <Text style={styles.kindButtonSubtitle}>
-                Estoy buscando una habitación
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.kindButton,
-                formData.kind === "offer" && styles.kindButtonActiveOffer,
-              ]}
-              onPress={() => updateFormData("kind", "offer")}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="home"
-                size={24}
-                color={formData.kind === "offer" ? COLORS.SUCCESS : COLORS.GRAY}
-              />
-              <Text
-                style={[
-                  styles.kindButtonTitle,
-                  formData.kind === "offer" && styles.kindButtonTitleActiveOffer,
-                ]}
-              >
-                Ofrezco habitación
-              </Text>
-              <Text style={styles.kindButtonSubtitle}>
-                Tengo una habitación disponible
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* City */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Ciudad *</Text>
-          <SelectFilter
-            label=""
-            value={formData.city}
-            onSelect={(city) => updateFormData("city", city)}
-            options={cityOptions}
-            placeholder="Selecciona una ciudad"
-            enableSearch={true}
-          />
-        </View>
-
-        {/* Hospital */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Hospital más cercano *</Text>
-          <SelectFilter
-            label=""
-            value={formData.hospital_id}
-            onSelect={(hospitalId) => updateFormData("hospital_id", hospitalId)}
-            options={hospitalOptions}
-            placeholder="Selecciona el hospital más cercano"
-            enableSearch={true}
-          />
-        </View>
-
-        {/* Title */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Título del anuncio *</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.title}
-            onChangeText={(text) => updateFormData("title", text)}
-            placeholder="Ej: Habitación cerca del Hospital La Paz"
-            placeholderTextColor={COLORS.TEXT_LIGHT}
-          />
-        </View>
-
-        {/* Description */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Descripción *</Text>
-          <TextInput
-            style={[styles.input, styles.inputMultiline]}
-            value={formData.description}
-            onChangeText={(text) => updateFormData("description", text)}
-            placeholder="Describe la habitación, ubicación, condiciones, etc..."
-            placeholderTextColor={COLORS.TEXT_LIGHT}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-        </View>
-
-        {/* Price and Dates */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Precio y disponibilidad</Text>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Precio (€/mes)</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.price_eur}
-              onChangeText={(text) => updateFormData("price_eur", text)}
-              placeholder="Ej: 400"
-              placeholderTextColor={COLORS.TEXT_LIGHT}
-              keyboardType="numeric"
-            />
-          </View>
-
-          <DatePickerInput
-            label="Disponible desde"
-            value={formData.available_from}
-            onChange={(date) => updateFormData("available_from", date)}
-            placeholder="Seleccionar fecha de inicio"
-          />
-
-          <DatePickerInput
-            label="Disponible hasta"
-            value={formData.available_to}
-            onChange={(date) => updateFormData("available_to", date)}
-            placeholder="Seleccionar fecha de fin"
-          />
-        </View>
-
-        {/* Contact Information */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Información de contacto *</Text>
-          <Text style={styles.sectionSubtitle}>
-            Debe proporcionar al menos un método de contacto
-          </Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Email de contacto</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.contact_email}
-              onChangeText={(text) => updateFormData("contact_email", text)}
-              placeholder="tu@email.com"
-              placeholderTextColor={COLORS.TEXT_LIGHT}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Teléfono de contacto</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.contact_phone}
-              onChangeText={(text) => updateFormData("contact_phone", text)}
-              placeholder="123 456 789"
-              placeholderTextColor={COLORS.TEXT_LIGHT}
-              keyboardType="phone-pad"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Método de contacto preferido</Text>
-            <SelectFilter
-              label=""
-              value={formData.preferred_contact}
-              onSelect={(method) => updateFormData("preferred_contact", method)}
-              options={[
-                { id: "email", name: "Email" },
-                { id: "phone", name: "Teléfono" },
-              ]}
-              placeholder="Selecciona un método"
-              enableSearch={false}
-            />
-          </View>
-        </View>
-
-        {/* Images */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Imágenes (máximo 5)</Text>
-
-          {/* Existing Images (modo edición) */}
-          {isEditMode && existingImages.length > 0 && (
-            <View style={styles.imagesGrid}>
-              {existingImages.map((image, index) => {
-                const imageUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/public/housing_ad/${image.object_path}`;
-                return (
-                  <View key={`existing-${image.id}`} style={styles.imageItem}>
-                    <Image source={{ uri: imageUrl }} style={styles.image} />
-                    <TouchableOpacity
-                      style={styles.removeImageButton}
-                      onPress={() => removeExistingImage(index)}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="close-circle" size={24} color={COLORS.ERROR} />
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-
-          {/* Selected Images (nuevas) */}
-          {selectedImages.length > 0 && (
-            <View style={styles.imagesGrid}>
-              {selectedImages.map((image, index) => (
-                <View key={`new-${index}`} style={styles.imageItem}>
-                  <Image source={{ uri: image.uri }} style={styles.image} />
-                  <TouchableOpacity
-                    style={styles.removeImageButton}
-                    onPress={() => removeImage(index)}
-                    activeOpacity={0.7}
+            {/* Kind Selection */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Tipo de anuncio *</Text>
+              <View style={styles.kindContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.kindButton,
+                    formData.kind === "seek" && styles.kindButtonActiveSeek,
+                  ]}
+                  onPress={() => updateFormData("kind", "seek")}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="search"
+                    size={24}
+                    color={
+                      formData.kind === "seek" ? COLORS.PRIMARY : COLORS.GRAY
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.kindButtonTitle,
+                      formData.kind === "seek" && styles.kindButtonTitleActive,
+                    ]}
                   >
-                    <Ionicons name="close-circle" size={24} color={COLORS.ERROR} />
-                  </TouchableOpacity>
-                </View>
-              ))}
+                    Busco habitación
+                  </Text>
+                  <Text style={styles.kindButtonSubtitle}>
+                    Estoy buscando una habitación
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.kindButton,
+                    formData.kind === "offer" && styles.kindButtonActiveOffer,
+                  ]}
+                  onPress={() => updateFormData("kind", "offer")}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="home"
+                    size={24}
+                    color={
+                      formData.kind === "offer" ? COLORS.SUCCESS : COLORS.GRAY
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.kindButtonTitle,
+                      formData.kind === "offer" &&
+                        styles.kindButtonTitleActiveOffer,
+                    ]}
+                  >
+                    Ofrezco habitación
+                  </Text>
+                  <Text style={styles.kindButtonSubtitle}>
+                    Tengo una habitación disponible
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          )}
 
-          {/* Add Images Button */}
-          {(existingImages.length + selectedImages.length) < 5 && (
+            {/* City */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Ciudad *</Text>
+              <SelectFilter
+                label=""
+                value={formData.city}
+                onSelect={(city) => updateFormData("city", city)}
+                options={cityOptions}
+                placeholder="Selecciona una ciudad"
+                enableSearch={true}
+              />
+            </View>
+
+            {/* Hospital */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Hospital más cercano *</Text>
+              <SelectFilter
+                label=""
+                value={formData.hospital_id}
+                onSelect={(hospitalId) =>
+                  updateFormData("hospital_id", hospitalId)
+                }
+                options={hospitalOptions}
+                placeholder="Selecciona el hospital más cercano"
+                enableSearch={true}
+              />
+            </View>
+
+            {/* Title */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Título del anuncio *</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.title}
+                onChangeText={(text) => updateFormData("title", text)}
+                placeholder="Ej: Habitación cerca del Hospital La Paz"
+                placeholderTextColor={COLORS.TEXT_LIGHT}
+              />
+            </View>
+
+            {/* Description */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Descripción *</Text>
+              <TextInput
+                style={[styles.input, styles.inputMultiline]}
+                value={formData.description}
+                onChangeText={(text) => updateFormData("description", text)}
+                placeholder="Describe la habitación, ubicación, condiciones, etc..."
+                placeholderTextColor={COLORS.TEXT_LIGHT}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Price and Dates */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Precio y disponibilidad</Text>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Precio (€/mes)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.price_eur}
+                  onChangeText={(text) => updateFormData("price_eur", text)}
+                  placeholder="Ej: 400"
+                  placeholderTextColor={COLORS.TEXT_LIGHT}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <DatePickerInput
+                label="Disponible desde"
+                value={formData.available_from}
+                onChange={(date) => updateFormData("available_from", date)}
+                placeholder="Seleccionar fecha de inicio"
+              />
+
+              <DatePickerInput
+                label="Disponible hasta"
+                value={formData.available_to}
+                onChange={(date) => updateFormData("available_to", date)}
+                placeholder="Seleccionar fecha de fin"
+              />
+            </View>
+
+            {/* Contact Information */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Información de contacto *</Text>
+              <Text style={styles.sectionSubtitle}>
+                Debe proporcionar al menos un método de contacto
+              </Text>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Email de contacto</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.contact_email}
+                  onChangeText={(text) => updateFormData("contact_email", text)}
+                  placeholder="tu@email.com"
+                  placeholderTextColor={COLORS.TEXT_LIGHT}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Teléfono de contacto</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.contact_phone}
+                  onChangeText={(text) => updateFormData("contact_phone", text)}
+                  placeholder="123 456 789"
+                  placeholderTextColor={COLORS.TEXT_LIGHT}
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>
+                  Método de contacto preferido
+                </Text>
+                <SelectFilter
+                  label=""
+                  value={formData.preferred_contact}
+                  onSelect={(method) =>
+                    updateFormData("preferred_contact", method)
+                  }
+                  options={[
+                    { id: "email", name: "Email" },
+                    { id: "phone", name: "Teléfono" },
+                  ]}
+                  placeholder="Selecciona un método"
+                  enableSearch={false}
+                />
+              </View>
+            </View>
+
+            {/* Images */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Imágenes (máximo 5)</Text>
+
+              {/* Existing Images (modo edición) */}
+              {isEditMode && existingImages.length > 0 && (
+                <View style={styles.imagesGrid}>
+                  {existingImages.map((image, index) => {
+                    const imageUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/public/housing_ad/${image.object_path}`;
+                    return (
+                      <View
+                        key={`existing-${image.id}`}
+                        style={styles.imageItem}
+                      >
+                        <Image
+                          source={{ uri: imageUrl }}
+                          style={styles.image}
+                        />
+                        <TouchableOpacity
+                          style={styles.removeImageButton}
+                          onPress={() => removeExistingImage(index)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons
+                            name="close-circle"
+                            size={24}
+                            color={COLORS.ERROR}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Selected Images (nuevas) */}
+              {selectedImages.length > 0 && (
+                <View style={styles.imagesGrid}>
+                  {selectedImages.map((image, index) => (
+                    <View key={`new-${index}`} style={styles.imageItem}>
+                      <Image source={{ uri: image.uri }} style={styles.image} />
+                      <TouchableOpacity
+                        style={styles.removeImageButton}
+                        onPress={() => removeImage(index)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons
+                          name="close-circle"
+                          size={24}
+                          color={COLORS.ERROR}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Add Images Button */}
+              {existingImages.length + selectedImages.length < 5 && (
+                <TouchableOpacity
+                  style={styles.addImagesButton}
+                  onPress={handleImageSelect}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="images" size={32} color={COLORS.GRAY} />
+                  <Text style={styles.addImagesText}>Seleccionar imágenes</Text>
+                  <Text style={styles.addImagesSubtext}>
+                    {existingImages.length + selectedImages.length}/5 imágenes
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Submit Button */}
             <TouchableOpacity
-              style={styles.addImagesButton}
-              onPress={handleImageSelect}
-              activeOpacity={0.7}
+              style={[
+                styles.submitButton,
+                loading && styles.submitButtonDisabled,
+              ]}
+              onPress={handleSubmit}
+              disabled={loading}
+              activeOpacity={0.8}
             >
-              <Ionicons name="images" size={32} color={COLORS.GRAY} />
-              <Text style={styles.addImagesText}>
-                Seleccionar imágenes
-              </Text>
-              <Text style={styles.addImagesSubtext}>
-                {existingImages.length + selectedImages.length}/5 imágenes
-              </Text>
+              {loading ? (
+                <ActivityIndicator size="small" color={COLORS.WHITE} />
+              ) : (
+                <Text style={styles.submitButtonText}>
+                  {isEditMode ? "Actualizar Anuncio" : "Crear Anuncio"}
+                </Text>
+              )}
             </TouchableOpacity>
-          )}
-        </View>
 
-        {/* Submit Button */}
-        <TouchableOpacity
-          style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-          onPress={handleSubmit}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color={COLORS.WHITE} />
-          ) : (
-            <Text style={styles.submitButtonText}>
-              {isEditMode ? "Actualizar Anuncio" : "Crear Anuncio"}
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Bottom spacing */}
-        <View style={styles.bottomSpacing} />
-      </>
+            {/* Bottom spacing */}
+            <View style={styles.bottomSpacing} />
+          </>
         )}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -776,7 +820,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   imageItem: {
-    width: (100 / 3) + "%",
+    width: 100 / 3 + "%",
     aspectRatio: 1,
     position: "relative",
   },
@@ -831,4 +875,3 @@ const styles = StyleSheet.create({
     height: 32,
   },
 });
-

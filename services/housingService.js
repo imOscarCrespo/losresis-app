@@ -17,7 +17,11 @@ const ITEMS_PER_PAGE = 20;
  * @param {string} filters.user_id - ID del usuario (para filtrar "mis anuncios")
  * @returns {Promise<{success: boolean, ads: array|null, total: number, hasMore: boolean, error: string|null}>}
  */
-export const getHousingAds = async (page = 0, limit = ITEMS_PER_PAGE, filters = {}) => {
+export const getHousingAds = async (
+  page = 0,
+  limit = ITEMS_PER_PAGE,
+  filters = {}
+) => {
   try {
     const from = page * limit;
     const to = from + limit - 1;
@@ -275,9 +279,8 @@ export const createHousingAd = async (adData) => {
           const blob = await response.blob();
 
           // Subir a Supabase Storage
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from("housing_ad")
-            .upload(filePath, blob, {
+          const { data: uploadData, error: uploadError } =
+            await supabase.storage.from("housing_ad").upload(filePath, blob, {
               contentType: image.type || "image/jpeg",
               upsert: false,
             });
@@ -348,7 +351,11 @@ export const createHousingAd = async (adData) => {
       images: (finalAd.images || []).sort((a, b) => a.position - b.position),
     };
 
-    console.log("✅ Housing ad created successfully with", uploadedImages.length, "images");
+    console.log(
+      "✅ Housing ad created successfully with",
+      uploadedImages.length,
+      "images"
+    );
 
     return {
       success: true,
@@ -385,14 +392,22 @@ export const updateHousingAd = async (adId, adData) => {
     if (adData.kind !== undefined) updateData.kind = adData.kind;
     if (adData.city !== undefined) updateData.city = adData.city;
     if (adData.title !== undefined) updateData.title = adData.title;
-    if (adData.description !== undefined) updateData.description = adData.description;
-    if (adData.price_eur !== undefined) updateData.price_eur = adData.price_eur || null;
-    if (adData.available_from !== undefined) updateData.available_from = adData.available_from || null;
-    if (adData.available_to !== undefined) updateData.available_to = adData.available_to || null;
-    if (adData.hospital_id !== undefined) updateData.hospital_id = adData.hospital_id || null;
-    if (adData.contact_email !== undefined) updateData.contact_email = adData.contact_email || null;
-    if (adData.contact_phone !== undefined) updateData.contact_phone = adData.contact_phone || null;
-    if (adData.preferred_contact !== undefined) updateData.preferred_contact = adData.preferred_contact || null;
+    if (adData.description !== undefined)
+      updateData.description = adData.description;
+    if (adData.price_eur !== undefined)
+      updateData.price_eur = adData.price_eur || null;
+    if (adData.available_from !== undefined)
+      updateData.available_from = adData.available_from || null;
+    if (adData.available_to !== undefined)
+      updateData.available_to = adData.available_to || null;
+    if (adData.hospital_id !== undefined)
+      updateData.hospital_id = adData.hospital_id || null;
+    if (adData.contact_email !== undefined)
+      updateData.contact_email = adData.contact_email || null;
+    if (adData.contact_phone !== undefined)
+      updateData.contact_phone = adData.contact_phone || null;
+    if (adData.preferred_contact !== undefined)
+      updateData.preferred_contact = adData.preferred_contact || null;
     if (adData.is_active !== undefined) updateData.is_active = adData.is_active;
 
     const { data, error } = await supabase
@@ -516,4 +531,3 @@ export const toggleHousingAdStatus = async (adId, isActive) => {
     };
   }
 };
-
