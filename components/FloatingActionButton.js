@@ -1,17 +1,12 @@
 import React from "react";
-import {
-  TouchableOpacity,
-  StyleSheet,
-  Platform,
-  View,
-} from "react-native";
+import { TouchableOpacity, StyleSheet, Platform, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
 
 /**
  * Componente de botón flotante (FAB) para acciones principales
  * Se posiciona en la esquina inferior derecha de la pantalla
- * 
+ *
  * @param {Function} onPress - Callback cuando se presiona el botón
  * @param {string} icon - Nombre del icono de Ionicons (default: "add")
  * @param {string} backgroundColor - Color de fondo del botón (default: COLORS.PRIMARY)
@@ -76,5 +71,3 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
-
-
