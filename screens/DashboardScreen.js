@@ -33,6 +33,7 @@ export default function DashboardScreen({ onSignOut }) {
   const [selectedHousingAdId, setSelectedHousingAdId] = useState(null);
   const [creatingHousingAd, setCreatingHousingAd] = useState(false);
   const [editingHousingAdId, setEditingHousingAdId] = useState(null);
+  const [previousSection, setPreviousSection] = useState(null); // Para volver a la sección correcta
 
   // Determinar sección inicial según el tipo de usuario
   const getInitialSection = (profile) => {
@@ -95,6 +96,7 @@ export default function DashboardScreen({ onSignOut }) {
       setSelectedHousingAdId(null);
       setCreatingHousingAd(false);
       setEditingHousingAdId(null);
+      setPreviousSection(null); // Limpiar la sección anterior al cambiar de sección
     }
     // Si es reviewDetail, guardar el reviewId
     if (sectionId === "reviewDetail" && params.reviewId) {
@@ -118,9 +120,11 @@ export default function DashboardScreen({ onSignOut }) {
     }
   };
 
-  const handleHospitalSelect = (hospital, specialtyId) => {
+  const handleHospitalSelect = (hospital, specialtyId, fromSection = null) => {
     setSelectedHospital(hospital);
     setSelectedSpecialtyId(specialtyId || null);
+    // Guardar la sección de origen para poder volver a ella
+    setPreviousSection(fromSection || currentSection);
     // No cambiar currentSection aquí, se maneja en HospitalsScreen
   };
 
@@ -133,7 +137,9 @@ export default function DashboardScreen({ onSignOut }) {
   const handleBackFromDetail = () => {
     setSelectedHospital(null);
     setSelectedSpecialtyId(null);
-    setCurrentSection(getDefaultSection());
+    // Volver a la sección de origen si existe, sino a la sección por defecto
+    setCurrentSection(previousSection || getDefaultSection());
+    setPreviousSection(null); // Limpiar la sección anterior
   };
 
   const handleBackFromMirSimulator = () => {

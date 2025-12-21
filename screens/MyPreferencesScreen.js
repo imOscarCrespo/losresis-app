@@ -15,22 +15,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { usePreferences } from "../hooks/usePreferences";
 import { useHospitals } from "../hooks/useHospitals";
 import { SelectFilter } from "../components/SelectFilter";
+import { FloatingActionButton } from "../components/FloatingActionButton";
 import { prepareHospitalOptions } from "../utils/profileOptions";
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-const COLORS = {
-  PRIMARY: "#007AFF",
-  PURPLE: "#8B5CF6",
-  RED: "#EF4444",
-  GRAY: "#8E8E93",
-  GRAY_LIGHT: "#F5F5F5",
-  GRAY_DARK: "#1a1a1a",
-  BLUE_LIGHT: "#E3F2FD",
-  PURPLE_LIGHT: "#F3E8FF",
-};
+import { COLORS } from "../constants/colors";
 
 // ============================================================================
 // COMPONENTS
@@ -148,7 +135,9 @@ const PreferenceCard = ({
         <View style={styles.cardActions}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => onViewHospital(preference.hospital_id)}
+            onPress={() =>
+              onViewHospital(preference.hospital_id, preference.speciality_id)
+            }
           >
             <Ionicons name="eye" size={18} color={COLORS.PRIMARY} />
           </TouchableOpacity>
@@ -416,16 +405,13 @@ export default function MyPreferencesScreen({
   };
 
   // Manejar ver detalle del hospital
-  const handleViewHospital = async (hospitalId) => {
+  const handleViewHospital = async (hospitalId, specialityId) => {
     if (onHospitalSelect) {
       // Buscar el hospital en la lista de hospitales
       const hospital = hospitals.find((h) => h.id === hospitalId);
       if (hospital) {
-        // Buscar la especialidad de la preferencia
-        const preference = preferences.find(
-          (p) => p.hospital_id === hospitalId
-        );
-        onHospitalSelect(hospital, preference?.speciality_id || null);
+        // Pasar la sección actual (myPreferences) como tercer parámetro
+        onHospitalSelect(hospital, specialityId || null, "myPreferences");
       }
     }
   };
@@ -503,56 +489,49 @@ export default function MyPreferencesScreen({
 
   return (
     <View style={styles.container}>
-      {/* Header Actions */}
-      <View style={styles.headerActions}>
-        {editingOrder ? (
-          <>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <Text style={styles.title}>Mis Preferencias</Text>
+          <Text style={styles.resultsText}>
+            {preferences.length}{" "}
+            <Text style={styles.resultsLabel}>
+              {preferences.length === 1 ? "preferencia" : "preferencias"}
+            </Text>
+          </Text>
+        </View>
+      </View>
+
+      {/* Editing Mode Bar */}
+      {editingOrder && (
+        <View style={styles.editingBar}>
+          <View style={styles.editingBarContent}>
+            <Ionicons name="brush" size={20} color={COLORS.PRIMARY} />
+            <Text style={styles.editingBarText}>
+              Modo edición: Reorganiza tus preferencias
+            </Text>
+          </View>
+          <View style={styles.editingBarActions}>
             <TouchableOpacity
-              style={styles.saveOrderButton}
+              style={styles.saveButton}
               onPress={handleSaveOrder}
               disabled={savingOrder}
             >
-              <Ionicons
-                name="arrow-forward"
-                size={20}
-                color="#FFFFFF"
-                style={{ transform: [{ rotate: "-90deg" }] }}
-              />
-              <Text style={styles.saveOrderButtonText}>
-                {savingOrder ? "Guardando..." : "Guardar orden"}
+              <Ionicons name="checkmark" size={20} color={COLORS.WHITE} />
+              <Text style={styles.saveButtonText}>
+                {savingOrder ? "Guardando..." : "Guardar"}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.cancelOrderButton}
+              style={styles.cancelButton}
               onPress={handleCancelEditingOrder}
               disabled={savingOrder}
             >
-              <Text style={styles.cancelOrderButtonText}>Cancelar</Text>
+              <Ionicons name="close" size={20} color={COLORS.TEXT_MEDIUM} />
             </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <TouchableOpacity
-              style={[
-                styles.editOrderButton,
-                preferences.length < 2 && styles.editOrderButtonDisabled,
-              ]}
-              onPress={handleStartEditingOrder}
-              disabled={preferences.length < 2}
-            >
-              <Ionicons name="chevron-up" size={20} color={COLORS.PURPLE} />
-              <Text style={styles.editOrderButtonText}>Editar orden</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.addButtonHeader}
-              onPress={() => setAdding(true)}
-            >
-              <Ionicons name="add" size={20} color="#FFFFFF" />
-              <Text style={styles.addButtonHeaderText}>Añadir Preferencia</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
+          </View>
+        </View>
+      )}
 
       {/* Content */}
       <ScrollView
@@ -562,11 +541,14 @@ export default function MyPreferencesScreen({
       >
         {preferences.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="heart-outline" size={64} color={COLORS.GRAY} />
+            <Ionicons
+              name="heart-outline"
+              size={64}
+              color={COLORS.TEXT_LIGHT}
+            />
             <Text style={styles.emptyTitle}>No tienes preferencias aún</Text>
             <Text style={styles.emptySubtitle}>
               Añade tus combinaciones favoritas de hospital y especialidad
-              usando el botón de arriba
             </Text>
           </View>
         ) : (
@@ -588,6 +570,32 @@ export default function MyPreferencesScreen({
           </View>
         )}
       </ScrollView>
+
+      {/* Floating Action Buttons */}
+      {!editingOrder && (
+        <>
+          {/* Main FAB - Add Preference */}
+          <FloatingActionButton
+            onPress={() => setAdding(true)}
+            icon="add"
+            backgroundColor={COLORS.PRIMARY}
+            bottom={20}
+            right={20}
+          />
+
+          {/* Secondary FAB - Edit Order (only if 2+ preferences) */}
+          {preferences.length >= 2 && (
+            <FloatingActionButton
+              onPress={handleStartEditingOrder}
+              icon="brush-outline"
+              backgroundColor={COLORS.PURPLE}
+              size={48}
+              bottom={88}
+              right={20}
+            />
+          )}
+        </>
+      )}
 
       {/* Add Preference Modal */}
       <AddPreferenceModal
@@ -614,121 +622,136 @@ export default function MyPreferencesScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: COLORS.BACKGROUND_LIGHT,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.WHITE,
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: COLORS.GRAY,
+    color: COLORS.TEXT_MEDIUM,
   },
-  headerActions: {
+  header: {
+    backgroundColor: COLORS.WHITE,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER,
+  },
+  headerContent: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 12,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: COLORS.TEXT_DARK,
+  },
+  resultsText: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: COLORS.PRIMARY,
+  },
+  resultsLabel: {
+    fontSize: 14,
+    fontWeight: "normal",
+    color: COLORS.TEXT_MEDIUM,
+  },
+  editingBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.BADGE_BLUE_BG,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    borderBottomColor: COLORS.BORDER,
   },
-  editOrderButton: {
+  editingBarContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  editingBarText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: COLORS.PRIMARY,
+    flex: 1,
+  },
+  editingBarActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  saveButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E9D5FF",
-    backgroundColor: "#FFFFFF",
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: COLORS.SUCCESS,
   },
-  editOrderButtonDisabled: {
-    opacity: 0.5,
-  },
-  editOrderButtonText: {
+  saveButtonText: {
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.PURPLE,
+    color: COLORS.WHITE,
   },
-  addButtonHeader: {
-    flexDirection: "row",
+  cancelButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: COLORS.PRIMARY,
-  },
-  addButtonHeaderText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  saveOrderButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: COLORS.PRIMARY,
-  },
-  saveOrderButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  cancelOrderButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: COLORS.GRAY_LIGHT,
-  },
-  cancelOrderButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
+    backgroundColor: COLORS.WHITE,
   },
   content: {
     flex: 1,
   },
   contentContainer: {
     padding: 16,
+    paddingBottom: 100,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingVertical: 60,
+    paddingHorizontal: 20,
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 16,
+    marginTop: 20,
   },
   emptyTitle: {
     fontSize: 20,
     fontWeight: "600",
-    color: COLORS.GRAY_DARK,
+    color: COLORS.TEXT_DARK,
     marginTop: 16,
     marginBottom: 8,
+    textAlign: "center",
   },
   emptySubtitle: {
     fontSize: 14,
-    color: COLORS.GRAY,
+    color: COLORS.TEXT_MEDIUM,
     textAlign: "center",
-    paddingHorizontal: 32,
+    paddingHorizontal: 20,
+    lineHeight: 20,
   },
   preferencesList: {
     gap: 16,
   },
   preferenceCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.CARD_BACKGROUND,
     borderRadius: 16,
     padding: 16,
-    shadowColor: "#000",
+    marginBottom: 16,
+    shadowColor: COLORS.BLACK,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -736,6 +759,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
   },
   cardContent: {
     flexDirection: "row",
@@ -749,7 +774,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.PURPLE_LIGHT,
+    backgroundColor: COLORS.BADGE_PURPLE_BG,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -763,7 +788,7 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 12,
-    color: COLORS.GRAY,
+    color: COLORS.TEXT_MEDIUM,
     marginBottom: 4,
   },
   infoRow: {
@@ -774,7 +799,7 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 16,
     fontWeight: "600",
-    color: COLORS.GRAY_DARK,
+    color: COLORS.TEXT_DARK,
     flex: 1,
   },
   locationRow: {
@@ -785,7 +810,7 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 14,
-    color: COLORS.GRAY,
+    color: COLORS.TEXT_MEDIUM,
   },
   cardRight: {
     alignItems: "flex-end",
@@ -795,7 +820,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: COLORS.BLUE_LIGHT,
+    backgroundColor: COLORS.BADGE_BLUE_BG,
   },
   positionText: {
     fontSize: 12,
@@ -811,10 +836,10 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#E5E5EA",
+    borderColor: COLORS.BORDER,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.WHITE,
   },
   orderButtonDisabled: {
     opacity: 0.5,
@@ -826,11 +851,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: "#F5F5F5",
+    borderTopColor: COLORS.BORDER,
   },
   dateText: {
     fontSize: 12,
-    color: COLORS.GRAY,
+    color: COLORS.TEXT_LIGHT,
   },
   cardActions: {
     flexDirection: "row",
@@ -849,7 +874,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.WHITE,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: "85%",
@@ -861,12 +886,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    borderBottomColor: COLORS.BORDER,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "600",
-    color: COLORS.GRAY_DARK,
+    color: COLORS.TEXT_DARK,
   },
   closeButton: {
     padding: 4,
@@ -874,14 +899,14 @@ const styles = StyleSheet.create({
   errorContainer: {
     margin: 20,
     padding: 12,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: COLORS.ERROR_LIGHT,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#FECACA",
+    borderColor: COLORS.ERROR,
   },
   errorText: {
     fontSize: 14,
-    color: "#DC2626",
+    color: COLORS.ERROR,
   },
   modalForm: {
     flex: 1,
@@ -899,7 +924,7 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.GRAY_DARK,
+    color: COLORS.TEXT_DARK,
   },
   modalActions: {
     flexDirection: "row",
@@ -907,37 +932,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: "#E5E5EA",
-    backgroundColor: "#FFFFFF",
+    borderTopColor: COLORS.BORDER,
+    backgroundColor: COLORS.WHITE,
   },
   addButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: "#10B981",
+    backgroundColor: COLORS.SUCCESS,
     justifyContent: "center",
     alignItems: "center",
   },
   addButtonDisabled: {
-    backgroundColor: COLORS.GRAY,
+    backgroundColor: COLORS.TEXT_LIGHT,
     opacity: 0.5,
   },
   addButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: COLORS.WHITE,
   },
   cancelButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: COLORS.GRAY,
+    backgroundColor: COLORS.TEXT_LIGHT,
     justifyContent: "center",
     alignItems: "center",
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: COLORS.WHITE,
   },
 });

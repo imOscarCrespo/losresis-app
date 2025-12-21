@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   getHospitalSpecialties,
   getDetailedGrades,
+  getSpecialtyById,
 } from "../services/hospitalService";
 
 /**
@@ -36,7 +37,7 @@ export default function HospitalDetailScreen({
     if (hospital?.id) {
       fetchSpecialties();
     }
-  }, [hospital?.id]);
+  }, [hospital?.id, selectedSpecialtyId]);
 
   const fetchSpecialties = async () => {
     setLoading(true);
@@ -46,10 +47,54 @@ export default function HospitalDetailScreen({
         specialties: specialtiesData,
         error,
       } = await getHospitalSpecialties(hospital.id);
+
       if (success) {
         console.log("📊 Specialties loaded:", specialtiesData.length);
         console.log("📊 First specialty sample:", specialtiesData[0]);
-        setSpecialties(specialtiesData);
+
+        let finalSpecialties = specialtiesData;
+
+        // Si hay una especialidad seleccionada y no está en la lista, añadirla
+        if (selectedSpecialtyId) {
+          const isSpecialtyInList = specialtiesData.some(
+            (spec) => spec.id === selectedSpecialtyId
+          );
+
+          if (!isSpecialtyInList) {
+            console.log(
+              "⚠️ Selected specialty not in list, fetching it:",
+              selectedSpecialtyId
+            );
+
+            // Obtener la información de la especialidad
+            const { success: specSuccess, specialty } = await getSpecialtyById(
+              selectedSpecialtyId
+            );
+
+            if (specSuccess && specialty) {
+              console.log("✅ Adding specialty to list:", specialty.name);
+              // Añadir la especialidad sin datos de grados
+              finalSpecialties = [
+                {
+                  id: specialty.id,
+                  name: specialty.name,
+                  description: "",
+                  grade_2025: undefined,
+                  grade_2024: undefined,
+                  grade_2023: undefined,
+                  grade_2022: undefined,
+                  grade_2021: undefined,
+                  grade_2020: undefined,
+                  grade_2019: undefined,
+                  slots: undefined,
+                },
+                ...specialtiesData,
+              ];
+            }
+          }
+        }
+
+        setSpecialties(finalSpecialties);
       } else {
         console.error("Error loading specialties:", error);
       }

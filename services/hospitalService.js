@@ -121,6 +121,51 @@ export const getSpecialties = async () => {
 };
 
 /**
+ * Obtener una especialidad por ID
+ * @param {string} specialtyId - ID de la especialidad
+ * @returns {Promise<{success: boolean, specialty: object|null, error: string|null}>}
+ */
+export const getSpecialtyById = async (specialtyId) => {
+  try {
+    if (!specialtyId) {
+      return {
+        success: false,
+        specialty: null,
+        error: "Specialty ID is required",
+      };
+    }
+
+    const { data, error } = await supabase
+      .from("specialities")
+      .select("id, name")
+      .eq("id", specialtyId)
+      .single();
+
+    if (error) {
+      console.error("❌ Error fetching specialty:", error);
+      return {
+        success: false,
+        specialty: null,
+        error: error.message,
+      };
+    }
+
+    return {
+      success: true,
+      specialty: data,
+      error: null,
+    };
+  } catch (error) {
+    console.error("❌ Exception fetching specialty:", error);
+    return {
+      success: false,
+      specialty: null,
+      error: error.message,
+    };
+  }
+};
+
+/**
  * Obtener conteos de especialidades por hospital
  * @returns {Promise<{success: boolean, counts: object, error: string|null}>}
  * counts es un objeto donde la clave es el hospital_id y el valor es el número de especialidades

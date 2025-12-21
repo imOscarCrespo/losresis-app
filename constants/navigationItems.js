@@ -70,12 +70,6 @@ export const NAVIGATION_ITEMS = [
       "Consulta las reseñas de residentes sobre hospitales y especialidades",
   },
   {
-    id: "foro",
-    name: "Foro",
-    icon: "chatbubbles",
-    description: "Participa en discusiones con otros profesionales de la salud",
-  },
-  {
     id: "cursos",
     name: "Cursos y formaciones",
     icon: "bookmark",
