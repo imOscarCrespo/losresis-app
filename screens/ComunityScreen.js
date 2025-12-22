@@ -36,7 +36,7 @@ try {
     MapView = MapModule.default;
     console.log("✅ MapView sin clustering disponible");
   }
-  
+
   // Importar componentes de react-native-maps
   const MapModule = require("react-native-maps");
   Marker = MapModule.Marker;
@@ -44,7 +44,10 @@ try {
   PROVIDER_DEFAULT = MapModule.PROVIDER_DEFAULT;
   MAP_AVAILABLE = true;
 } catch (error) {
-  console.log("⚠️ MapView no disponible - usando vista de lista. Error:", error.message);
+  console.log(
+    "⚠️ MapView no disponible - usando vista de lista. Error:",
+    error.message
+  );
   MAP_AVAILABLE = false;
 }
 
@@ -263,10 +266,7 @@ export default function ComunityScreen({ userProfile, navigation }) {
           // Vista de Mapa con clustering
           <MapView
             ref={mapRef}
-            style={[
-              styles.map,
-              shouldShowReviewPrompt && styles.mapBlurred,
-            ]}
+            style={[styles.map, shouldShowReviewPrompt && styles.mapBlurred]}
             provider={PROVIDER_DEFAULT}
             initialRegion={{
               latitude: 40.4168,
@@ -284,7 +284,7 @@ export default function ComunityScreen({ userProfile, navigation }) {
             clusterColor="#007AFF"
             clusterTextColor="#FFFFFF"
             clusterFontFamily="System"
-            radius={80}  // Radio aumentado para agrupar mejor usuarios cercanos
+            radius={80} // Radio aumentado para agrupar mejor usuarios cercanos
             maxZoom={18} // Máximo zoom antes de desagrupar
             minZoom={3}
             extent={512}
@@ -318,14 +318,16 @@ export default function ComunityScreen({ userProfile, navigation }) {
                   }}
                 >
                   <View style={styles.clusterContainer}>
-                    <View style={[
-                      styles.clusterBubble,
-                      pointCount >= 10 && styles.clusterBubbleLarge,
-                      pointCount >= 20 && styles.clusterBubbleXLarge,
-                    ]}>
+                    <View
+                      style={[
+                        styles.clusterBubble,
+                        pointCount >= 10 && styles.clusterBubbleLarge,
+                        pointCount >= 20 && styles.clusterBubbleXLarge,
+                      ]}
+                    >
                       <Text style={styles.clusterText}>{pointCount}</Text>
                       <Text style={styles.clusterSubtext}>
-                        {pointCount === 2 ? 'residentes' : 'residentes'}
+                        {pointCount === 2 ? "residentes" : "residentes"}
                       </Text>
                     </View>
                     {/* Indicador de zoom */}
@@ -360,9 +362,14 @@ export default function ComunityScreen({ userProfile, navigation }) {
               <>
                 {!MAP_AVAILABLE && (
                   <View style={styles.listHeader}>
-                    <Ionicons name="information-circle" size={20} color="#FF9500" />
+                    <Ionicons
+                      name="information-circle"
+                      size={20}
+                      color="#FF9500"
+                    />
                     <Text style={styles.listHeaderText}>
-                      Mapa no disponible. Ejecuta 'npx expo run:ios' para habilitar el mapa
+                      Mapa no disponible. Ejecuta 'npx expo run:ios' para
+                      habilitar el mapa
                     </Text>
                   </View>
                 )}
@@ -374,9 +381,14 @@ export default function ComunityScreen({ userProfile, navigation }) {
                   ListEmptyComponent={
                     !usersLoading && (
                       <View style={styles.emptyContainer}>
-                        <Ionicons name="people-outline" size={48} color="#999" />
+                        <Ionicons
+                          name="people-outline"
+                          size={48}
+                          color="#999"
+                        />
                         <Text style={styles.emptyText}>
-                          No se encontraron residentes con los filtros seleccionados
+                          No se encontraron residentes con los filtros
+                          seleccionados
                         </Text>
                       </View>
                     )
@@ -416,7 +428,10 @@ export default function ComunityScreen({ userProfile, navigation }) {
         )}
 
         {/* Loading overlay */}
-        {(usersLoading || (userProfile?.is_resident && !userProfile?.is_super_admin && reviewLoading)) && (
+        {(usersLoading ||
+          (userProfile?.is_resident &&
+            !userProfile?.is_super_admin &&
+            reviewLoading)) && (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color="#007AFF" />
             <Text style={styles.loadingText}>
@@ -425,16 +440,18 @@ export default function ComunityScreen({ userProfile, navigation }) {
           </View>
         )}
 
-
         {/* Mensaje cuando no hay usuarios (solo para vista de mapa) */}
-        {MAP_AVAILABLE && !usersLoading && !shouldShowReviewPrompt && users.length === 0 && (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="people-outline" size={48} color="#999" />
-            <Text style={styles.emptyText}>
-              No se encontraron residentes con los filtros seleccionados
-            </Text>
-          </View>
-        )}
+        {MAP_AVAILABLE &&
+          !usersLoading &&
+          !shouldShowReviewPrompt &&
+          users.length === 0 && (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="people-outline" size={48} color="#999" />
+              <Text style={styles.emptyText}>
+                No se encontraron residentes con los filtros seleccionados
+              </Text>
+            </View>
+          )}
       </View>
     </View>
   );

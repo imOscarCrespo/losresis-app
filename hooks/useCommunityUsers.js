@@ -26,10 +26,11 @@ export const useCommunityUsers = (selectedCity, selectedSpecialty) => {
         setError(null);
 
         // Obtener usuarios de la base de datos
-        const { success, users: rawUsers, error: fetchError } = await getCommunityUsers(
-          selectedCity,
-          selectedSpecialty
-        );
+        const {
+          success,
+          users: rawUsers,
+          error: fetchError,
+        } = await getCommunityUsers(selectedCity, selectedSpecialty);
 
         if (!success) {
           setError(fetchError);
@@ -38,8 +39,8 @@ export const useCommunityUsers = (selectedCity, selectedSpecialty) => {
         }
 
         // Filtrar usuarios que tienen email Y especialidad
-        const validUsers = rawUsers.filter(user => {
-          const hasEmail = user.work_email && user.work_email.trim() !== '';
+        const validUsers = rawUsers.filter((user) => {
+          const hasEmail = user.work_email && user.work_email.trim() !== "";
           const hasSpecialty = user.speciality_id && user.specialities?.name;
           return hasEmail && hasSpecialty;
         });
@@ -101,7 +102,8 @@ export const useCommunityUsers = (selectedCity, selectedSpecialty) => {
   useEffect(() => {
     const fetchSpecialties = async () => {
       try {
-        const { success, specialties: specialtiesData } = await getSpecialties();
+        const { success, specialties: specialtiesData } =
+          await getSpecialties();
 
         if (success) {
           setSpecialties(specialtiesData);
@@ -165,4 +167,3 @@ export const useCommunityUsers = (selectedCity, selectedSpecialty) => {
     mapRegion,
   };
 };
-

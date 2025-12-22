@@ -31,7 +31,11 @@ export const useResidentReviewCheck = (userId, userProfile) => {
         setLoading(true);
         setError(null);
 
-        const { success, hasReview: reviewExists, error: checkError } = await checkResidentReview(userId);
+        const {
+          success,
+          hasReview: reviewExists,
+          error: checkError,
+        } = await checkResidentReview(userId);
 
         if (success) {
           setHasReview(reviewExists);
@@ -57,4 +61,3 @@ export const useResidentReviewCheck = (userId, userProfile) => {
     error,
   };
 };
-

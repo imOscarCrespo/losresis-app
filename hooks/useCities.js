@@ -16,7 +16,11 @@ export const useCities = () => {
         setLoading(true);
         setError(null);
 
-        const { success, cities: citiesData, error: fetchError } = await getCities();
+        const {
+          success,
+          cities: citiesData,
+          error: fetchError,
+        } = await getCities();
 
         if (success) {
           setCities(citiesData);
@@ -51,4 +55,3 @@ export const useCities = () => {
     error,
   };
 };
-

@@ -38,12 +38,12 @@ export const SelectFilter = ({
   const selectedOption = options.find(
     (opt) => opt.id === value || opt === value
   );
-  
+
   // Asegurar que displayText sea siempre un string
   const displayText = selectedOption
-    ? (typeof selectedOption === 'string' 
-        ? selectedOption 
-        : selectedOption.name || String(selectedOption.id || ''))
+    ? typeof selectedOption === "string"
+      ? selectedOption
+      : selectedOption.name || String(selectedOption.id || "")
     : placeholder;
 
   // Filtrar opciones basándose en el texto de búsqueda
@@ -54,9 +54,10 @@ export const SelectFilter = ({
     const searchLower = searchText.toLowerCase().trim();
     return options.filter((option) => {
       // Asegurar que optionName sea siempre un string
-      const optionName = typeof option === 'string'
-        ? option
-        : (option.name || String(option.id || ''));
+      const optionName =
+        typeof option === "string"
+          ? option
+          : option.name || String(option.id || "");
       return optionName.toLowerCase().includes(searchLower);
     });
   }, [options, searchText]);
@@ -76,9 +77,8 @@ export const SelectFilter = ({
   const renderOption = ({ item }) => {
     const optionValue = item.id || item;
     // Asegurar que optionName sea siempre un string
-    const optionName = typeof item === 'string' 
-      ? item 
-      : (item.name || String(item.id || ''));
+    const optionName =
+      typeof item === "string" ? item : item.name || String(item.id || "");
     const isSelected = optionValue === value;
 
     return (

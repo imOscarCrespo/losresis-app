@@ -10,7 +10,10 @@ import { supabase } from "../config/supabase";
  * @param {string} specialtyFilter - Filtro opcional por especialidad
  * @returns {Promise<{success: boolean, users: Array, error: string|null}>}
  */
-export const getCommunityUsers = async (cityFilter = "", specialtyFilter = "") => {
+export const getCommunityUsers = async (
+  cityFilter = "",
+  specialtyFilter = ""
+) => {
   try {
     // Construir query base para residentes con email y especialidad
     let query = supabase
@@ -126,9 +129,9 @@ export const getCityCoordinates = async (city) => {
     Málaga: { latitude: 36.7213, longitude: -4.4214 },
     Murcia: { latitude: 37.9922, longitude: -1.1307 },
     "Palma de Mallorca": { latitude: 39.5696, longitude: 2.6502 },
-    "Las Palmas de Gran Canaria": { latitude: 28.1248, longitude: -15.4300 },
-    Bilbao: { latitude: 43.2630, longitude: -2.9350 },
-    Alicante: { latitude: 38.3452, longitude: -0.4810 },
+    "Las Palmas de Gran Canaria": { latitude: 28.1248, longitude: -15.43 },
+    Bilbao: { latitude: 43.263, longitude: -2.935 },
+    Alicante: { latitude: 38.3452, longitude: -0.481 },
     Córdoba: { latitude: 37.8882, longitude: -4.7794 },
     Valladolid: { latitude: 41.6521, longitude: -4.7288 },
     Vigo: { latitude: 42.2406, longitude: -8.7207 },
@@ -149,11 +152,11 @@ export const getCityCoordinates = async (city) => {
     Santander: { latitude: 43.4623, longitude: -3.8099 },
     Almería: { latitude: 36.8381, longitude: -2.4597 },
     Salamanca: { latitude: 40.9701, longitude: -5.6635 },
-    Logroño: { latitude: 42.4627, longitude: -2.4450 },
+    Logroño: { latitude: 42.4627, longitude: -2.445 },
     Badajoz: { latitude: 38.8794, longitude: -6.9707 },
-    Huelva: { latitude: 37.2578, longitude: -6.9500 },
+    Huelva: { latitude: 37.2578, longitude: -6.95 },
     Tarragona: { latitude: 41.1189, longitude: 1.2445 },
-    Lleida: { latitude: 41.6175, longitude: 0.6200 },
+    Lleida: { latitude: 41.6175, longitude: 0.62 },
     Cáceres: { latitude: 39.4753, longitude: -6.3724 },
     "Castellón de la Plana": { latitude: 39.9864, longitude: -0.0513 },
     Albacete: { latitude: 38.9943, longitude: -1.8585 },
@@ -166,7 +169,7 @@ export const getCityCoordinates = async (city) => {
     Ávila: { latitude: 40.6565, longitude: -4.6818 },
     Guadalajara: { latitude: 40.6324, longitude: -3.1604 },
     Cuenca: { latitude: 40.0704, longitude: -2.1374 },
-    Soria: { latitude: 41.7665, longitude: -2.4790 },
+    Soria: { latitude: 41.7665, longitude: -2.479 },
     Teruel: { latitude: 40.3456, longitude: -1.1065 },
   };
 
@@ -204,7 +207,7 @@ export const calculateOffsetCoordinates = (
   // Radio del círculo aumentado para mejor visualización
   // Aproximadamente 2-3 km para que se vean bien separados en el mapa
   let radius = 0.02; // Base: ~2km
-  
+
   // Si hay muchos usuarios, aumentar el radio
   if (total > 10) {
     radius = 0.03; // ~3km
@@ -212,7 +215,7 @@ export const calculateOffsetCoordinates = (
   if (total > 20) {
     radius = 0.04; // ~4km
   }
-  
+
   const angle = (2 * Math.PI * index) / total;
 
   return {
@@ -265,4 +268,3 @@ export const checkResidentReview = async (userId) => {
     };
   }
 };
-
