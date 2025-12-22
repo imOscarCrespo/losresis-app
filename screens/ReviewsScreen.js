@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useReviews } from "../hooks/useReviews";
 import { useHospitals } from "../hooks/useHospitals";
 import { Filters } from "../components/Filters";
+import { ScreenHeader } from "../components/ScreenHeader";
 import { prepareHospitalOptions } from "../utils/profileOptions";
 import { formatShortDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
@@ -162,14 +163,14 @@ export default function ReviewsScreen({
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Reseñas</Text>
-        <Text style={styles.resultsText}>
-          Mostrando{" "}
-          <Text style={styles.resultsNumber}>{reviewSummaries.length}</Text>{" "}
-          reseñas
-        </Text>
-      </View>
+      <ScreenHeader
+        title="Reseñas"
+        subtitle={`Mostrando ${reviewSummaries.length} reseñas`}
+        notificationCount={0}
+        onNotificationPress={() => {
+          // TODO: Implementar navegación a notificaciones
+        }}
+      />
 
       {/* Filtros genéricos */}
       <Filters

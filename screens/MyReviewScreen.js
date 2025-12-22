@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { StarRating } from "../components/StarRating";
+import { ScreenHeader } from "../components/ScreenHeader";
 import { useMyReview } from "../hooks/useMyReview";
 import { useHospitals } from "../hooks/useHospitals";
 import { formatShortDate } from "../utils/dateUtils";
@@ -231,14 +232,18 @@ export default function MyReviewScreen({ userProfile, navigation }) {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Mi Reseña</Text>
-        <Text style={styles.subtitle}>
-          {existingReview
+      <ScreenHeader
+        title="Mi Reseña"
+        subtitle={
+          existingReview
             ? "Gestiona tu reseña del hospital"
-            : "Comparte tu experiencia como residente"}
-        </Text>
-      </View>
+            : "Comparte tu experiencia como residente"
+        }
+        notificationCount={0}
+        onNotificationPress={() => {
+          // TODO: Implementar navegación a notificaciones
+        }}
+      />
 
       <ScrollView
         style={styles.scrollView}

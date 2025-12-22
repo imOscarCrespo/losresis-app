@@ -38,8 +38,11 @@ export const useMyReview = (userId, hospitalId, specialtyId) => {
     setLoadingQuestions(true);
     setError(null);
     try {
-      const { success, questions, error: fetchError } =
-        await getReviewQuestions();
+      const {
+        success,
+        questions,
+        error: fetchError,
+      } = await getReviewQuestions();
 
       if (success) {
         setReviewQuestions(questions);
@@ -63,11 +66,11 @@ export const useMyReview = (userId, hospitalId, specialtyId) => {
     setLoading(true);
     setError(null);
     try {
-      const { success, review, error: checkError } = await checkExistingReview(
-        userId,
-        hospitalId,
-        specialtyId
-      );
+      const {
+        success,
+        review,
+        error: checkError,
+      } = await checkExistingReview(userId, hospitalId, specialtyId);
 
       if (success) {
         setExistingReview(review);
@@ -120,7 +123,11 @@ export const useMyReview = (userId, hospitalId, specialtyId) => {
       setSuccess(false);
 
       try {
-        const { success, review, error: createError } = await createReview(
+        const {
+          success,
+          review,
+          error: createError,
+        } = await createReview(
           userId,
           hospitalId,
           specialtyId,
@@ -188,64 +195,59 @@ export const useMyReview = (userId, hospitalId, specialtyId) => {
   /**
    * Elimina una reseña
    */
-  const handleDeleteReview = useCallback(
-    async (reviewId) => {
-      setLoading(true);
-      setError(null);
-      setSuccess(false);
+  const handleDeleteReview = useCallback(async (reviewId) => {
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
 
-      try {
-        const { success, error: deleteError } = await deleteReview(reviewId);
+    try {
+      const { success, error: deleteError } = await deleteReview(reviewId);
 
-        if (success) {
-          setExistingReview(null);
-          setImages([]);
-          setSuccess(true);
-          return true;
-        } else {
-          setError(deleteError || "Error al eliminar la reseña");
-          return false;
-        }
-      } catch (err) {
-        console.error("Exception deleting review:", err);
-        setError("Error inesperado al eliminar la reseña");
+      if (success) {
+        setExistingReview(null);
+        setImages([]);
+        setSuccess(true);
+        return true;
+      } else {
+        setError(deleteError || "Error al eliminar la reseña");
         return false;
-      } finally {
-        setLoading(false);
       }
-    },
-    []
-  );
+    } catch (err) {
+      console.error("Exception deleting review:", err);
+      setError("Error inesperado al eliminar la reseña");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   /**
    * Sube una imagen
    */
-  const handleUploadImage = useCallback(
-    async (reviewId, imageUri) => {
-      setUploadingImage(true);
-      try {
-        const { success, image, error: uploadError } = await uploadReviewImage(
-          reviewId,
-          imageUri
-        );
+  const handleUploadImage = useCallback(async (reviewId, imageUri) => {
+    setUploadingImage(true);
+    try {
+      const {
+        success,
+        image,
+        error: uploadError,
+      } = await uploadReviewImage(reviewId, imageUri);
 
-        if (success && image) {
-          setImages((prev) => [...prev, image]);
-          return image;
-        } else {
-          setError(uploadError || "Error al subir la imagen");
-          return null;
-        }
-      } catch (err) {
-        console.error("Exception uploading image:", err);
-        setError("Error inesperado al subir la imagen");
+      if (success && image) {
+        setImages((prev) => [...prev, image]);
+        return image;
+      } else {
+        setError(uploadError || "Error al subir la imagen");
         return null;
-      } finally {
-        setUploadingImage(false);
       }
-    },
-    []
-  );
+    } catch (err) {
+      console.error("Exception uploading image:", err);
+      setError("Error inesperado al subir la imagen");
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  }, []);
 
   /**
    * Elimina una imagen
@@ -320,4 +322,3 @@ export const useMyReview = (userId, hospitalId, specialtyId) => {
     clearSuccess,
   };
 };
-

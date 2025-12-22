@@ -19,6 +19,7 @@ import HousingScreen from "./HousingScreen";
 import HousingAdDetailScreen from "./HousingAdDetailScreen";
 import CreateHousingAdScreen from "./CreateHousingAdScreen";
 import ContactScreen from "./ContactScreen";
+import ShiftsScreen from "./ShiftsScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 
@@ -385,8 +386,17 @@ export default function DashboardScreen({ onSignOut }) {
       case "contacto":
         return <ContactScreen userProfile={userProfile} />;
 
-      // Secciones del menú (placeholder)
+      // Pantalla de guardias
       case "guardias":
+        return (
+          <ShiftsScreen
+            userProfile={userProfile}
+            navigation={{ navigate: handleSectionChange }}
+            onNavigateToSection={handleSectionChange}
+          />
+        );
+
+      // Secciones del menú (placeholder)
       case "libro-residente":
       case "rotaciones-externas":
       case "foro":

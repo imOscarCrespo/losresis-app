@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Filters } from "../components/Filters";
+import { ScreenHeader } from "../components/ScreenHeader";
 import { useHospitals } from "../hooks/useHospitals";
 
 export default function HospitalsScreen({
@@ -151,16 +152,14 @@ export default function HospitalsScreen({
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <Text style={styles.title}>Hospitales</Text>
-        </View>
-        <Text style={styles.resultsText}>
-          Mostrando{" "}
-          <Text style={styles.resultsNumber}>{filteredHospitals.length}</Text>{" "}
-          de {filteredHospitals.length} hospitales
-        </Text>
-      </View>
+      <ScreenHeader
+        title="Hospitales"
+        subtitle={`Mostrando ${filteredHospitals.length} hospitales`}
+        notificationCount={0}
+        onNotificationPress={() => {
+          // TODO: Implementar navegación a notificaciones
+        }}
+      />
 
       {/* Filtros genéricos */}
       <Filters

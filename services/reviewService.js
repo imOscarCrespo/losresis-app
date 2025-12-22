@@ -264,10 +264,7 @@ export const deleteReview = async (reviewId) => {
   try {
     // Las respuestas se eliminan automáticamente por CASCADE en la BD
     // Las imágenes también deberían tener CASCADE configurado
-    const { error } = await supabase
-      .from("review")
-      .delete()
-      .eq("id", reviewId);
+    const { error } = await supabase.from("review").delete().eq("id", reviewId);
 
     if (error) {
       console.error("Error deleting review:", error);
@@ -462,4 +459,3 @@ export const deleteReviewImage = async (imageId, imagePath) => {
     };
   }
 };
-

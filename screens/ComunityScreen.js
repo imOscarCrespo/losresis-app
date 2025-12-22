@@ -229,28 +229,41 @@ export default function ComunityScreen({ userProfile, navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <Text style={styles.title}>Comunidad</Text>
-          {/* Botón para cambiar vista */}
-          {MAP_AVAILABLE && (
+          <View style={styles.headerLeft}>
+            <Text style={styles.title}>Comunidad</Text>
+            <Text style={styles.resultsText}>
+              Mostrando <Text style={styles.resultsNumber}>{users.length}</Text>{" "}
+              {users.length === 1 ? "residente" : "residentes"}
+            </Text>
+          </View>
+          <View style={styles.headerRight}>
+            {/* Botón para cambiar vista */}
+            {MAP_AVAILABLE && (
+              <TouchableOpacity
+                style={styles.viewToggleButton}
+                onPress={() => setViewMode(viewMode === "map" ? "list" : "map")}
+              >
+                <Ionicons
+                  name={viewMode === "map" ? "list" : "map"}
+                  size={20}
+                  color="#007AFF"
+                />
+                <Text style={styles.viewToggleText}>
+                  {viewMode === "map" ? "Lista" : "Mapa"}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {/* Botón de notificaciones */}
             <TouchableOpacity
-              style={styles.viewToggleButton}
-              onPress={() => setViewMode(viewMode === "map" ? "list" : "map")}
+              style={styles.notificationButton}
+              onPress={() => {
+                // TODO: Implementar navegación a notificaciones
+              }}
             >
-              <Ionicons
-                name={viewMode === "map" ? "list" : "map"}
-                size={20}
-                color="#007AFF"
-              />
-              <Text style={styles.viewToggleText}>
-                {viewMode === "map" ? "Lista" : "Mapa"}
-              </Text>
+              <Ionicons name="notifications-outline" size={28} color="#1a1a1a" />
             </TouchableOpacity>
-          )}
+          </View>
         </View>
-        <Text style={styles.resultsText}>
-          Mostrando <Text style={styles.resultsNumber}>{users.length}</Text>{" "}
-          {users.length === 1 ? "residente" : "residentes"}
-        </Text>
       </View>
 
       {/* Filtros */}
@@ -465,6 +478,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: "#ffffff",
     padding: 16,
+    paddingRight: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#E5E5EA",
   },
@@ -472,12 +486,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   title: {
     fontSize: 28,
     fontWeight: "bold",
     color: "#1a1a1a",
+    marginBottom: 4,
+  },
+  notificationButton: {
+    padding: 8,
   },
   viewToggleButton: {
     flexDirection: "row",
