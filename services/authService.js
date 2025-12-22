@@ -15,39 +15,43 @@ const USER_ID_KEY = "@losresis:userId";
 WebBrowser.maybeCompleteAuthSession();
 
 /**
- * Iniciar sesión con Google OAuth
+ * Función genérica para iniciar sesión con cualquier provider OAuth
+ * @param {string} provider - Provider de OAuth ('google' | 'apple')
  * @param {string} redirectUrl - URL de redirección después del login
- * @returns {Promise<{success: boolean, error: string|null}>}
+ * @returns {Promise<{success: boolean, error: string|null, data?: object}>}
  */
-export const signInWithGoogle = async (redirectUrl) => {
+const signInWithOAuth = async (provider, redirectUrl) => {
   try {
-    console.log("🔐 Iniciando OAuth con Google...");
+    const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
+    console.log(`🔐 Iniciando OAuth con ${providerName}...`);
     console.log("📍 Redirect URL:", redirectUrl);
-
-    // Obtener la URL de OAuth de Supabase
-    // IMPORTANTE: Usar la URL de la app móvil, no la web
-    // La URL debe ser el scheme de la app (losresis://) no una URL web
-    console.log("🔗 URL de redirección que se usará:", redirectUrl);
 
     // Asegurar que la URL de redirección sea la de la app móvil
     // Forzar siempre losresis://auth/callback para evitar que use la URL web
     const finalRedirectUrl = "losresis://auth/callback";
     console.log("🔗 URL de redirección forzada a móvil:", finalRedirectUrl);
 
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: finalRedirectUrl,
-        skipBrowserRedirect: true, // Importante: no abrir el navegador automáticamente
-        queryParams: {
-          redirect_to: finalRedirectUrl, // Forzar explícitamente la URL de redirección
-          prompt: "select_account", // Forzar selección de cuenta (no usar sesión guardada)
-        },
+    // Configurar opciones específicas por provider
+    const oauthOptions = {
+      redirectTo: finalRedirectUrl,
+      skipBrowserRedirect: true, // Importante: no abrir el navegador automáticamente
+      queryParams: {
+        redirect_to: finalRedirectUrl, // Forzar explícitamente la URL de redirección
       },
+    };
+
+    // Google requiere prompt para selección de cuenta
+    if (provider === "google") {
+      oauthOptions.queryParams.prompt = "select_account";
+    }
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: oauthOptions,
     });
 
     if (error) {
-      console.error("❌ Error en Google OAuth:", error);
+      console.error(`❌ Error en ${providerName} OAuth:`, error);
       return {
         success: false,
         error: error.message,
@@ -211,12 +215,30 @@ export const signInWithGoogle = async (redirectUrl) => {
       };
     }
   } catch (error) {
-    console.error("❌ Error al iniciar sesión con Google:", error);
+    console.error(`❌ Error al iniciar sesión con ${provider}:`, error);
     return {
       success: false,
       error: error.message,
     };
   }
+};
+
+/**
+ * Iniciar sesión con Google OAuth
+ * @param {string} redirectUrl - URL de redirección después del login
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export const signInWithGoogle = async (redirectUrl) => {
+  return signInWithOAuth("google", redirectUrl);
+};
+
+/**
+ * Iniciar sesión con Apple OAuth
+ * @param {string} redirectUrl - URL de redirección después del login
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export const signInWithApple = async (redirectUrl) => {
+  return signInWithOAuth("apple", redirectUrl);
 };
 
 /**

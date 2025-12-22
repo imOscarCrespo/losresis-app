@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -12,6 +13,7 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import {
   signInWithGoogle,
+  signInWithApple,
   getCurrentUser,
   getUserProfile,
   saveUserId,
@@ -21,10 +23,12 @@ import { supabase } from "../config/supabase";
 import * as Linking from "expo-linking";
 
 const isDevelopment = __DEV__;
+const isIOS = Platform.OS === "ios";
 
 export default function WelcomeScreen({ onAuthSuccess }) {
   const [isChecking, setIsChecking] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [signingInProvider, setSigningInProvider] = useState(null); // 'google' | 'apple' | null
   const isCheckingRef = useRef(false);
 
   useEffect(() => {
@@ -179,23 +183,19 @@ export default function WelcomeScreen({ onAuthSuccess }) {
     }
   };
 
-  const handleSignIn = async () => {
-    if (isChecking) {
+  /**
+   * Función genérica para manejar sign in con cualquier provider
+   * @param {'google' | 'apple'} provider - Provider de autenticación
+   */
+  const handleSignIn = async (provider) => {
+    if (isChecking || signingInProvider) {
       console.log("⚠️ Sign in already in progress, skipping...");
       return;
     }
 
-    // En desarrollo, simular login
-    // if (isDevelopment) {
-    //   console.log("🚀 Development: Simulando login...");
-    //   if (navigation) {
-    //     navigation.navigate("Dashboard");
-    //   }
-    //   return;
-    // }
-
     try {
       setIsChecking(true);
+      setSigningInProvider(provider);
 
       // Obtener la URL de redirección
       // IMPORTANTE: Usar el scheme de la app móvil (losresis://)
@@ -212,10 +212,13 @@ export default function WelcomeScreen({ onAuthSuccess }) {
 
       console.log("🔗 Redirect URL creada:", redirectUrl);
 
-      const result = await signInWithGoogle(redirectUrl);
+      // Ejecutar el sign in correspondiente según el provider
+      const signInFunction =
+        provider === "google" ? signInWithGoogle : signInWithApple;
+      const result = await signInFunction(redirectUrl);
 
       if (result.success) {
-        console.log("✅ Login exitoso");
+        console.log(`✅ Login exitoso con ${provider}`);
         // Verificar el perfil del usuario después del login
         const { success: userSuccess, user } = await getCurrentUser();
         if (userSuccess && user) {
@@ -232,9 +235,11 @@ export default function WelcomeScreen({ onAuthSuccess }) {
       }
 
       setIsChecking(false);
+      setSigningInProvider(null);
     } catch (error) {
       console.error("❌ Error en sign in:", error);
       setIsChecking(false);
+      setSigningInProvider(null);
       alert("Error inesperado: " + error.message);
     }
   };
@@ -273,14 +278,36 @@ export default function WelcomeScreen({ onAuthSuccess }) {
               </Text>
             </Text>
 
-            {/* Google Sign In Button */}
+            {/* Sign In Buttons */}
             <View style={styles.buttonContainer}>
+              {/* Apple Sign In Button - Solo en iOS */}
+              {isIOS && (
+                <>
+                  <Button
+                    title={
+                      signingInProvider === "apple"
+                        ? "Verificando perfil..."
+                        : "Continuar con Apple"
+                    }
+                    onPress={() => handleSignIn("apple")}
+                    loading={signingInProvider === "apple"}
+                    disabled={!!isChecking}
+                    variant="apple"
+                    style={styles.appleButton}
+                  />
+                  <View style={{ height: 12 }} />
+                </>
+              )}
+
+              {/* Google Sign In Button */}
               <Button
                 title={
-                  isChecking ? "Verificando perfil..." : "Continuar con Google"
+                  signingInProvider === "google"
+                    ? "Verificando perfil..."
+                    : "Continuar con Google"
                 }
-                onPress={handleSignIn}
-                loading={!!isChecking}
+                onPress={() => handleSignIn("google")}
+                loading={signingInProvider === "google"}
                 disabled={!!isChecking}
                 variant="google"
                 style={styles.googleButton}
@@ -373,6 +400,9 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginBottom: 16,
+  },
+  appleButton: {
+    width: "100%",
   },
   googleButton: {
     width: "100%",

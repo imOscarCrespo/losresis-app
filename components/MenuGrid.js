@@ -29,7 +29,7 @@ const MenuGridItem = ({ item, onPress }) => {
       <View style={[styles.gridItemContent, { backgroundColor }]}>
         {/* Overlay con gradiente sutil */}
         <View style={styles.gradientOverlay} />
-        
+
         {/* Icono en círculo blanco en la esquina superior derecha */}
         <View style={styles.iconCircle}>
           <Ionicons name={item.icon} size={24} color={backgroundColor} />
@@ -40,7 +40,7 @@ const MenuGridItem = ({ item, onPress }) => {
           <Text style={styles.gridItemTitle} numberOfLines={2}>
             {item.name}
           </Text>
-          
+
           {/* Información adicional opcional */}
           {item.description && (
             <Text style={styles.gridItemSubtitle} numberOfLines={2}>
@@ -183,11 +183,7 @@ export const MenuGrid = ({
       {gridRows.map((row, rowIndex) => (
         <View key={rowIndex} style={styles.gridRow}>
           {row.map((item) => (
-            <MenuGridItem
-              key={item.id}
-              item={item}
-              onPress={handleItemPress}
-            />
+            <MenuGridItem key={item.id} item={item} onPress={handleItemPress} />
           ))}
         </View>
       ))}
