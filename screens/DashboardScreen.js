@@ -352,7 +352,12 @@ export default function DashboardScreen({ onSignOut }) {
         );
 
       case "myReview":
-        return <MyReviewScreen />;
+        return (
+          <MyReviewScreen
+            userProfile={userProfile}
+            navigation={{ navigate: handleSectionChange }}
+          />
+        );
 
       case "residenceLibrary":
         return <ResidenceLibraryScreen />;

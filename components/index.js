@@ -6,6 +6,7 @@ export { ScreenLayout } from "./ScreenLayout";
 export { Filters } from "./Filters";
 export { SearchFilter } from "./SearchFilter";
 export { SelectFilter } from "./SelectFilter";
+export { StarRating } from "./StarRating";
 export { EmailReviewSection } from "./EmailReviewSection";
 export { ProfileStatusCard } from "./ProfileStatusCard";
 export { UserTypeSelector } from "./UserTypeSelector";
