@@ -3,32 +3,58 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
 
-const GRID_COLUMNS = 3;
-const ICON_SIZE = 32;
+const GRID_COLUMNS = 2;
+const ICON_SIZE = 40;
 
 // ============================================================================
 // COMPONENTS
 // ============================================================================
 
 /**
- * Item individual del grid
+ * Item individual del grid con diseño moderno
  */
 const MenuGridItem = ({ item, onPress }) => {
+  // Colores por defecto si no están definidos
+  const backgroundColor = item.color || COLORS.PRIMARY;
+  const lightColor = item.lightColor || COLORS.BADGE_BLUE_BG;
+
   return (
     <TouchableOpacity
       style={styles.gridItem}
       onPress={() => onPress(item)}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
       accessibilityLabel={item.name}
       accessibilityRole="button"
     >
-      <View style={styles.gridItemContent}>
-        <View style={styles.iconContainer}>
-          <Ionicons name={item.icon} size={ICON_SIZE} color={COLORS.PRIMARY} />
+      <View style={[styles.gridItemContent, { backgroundColor }]}>
+        {/* Overlay con gradiente sutil */}
+        <View style={styles.gradientOverlay} />
+        
+        {/* Icono en círculo blanco en la esquina superior derecha */}
+        <View style={styles.iconCircle}>
+          <Ionicons name={item.icon} size={24} color={backgroundColor} />
         </View>
-        <Text style={styles.gridItemText} numberOfLines={2}>
-          {item.name}
-        </Text>
+
+        {/* Contenido principal */}
+        <View style={styles.contentContainer}>
+          <Text style={styles.gridItemTitle} numberOfLines={2}>
+            {item.name}
+          </Text>
+          
+          {/* Información adicional opcional */}
+          {item.description && (
+            <Text style={styles.gridItemSubtitle} numberOfLines={2}>
+              {item.description}
+            </Text>
+          )}
+        </View>
+
+        {/* Badge "Próximamente" si aplica */}
+        {item.commingSoon && (
+          <View style={styles.comingSoonBadge}>
+            <Text style={styles.comingSoonText}>Próximamente</Text>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -39,7 +65,7 @@ const MenuGridItem = ({ item, onPress }) => {
 // ============================================================================
 
 /**
- * Componente Grid de menú con 3 columnas
+ * Componente Grid de menú con 2 columnas (diseño moderno 2x2)
  * Muestra las opciones de navegación excluyendo las del footer
  *
  * @param {object} props
@@ -118,7 +144,6 @@ export const MenuGrid = ({
   }, [filteredItems, rows]);
 
   // Mapeo de IDs de navigationItems a IDs de pantallas (screen)
-  // Basado en footerConfig.js para mantener consistencia
   const mapItemIdToScreen = (itemId, footerItemsList) => {
     // Buscar en los items del footer si existe un mapeo
     const footerItem = footerItemsList.find((item) => item.id === itemId);
@@ -161,16 +186,9 @@ export const MenuGrid = ({
             <MenuGridItem
               key={item.id}
               item={item}
-              onPress={() => handleItemPress(item)}
+              onPress={handleItemPress}
             />
           ))}
-          {/* Rellenar espacios vacíos en la última fila */}
-          {row.length < GRID_COLUMNS &&
-            Array.from({ length: GRID_COLUMNS - row.length }).map(
-              (_, index) => (
-                <View key={`empty-${index}`} style={styles.gridItem} />
-              )
-            )}
         </View>
       ))}
     </View>
@@ -183,27 +201,53 @@ export const MenuGrid = ({
 
 const styles = StyleSheet.create({
   gridContainer: {
-    padding: 16,
+    padding: 12,
   },
   gridRow: {
     flexDirection: "row",
-    marginBottom: 16,
+    marginBottom: 12,
+    gap: 12,
   },
   gridItem: {
     flex: 1,
-    marginHorizontal: 6,
     aspectRatio: 1,
-    maxWidth: "33.33%",
   },
   gridItemContent: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 24,
+    padding: 20,
+    justifyContent: "space-between",
+    overflow: "hidden",
+    // Sombra sutil
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  gradientOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
+    borderRadius: 24,
+  },
+  iconCircle: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: COLORS.GRAY_LIGHT,
+    // Sombra del círculo
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -211,19 +255,48 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
   },
-  iconContainer: {
-    marginBottom: 12,
-    alignItems: "center",
-    justifyContent: "center",
+  contentContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
+    paddingRight: 8,
   },
-  gridItemText: {
-    fontSize: 13,
+  gridItemTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    marginBottom: 4,
+    lineHeight: 24,
+    textShadowColor: "rgba(0, 0, 0, 0.1)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  gridItemSubtitle: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.85)",
+    lineHeight: 16,
+    textShadowColor: "rgba(0, 0, 0, 0.1)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  comingSoonBadge: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.4)",
+  },
+  comingSoonText: {
+    fontSize: 10,
     fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    textAlign: "center",
-    lineHeight: 18,
+    color: "#FFFFFF",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   emptyContainer: {
     flex: 1,
