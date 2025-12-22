@@ -344,7 +344,12 @@ export default function DashboardScreen({ onSignOut }) {
         );
 
       case "comunity":
-        return <ComunityScreen />;
+        return (
+          <ComunityScreen
+            userProfile={userProfile}
+            navigation={{ navigate: handleSectionChange }}
+          />
+        );
 
       case "myReview":
         return <MyReviewScreen />;
