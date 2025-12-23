@@ -6,6 +6,8 @@ import {
   ActivityIndicator,
   View,
 } from "react-native";
+import { GoogleLogo } from "./GoogleLogo";
+import { AppleLogo } from "./AppleLogo";
 
 /**
  * Componente Button reutilizable
@@ -42,19 +44,9 @@ export const Button = ({
     (isDisabled || isLoading) && styles.disabledText,
   ];
 
-  // Ícono de Google simple (G en un círculo)
-  const GoogleIcon = () => (
-    <View style={styles.googleIcon}>
-      <Text style={styles.googleIconText}>G</Text>
-    </View>
-  );
-
-  // Ícono de Apple (símbolo de Apple)
-  const AppleIcon = () => (
-    <View style={styles.appleIcon}>
-      <Text style={styles.appleIconText}></Text>
-    </View>
-  );
+  // Logos SVG para Google y Apple
+  const GoogleIcon = () => <GoogleLogo width={20} height={20} />;
+  const AppleIcon = () => <AppleLogo width={16} height={20} color="#ffffff" />;
 
   // Determinar el color del ActivityIndicator según la variante
   const getLoaderColor = () => {
@@ -148,31 +140,5 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-  },
-  googleIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  googleIconText: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#4285F4",
-  },
-  appleIcon: {
-    width: 20,
-    height: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  appleIconText: {
-    fontSize: 18,
-    fontWeight: "400",
-    color: "#ffffff",
   },
 });
