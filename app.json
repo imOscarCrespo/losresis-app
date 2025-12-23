@@ -2,7 +2,7 @@
   "expo": {
     "name": "losresis-react-app",
     "slug": "losresis-react-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,12 +16,15 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.losresis.app",
-      "buildNumber": "2",
+      "buildNumber": "4",
       "config": {
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Esta app necesita acceso a tu ubicación para mostrarte el mapa de la comunidad."
+      },
+      "entitlements": {
+        "com.apple.developer.applesignin": ["Default"]
       }
     },
     "android": {
@@ -31,6 +34,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.losresis.app",
+      "versionCode": 4,
       "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
       "config": {
         "googleMaps": {
