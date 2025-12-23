@@ -15,3 +15,4 @@ export { DatePickerInput } from "./DatePickerInput";
 export { InfoBanner } from "./InfoBanner";
 export { DatePickerModal } from "./DatePickerModal";
 export { ScreenHeader } from "./ScreenHeader";
+export { CourseCard } from "./CourseCard";

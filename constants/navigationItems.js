@@ -92,7 +92,6 @@ export const NAVIGATION_ITEMS = [
     name: "Cursos y formaciones",
     icon: "bookmark",
     description: "Explora cursos y formaciones disponibles en tu área",
-    doctorOnly: true,
     color: "#6366F1", // Indigo
     lightColor: "#E0E7FF",
   },

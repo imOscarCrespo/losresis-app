@@ -21,6 +21,7 @@ import CreateHousingAdScreen from "./CreateHousingAdScreen";
 import ContactScreen from "./ContactScreen";
 import ShiftsScreen from "./ShiftsScreen";
 import { ExternalRotationsScreen } from "./ExternalRotationsScreen";
+import { LecturesScreen } from "./LecturesScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 
@@ -407,8 +408,15 @@ export default function DashboardScreen({ onSignOut }) {
           />
         );
 
-      case "foro":
       case "cursos":
+        return (
+          <LecturesScreen
+            userProfile={userProfile}
+            navigation={{ navigate: handleSectionChange }}
+          />
+        );
+
+      case "foro":
       case "jobs":
       case "faq-reseñas":
         return <PlaceholderScreen title={currentSection} />;
