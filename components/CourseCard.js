@@ -1,9 +1,9 @@
-import React, { memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../constants/colors';
-import { formatShortDate } from '../utils/dateUtils';
-import { isCourseUpcoming, openURL } from '../utils/courseUtils';
+import React, { memo } from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS } from "../constants/colors";
+import { formatShortDate } from "../utils/dateUtils";
+import { isCourseUpcoming, openURL } from "../utils/courseUtils";
 
 /**
  * Componente de tarjeta de curso
@@ -65,7 +65,7 @@ export const CourseCard = memo(({ course, onPress }) => {
             {formatDateRange()}
             {course.event_dates.length > 1 && (
               <Text style={styles.detailSubtext}>
-                {' '}
+                {" "}
                 ({course.event_dates.length} días)
               </Text>
             )}
@@ -153,14 +153,14 @@ export const CourseCard = memo(({ course, onPress }) => {
   );
 });
 
-CourseCard.displayName = 'CourseCard';
+CourseCard.displayName = "CourseCard";
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.WHITE,
     borderRadius: 16,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -168,34 +168,34 @@ const styles = StyleSheet.create({
   },
   cardUpcoming: {
     borderWidth: 2,
-    borderColor: COLORS.ORANGE + '40',
-    backgroundColor: COLORS.ORANGE + '08',
+    borderColor: COLORS.ORANGE + "40",
+    backgroundColor: COLORS.ORANGE + "08",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 16,
   },
   headerLeft: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   iconContainer: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: COLORS.PRIMARY + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: COLORS.PRIMARY + "15",
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerText: {
     flex: 1,
   },
   title: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.GRAY_DARK,
     marginBottom: 4,
   },
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   },
   upcomingBadgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.WHITE,
   },
   details: {
@@ -219,8 +219,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   detailText: {
@@ -236,33 +236,33 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: COLORS.PURPLE,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: COLORS.BORDER,
   },
   footerLeft: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   priceText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.SUCCESS,
   },
   seatsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   seatsText: {
@@ -270,20 +270,19 @@ const styles = StyleSheet.create({
     color: COLORS.PRIMARY,
   },
   registrationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   registrationButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.PRIMARY,
   },
   courseCode: {
     fontSize: 12,
     color: COLORS.GRAY,
-    textAlign: 'right',
+    textAlign: "right",
     marginTop: 8,
   },
 });
-

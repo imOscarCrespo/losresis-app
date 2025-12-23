@@ -70,20 +70,19 @@ export const filterCoursesBySearch = (courses, searchTerm) => {
 export const openURL = async (url, onError) => {
   if (!url) return;
 
-  const { Linking, Alert } = require('react-native');
+  const { Linking, Alert } = require("react-native");
 
   try {
     const supported = await Linking.canOpenURL(url);
     if (supported) {
       await Linking.openURL(url);
     } else {
-      Alert.alert('Error', 'No se puede abrir esta URL');
-      if (onError) onError(new Error('URL not supported'));
+      Alert.alert("Error", "No se puede abrir esta URL");
+      if (onError) onError(new Error("URL not supported"));
     }
   } catch (error) {
-    console.error('Error opening URL:', error);
-    Alert.alert('Error', 'No se pudo abrir el enlace');
+    console.error("Error opening URL:", error);
+    Alert.alert("Error", "No se pudo abrir el enlace");
     if (onError) onError(error);
   }
 };
-

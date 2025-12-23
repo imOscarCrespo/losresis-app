@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from "react";
 import {
   getCourses,
   createCourse,
   updateCourse,
   deleteCourse,
-} from '../services/lectureService';
+} from "../services/lectureService";
 
 /**
  * Hook para gestionar cursos y formaciones
@@ -20,8 +20,8 @@ export const useLectures = () => {
 
   // Filters
   const [filters, setFiltersState] = useState({
-    hospital_id: '',
-    speciality_id: '',
+    hospital_id: "",
+    speciality_id: "",
   });
 
   // Clear error after some time
@@ -58,8 +58,8 @@ export const useLectures = () => {
         setHasMore(result.hasMore);
         setTotalCount(result.count);
       } catch (err) {
-        console.error('Error fetching courses:', err);
-        setError('Error al cargar los cursos');
+        console.error("Error fetching courses:", err);
+        setError("Error al cargar los cursos");
       } finally {
         setLoading(false);
       }
@@ -90,8 +90,8 @@ export const useLectures = () => {
   // Clear filters
   const clearFilters = useCallback(() => {
     setFilters({
-      hospital_id: '',
-      speciality_id: '',
+      hospital_id: "",
+      speciality_id: "",
     });
   }, [setFilters]);
 
@@ -109,8 +109,8 @@ export const useLectures = () => {
 
       return newCourse;
     } catch (err) {
-      console.error('Error creating course:', err);
-      setError('Error al crear el curso');
+      console.error("Error creating course:", err);
+      setError("Error al crear el curso");
       return null;
     } finally {
       setLoading(false);
@@ -132,8 +132,8 @@ export const useLectures = () => {
 
       return updatedCourse;
     } catch (err) {
-      console.error('Error updating course:', err);
-      setError('Error al actualizar el curso');
+      console.error("Error updating course:", err);
+      setError("Error al actualizar el curso");
       return null;
     } finally {
       setLoading(false);
@@ -154,8 +154,8 @@ export const useLectures = () => {
 
       return true;
     } catch (err) {
-      console.error('Error deleting course:', err);
-      setError('Error al eliminar el curso');
+      console.error("Error deleting course:", err);
+      setError("Error al eliminar el curso");
       return false;
     } finally {
       setLoading(false);
@@ -191,4 +191,3 @@ export const useLectures = () => {
 };
 
 export default useLectures;
-
