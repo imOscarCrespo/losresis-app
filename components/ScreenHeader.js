@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../constants/colors';
+import React from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS } from "../constants/colors";
 
 /**
  * Header reutilizable para todas las pantallas
@@ -23,11 +23,15 @@ export const ScreenHeader = ({
         style={styles.notificationButton}
         onPress={onNotificationPress}
       >
-        <Ionicons name="notifications-outline" size={28} color={COLORS.GRAY_DARK} />
+        <Ionicons
+          name="notifications-outline"
+          size={28}
+          color={COLORS.GRAY_DARK}
+        />
         {notificationCount > 0 && (
           <View style={styles.notificationBadge}>
             <Text style={styles.notificationBadgeText}>
-              {notificationCount > 99 ? '99+' : notificationCount}
+              {notificationCount > 99 ? "99+" : notificationCount}
             </Text>
           </View>
         )}
@@ -43,16 +47,16 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   headerContent: {
     flex: 1,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.GRAY_DARK,
     marginBottom: 4,
   },
@@ -62,24 +66,23 @@ const styles = StyleSheet.create({
   },
   notificationButton: {
     padding: 8,
-    position: 'relative',
+    position: "relative",
   },
   notificationBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 4,
     right: 4,
     backgroundColor: COLORS.ERROR,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 4,
   },
   notificationBadgeText: {
     color: COLORS.WHITE,
     fontSize: 11,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
 });
-
