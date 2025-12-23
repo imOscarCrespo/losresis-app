@@ -260,7 +260,11 @@ export default function ComunityScreen({ userProfile, navigation }) {
                 // TODO: Implementar navegación a notificaciones
               }}
             >
-              <Ionicons name="notifications-outline" size={28} color="#1a1a1a" />
+              <Ionicons
+                name="notifications-outline"
+                size={28}
+                color="#1a1a1a"
+              />
             </TouchableOpacity>
           </View>
         </View>

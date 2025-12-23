@@ -240,7 +240,7 @@ export const checkResidentReview = async (userId) => {
     }
 
     const { data, error } = await supabase
-      .from("reviews")
+      .from("review")
       .select("id")
       .eq("user_id", userId)
       .limit(1);
