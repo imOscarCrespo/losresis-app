@@ -1,5 +1,5 @@
-import React from 'react';
-import Svg, { Path } from 'react-native-svg';
+import React from "react";
+import Svg, { Path } from "react-native-svg";
 
 export const GoogleLogo = ({ width = 24, height = 24, style }) => {
   return (
@@ -30,4 +30,3 @@ export const GoogleLogo = ({ width = 24, height = 24, style }) => {
     </Svg>
   );
 };
-
