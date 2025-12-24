@@ -90,6 +90,7 @@ export const getUserById = async (id) => {
 - `npm run ios` - Ejecuta en iOS
 - `npm run android` - Ejecuta en Android
 - `npm run web` - Ejecuta en web
+- `eas build --platform ios --profile production --auto-submit`- Deploy ios
 
 ## Próximos Pasos
 
