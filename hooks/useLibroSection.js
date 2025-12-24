@@ -11,6 +11,7 @@ import {
 } from "../services/libroService";
 import { supabase } from "../config/supabase";
 import { getCachedUserId } from "../services/authService";
+import libroTemplate from "../data/libroTemplate.json";
 
 /**
  * Hook para gestionar el Libro de Residente
@@ -356,6 +357,52 @@ export const useLibroSection = (userId, section) => {
     [entries]
   );
 
+  // Función para crear la plantilla desde el JSON
+  const createTemplate = useCallback(async () => {
+    const currentUserId = await getCurrentUserId();
+    if (!currentUserId || !section) return false;
+
+    setLoading(true);
+    try {
+      // Crear todos los nodos padre primero
+      for (const parentTemplate of libroTemplate) {
+        // Crear el nodo padre
+        const parentNode = await createNode(
+          {
+            name: parentTemplate.name,
+            section,
+            parent_node_id: null,
+          },
+          currentUserId
+        );
+
+        // Crear los hijos del padre
+        if (parentTemplate.children && parentTemplate.children.length > 0) {
+          for (const childTemplate of parentTemplate.children) {
+            await createNode(
+              {
+                name: childTemplate.name,
+                section,
+                parent_node_id: parentNode.id,
+                goal: childTemplate.goal || null,
+              },
+              currentUserId
+            );
+          }
+        }
+      }
+
+      // Refrescar todos los datos después de crear la plantilla
+      await fetchAllData();
+      return true;
+    } catch (error) {
+      console.error("Error creating template:", error);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [getCurrentUserId, section, fetchAllData]);
+
   // Cargar datos al montar y cuando cambien usuario o sección
   useEffect(() => {
     fetchAllData();
@@ -386,6 +433,7 @@ export const useLibroSection = (userId, section) => {
     getNodeEntries,
     getNodeEvents,
     fetchAllData,
+    createTemplate,
   };
 };
 

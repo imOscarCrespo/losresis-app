@@ -1,0 +1,46 @@
+[
+  {
+    "name": "Práctica Clínica",
+    "children": [
+      {
+        "name": "Partos eutócicos",
+        "goal": 100
+      },
+      {
+        "name": "Cesáreas",
+        "goal": 50
+      },
+      {
+        "name": "Cirugías",
+        "goal": 50
+      }
+    ]
+  },
+  {
+    "name": "Procedimientos",
+    "children": [
+      {
+        "name": "Ecografías",
+        "goal": 200
+      },
+      {
+        "name": "Biopsias",
+        "goal": 30
+      }
+    ]
+  },
+  {
+    "name": "Consultas",
+    "children": [
+      {
+        "name": "Primera consulta",
+        "goal": 150
+      },
+      {
+        "name": "Control",
+        "goal": 300
+      }
+    ]
+  }
+]
+

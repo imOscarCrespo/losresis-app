@@ -52,6 +52,7 @@ export default function ResidenceLibraryScreen({ userProfile, navigation }) {
     updateNode,
     deleteNode,
     addEntry,
+    createTemplate,
   } = useLibroSection(userId, section);
 
   // Estados para modales
@@ -228,7 +229,7 @@ export default function ResidenceLibraryScreen({ userProfile, navigation }) {
     );
   };
 
-  // Abrir modal para agregar nodo raíz
+  // Abrir modal para agregar nodo raíz o crear plantilla
   const handleAddRootNode = () => {
     if (
       userProfile?.is_resident &&
@@ -252,10 +253,25 @@ export default function ResidenceLibraryScreen({ userProfile, navigation }) {
       return;
     }
 
-    // Asegurar que no hay padre seleccionado cuando se crea desde el botón flotante
-    setSelectedParentForChild(null);
-    setIsAddingNode(true);
-    setShowNodeModal(true);
+    // Si no hay nodos, crear plantilla; si no, abrir modal para crear nodo
+    if (nodeTree.length === 0) {
+      handleCreateTemplate();
+    } else {
+      // Asegurar que no hay padre seleccionado cuando se crea desde el botón flotante
+      setSelectedParentForChild(null);
+      setIsAddingNode(true);
+      setShowNodeModal(true);
+    }
+  };
+
+  // Manejar creación de plantilla
+  const handleCreateTemplate = async () => {
+    const success = await createTemplate();
+    if (success) {
+      Alert.alert("Éxito", "Plantilla creada correctamente");
+    } else {
+      Alert.alert("Error", "No se pudo crear la plantilla");
+    }
   };
 
   return (
@@ -283,8 +299,11 @@ export default function ResidenceLibraryScreen({ userProfile, navigation }) {
                   size={64}
                   color={COLORS.GRAY}
                 />
+                <Text style={styles.emptyTitle}>
+                  ¡Comienza a registrar tus actividades!
+                </Text>
                 <Text style={styles.emptySubtext}>
-                  Presiona el botón + para crear tu primer apartado
+                  Presiona el botón + para crear una plantilla con ejemplos
                 </Text>
               </View>
             ) : (
@@ -381,11 +400,19 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY_DARK,
     marginTop: 16,
   },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: COLORS.GRAY_DARK,
+    marginTop: 16,
+    textAlign: "center",
+  },
   emptySubtext: {
     fontSize: 14,
     color: COLORS.GRAY,
     marginTop: 8,
     textAlign: "center",
+    paddingHorizontal: 20,
   },
   nodesContainer: {
     gap: 8,
