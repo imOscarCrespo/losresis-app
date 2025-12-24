@@ -18,32 +18,42 @@ import { Ionicons } from "@expo/vector-icons";
  * @param {string} props.label - Etiqueta del filtro
  * @param {string} props.value - Valor seleccionado actual
  * @param {function} props.onSelect - Callback cuando se selecciona una opción
- * @param {array} props.options - Array de opciones [{id: string, name: string}]
+ * @param {function} props.onChange - Alias de onSelect para compatibilidad
+ * @param {array} props.options - Array de opciones [{id/value: string, name/label: string}]
  * @param {string} props.placeholder - Texto placeholder cuando no hay selección
  * @param {object} props.style - Estilos adicionales
  * @param {boolean} props.enableSearch - Si se habilita la búsqueda (por defecto true)
+ * @param {boolean} props.disabled - Si el selector está deshabilitado
+ * @param {boolean} props.required - Si el campo es obligatorio (muestra asterisco)
  */
 export const SelectFilter = ({
   label,
   value,
   onSelect,
+  onChange,
   options = [],
   placeholder = "Seleccionar...",
   style,
   enableSearch = true,
+  disabled = false,
+  required = false,
 }) => {
+  // Usar onChange si está disponible, sino onSelect
+  const handleChange = onChange || onSelect;
   const [modalVisible, setModalVisible] = useState(false);
   const [searchText, setSearchText] = useState("");
 
   const selectedOption = options.find(
-    (opt) => opt.id === value || opt === value
+    (opt) => (opt.id || opt.value) === value || opt === value
   );
 
   // Asegurar que displayText sea siempre un string
   const displayText = selectedOption
     ? typeof selectedOption === "string"
       ? selectedOption
-      : selectedOption.name || String(selectedOption.id || "")
+      : selectedOption.label ||
+        selectedOption.name ||
+        String(selectedOption.value || selectedOption.id || "")
     : placeholder;
 
   // Filtrar opciones basándose en el texto de búsqueda
@@ -57,14 +67,16 @@ export const SelectFilter = ({
       const optionName =
         typeof option === "string"
           ? option
-          : option.name || String(option.id || "");
+          : option.label ||
+            option.name ||
+            String(option.value || option.id || "");
       return optionName.toLowerCase().includes(searchLower);
     });
   }, [options, searchText]);
 
   const handleSelect = (option) => {
-    const optionValue = option.id || option;
-    onSelect(optionValue === value ? "" : optionValue);
+    const optionValue = option.value || option.id || option;
+    handleChange(optionValue === value ? "" : optionValue);
     setModalVisible(false);
     setSearchText(""); // Limpiar búsqueda al seleccionar
   };
@@ -75,10 +87,14 @@ export const SelectFilter = ({
   };
 
   const renderOption = ({ item }) => {
-    const optionValue = item.id || item;
+    const optionValue = item.value || item.id || item;
     // Asegurar que optionName sea siempre un string
     const optionName =
-      typeof item === "string" ? item : item.name || String(item.id || "");
+      typeof item === "string"
+        ? item
+        : item.label ||
+          item.name ||
+          String(item.value || item.id || "");
     const isSelected = optionValue === value;
 
     return (
@@ -101,21 +117,27 @@ export const SelectFilter = ({
   const listData = useMemo(() => {
     const data = [];
     // Agregar opción de limpiar selección solo si hay una selección activa
-    if (value) {
-      data.push({ id: "", name: placeholder });
+    if (value && !required) {
+      data.push({ id: "", name: placeholder, value: "", label: placeholder });
     }
     // Agregar opciones filtradas
     data.push(...filteredOptions);
     return data;
-  }, [filteredOptions, value, placeholder]);
+  }, [filteredOptions, value, placeholder, required]);
 
   return (
     <View style={[styles.container, !label && styles.containerNoLabel, style]}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {label ? (
+        <Text style={styles.label}>
+          {label}
+          {required && <Text style={styles.required}> *</Text>}
+        </Text>
+      ) : null}
       <TouchableOpacity
-        style={styles.selectButton}
-        onPress={() => setModalVisible(true)}
-        activeOpacity={0.7}
+        style={[styles.selectButton, disabled && styles.selectButtonDisabled]}
+        onPress={() => !disabled && setModalVisible(true)}
+        activeOpacity={disabled ? 1 : 0.7}
+        disabled={disabled}
       >
         <Text
           style={[
@@ -225,6 +247,9 @@ const styles = StyleSheet.create({
     color: "#1a1a1a",
     marginBottom: 8,
   },
+  required: {
+    color: "#FF3B30",
+  },
   selectButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -235,6 +260,10 @@ const styles = StyleSheet.create({
     borderColor: "#E5E5EA",
     paddingHorizontal: 12,
     paddingVertical: 12,
+  },
+  selectButtonDisabled: {
+    backgroundColor: "#F9FAFB",
+    opacity: 0.6,
   },
   selectText: {
     flex: 1,
