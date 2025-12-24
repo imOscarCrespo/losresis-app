@@ -26,15 +26,25 @@ import {
  * Pantalla del Libro de Residente
  * Permite al usuario registrar y contar sus actividades diarias como médico
  */
-export default function ResidenceLibraryScreen({ userProfile, navigation }) {
+export default function ResidenceLibraryScreen({
+  userProfile,
+  navigation,
+  residentHasReview = true,
+}) {
   const userId = userProfile?.id;
 
   // Por ahora usamos "clinical_practice" como sección por defecto
   // Más adelante se puede agregar el selector de secciones
   const section = "clinical_practice";
 
-  // Hook para verificar si el residente tiene reseña
+  // Hook para verificar si el residente tiene reseña (backup check)
   const { hasReview } = useResidentReviewCheck(userId, userProfile);
+
+  // Determinar si debe mostrar el mensaje de review requerida
+  const shouldShowReviewPrompt =
+    userProfile?.is_resident &&
+    !userProfile?.is_super_admin &&
+    !residentHasReview;
 
   // Hook para gestionar el libro
   const {
@@ -315,8 +325,37 @@ export default function ResidenceLibraryScreen({ userProfile, navigation }) {
         )}
       </ScrollView>
 
-      {/* Floating Action Button */}
-      <FloatingActionButton onPress={handleAddRootNode} icon="add" />
+      {/* Floating Action Button - Solo mostrar si tiene review */}
+      {!shouldShowReviewPrompt && (
+        <FloatingActionButton onPress={handleAddRootNode} icon="add" />
+      )}
+
+      {/* Overlay para residentes sin reseña */}
+      {shouldShowReviewPrompt && (
+        <View style={styles.reviewPromptOverlay}>
+          <View style={styles.reviewPromptContent}>
+            <View style={styles.reviewPromptIcon}>
+              <Ionicons name="document-text" size={32} color="#FFFFFF" />
+            </View>
+            <Text style={styles.reviewPromptTitle}>
+              ¡Comienza tu libro de residente!
+            </Text>
+            <Text style={styles.reviewPromptText}>
+              Para acceder al libro de residente y registrar tus actividades,
+              primero comparte tu experiencia con una reseña.
+            </Text>
+            <TouchableOpacity
+              style={styles.reviewPromptButton}
+              onPress={() => navigation?.navigate("myReview")}
+            >
+              <Ionicons name="heart" size={20} color="#FFFFFF" />
+              <Text style={styles.reviewPromptButtonText}>
+                Compartir mi experiencia
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Modal para agregar/editar nodo */}
       <LibroNodeModal
@@ -420,5 +459,73 @@ const styles = StyleSheet.create({
   childrenContainer: {
     marginLeft: 20,
     marginTop: 4,
+  },
+  reviewPromptOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  reviewPromptContent: {
+    alignItems: "center",
+    maxWidth: 400,
+  },
+  reviewPromptIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  reviewPromptTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1a1a1a",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  reviewPromptText: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  reviewPromptButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.PRIMARY,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  reviewPromptButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

@@ -13,16 +13,19 @@ const ICON_SIZE = 40;
 /**
  * Item individual del grid con diseño moderno
  */
-const MenuGridItem = ({ item, onPress }) => {
+const MenuGridItem = ({ item, onPress, disabled = false }) => {
   // Colores por defecto si no están definidos
-  const backgroundColor = item.color || COLORS.PRIMARY;
+  const backgroundColor = disabled
+    ? COLORS.GRAY
+    : item.color || COLORS.PRIMARY;
   const lightColor = item.lightColor || COLORS.BADGE_BLUE_BG;
 
   return (
     <TouchableOpacity
-      style={styles.gridItem}
-      onPress={() => onPress(item)}
-      activeOpacity={0.8}
+      style={[styles.gridItem, disabled && styles.gridItemDisabled]}
+      onPress={() => !disabled && onPress(item)}
+      activeOpacity={disabled ? 1 : 0.8}
+      disabled={disabled}
       accessibilityLabel={item.name}
       accessibilityRole="button"
     >
@@ -32,18 +35,34 @@ const MenuGridItem = ({ item, onPress }) => {
 
         {/* Icono en círculo blanco en la esquina superior derecha */}
         <View style={styles.iconCircle}>
-          <Ionicons name={item.icon} size={24} color={backgroundColor} />
+          <Ionicons
+            name={item.icon}
+            size={24}
+            color={disabled ? COLORS.GRAY_DARK : backgroundColor}
+          />
         </View>
 
         {/* Contenido principal */}
         <View style={styles.contentContainer}>
-          <Text style={styles.gridItemTitle} numberOfLines={2}>
+          <Text
+            style={[
+              styles.gridItemTitle,
+              disabled && styles.gridItemTitleDisabled,
+            ]}
+            numberOfLines={2}
+          >
             {item.name}
           </Text>
 
           {/* Información adicional opcional */}
           {item.description && (
-            <Text style={styles.gridItemSubtitle} numberOfLines={2}>
+            <Text
+              style={[
+                styles.gridItemSubtitle,
+                disabled && styles.gridItemSubtitleDisabled,
+              ]}
+              numberOfLines={2}
+            >
               {item.description}
             </Text>
           )}
@@ -79,6 +98,7 @@ export const MenuGrid = ({
   footerItems = [],
   userProfile,
   onItemPress,
+  residentHasReview = true,
 }) => {
   // Filtrar items según el tipo de usuario y excluir los del footer
   const filteredItems = useMemo(() => {
@@ -161,6 +181,20 @@ export const MenuGrid = ({
     return idMap[itemId] || itemId;
   };
 
+  // Determinar si un item debe estar deshabilitado
+  const isItemDisabled = (item) => {
+    // Si es residente sin review y no es super admin, deshabilitar todos los botones excepto "mi-resena"
+    if (
+      userProfile?.is_resident &&
+      !userProfile?.is_super_admin &&
+      !residentHasReview
+    ) {
+      // Solo permitir acceso a "mi-resena" para que puedan crear su review
+      return item.id !== "mi-resena";
+    }
+    return false;
+  };
+
   const handleItemPress = (item) => {
     if (onItemPress) {
       // Mapear el ID del item al ID de la pantalla
@@ -183,7 +217,12 @@ export const MenuGrid = ({
       {gridRows.map((row, rowIndex) => (
         <View key={rowIndex} style={styles.gridRow}>
           {row.map((item) => (
-            <MenuGridItem key={item.id} item={item} onPress={handleItemPress} />
+            <MenuGridItem
+              key={item.id}
+              item={item}
+              onPress={handleItemPress}
+              disabled={isItemDisabled(item)}
+            />
           ))}
         </View>
       ))}
@@ -207,6 +246,9 @@ const styles = StyleSheet.create({
   gridItem: {
     flex: 1,
     aspectRatio: 1,
+  },
+  gridItemDisabled: {
+    opacity: 0.5,
   },
   gridItemContent: {
     flex: 1,
@@ -275,6 +317,12 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0, 0, 0, 0.1)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  gridItemTitleDisabled: {
+    color: "rgba(255, 255, 255, 0.6)",
+  },
+  gridItemSubtitleDisabled: {
+    color: "rgba(255, 255, 255, 0.5)",
   },
   comingSoonBadge: {
     position: "absolute",

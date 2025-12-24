@@ -25,7 +25,12 @@ import { LecturesScreen } from "./LecturesScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 
-export default function DashboardScreen({ onSignOut }) {
+export default function DashboardScreen({
+  onSignOut,
+  residentHasReview = true,
+  onReviewCreated,
+  onReviewDeleted,
+}) {
   const [userProfile, setUserProfile] = useState(null);
   const [isProfileIncomplete, setIsProfileIncomplete] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -333,6 +338,7 @@ export default function DashboardScreen({ onSignOut }) {
             onSectionChange={handleSectionChange}
             currentSection={currentSection}
             userProfile={userProfile}
+            residentHasReview={residentHasReview}
           />
         );
 
@@ -359,11 +365,19 @@ export default function DashboardScreen({ onSignOut }) {
           <MyReviewScreen
             userProfile={userProfile}
             navigation={{ navigate: handleSectionChange }}
+            onReviewCreated={onReviewCreated}
+            onReviewDeleted={onReviewDeleted}
           />
         );
 
       case "residenceLibrary":
-        return <ResidenceLibraryScreen />;
+        return (
+          <ResidenceLibraryScreen
+            userProfile={userProfile}
+            navigation={{ navigate: handleSectionChange }}
+            residentHasReview={residentHasReview}
+          />
+        );
 
       // Pantalla de artículos
       case "articulos":

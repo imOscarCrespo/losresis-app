@@ -8,11 +8,13 @@ import {
   getUserProfile,
 } from "./services/authService";
 import { isProfileComplete } from "./services/userService";
+import { checkResidentReview } from "./services/communityService";
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [residentHasReview, setResidentHasReview] = useState(true); // Por defecto true para no bloquear
 
   useEffect(() => {
     checkAuth();
@@ -38,25 +40,47 @@ export default function App() {
               isEmailValid: true, // Asumimos válido en el check inicial
             });
 
+            // Si es residente (y no es super admin), verificar si tiene review
+            if (profile.is_resident && !profile.is_super_admin) {
+              const { success: reviewCheckSuccess, hasReview } =
+                await checkResidentReview(user.id);
+              if (reviewCheckSuccess) {
+                setResidentHasReview(hasReview);
+                console.log(
+                  `🔍 Residente verificado: ${hasReview ? "tiene" : "NO tiene"} review`
+                );
+              } else {
+                // En caso de error, asumir que no tiene review para ser restrictivo
+                setResidentHasReview(false);
+              }
+            } else {
+              // Si no es residente o es super admin, no aplicar restricción
+              setResidentHasReview(true);
+            }
+
             setIsAuthenticated(true);
             setNeedsOnboarding(!complete);
           } else {
             // Usuario autenticado pero sin perfil en la base de datos
             setIsAuthenticated(true);
             setNeedsOnboarding(true);
+            setResidentHasReview(true); // No aplicar restricción si no hay perfil
           }
         } else {
           setIsAuthenticated(false);
           setNeedsOnboarding(false);
+          setResidentHasReview(true);
         }
       } else {
         setIsAuthenticated(false);
         setNeedsOnboarding(false);
+        setResidentHasReview(true);
       }
     } catch (error) {
       console.error("Error checking auth:", error);
       setIsAuthenticated(false);
       setNeedsOnboarding(false);
+      setResidentHasReview(true);
     } finally {
       setIsLoading(false);
     }
@@ -75,22 +99,83 @@ export default function App() {
           hasActiveEmailReview: false,
           isEmailValid: true,
         });
+
+        // Si es residente (y no es super admin), verificar si tiene review
+        if (profile.is_resident && !profile.is_super_admin) {
+          const { success: reviewCheckSuccess, hasReview } =
+            await checkResidentReview(user.id);
+          if (reviewCheckSuccess) {
+            setResidentHasReview(hasReview);
+            console.log(
+              `🔍 Residente verificado: ${hasReview ? "tiene" : "NO tiene"} review`
+            );
+          } else {
+            setResidentHasReview(false);
+          }
+        } else {
+          setResidentHasReview(true);
+        }
+
         setIsAuthenticated(true);
         setNeedsOnboarding(!complete);
       } else {
         // Usuario sin perfil
         setIsAuthenticated(true);
         setNeedsOnboarding(true);
+        setResidentHasReview(true);
       }
     } else {
       setIsAuthenticated(true);
       setNeedsOnboarding(true);
+      setResidentHasReview(true);
     }
   };
 
   const handleProfileComplete = async () => {
     // Recargar verificación de auth para actualizar el estado
     await checkAuth();
+  };
+
+  const handleReviewCreated = async () => {
+    // Cuando se crea una review, actualizar el estado para habilitar todas las funcionalidades
+    const { success: userSuccess, user } = await getCurrentUser();
+    if (userSuccess && user) {
+      const { success: profileSuccess, profile } = await getUserProfile(
+        user.id
+      );
+      if (profileSuccess && profile && profile.is_resident && !profile.is_super_admin) {
+        // Verificar si ahora tiene review
+        const { success: reviewCheckSuccess, hasReview } =
+          await checkResidentReview(user.id);
+        if (reviewCheckSuccess) {
+          setResidentHasReview(hasReview);
+          console.log(
+            `✅ Review creada - Residente ahora ${hasReview ? "tiene" : "NO tiene"} review`
+          );
+        }
+      }
+    }
+  };
+
+  const handleReviewDeleted = async () => {
+    // Cuando se elimina una review, actualizar el estado para bloquear el acceso
+    const { success: userSuccess, user } = await getCurrentUser();
+    if (userSuccess && user) {
+      const { success: profileSuccess, profile } = await getUserProfile(
+        user.id
+      );
+      if (profileSuccess && profile && profile.is_resident && !profile.is_super_admin) {
+        // Verificar si ahora tiene review (debería ser false)
+        const { success: reviewCheckSuccess, hasReview } =
+          await checkResidentReview(user.id);
+        if (reviewCheckSuccess) {
+          setResidentHasReview(hasReview);
+          console.log(
+            `❌ Review eliminada - Residente ahora ${hasReview ? "tiene" : "NO tiene"} review`
+          );
+        }
+      }
+    }
   };
 
   const handleSignOut = async () => {
@@ -120,7 +205,14 @@ export default function App() {
 
   // Si está autenticado y tiene perfil completo, mostrar Dashboard
   if (isAuthenticated) {
-    return <DashboardScreen onSignOut={handleSignOut} />;
+    return (
+      <DashboardScreen
+        onSignOut={handleSignOut}
+        residentHasReview={residentHasReview}
+        onReviewCreated={handleReviewCreated}
+        onReviewDeleted={handleReviewDeleted}
+      />
+    );
   }
 
   // Si no está autenticado, mostrar WelcomeScreen

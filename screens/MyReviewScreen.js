@@ -22,7 +22,12 @@ import { COLORS } from "../constants/colors";
 /**
  * Pantalla para crear/editar/ver la reseña del usuario residente
  */
-export default function MyReviewScreen({ userProfile, navigation }) {
+export default function MyReviewScreen({
+  userProfile,
+  navigation,
+  onReviewCreated,
+  onReviewDeleted,
+}) {
   // Estados locales
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -156,6 +161,10 @@ export default function MyReviewScreen({ userProfile, navigation }) {
 
     if (success) {
       setIsModalOpen(false);
+      // Si se creó una nueva review (no se estaba editando), notificar al padre
+      if (!existingReview && onReviewCreated) {
+        onReviewCreated();
+      }
     }
   }, [
     reviewQuestions,
@@ -165,6 +174,7 @@ export default function MyReviewScreen({ userProfile, navigation }) {
     existingReview,
     handleCreateReview,
     handleUpdateReview,
+    onReviewCreated,
   ]);
 
   const handleCancel = useCallback(() => {
@@ -183,8 +193,12 @@ export default function MyReviewScreen({ userProfile, navigation }) {
       setAnswers({});
       setFreeComment("");
       setIsAnonymous(false);
+      // Notificar al padre que se eliminó la review
+      if (onReviewDeleted) {
+        onReviewDeleted();
+      }
     }
-  }, [existingReview, handleDeleteReview]);
+  }, [existingReview, handleDeleteReview, onReviewDeleted]);
 
   // Si no es residente, mostrar mensaje
   if (!isResident) {

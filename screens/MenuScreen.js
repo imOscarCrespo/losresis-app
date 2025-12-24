@@ -12,6 +12,7 @@ export default function MenuScreen({
   onSectionChange,
   currentSection,
   userProfile,
+  residentHasReview = true,
 }) {
   // Obtener items del footer para excluirlos
   const footerItems = getFooterConfig(userProfile);
@@ -39,6 +40,7 @@ export default function MenuScreen({
           footerItems={footerItems}
           userProfile={userProfile}
           onItemPress={handleItemPress}
+          residentHasReview={residentHasReview}
         />
       </ScrollView>
     </View>

@@ -81,30 +81,12 @@ export default function WelcomeScreen({ onAuthSuccess }) {
             console.log("💾 userId guardado en caché:", session.user.id);
           }
 
+          // Resetear el estado de loading inmediatamente
           setIsChecking(false);
-
-          // Verificar perfil y navegar
-          const { success: profileSuccess, profile } = await getUserProfile(
-            session.user.id
-          );
-
-          const complete =
-            profileSuccess &&
-            profile &&
-            isProfileComplete(profile, {
-              hasActiveEmailReview: false,
-              isEmailValid: true,
-            });
-
-          if (complete) {
-            console.log("✅ Perfil completo, navegando al dashboard");
-          } else {
-            console.log(
-              "⚠️ Perfil incompleto, navegando al dashboard para completarlo"
-            );
-          }
+          setSigningInProvider(null);
 
           // Notificar que la autenticación fue exitosa
+          // La verificación del perfil y review se hace en App.js
           if (onAuthSuccess) {
             onAuthSuccess();
           }
@@ -219,23 +201,27 @@ export default function WelcomeScreen({ onAuthSuccess }) {
 
       if (result.success) {
         console.log(`✅ Login exitoso con ${provider}`);
+        // Resetear el estado de loading del botón inmediatamente
+        setIsChecking(false);
+        setSigningInProvider(null);
+        
         // Verificar el perfil del usuario después del login
         const { success: userSuccess, user } = await getCurrentUser();
         if (userSuccess && user) {
           console.log("✅ Usuario autenticado:", user.email);
 
           // Notificar que la autenticación fue exitosa
+          // Esto puede tardar porque verifica el perfil y la review
           if (onAuthSuccess) {
             onAuthSuccess();
           }
         }
       } else {
         console.error("❌ Error en OAuth:", result.error);
+        setIsChecking(false);
+        setSigningInProvider(null);
         alert("Error al iniciar sesión: " + result.error);
       }
-
-      setIsChecking(false);
-      setSigningInProvider(null);
     } catch (error) {
       console.error("❌ Error en sign in:", error);
       setIsChecking(false);
