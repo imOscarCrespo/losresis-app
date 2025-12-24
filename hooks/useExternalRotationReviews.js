@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
+import { useState, useCallback } from "react";
+import { Alert } from "react-native";
 import {
   getAllExternalRotationReviews,
   checkExistingRotationReview,
@@ -7,7 +7,7 @@ import {
   createRotationReview,
   updateRotationReview,
   deleteRotationReview,
-} from '../services/externalRotationReviewService';
+} from "../services/externalRotationReviewService";
 
 /**
  * Hook para gestionar reseñas de rotaciones externas del usuario
@@ -32,7 +32,7 @@ export const useExternalRotationReview = (userId, rotationId) => {
       const review = await checkExistingRotationReview(userId, rotationId);
       setExistingReview(review);
     } catch (err) {
-      console.error('Error checking existing review:', err);
+      console.error("Error checking existing review:", err);
     } finally {
       setLoading(false);
     }
@@ -45,58 +45,51 @@ export const useExternalRotationReview = (userId, rotationId) => {
       const data = await getRotationReviewQuestions();
       setQuestions(data);
     } catch (err) {
-      console.error('Error loading questions:', err);
-      setError('Error al cargar las preguntas');
+      console.error("Error loading questions:", err);
+      setError("Error al cargar las preguntas");
     } finally {
       setLoadingQuestions(false);
     }
   }, []);
 
   // Crear reseña
-  const createReview = useCallback(
-    async (reviewData) => {
-      setLoading(true);
-      setError(null);
-      setSuccess(null);
+  const createReview = useCallback(async (reviewData) => {
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
 
-      try {
-        const review = await createRotationReview(reviewData);
-        setExistingReview(review);
-        setSuccess('Reseña creada correctamente. Estará visible tras aprobación.');
-        return true;
-      } catch (err) {
-        console.error('Error creating review:', err);
-        setError('Error al crear la reseña');
-        return false;
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+    try {
+      const review = await createRotationReview(reviewData);
+      setExistingReview(review);
+      return true;
+    } catch (err) {
+      console.error("Error creating review:", err);
+      setError("Error al crear la reseña");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // Actualizar reseña
-  const updateReview = useCallback(
-    async (reviewId, reviewData) => {
-      setLoading(true);
-      setError(null);
-      setSuccess(null);
+  const updateReview = useCallback(async (reviewId, reviewData) => {
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
 
-      try {
-        const review = await updateRotationReview(reviewId, reviewData);
-        setExistingReview(review);
-        setSuccess('Reseña actualizada correctamente');
-        return true;
-      } catch (err) {
-        console.error('Error updating review:', err);
-        setError('Error al actualizar la reseña');
-        return false;
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+    try {
+      const review = await updateRotationReview(reviewId, reviewData);
+      setExistingReview(review);
+      setSuccess("Reseña actualizada correctamente");
+      return true;
+    } catch (err) {
+      console.error("Error updating review:", err);
+      setError("Error al actualizar la reseña");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // Eliminar reseña
   const deleteReview = useCallback(
@@ -108,11 +101,11 @@ export const useExternalRotationReview = (userId, rotationId) => {
       try {
         await deleteRotationReview(reviewId, userId);
         setExistingReview(null);
-        setSuccess('Reseña eliminada correctamente');
+        setSuccess("Reseña eliminada correctamente");
         return true;
       } catch (err) {
-        console.error('Error deleting review:', err);
-        setError('Error al eliminar la reseña');
+        console.error("Error deleting review:", err);
+        setError("Error al eliminar la reseña");
         return false;
       } finally {
         setLoading(false);
@@ -143,9 +136,16 @@ export const useExternalRotationReview = (userId, rotationId) => {
 
 /**
  * Hook para obtener todas las reseñas de rotaciones externas (listado público)
+ * @param {string} userId - ID del usuario (opcional) para incluir su propia reseña
+ * @param {string} country - País para filtrar (opcional)
+ * @param {string} city - Ciudad para filtrar (opcional)
  * @returns {Object} Estado y funciones
  */
-export const useExternalRotationReviewsList = () => {
+export const useExternalRotationReviewsList = (
+  userId = null,
+  country = null,
+  city = null
+) => {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -155,15 +155,15 @@ export const useExternalRotationReviewsList = () => {
     setError(null);
 
     try {
-      const data = await getAllExternalRotationReviews();
+      const data = await getAllExternalRotationReviews(userId, country, city);
       setReviews(data);
     } catch (err) {
-      console.error('Error fetching reviews:', err);
-      setError('Error al cargar las reseñas');
+      console.error("Error fetching reviews:", err);
+      setError("Error al cargar las reseñas");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userId, country, city]);
 
   return {
     reviews,
@@ -174,4 +174,3 @@ export const useExternalRotationReviewsList = () => {
 };
 
 export default useExternalRotationReview;
-

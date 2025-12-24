@@ -12,7 +12,6 @@ import { COLORS } from "../constants/colors";
 import { useLectures } from "../hooks/useLectures";
 import { useHospitals } from "../hooks/useHospitals";
 import { ScreenHeader } from "../components/ScreenHeader";
-import { InfoBanner } from "../components/InfoBanner";
 import { Filters } from "../components/Filters";
 import { CourseCard } from "../components/CourseCard";
 import { filterCoursesBySearch } from "../utils/courseUtils";

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,24 +11,27 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { COLORS } from '../constants/colors';
-import { useShifts } from '../hooks/useShifts';
-import { useShiftSwapRequests } from '../hooks/useShiftSwapRequests';
-import { useShiftPurchaseRequests } from '../hooks/useShiftPurchaseRequests';
-import { useResidentReviewCheck } from '../hooks/useResidentReviewCheck';
-import { InfoBanner } from '../components/InfoBanner';
-import { FloatingActionButton } from '../components/FloatingActionButton';
-import { ScreenHeader } from '../components/ScreenHeader';
-import { TeamCalendarView } from './TeamCalendarView';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { COLORS } from "../constants/colors";
+import { useShifts } from "../hooks/useShifts";
+import { useShiftSwapRequests } from "../hooks/useShiftSwapRequests";
+import { useShiftPurchaseRequests } from "../hooks/useShiftPurchaseRequests";
+import { useResidentReviewCheck } from "../hooks/useResidentReviewCheck";
+import { FloatingActionButton } from "../components/FloatingActionButton";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { TeamCalendarView } from "./TeamCalendarView";
 
 /**
  * Pantalla de Guardias
  * Permite gestionar las guardias médicas del usuario
  */
-export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) => {
+export const ShiftsScreen = ({
+  userProfile,
+  navigation,
+  onNavigateToSection,
+}) => {
   const userId = userProfile?.id;
 
   const {
@@ -70,38 +73,52 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
   // Formulario de nueva guardia
   const [formData, setFormData] = useState({
     date: new Date(),
-    notes: '',
+    notes: "",
     price_eur: null,
   });
 
   const [showPriceInput, setShowPriceInput] = useState(false);
 
   const monthNames = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
   ];
 
   const guardTypeLabels = {
-    regular: 'Laborable',
-    saturday: 'Sábado',
-    sunday: 'Domingo',
+    regular: "Laborable",
+    saturday: "Sábado",
+    sunday: "Domingo",
   };
 
   const guardTypeColors = {
-    regular: '#DBEAFE',
-    saturday: '#FED7AA',
-    sunday: '#FECACA',
+    regular: "#DBEAFE",
+    saturday: "#FED7AA",
+    sunday: "#FECACA",
   };
 
   const guardTypeTextColors = {
-    regular: '#1E40AF',
-    saturday: '#C2410C',
-    sunday: '#991B1B',
+    regular: "#1E40AF",
+    saturday: "#C2410C",
+    sunday: "#991B1B",
   };
 
   // Handler para nueva guardia
   const handleNewShiftClick = useCallback(() => {
-    if (userProfile?.is_resident && !userProfile?.is_super_admin && hasReview === false) {
+    if (
+      userProfile?.is_resident &&
+      !userProfile?.is_super_admin &&
+      hasReview === false
+    ) {
       setShowReviewRequest(true);
     } else {
       setShowAddModal(true);
@@ -111,10 +128,10 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
   // Formatear fecha
   const formatDate = (dateString) => {
     const date = new Date(dateString);
-    const dayName = date.toLocaleDateString('es-ES', { weekday: 'long' });
-    return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)}, ${date.getDate()} de ${
-      monthNames[date.getMonth()]
-    }`;
+    const dayName = date.toLocaleDateString("es-ES", { weekday: "long" });
+    return `${
+      dayName.charAt(0).toUpperCase() + dayName.slice(1)
+    }, ${date.getDate()} de ${monthNames[date.getMonth()]}`;
   };
 
   // Calcular días restantes
@@ -131,9 +148,9 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
   // Obtener tipo de guardia desde fecha
   const getShiftType = (date) => {
     const dayOfWeek = date.getDay();
-    if (dayOfWeek === 0) return 'sunday';
-    if (dayOfWeek === 6) return 'saturday';
-    return 'regular';
+    if (dayOfWeek === 0) return "sunday";
+    if (dayOfWeek === 6) return "saturday";
+    return "regular";
   };
 
   // Handler para añadir guardia
@@ -149,7 +166,7 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
     const success = await addShift(shiftData);
     if (success) {
       setShowAddModal(false);
-      setFormData({ date: new Date(), notes: '', price_eur: null });
+      setFormData({ date: new Date(), notes: "", price_eur: null });
       setShowPriceInput(false);
     }
   };
@@ -186,7 +203,10 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
   if (showAnalytics) {
     return (
       <View style={styles.container}>
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+        >
           {/* Header */}
           <View style={styles.analyticsHeader}>
             <View>
@@ -223,19 +243,34 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
             {statistics.total > 0 && (
               <View style={styles.summaryBreakdown}>
                 <View style={styles.summaryBreakdownItem}>
-                  <Text style={[styles.summaryBreakdownNumber, { color: guardTypeTextColors.regular }]}>
+                  <Text
+                    style={[
+                      styles.summaryBreakdownNumber,
+                      { color: guardTypeTextColors.regular },
+                    ]}
+                  >
                     {statistics.regular}
                   </Text>
                   <Text style={styles.summaryBreakdownLabel}>Laborables</Text>
                 </View>
                 <View style={styles.summaryBreakdownItem}>
-                  <Text style={[styles.summaryBreakdownNumber, { color: guardTypeTextColors.saturday }]}>
+                  <Text
+                    style={[
+                      styles.summaryBreakdownNumber,
+                      { color: guardTypeTextColors.saturday },
+                    ]}
+                  >
                     {statistics.saturday}
                   </Text>
                   <Text style={styles.summaryBreakdownLabel}>Sábados</Text>
                 </View>
                 <View style={styles.summaryBreakdownItem}>
-                  <Text style={[styles.summaryBreakdownNumber, { color: guardTypeTextColors.sunday }]}>
+                  <Text
+                    style={[
+                      styles.summaryBreakdownNumber,
+                      { color: guardTypeTextColors.sunday },
+                    ]}
+                  >
                     {statistics.sunday}
                   </Text>
                   <Text style={styles.summaryBreakdownLabel}>Domingos</Text>
@@ -258,17 +293,14 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
         notificationCount={pendingIncomingRequestsCount}
         onNotificationPress={() => {
           // TODO: Implementar navegación a solicitudes
-          Alert.alert('Información', 'Vista de solicitudes en desarrollo');
+          Alert.alert("Información", "Vista de solicitudes en desarrollo");
         }}
       />
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Info Banner */}
-        <InfoBanner
-          id="guardias"
-          text="Lleva el control total de tus guardias médicas desde un único espacio. Registra cada guardia que realices, consulta tu calendario con las próximas programadas y accede a un panel de analíticas inteligente."
-        />
-
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Action Buttons */}
         <View style={styles.actionButtonsContainer}>
           <TouchableOpacity
@@ -311,7 +343,9 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
                   <View key={shift.id} style={styles.shiftCard}>
                     <View style={styles.shiftCardHeader}>
                       <View style={styles.shiftDateBadge}>
-                        <Text style={styles.shiftDateNumber}>{shiftDate.getDate()}</Text>
+                        <Text style={styles.shiftDateNumber}>
+                          {shiftDate.getDate()}
+                        </Text>
                       </View>
                       <View
                         style={[
@@ -331,31 +365,56 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
                     </View>
 
                     <Text style={styles.shiftCardTitle}>
-                      {shiftDate.getDate()} de {monthNames[shiftDate.getMonth()]}
+                      {shiftDate.getDate()} de{" "}
+                      {monthNames[shiftDate.getMonth()]}
                     </Text>
-                    <Text style={styles.shiftCardDay}>{formatDate(shift.date)}</Text>
+                    <Text style={styles.shiftCardDay}>
+                      {formatDate(shift.date)}
+                    </Text>
 
                     {/* Días restantes */}
                     <View style={styles.daysRemainingContainer}>
                       {daysRemaining === 0 ? (
-                        <View style={[styles.daysRemainingBadge, styles.daysRemainingToday]}>
+                        <View
+                          style={[
+                            styles.daysRemainingBadge,
+                            styles.daysRemainingToday,
+                          ]}
+                        >
                           <View style={styles.daysRemainingDot} />
                           <Text style={styles.daysRemainingText}>Hoy</Text>
                         </View>
                       ) : daysRemaining === 1 ? (
-                        <View style={[styles.daysRemainingBadge, styles.daysRemainingTomorrow]}>
+                        <View
+                          style={[
+                            styles.daysRemainingBadge,
+                            styles.daysRemainingTomorrow,
+                          ]}
+                        >
                           <View style={styles.daysRemainingDot} />
                           <Text style={styles.daysRemainingText}>Mañana</Text>
                         </View>
                       ) : daysRemaining < 0 ? (
-                        <View style={[styles.daysRemainingBadge, styles.daysRemainingPast]}>
+                        <View
+                          style={[
+                            styles.daysRemainingBadge,
+                            styles.daysRemainingPast,
+                          ]}
+                        >
                           <View style={styles.daysRemainingDot} />
                           <Text style={styles.daysRemainingText}>Pasada</Text>
                         </View>
                       ) : (
-                        <View style={[styles.daysRemainingBadge, styles.daysRemainingFuture]}>
+                        <View
+                          style={[
+                            styles.daysRemainingBadge,
+                            styles.daysRemainingFuture,
+                          ]}
+                        >
                           <View style={styles.daysRemainingDot} />
-                          <Text style={styles.daysRemainingText}>En {daysRemaining} días</Text>
+                          <Text style={styles.daysRemainingText}>
+                            En {daysRemaining} días
+                          </Text>
                         </View>
                       )}
                     </View>
@@ -393,12 +452,19 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
               <View style={styles.emptyStateIcon}>
                 <Ionicons name="time" size={40} color={COLORS.GRAY} />
               </View>
-              <Text style={styles.emptyStateTitle}>No hay guardias programadas</Text>
+              <Text style={styles.emptyStateTitle}>
+                No hay guardias programadas
+              </Text>
               <Text style={styles.emptyStateText}>
                 No tienes guardias programadas para los próximos 30 días
               </Text>
-              <TouchableOpacity style={styles.emptyStateButton} onPress={handleNewShiftClick}>
-                <Text style={styles.emptyStateButtonText}>Programar Guardia</Text>
+              <TouchableOpacity
+                style={styles.emptyStateButton}
+                onPress={handleNewShiftClick}
+              >
+                <Text style={styles.emptyStateButtonText}>
+                  Programar Guardia
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -423,7 +489,7 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
       >
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={0}
         >
           <TouchableOpacity
@@ -450,7 +516,6 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-
               <View style={styles.formRow}>
                 {/* Fecha */}
                 <View style={styles.formField}>
@@ -458,7 +523,7 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
                   <DateTimePicker
                     value={formData.date}
                     mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
                     onChange={(event, selectedDate) => {
                       if (selectedDate) {
                         setFormData({ ...formData, date: selectedDate });
@@ -506,10 +571,12 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
                         <TextInput
                           style={styles.priceInput}
                           value={
-                            formData.price_eur ? formData.price_eur.toString() : ''
+                            formData.price_eur
+                              ? formData.price_eur.toString()
+                              : ""
                           }
                           onChangeText={(text) => {
-                            const value = parseFloat(text.replace(',', '.'));
+                            const value = parseFloat(text.replace(",", "."));
                             setFormData({
                               ...formData,
                               price_eur: isNaN(value) ? null : value,
@@ -569,7 +636,7 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
         >
           <KeyboardAvoidingView
             style={styles.modalOverlay}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
             keyboardVerticalOffset={0}
           >
             <TouchableOpacity
@@ -598,7 +665,9 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
               >
                 {/* Preview Card */}
                 <View style={styles.previewCard}>
-                  <Text style={styles.previewLabel}>Información de la guardia</Text>
+                  <Text style={styles.previewLabel}>
+                    Información de la guardia
+                  </Text>
                   <View style={styles.previewContent}>
                     <View style={styles.previewDateBadge}>
                       <Text style={styles.previewDateNumber}>
@@ -607,8 +676,8 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
                     </View>
                     <View style={styles.previewInfo}>
                       <Text style={styles.previewDate}>
-                        {new Date(editingShift.date).getDate()} de{' '}
-                        {monthNames[new Date(editingShift.date).getMonth()]}{' '}
+                        {new Date(editingShift.date).getDate()} de{" "}
+                        {monthNames[new Date(editingShift.date).getMonth()]}{" "}
                         {new Date(editingShift.date).getFullYear()}
                       </Text>
                       <Text style={styles.previewDay}>
@@ -619,8 +688,7 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
                       style={[
                         styles.previewTypeBadge,
                         {
-                          backgroundColor:
-                            guardTypeColors[editingShift.type],
+                          backgroundColor: guardTypeColors[editingShift.type],
                         },
                       ]}
                     >
@@ -641,7 +709,9 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
                 <View style={styles.formRow}>
                   {/* Precio */}
                   <View style={styles.formField}>
-                    <Text style={styles.formLabel}>Precio de venta (opcional)</Text>
+                    <Text style={styles.formLabel}>
+                      Precio de venta (opcional)
+                    </Text>
                     <View style={styles.priceInputContainer}>
                       <Text style={styles.currencySymbol}>€</Text>
                       <TextInput
@@ -649,10 +719,10 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
                         value={
                           editingShift.price_eur
                             ? editingShift.price_eur.toString()
-                            : ''
+                            : ""
                         }
                         onChangeText={(text) => {
-                          const value = parseFloat(text.replace(',', '.'));
+                          const value = parseFloat(text.replace(",", "."));
                           setEditingShift({
                             ...editingShift,
                             price_eur: isNaN(value) ? null : value,
@@ -672,7 +742,7 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
                     <Text style={styles.formLabel}>Notas (opcional)</Text>
                     <TextInput
                       style={styles.notesInput}
-                      value={editingShift.notes || ''}
+                      value={editingShift.notes || ""}
                       onChangeText={(text) =>
                         setEditingShift({ ...editingShift, notes: text })
                       }
@@ -715,8 +785,8 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
           <View style={styles.confirmModalContainer}>
             <Text style={styles.confirmTitle}>Confirmar Eliminación</Text>
             <Text style={styles.confirmText}>
-              ¿Estás seguro de que quieres eliminar esta guardia? Esta acción no se puede
-              deshacer.
+              ¿Estás seguro de que quieres eliminar esta guardia? Esta acción no
+              se puede deshacer.
             </Text>
             <View style={styles.confirmActions}>
               <TouchableOpacity
@@ -748,8 +818,8 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
             <Ionicons name="alert-circle" size={48} color={COLORS.PRIMARY} />
             <Text style={styles.confirmTitle}>Reseña Requerida</Text>
             <Text style={styles.confirmText}>
-              Para poder gestionar guardias necesitas completar tu reseña del hospital
-              primero.
+              Para poder gestionar guardias necesitas completar tu reseña del
+              hospital primero.
             </Text>
             <View style={styles.confirmActions}>
               <TouchableOpacity
@@ -762,7 +832,7 @@ export const ShiftsScreen = ({ userProfile, navigation, onNavigateToSection }) =
                 style={styles.modalSubmitButton}
                 onPress={() => {
                   setShowReviewRequest(false);
-                  onNavigateToSection?.('mi-resena');
+                  onNavigateToSection?.("mi-resena");
                 }}
               >
                 <Text style={styles.modalSubmitButtonText}>Ir a Mi Reseña</Text>
@@ -786,33 +856,33 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   headerContent: {
     flex: 1,
   },
   notificationButton: {
     padding: 8,
-    position: 'relative',
+    position: "relative",
   },
   notificationBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 4,
     right: 4,
     backgroundColor: COLORS.ERROR,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 4,
   },
   notificationBadgeText: {
     color: COLORS.WHITE,
     fontSize: 11,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   scrollView: {
     flex: 1,
@@ -822,14 +892,14 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   analyticsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 16,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.GRAY_DARK,
     marginBottom: 4,
   },
@@ -841,15 +911,15 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   summaryCard: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   summaryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 16,
   },
   summaryIconContainer: {
@@ -857,8 +927,8 @@ const styles = StyleSheet.create({
     height: 48,
     backgroundColor: COLORS.PRIMARY,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   summaryTextContainer: {
@@ -866,7 +936,7 @@ const styles = StyleSheet.create({
   },
   summaryTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
     marginBottom: 2,
   },
@@ -875,12 +945,12 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
   summaryTotal: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 16,
   },
   summaryTotalNumber: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.PRIMARY,
   },
   summaryTotalLabel: {
@@ -888,18 +958,18 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
   summaryBreakdown: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: "#E5E7EB",
   },
   summaryBreakdownItem: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   summaryBreakdownNumber: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 4,
   },
   summaryBreakdownLabel: {
@@ -907,61 +977,61 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
   actionButtonsContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginBottom: 8,
   },
   secondaryButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
-    backgroundColor: 'white',
+    backgroundColor: "white",
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   secondaryButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
   },
   notificationIconContainer: {
-    position: 'relative',
+    position: "relative",
   },
   badge: {
-    position: 'absolute',
+    position: "absolute",
     top: -8,
     right: -8,
     backgroundColor: COLORS.ERROR,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 4,
     borderWidth: 2,
-    borderColor: 'white',
+    borderColor: "white",
   },
   badgeText: {
     fontSize: 10,
-    fontWeight: '600',
-    color: 'white',
+    fontWeight: "600",
+    color: "white",
   },
   sectionContainer: {
     marginTop: 8,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.GRAY_DARK,
     marginLeft: 8,
   },
@@ -972,28 +1042,28 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     paddingVertical: 60,
-    alignItems: 'center',
+    alignItems: "center",
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
   },
   shiftsGrid: {
     gap: 12,
   },
   shiftCard: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   shiftCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 12,
   },
   shiftDateBadge: {
@@ -1001,13 +1071,13 @@ const styles = StyleSheet.create({
     height: 48,
     backgroundColor: COLORS.PRIMARY,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   shiftDateNumber: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
+    fontWeight: "bold",
+    color: "white",
   },
   shiftTypeBadge: {
     paddingHorizontal: 12,
@@ -1016,11 +1086,11 @@ const styles = StyleSheet.create({
   },
   shiftTypeBadgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   shiftCardTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
     marginBottom: 4,
   },
@@ -1033,24 +1103,24 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   daysRemainingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   daysRemainingToday: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: "#FEE2E2",
   },
   daysRemainingTomorrow: {
-    backgroundColor: '#FED7AA',
+    backgroundColor: "#FED7AA",
   },
   daysRemainingPast: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
   },
   daysRemainingFuture: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: "#DBEAFE",
   },
   daysRemainingDot: {
     width: 6,
@@ -1061,7 +1131,7 @@ const styles = StyleSheet.create({
   },
   daysRemainingText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
   },
   shiftNotes: {
@@ -1070,63 +1140,63 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   shiftCardActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: "#F3F4F6",
   },
   editButton: {
     flex: 1,
     paddingVertical: 8,
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 8,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: "#EFF6FF",
   },
   editButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.PRIMARY,
   },
   deleteButton: {
     flex: 1,
     paddingVertical: 8,
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 8,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: "#FEE2E2",
   },
   deleteButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.ERROR,
   },
   emptyState: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 16,
     padding: 48,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   emptyStateIcon: {
     width: 64,
     height: 64,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 16,
   },
   emptyStateTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
     marginBottom: 8,
   },
   emptyStateText: {
     fontSize: 14,
     color: COLORS.GRAY,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 16,
   },
   emptyStateButton: {
@@ -1137,13 +1207,13 @@ const styles = StyleSheet.create({
   },
   emptyStateButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: 'white',
+    fontWeight: "600",
+    color: "white",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   modalOverlayTouchable: {
     flex: 1,
@@ -1152,20 +1222,20 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.WHITE,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
-    minHeight: '75%',
+    maxHeight: "90%",
+    minHeight: "75%",
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
   },
   closeButton: {
@@ -1179,49 +1249,49 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   previewCard: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: "#EFF6FF",
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: "#DBEAFE",
     marginBottom: 20,
   },
   previewLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY,
     marginBottom: 12,
   },
   previewContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   previewDateBadge: {
     width: 48,
     height: 48,
     backgroundColor: COLORS.PRIMARY,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   previewDateNumber: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
+    fontWeight: "bold",
+    color: "white",
   },
   previewInfo: {
     flex: 1,
   },
   previewDate: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
   },
   previewDay: {
     fontSize: 12,
     color: COLORS.GRAY,
-    textTransform: 'capitalize',
+    textTransform: "capitalize",
   },
   previewTypeBadge: {
     paddingHorizontal: 12,
@@ -1230,7 +1300,7 @@ const styles = StyleSheet.create({
   },
   previewTypeBadgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   formRow: {
     gap: 16,
@@ -1241,19 +1311,19 @@ const styles = StyleSheet.create({
   },
   formLabel: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
   },
   datePicker: {
-    width: '100%',
+    width: "100%",
     height: 180,
   },
   checkboxRow: {
     marginTop: 8,
   },
   checkbox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   checkboxBox: {
     width: 20,
@@ -1262,8 +1332,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.BORDER,
     borderRadius: 4,
     marginRight: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   checkboxBoxChecked: {
     backgroundColor: COLORS.PRIMARY,
@@ -1278,8 +1348,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   priceInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: COLORS.WHITE,
     borderWidth: 1,
     borderColor: COLORS.BORDER,
@@ -1306,7 +1376,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.GRAY_DARK,
     minHeight: 120,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   inputHint: {
     fontSize: 12,
@@ -1314,7 +1384,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   modalActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     paddingHorizontal: 20,
     paddingVertical: 16,
@@ -1327,12 +1397,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     backgroundColor: COLORS.SUCCESS,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   addButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.WHITE,
   },
   cancelButton: {
@@ -1340,25 +1410,25 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     backgroundColor: COLORS.GRAY_LIGHT,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
   },
   confirmModalContainer: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 20,
     padding: 24,
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
-    alignItems: 'center',
+    alignItems: "center",
   },
   confirmTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
     marginTop: 16,
     marginBottom: 8,
@@ -1366,24 +1436,24 @@ const styles = StyleSheet.create({
   confirmText: {
     fontSize: 14,
     color: COLORS.GRAY,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 24,
   },
   confirmActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
-    width: '100%',
+    width: "100%",
   },
   confirmCancelButton: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
     paddingVertical: 12,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   confirmCancelButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
   },
   confirmDeleteButton: {
@@ -1391,14 +1461,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.ERROR,
     paddingVertical: 12,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   confirmDeleteButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: 'white',
+    fontWeight: "600",
+    color: "white",
   },
 });
 
 export default ShiftsScreen;
-

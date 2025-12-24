@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase';
+import { supabase } from "../config/supabase";
 
 /**
  * Servicio para gestionar rotaciones externas
@@ -8,13 +8,19 @@ import { supabase } from '../config/supabase';
  * Obtiene todas las rotaciones externas con información del usuario
  * @param {string} specialtyId - ID de especialidad para filtrar (opcional)
  * @param {string} monthYear - Mes/año en formato YYYY-MM (opcional)
+ * @param {string} country - País para filtrar (opcional)
+ * @param {string} city - Ciudad para filtrar (opcional)
  * @returns {Promise<Array>} Lista de rotaciones
  */
-export const getAllRotations = async (specialtyId = null, monthYear = null) => {
+export const getAllRotations = async (
+  specialtyId = null,
+  monthYear = null,
+  country = null,
+  city = null
+) => {
   try {
-    const { data, error } = await supabase
-      .from('external_rotation')
-      .select(`
+    let query = supabase.from("external_rotation").select(
+      `
         *,
         users!external_rotation_user_id_fkey (
           id,
@@ -24,11 +30,23 @@ export const getAllRotations = async (specialtyId = null, monthYear = null) => {
           phone,
           speciality_id
         )
-      `)
-      .order('created_at', { ascending: false });
+      `
+    );
+
+    // Aplicar filtros de país y ciudad en el backend
+    if (country) {
+      query = query.eq("country", country);
+    }
+    if (city) {
+      query = query.eq("city", city);
+    }
+
+    query = query.order("created_at", { ascending: false });
+
+    const { data, error } = await query;
 
     if (error) {
-      console.error('❌ Error fetching rotations:', error);
+      console.error("❌ Error fetching rotations:", error);
       throw error;
     }
 
@@ -43,7 +61,7 @@ export const getAllRotations = async (specialtyId = null, monthYear = null) => {
 
     // Filtrar por mes/año
     if (monthYear) {
-      const [year, month] = monthYear.split('-').map(Number);
+      const [year, month] = monthYear.split("-").map(Number);
       const filterStart = new Date(year, month - 1, 1);
       const filterEnd = new Date(year, month, 0);
 
@@ -57,20 +75,29 @@ export const getAllRotations = async (specialtyId = null, monthYear = null) => {
       });
     }
 
+    // Filtrar por fecha de inicio: solo mostrar rotaciones con fecha >= hoy
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Resetear horas para comparar solo fechas
+
+    filteredData = filteredData.filter((rotation) => {
+      const rotationStart = new Date(rotation.start_date);
+      rotationStart.setHours(0, 0, 0, 0);
+      return rotationStart >= today;
+    });
+
     // Mapear datos del usuario
     const rotationsWithUser = filteredData.map((rotation) => ({
       ...rotation,
-      user_name: rotation.users?.name || '',
-      user_surname: rotation.users?.surname || '',
-      user_email: rotation.users?.work_email || '',
-      user_phone: rotation.users?.phone || '',
-      user_speciality_id: rotation.users?.speciality_id || '',
+      user_name: rotation.users?.name || "",
+      user_surname: rotation.users?.surname || "",
+      user_email: rotation.users?.work_email || "",
+      user_phone: rotation.users?.phone || "",
+      user_speciality_id: rotation.users?.speciality_id || "",
     }));
 
-    console.log(`✅ Fetched ${rotationsWithUser.length} rotations`);
     return rotationsWithUser;
   } catch (error) {
-    console.error('❌ Exception in getAllRotations:', error);
+    console.error("❌ Exception in getAllRotations:", error);
     throw error;
   }
 };
@@ -83,25 +110,24 @@ export const getAllRotations = async (specialtyId = null, monthYear = null) => {
 export const getUserRotations = async (userId) => {
   try {
     if (!userId) {
-      console.warn('⚠️ getUserRotations: Missing user ID');
+      console.warn("⚠️ getUserRotations: Missing user ID");
       return [];
     }
 
     const { data, error } = await supabase
-      .from('external_rotation')
-      .select('*')
-      .eq('user_id', userId)
-      .order('start_date', { ascending: false });
+      .from("external_rotation")
+      .select("*")
+      .eq("user_id", userId)
+      .order("start_date", { ascending: false });
 
     if (error) {
-      console.error('❌ Error fetching user rotations:', error);
+      console.error("❌ Error fetching user rotations:", error);
       throw error;
     }
 
-    console.log(`✅ Fetched ${data?.length || 0} user rotations`);
     return data || [];
   } catch (error) {
-    console.error('❌ Exception in getUserRotations:', error);
+    console.error("❌ Exception in getUserRotations:", error);
     throw error;
   }
 };
@@ -115,7 +141,7 @@ export const getUserRotations = async (userId) => {
 export const createRotation = async (rotationData, userId) => {
   try {
     if (!userId) {
-      throw new Error('User ID is required');
+      throw new Error("User ID is required");
     }
 
     const newRotation = {
@@ -124,23 +150,24 @@ export const createRotation = async (rotationData, userId) => {
       longitude: rotationData.longitude,
       start_date: rotationData.start_date,
       end_date: rotationData.end_date || null,
+      country: rotationData.country || null,
+      city: rotationData.city || null,
     };
 
     const { data, error } = await supabase
-      .from('external_rotation')
+      .from("external_rotation")
       .insert([newRotation])
       .select()
       .single();
 
     if (error) {
-      console.error('❌ Error creating rotation:', error);
+      console.error("❌ Error creating rotation:", error);
       throw error;
     }
 
-    console.log('✅ Rotation created successfully:', data);
     return data;
   } catch (error) {
-    console.error('❌ Exception in createRotation:', error);
+    console.error("❌ Exception in createRotation:", error);
     throw error;
   }
 };
@@ -155,7 +182,7 @@ export const createRotation = async (rotationData, userId) => {
 export const updateRotation = async (rotationId, updates, userId) => {
   try {
     if (!rotationId || !userId) {
-      throw new Error('Rotation ID and User ID are required');
+      throw new Error("Rotation ID and User ID are required");
     }
 
     const updatedData = {
@@ -163,25 +190,26 @@ export const updateRotation = async (rotationId, updates, userId) => {
       longitude: updates.longitude,
       start_date: updates.start_date,
       end_date: updates.end_date || null,
+      country: updates.country || null,
+      city: updates.city || null,
     };
 
     const { data, error } = await supabase
-      .from('external_rotation')
+      .from("external_rotation")
       .update(updatedData)
-      .eq('id', rotationId)
-      .eq('user_id', userId)
+      .eq("id", rotationId)
+      .eq("user_id", userId)
       .select()
       .single();
 
     if (error) {
-      console.error('❌ Error updating rotation:', error);
+      console.error("❌ Error updating rotation:", error);
       throw error;
     }
 
-    console.log('✅ Rotation updated successfully:', data);
     return data;
   } catch (error) {
-    console.error('❌ Exception in updateRotation:', error);
+    console.error("❌ Exception in updateRotation:", error);
     throw error;
   }
 };
@@ -195,24 +223,23 @@ export const updateRotation = async (rotationId, updates, userId) => {
 export const deleteRotation = async (rotationId, userId) => {
   try {
     if (!rotationId || !userId) {
-      throw new Error('Rotation ID and User ID are required');
+      throw new Error("Rotation ID and User ID are required");
     }
 
     const { error } = await supabase
-      .from('external_rotation')
+      .from("external_rotation")
       .delete()
-      .eq('id', rotationId)
-      .eq('user_id', userId);
+      .eq("id", rotationId)
+      .eq("user_id", userId);
 
     if (error) {
-      console.error('❌ Error deleting rotation:', error);
+      console.error("❌ Error deleting rotation:", error);
       throw error;
     }
 
-    console.log('✅ Rotation deleted successfully');
     return true;
   } catch (error) {
-    console.error('❌ Exception in deleteRotation:', error);
+    console.error("❌ Exception in deleteRotation:", error);
     throw error;
   }
 };
@@ -226,23 +253,22 @@ export const deleteRotation = async (rotationId, userId) => {
 export const updateUserPhone = async (userId, phone) => {
   try {
     if (!userId || !phone) {
-      throw new Error('User ID and phone are required');
+      throw new Error("User ID and phone are required");
     }
 
     const { error } = await supabase
-      .from('users')
+      .from("users")
       .update({ phone })
-      .eq('id', userId);
+      .eq("id", userId);
 
     if (error) {
-      console.error('❌ Error updating user phone:', error);
+      console.error("❌ Error updating user phone:", error);
       throw error;
     }
 
-    console.log('✅ User phone updated successfully');
     return true;
   } catch (error) {
-    console.error('❌ Exception in updateUserPhone:', error);
+    console.error("❌ Exception in updateUserPhone:", error);
     throw error;
   }
 };
@@ -255,4 +281,3 @@ export default {
   deleteRotation,
   updateUserPhone,
 };
-

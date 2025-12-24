@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 import { formatShortDate } from '../utils/dateUtils';
@@ -7,9 +7,13 @@ import { formatShortDate } from '../utils/dateUtils';
 /**
  * Tarjeta para mostrar una reseña de rotación externa en el listado de la comunidad
  */
-export const RotationReviewListCard = ({ review }) => {
+export const RotationReviewListCard = ({ review, onPress }) => {
   return (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => onPress && onPress(review)}
+      activeOpacity={0.7}
+    >
       <View style={styles.header}>
         <Ionicons name="business" size={20} color={COLORS.PRIMARY} />
         <Text style={styles.hospitalName}>
@@ -26,7 +30,7 @@ export const RotationReviewListCard = ({ review }) => {
             ` - ${formatShortDate(review.external_rotation.end_date)}`}
         </Text>
       )}
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -36,6 +40,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    width: '100%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,

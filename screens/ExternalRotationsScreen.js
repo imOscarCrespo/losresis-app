@@ -18,7 +18,7 @@ import {
 } from "../hooks/useExternalRotationReviews";
 import {
   ScreenHeader,
-  SelectFilter,
+  Filters,
   ConfirmationModal,
   RotationModal,
   RotationReviewModal,
@@ -29,6 +29,8 @@ import {
   FloatingActionButton,
 } from "../components";
 import { supabase } from "../config/supabase";
+import { Country, City } from "country-state-city";
+import RotationReviewDetailScreen from "./RotationReviewDetailScreen";
 
 /**
  * Pantalla de Rotaciones Externas - Refactorizada
@@ -40,6 +42,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
 
   // Tab state
   const [activeTab, setActiveTab] = useState("map");
+  const [selectedReviewId, setSelectedReviewId] = useState(null);
 
   // Modals state
   const [showRotationModal, setShowRotationModal] = useState(false);
@@ -53,6 +56,10 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
   const [specialties, setSpecialties] = useState([]);
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [selectedMonthYear, setSelectedMonthYear] = useState("");
+  const [selectedMapCountry, setSelectedMapCountry] = useState("");
+  const [selectedMapCity, setSelectedMapCity] = useState("");
+  const [selectedCountry, setSelectedCountry] = useState("");
+  const [selectedCity, setSelectedCity] = useState("");
 
   // Cargar especialidades
   useEffect(() => {
@@ -99,7 +106,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
     loading: loadingReviews,
     error: errorReviews,
     fetchReviews,
-  } = useExternalRotationReviewsList();
+  } = useExternalRotationReviewsList(userId, selectedCountry, selectedCity);
 
   const {
     existingReview,
@@ -117,7 +124,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
     clearSuccess: clearReviewSuccess,
   } = useExternalRotationReview(userId, existingRotation?.id);
 
-  // Cargar reseñas cuando se cambia a la tab de reseñas
+  // Cargar reseñas cuando se cambia a la tab de reseñas o cuando cambian los filtros
   useEffect(() => {
     if (activeTab === "reviews") {
       fetchReviews();
@@ -125,7 +132,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
         checkExistingReview();
       }
     }
-  }, [activeTab, existingRotation?.id]);
+  }, [activeTab, existingRotation?.id, selectedCountry, selectedCity]);
 
   // ============================================================================
   // COMPUTED VALUES
@@ -160,18 +167,354 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
     return options;
   }, []);
 
-  const specialtyOptions = useMemo(() => {
-    const options = [{ value: "", label: "Todas las especialidades" }];
-    specialties
+  // Opciones de países
+  const countryOptions = useMemo(() => {
+    try {
+      const countries = Country.getAllCountries();
+      return countries
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((country) => ({
+          id: country.name,
+          name: country.name,
+        }));
+    } catch (error) {
+      console.error("Error cargando países:", error);
+      return [];
+    }
+  }, []);
+
+  // Opciones de ciudades del país seleccionado (para reseñas)
+  const cityOptions = useMemo(() => {
+    if (!selectedCountry) {
+      return [];
+    }
+    try {
+      const country = Country.getAllCountries().find(
+        (c) => c.name === selectedCountry
+      );
+      if (!country) {
+        return [];
+      }
+      const cities = City.getCitiesOfCountry(country.isoCode);
+      return (cities || [])
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((city) => ({
+          id: city.name,
+          name: city.name,
+        }));
+    } catch (error) {
+      console.error("Error cargando ciudades:", error);
+      return [];
+    }
+  }, [selectedCountry]);
+
+  // Opciones de ciudades del país seleccionado (para mapa)
+  const mapCityOptions = useMemo(() => {
+    if (!selectedMapCountry) {
+      return [];
+    }
+    try {
+      const country = Country.getAllCountries().find(
+        (c) => c.name === selectedMapCountry
+      );
+      if (!country) {
+        return [];
+      }
+      const cities = City.getCitiesOfCountry(country.isoCode);
+      return (cities || [])
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((city) => ({
+          id: city.name,
+          name: city.name,
+        }));
+    } catch (error) {
+      console.error("Error cargando ciudades:", error);
+      return [];
+    }
+  }, [selectedMapCountry]);
+
+  // Configurar los filtros para el componente genérico (tab de mapa)
+  const filtersConfig = useMemo(() => {
+    const specialtyOptions = specialties
       .sort((a, b) => a.name.localeCompare(b.name))
-      .forEach((specialty) => {
-        options.push({
-          value: specialty.id,
-          label: specialty.name,
-        });
-      });
-    return options;
-  }, [specialties]);
+      .map((specialty) => ({
+        id: specialty.id,
+        name: specialty.name,
+      }));
+
+    return [
+      {
+        id: "country",
+        type: "select",
+        label: "Filtrar por país",
+        value: selectedMapCountry,
+        onSelect: (value) => {
+          setSelectedMapCountry(value);
+          if (!value) {
+            setSelectedMapCity("");
+          }
+        },
+        options: countryOptions,
+        placeholder: "Todos los países",
+      },
+      {
+        id: "city",
+        type: "select",
+        label: "Filtrar por ciudad",
+        value: selectedMapCity,
+        onSelect: setSelectedMapCity,
+        options: mapCityOptions,
+        placeholder: selectedMapCountry
+          ? "Todas las ciudades"
+          : "Primero selecciona un país",
+        disabled: !selectedMapCountry,
+      },
+      {
+        id: "specialty",
+        type: "select",
+        label: "Filtrar por especialidad",
+        value: selectedSpecialty,
+        onSelect: setSelectedSpecialty,
+        options: specialtyOptions,
+        placeholder: "Todas las especialidades",
+      },
+      {
+        id: "monthYear",
+        type: "select",
+        label: "Filtrar por mes/año",
+        value: selectedMonthYear,
+        onSelect: setSelectedMonthYear,
+        options: monthYearOptions.map((opt) => ({
+          id: opt.value,
+          name: opt.label,
+        })),
+        placeholder: "Todos los meses",
+      },
+    ];
+  }, [
+    specialties,
+    selectedSpecialty,
+    selectedMonthYear,
+    selectedMapCountry,
+    selectedMapCity,
+    monthYearOptions,
+    countryOptions,
+    mapCityOptions,
+  ]);
+
+  // Calcular región del mapa basada en el país seleccionado
+  const mapRegion = useMemo(() => {
+    // Si hay rotaciones filtradas, usarlas para calcular la región
+    if (rotations.length > 0) {
+      const lats = rotations.map((r) => r.latitude);
+      const lngs = rotations.map((r) => r.longitude);
+
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLng = Math.min(...lngs);
+      const maxLng = Math.max(...lngs);
+
+      const centerLat = (minLat + maxLat) / 2;
+      const centerLng = (minLng + maxLng) / 2;
+      const latDelta = Math.max((maxLat - minLat) * 1.5, 0.5);
+      const lngDelta = Math.max((maxLng - minLng) * 1.5, 0.5);
+
+      return {
+        latitude: centerLat,
+        longitude: centerLng,
+        latitudeDelta: latDelta,
+        longitudeDelta: lngDelta,
+      };
+    }
+
+    // Si hay un país seleccionado pero no hay rotaciones, calcular región del país
+    if (selectedMapCountry) {
+      try {
+        const country = Country.getAllCountries().find(
+          (c) => c.name === selectedMapCountry
+        );
+        if (!country) {
+          return null;
+        }
+
+        // Obtener ciudades del país para calcular bounds
+        const cities = City.getCitiesOfCountry(country.isoCode);
+        if (!cities || cities.length === 0) {
+          // Si no hay ciudades, usar valores por defecto basados en el tamaño típico del país
+          const isLargeCountry = [
+            "US",
+            "CA",
+            "RU",
+            "CN",
+            "BR",
+            "AU",
+            "IN",
+          ].includes(country.isoCode);
+          return {
+            latitude: 40.4168,
+            longitude: -3.7038,
+            latitudeDelta: isLargeCountry ? 15 : 3,
+            longitudeDelta: isLargeCountry ? 15 : 3,
+          };
+        }
+
+        // Calcular bounds de todas las ciudades del país
+        const lats = cities
+          .map((c) => parseFloat(c.latitude))
+          .filter((lat) => !isNaN(lat));
+        const lngs = cities
+          .map((c) => parseFloat(c.longitude))
+          .filter((lng) => !isNaN(lng));
+
+        if (lats.length === 0 || lngs.length === 0) {
+          const isLargeCountry = [
+            "US",
+            "CA",
+            "RU",
+            "CN",
+            "BR",
+            "AU",
+            "IN",
+          ].includes(country.isoCode);
+          return {
+            latitude: 40.4168,
+            longitude: -3.7038,
+            latitudeDelta: isLargeCountry ? 15 : 3,
+            longitudeDelta: isLargeCountry ? 15 : 3,
+          };
+        }
+
+        const minLat = Math.min(...lats);
+        const maxLat = Math.max(...lats);
+        const minLng = Math.min(...lngs);
+        const maxLng = Math.max(...lngs);
+
+        const centerLat = (minLat + maxLat) / 2;
+        const centerLng = (minLng + maxLng) / 2;
+        const latDelta = Math.max((maxLat - minLat) * 1.5, 1);
+        const lngDelta = Math.max((maxLng - minLng) * 1.5, 1);
+
+        return {
+          latitude: centerLat,
+          longitude: centerLng,
+          latitudeDelta: latDelta,
+          longitudeDelta: lngDelta,
+        };
+      } catch (error) {
+        console.error("Error calculando región del país:", error);
+        return null;
+      }
+    }
+
+    // Si no hay país ni rotaciones, mostrar vista por defecto (España)
+    return {
+      latitude: 40.4168,
+      longitude: -3.7038,
+      latitudeDelta: 10,
+      longitudeDelta: 10,
+    };
+  }, [selectedMapCountry, rotations]);
+
+  // Resetear ciudad del mapa cuando cambia el país del mapa
+  useEffect(() => {
+    if (selectedMapCountry && selectedMapCity) {
+      const country = Country.getAllCountries().find(
+        (c) => c.name === selectedMapCountry
+      );
+      if (country) {
+        const cities = City.getCitiesOfCountry(country.isoCode);
+        const cityExists = cities?.some((c) => c.name === selectedMapCity);
+        if (!cityExists) {
+          setSelectedMapCity("");
+        }
+      }
+    } else if (!selectedMapCountry) {
+      setSelectedMapCity("");
+    }
+  }, [selectedMapCountry]);
+
+  // Resetear ciudad cuando cambia el país (para reseñas)
+  useEffect(() => {
+    if (selectedCountry && selectedCity) {
+      // Verificar si la ciudad seleccionada pertenece al nuevo país
+      const country = Country.getAllCountries().find(
+        (c) => c.name === selectedCountry
+      );
+      if (country) {
+        const cities = City.getCitiesOfCountry(country.isoCode);
+        const cityExists = cities?.some((c) => c.name === selectedCity);
+        if (!cityExists) {
+          setSelectedCity("");
+        }
+      }
+    } else if (!selectedCountry) {
+      setSelectedCity("");
+    }
+  }, [selectedCountry]);
+
+  // Verificar si hay filtros activos (tab de mapa)
+  const hasActiveFilters = useMemo(() => {
+    return !!(
+      selectedMapCountry ||
+      selectedMapCity ||
+      selectedSpecialty ||
+      selectedMonthYear
+    );
+  }, [
+    selectedMapCountry,
+    selectedMapCity,
+    selectedSpecialty,
+    selectedMonthYear,
+  ]);
+
+  // Verificar si hay filtros activos (tab de reseñas)
+  const hasActiveReviewsFilters = useMemo(() => {
+    return !!(selectedCountry || selectedCity);
+  }, [selectedCountry, selectedCity]);
+
+  const clearFilters = () => {
+    setSelectedMapCountry("");
+    setSelectedMapCity("");
+    setSelectedSpecialty("");
+    setSelectedMonthYear("");
+  };
+
+  // Configurar los filtros para el componente genérico (tab de reseñas)
+  const reviewsFiltersConfig = useMemo(() => {
+    return [
+      {
+        id: "country",
+        type: "select",
+        label: "Filtrar por país",
+        value: selectedCountry,
+        onSelect: (value) => {
+          setSelectedCountry(value);
+          if (!value) {
+            setSelectedCity("");
+          }
+        },
+        options: countryOptions,
+        placeholder: "Todos los países",
+      },
+      {
+        id: "city",
+        type: "select",
+        label: "Filtrar por ciudad",
+        value: selectedCity,
+        onSelect: setSelectedCity,
+        options: cityOptions,
+        placeholder: selectedCountry
+          ? "Todas las ciudades"
+          : "Primero selecciona un país",
+        disabled: !selectedCountry,
+      },
+    ];
+  }, [selectedCountry, selectedCity, countryOptions, cityOptions]);
+
+  const clearReviewsFilters = () => {
+    setSelectedCountry("");
+    setSelectedCity("");
+  };
 
   // ============================================================================
   // ROTATION HANDLERS
@@ -201,6 +544,8 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
         hasEndDate && formData.end_date
           ? formData.end_date.toISOString().split("T")[0]
           : null,
+      country: formData.country || null,
+      city: formData.city || null,
     };
 
     const success = existingRotation
@@ -284,13 +629,26 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
     }
 
     // Formatear respuestas
-    const formattedAnswers = Object.entries(reviewData.answers).map(
-      ([questionId, answer]) => ({
-        question_id: questionId,
-        rating_value: answer.rating,
-        text_value: answer.textValue,
+    const formattedAnswers = Object.entries(reviewData.answers)
+      .filter(([questionId, answer]) => {
+        // Solo incluir respuestas que tengan al menos un valor
+        return (
+          answer &&
+          (answer.rating !== undefined ||
+            (answer.textValue && answer.textValue.trim() !== ""))
+        );
       })
-    );
+      .map(([questionId, answer]) => ({
+        question_id: String(questionId), // Asegurar que sea string
+        rating_value:
+          answer.rating !== undefined && answer.rating !== null
+            ? Number(answer.rating)
+            : null,
+        text_value:
+          answer.textValue && answer.textValue.trim() !== ""
+            ? answer.textValue.trim()
+            : null,
+      }));
 
     const reviewPayload = {
       userId,
@@ -299,6 +657,8 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
       city: reviewData.city.trim(),
       country: reviewData.country.trim(),
       answers: formattedAnswers,
+      freeComment: reviewData.freeComment || null,
+      isAnonymous: false, // Por defecto no es anónima
     };
 
     let success = false;
@@ -383,106 +743,69 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
   );
 
   const renderMapTab = () => (
-    <>
-      {renderAlerts()}
-
-      {/* Filters */}
-      <View style={styles.filtersContainer}>
-        <SelectFilter
-          label="Filtrar por especialidad"
-          value={selectedSpecialty}
-          onChange={setSelectedSpecialty}
-          options={specialtyOptions}
-          placeholder="Todas las especialidades"
-        />
-
-        <SelectFilter
-          label="Filtrar por mes/año"
-          value={selectedMonthYear}
-          onChange={setSelectedMonthYear}
-          options={monthYearOptions}
-          placeholder="Todos los meses"
-        />
-      </View>
-
-      {/* Map */}
-      <RotationMap
-        rotations={rotations}
-        userId={userId}
-        loading={loadingRotations}
-      />
-
-      {/* Lista de rotaciones (fallback si no hay mapa) */}
-      {rotations.length > 0 && (
-        <View style={styles.listContainer}>
-          {rotations.map((rotation) => (
-            <RotationCard
-              key={rotation.id}
-              rotation={rotation}
-              isOwn={rotation.user_id === userId}
-            />
-          ))}
-        </View>
-      )}
-
-      {/* User's Rotations */}
-      {userRotations.length > 0 && (
-        <View style={styles.userRotationsContainer}>
-          <Text style={styles.sectionTitle}>Mis Rotaciones Externas</Text>
-          {userRotations.map((rotation) => (
-            <RotationCard
-              key={rotation.id}
-              rotation={rotation}
-              isOwn={true}
-              onDelete={() => setShowRotationDeleteConfirm(rotation.id)}
-            />
-          ))}
-        </View>
-      )}
-
-      {/* Floating Action Button */}
-      <TouchableOpacity style={styles.fab} onPress={handleOpenRotationModal}>
-        <Ionicons
-          name={existingRotation ? "pencil" : "add"}
-          size={24}
-          color={COLORS.WHITE}
-        />
-      </TouchableOpacity>
-    </>
+    <RotationMap
+      rotations={rotations}
+      userId={userId}
+      loading={loadingRotations}
+      region={mapRegion}
+    />
   );
 
-  const renderReviewsTab = () => (
-    <>
-      {renderAlerts()}
+  const renderReviewsTab = () => {
+    if (loadingReviews) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <Text style={styles.loadingText}>Cargando reseñas...</Text>
+        </View>
+      );
+    }
 
-      {/* User's Review Card */}
-      {existingRotation && (
-        <MyRotationReviewCard
-          existingReview={existingReview}
-          onEdit={handleEditReview}
-          onDelete={() => setShowReviewDeleteConfirm(true)}
-          onCreate={handleStartReview}
-        />
-      )}
-
-      {/* Info para crear rotación primero */}
-      {!existingRotation && (
-        <View style={styles.infoCard}>
-          <Ionicons name="information-circle" size={32} color={COLORS.ORANGE} />
-          <Text style={styles.infoCardText}>
-            Para poder crear una reseña, primero debes registrar tu rotación
-            externa en la pestaña "Mapa".
-          </Text>
-          <TouchableOpacity
-            style={styles.goToMapButton}
-            onPress={() => setActiveTab("map")}
-          >
-            <Text style={styles.goToMapButtonText}>Ir al Mapa</Text>
+    if (errorReviews) {
+      return (
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={48} color={COLORS.ERROR} />
+          <Text style={styles.errorText}>{errorReviews}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchReviews}>
+            <Text style={styles.retryButtonText}>Reintentar</Text>
           </TouchableOpacity>
         </View>
-      )}
-    </>
-  );
+      );
+    }
+
+    if (allReviews.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Ionicons
+            name="document-text-outline"
+            size={64}
+            color={COLORS.GRAY}
+          />
+          <Text style={styles.emptyTitle}>Aún no hay reseñas disponibles</Text>
+          <Text style={styles.emptySubtitle}>
+            Sé el primero en compartir tu experiencia con una rotación externa.
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <>
+        {renderAlerts()}
+
+        {/* Listado de reseñas */}
+        <View style={styles.reviewsListContainer}>
+          {allReviews.map((review) => (
+            <RotationReviewListCard
+              key={review.id}
+              review={review}
+              onPress={(review) => setSelectedReviewId(review.id)}
+            />
+          ))}
+        </View>
+      </>
+    );
+  };
 
   // ============================================================================
   // MAIN RENDER
@@ -518,14 +841,23 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
     );
   }
 
+  // Si hay una reseña seleccionada, mostrar la pantalla de detalle
+  if (selectedReviewId) {
+    return (
+      <RotationReviewDetailScreen
+        reviewId={selectedReviewId}
+        onBack={() => setSelectedReviewId(null)}
+        userProfile={userProfile}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
       <ScreenHeader
         title="Rotaciones Externas"
         subtitle={
-          activeTab === "map"
-            ? "Encuentra compañeros en tu destino"
-            : "Mi Reseña"
+          activeTab === "map" ? "Encuentra compañeros en tu destino" : "Reseñas"
         }
         notificationCount={0}
         onNotificationPress={() => {}}
@@ -548,7 +880,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
               activeTab === "map" && styles.activeTabText,
             ]}
           >
-            Mapa
+            Futuras Rotaciones
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -566,20 +898,54 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
               activeTab === "reviews" && styles.activeTabText,
             ]}
           >
-            Mi Reseña
+            Reseñas
           </Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {activeTab === "map" ? renderMapTab() : renderReviewsTab()}
-      </ScrollView>
+      {/* Filters - Tab de mapa */}
+      {activeTab === "map" && (
+        <Filters
+          filters={filtersConfig}
+          onClearFilters={clearFilters}
+          hasActiveFilters={hasActiveFilters}
+        />
+      )}
 
-      {/* Floating Action Button - Solo en tab de reseñas y si hay rotación */}
-      {activeTab === "reviews" && existingRotation && (
+      {/* Filters - Tab de reseñas */}
+      {activeTab === "reviews" && (
+        <Filters
+          filters={reviewsFiltersConfig}
+          onClearFilters={clearReviewsFilters}
+          hasActiveFilters={hasActiveReviewsFilters}
+        />
+      )}
+
+      {/* Tab de Futuras Rotaciones - Mapa fuera del ScrollView */}
+      {activeTab === "map" ? (
+        <View style={styles.mapTabContainer}>
+          <View style={styles.mapAlertsContainer}>{renderAlerts()}</View>
+          {renderMapTab()}
+          {/* Floating Action Button superpuesto al mapa */}
+          <FloatingActionButton
+            onPress={handleOpenRotationModal}
+            icon={existingRotation ? "pencil" : "add"}
+            backgroundColor={COLORS.PRIMARY}
+            bottom={20}
+            right={20}
+          />
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {renderReviewsTab()}
+        </ScrollView>
+      )}
+
+      {/* Floating Action Button - Solo en tab de reseñas */}
+      {activeTab === "reviews" && (
         <FloatingActionButton
           onPress={existingReview ? handleEditReview : handleStartReview}
           icon={existingReview ? "pencil" : "add"}
@@ -614,6 +980,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
         onClose={() => setShowReviewModal(false)}
         onSubmit={handleSubmitReview}
         existingReview={existingReview}
+        existingRotation={existingRotation}
         questions={reviewQuestions}
         loadingQuestions={loadingQuestions}
         loading={loadingReview}
@@ -642,11 +1009,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.BACKGROUND,
   },
+  mapTabContainer: {
+    flex: 1,
+    position: "relative",
+  },
+  mapAlertsContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    paddingTop: 16,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
+    paddingTop: 0,
     paddingBottom: 100,
   },
   tabsContainer: {
@@ -719,7 +1099,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.SUCCESS + "20",
     borderRadius: 12,
     padding: 12,
-    marginBottom: 16,
+    marginTop: 0,
+    marginBottom: 8,
+    marginHorizontal: 16,
     gap: 12,
   },
   errorAlert: {
@@ -728,7 +1110,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.ERROR + "20",
     borderRadius: 12,
     padding: 12,
-    marginBottom: 16,
+    marginTop: 0,
+    marginBottom: 8,
+    marginHorizontal: 16,
     gap: 12,
   },
   alertTextContainer: {
@@ -738,12 +1122,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.GRAY_DARK,
   },
-  filtersContainer: {
-    gap: 16,
-    marginBottom: 16,
-  },
   listContainer: {
     gap: 12,
+    marginTop: 16,
     marginBottom: 16,
   },
   userRotationsContainer: {
@@ -789,6 +1170,64 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
     textAlign: "center",
     lineHeight: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.GRAY,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  errorText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.ERROR,
+    textAlign: "center",
+  },
+  retryButton: {
+    marginTop: 16,
+    backgroundColor: COLORS.PRIMARY,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: COLORS.WHITE,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: COLORS.GRAY_DARK,
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: COLORS.GRAY,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  reviewsListContainer: {
+    // El padding ya está en scrollContent, no duplicar
   },
   goToMapButton: {
     backgroundColor: COLORS.PRIMARY,

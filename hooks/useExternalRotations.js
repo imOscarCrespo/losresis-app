@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Alert } from 'react-native';
+import { useState, useEffect, useCallback } from "react";
+import { Alert } from "react-native";
 import {
   getAllRotations,
   getUserRotations,
@@ -7,16 +7,24 @@ import {
   updateRotation as updateRotationService,
   deleteRotation as deleteRotationService,
   updateUserPhone,
-} from '../services/externalRotationService';
+} from "../services/externalRotationService";
 
 /**
  * Hook para gestionar rotaciones externas
  * @param {string} userId - ID del usuario
  * @param {string} specialtyId - ID de especialidad para filtrar (opcional)
  * @param {string} monthYear - Mes/año en formato YYYY-MM (opcional)
+ * @param {string} country - País para filtrar (opcional)
+ * @param {string} city - Ciudad para filtrar (opcional)
  * @returns {Object} Estado y funciones para gestionar rotaciones
  */
-export const useExternalRotations = (userId, specialtyId = null, monthYear = null) => {
+export const useExternalRotations = (
+  userId,
+  specialtyId = null,
+  monthYear = null,
+  country = null,
+  city = null
+) => {
   const [rotations, setRotations] = useState([]);
   const [userRotations, setUserRotations] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -28,15 +36,15 @@ export const useExternalRotations = (userId, specialtyId = null, monthYear = nul
     setLoading(true);
     setError(null);
     try {
-      const data = await getAllRotations(specialtyId, monthYear);
+      const data = await getAllRotations(specialtyId, monthYear, country, city);
       setRotations(data);
     } catch (err) {
-      console.error('Error fetching rotations:', err);
-      setError('Error al cargar las rotaciones');
+      console.error("Error fetching rotations:", err);
+      setError("Error al cargar las rotaciones");
     } finally {
       setLoading(false);
     }
-  }, [specialtyId, monthYear]);
+  }, [specialtyId, monthYear, country, city]);
 
   // Fetch user's rotations
   const fetchUserRotations = useCallback(async () => {
@@ -46,8 +54,8 @@ export const useExternalRotations = (userId, specialtyId = null, monthYear = nul
       const data = await getUserRotations(userId);
       setUserRotations(data);
     } catch (err) {
-      console.error('Error fetching user rotations:', err);
-      setError('Error al cargar tus rotaciones');
+      console.error("Error fetching user rotations:", err);
+      setError("Error al cargar tus rotaciones");
     }
   }, [userId]);
 
@@ -55,7 +63,7 @@ export const useExternalRotations = (userId, specialtyId = null, monthYear = nul
   const createRotation = useCallback(
     async (rotationData, phone = null) => {
       if (!userId) {
-        setError('Usuario no autenticado');
+        setError("Usuario no autenticado");
         return false;
       }
 
@@ -70,14 +78,14 @@ export const useExternalRotations = (userId, specialtyId = null, monthYear = nul
         }
 
         await createRotationService(rotationData, userId);
-        setSuccess('Rotación externa creada correctamente');
+        setSuccess("Rotación externa creada correctamente");
 
         // Refresh data
         await Promise.all([fetchAllRotations(), fetchUserRotations()]);
         return true;
       } catch (err) {
-        console.error('Error creating rotation:', err);
-        setError('Error al crear la rotación');
+        console.error("Error creating rotation:", err);
+        setError("Error al crear la rotación");
         return false;
       } finally {
         setLoading(false);
@@ -90,7 +98,7 @@ export const useExternalRotations = (userId, specialtyId = null, monthYear = nul
   const updateRotation = useCallback(
     async (rotationId, rotationData, phone = null) => {
       if (!userId) {
-        setError('Usuario no autenticado');
+        setError("Usuario no autenticado");
         return false;
       }
 
@@ -105,14 +113,13 @@ export const useExternalRotations = (userId, specialtyId = null, monthYear = nul
         }
 
         await updateRotationService(rotationId, rotationData, userId);
-        setSuccess('Rotación externa actualizada correctamente');
 
         // Refresh data
         await Promise.all([fetchAllRotations(), fetchUserRotations()]);
         return true;
       } catch (err) {
-        console.error('Error updating rotation:', err);
-        setError('Error al actualizar la rotación');
+        console.error("Error updating rotation:", err);
+        setError("Error al actualizar la rotación");
         return false;
       } finally {
         setLoading(false);
@@ -125,7 +132,7 @@ export const useExternalRotations = (userId, specialtyId = null, monthYear = nul
   const deleteRotation = useCallback(
     async (rotationId) => {
       if (!userId) {
-        setError('Usuario no autenticado');
+        setError("Usuario no autenticado");
         return false;
       }
 
@@ -135,14 +142,14 @@ export const useExternalRotations = (userId, specialtyId = null, monthYear = nul
 
       try {
         await deleteRotationService(rotationId, userId);
-        setSuccess('Rotación externa eliminada correctamente');
+        setSuccess("Rotación externa eliminada correctamente");
 
         // Refresh data
         await Promise.all([fetchAllRotations(), fetchUserRotations()]);
         return true;
       } catch (err) {
-        console.error('Error deleting rotation:', err);
-        setError('Error al eliminar la rotación');
+        console.error("Error deleting rotation:", err);
+        setError("Error al eliminar la rotación");
         return false;
       } finally {
         setLoading(false);
@@ -181,4 +188,3 @@ export const useExternalRotations = (userId, specialtyId = null, monthYear = nul
 };
 
 export default useExternalRotations;
-

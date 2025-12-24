@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -10,10 +10,12 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { COLORS } from '../constants/colors';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { Country, City } from "country-state-city";
+import { COLORS } from "../constants/colors";
+import { SelectFilter } from "./SelectFilter";
 
 /**
  * Modal para crear o editar una rotación externa
@@ -31,50 +33,262 @@ export const RotationModal = ({
     longitude: -3.7038,
     start_date: new Date(),
     end_date: null,
-    phone: userPhone || '',
+    phone: userPhone || "",
   });
+  const [selectedCountryCode, setSelectedCountryCode] = useState("");
+  const [selectedCityName, setSelectedCityName] = useState("");
+  const [cityCoordinates, setCityCoordinates] = useState(null);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [hasEndDate, setHasEndDate] = useState(false);
+
+  // Obtener todos los países
+  const countryOptions = useMemo(() => {
+    try {
+      const countries = Country.getAllCountries();
+      const options = [{ value: "", label: "Selecciona un país" }];
+
+      countries
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach((country) => {
+          options.push({
+            value: country.isoCode,
+            label: country.name,
+          });
+        });
+
+      return options;
+    } catch (error) {
+      console.error("Error cargando países:", error);
+      return [{ value: "", label: "Error cargando países" }];
+    }
+  }, []);
+
+  // Obtener ciudades del país seleccionado
+  const cityOptions = useMemo(() => {
+    if (!selectedCountryCode) {
+      return [{ value: "", label: "Primero selecciona un país" }];
+    }
+
+    const cities = City.getCitiesOfCountry(selectedCountryCode);
+    const options = [{ value: "", label: "Selecciona una ciudad" }];
+
+    if (!cities || cities.length === 0) {
+      return [{ value: "", label: "No hay ciudades disponibles" }];
+    }
+
+    // Ordenar ciudades alfabéticamente y crear opciones
+    cities
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .forEach((city) => {
+        options.push({
+          value: JSON.stringify({
+            name: city.name,
+            latitude: city.latitude,
+            longitude: city.longitude,
+          }),
+          label: city.name,
+        });
+      });
+
+    return options;
+  }, [selectedCountryCode]);
 
   // Cargar datos existentes cuando se abre el modal
   useEffect(() => {
     if (visible) {
       if (existingRotation) {
+        // Cargar datos básicos
         setFormData({
           latitude: existingRotation.latitude,
           longitude: existingRotation.longitude,
           start_date: new Date(existingRotation.start_date),
-          end_date: existingRotation.end_date ? new Date(existingRotation.end_date) : null,
-          phone: userPhone || '',
+          end_date: existingRotation.end_date
+            ? new Date(existingRotation.end_date)
+            : null,
+          phone: userPhone || "",
         });
         setHasEndDate(!!existingRotation.end_date);
+
+        // Cargar país y ciudad directamente de la base de datos
+        if (existingRotation.country) {
+          // Buscar el código ISO del país por su nombre
+          const countries = Country.getAllCountries();
+
+          // Buscar el país de forma más flexible
+          let foundCountry = countries.find(
+            (c) =>
+              c.name.toLowerCase() === existingRotation.country.toLowerCase() ||
+              c.name === existingRotation.country
+          );
+
+          // Si no se encuentra, intentar buscar por nombre alternativo o código ISO
+          if (!foundCountry) {
+            // Buscar por nombre que contenga el texto (para casos como "Andorra" vs "Andorra la Vella")
+            foundCountry = countries.find(
+              (c) =>
+                c.name
+                  .toLowerCase()
+                  .includes(existingRotation.country.toLowerCase()) ||
+                existingRotation.country
+                  .toLowerCase()
+                  .includes(c.name.toLowerCase())
+            );
+          }
+
+          if (foundCountry) {
+            setSelectedCountryCode(foundCountry.isoCode);
+
+            // Si también tenemos ciudad, buscar sus coordenadas
+            if (existingRotation.city) {
+              setSelectedCityName(existingRotation.city);
+              const cities = City.getCitiesOfCountry(foundCountry.isoCode);
+
+              // Buscar la ciudad de forma más flexible
+              let foundCity = cities?.find(
+                (c) =>
+                  c.name.toLowerCase() ===
+                    existingRotation.city.toLowerCase() ||
+                  c.name === existingRotation.city
+              );
+
+              // Si no se encuentra, intentar búsqueda parcial
+              if (!foundCity) {
+                foundCity = cities?.find(
+                  (c) =>
+                    c.name
+                      .toLowerCase()
+                      .includes(existingRotation.city.toLowerCase()) ||
+                    existingRotation.city
+                      .toLowerCase()
+                      .includes(c.name.toLowerCase())
+                );
+              }
+
+              // Si no encontramos la ciudad pero tenemos coordenadas, usar las coordenadas guardadas
+              if (
+                !foundCity &&
+                existingRotation.latitude &&
+                existingRotation.longitude
+              ) {
+                setCityCoordinates({
+                  latitude: existingRotation.latitude,
+                  longitude: existingRotation.longitude,
+                });
+              }
+              if (foundCity && foundCity.latitude && foundCity.longitude) {
+                setCityCoordinates({
+                  latitude: parseFloat(foundCity.latitude),
+                  longitude: parseFloat(foundCity.longitude),
+                });
+              } else {
+                // Si no encontramos la ciudad, usar las coordenadas guardadas
+                setCityCoordinates({
+                  latitude: existingRotation.latitude,
+                  longitude: existingRotation.longitude,
+                });
+              }
+            }
+          } else if (existingRotation.city) {
+            // Si no encontramos el país pero hay ciudad, solo establecer la ciudad
+            setSelectedCityName(existingRotation.city);
+            setCityCoordinates({
+              latitude: existingRotation.latitude,
+              longitude: existingRotation.longitude,
+            });
+          }
+        } else if (existingRotation.city) {
+          // Si solo hay ciudad sin país
+          setSelectedCityName(existingRotation.city);
+          setCityCoordinates({
+            latitude: existingRotation.latitude,
+            longitude: existingRotation.longitude,
+          });
+        }
       } else {
         setFormData({
           latitude: 40.4168,
           longitude: -3.7038,
           start_date: new Date(),
           end_date: null,
-          phone: userPhone || '',
+          phone: userPhone || "",
         });
         setHasEndDate(false);
+        setSelectedCountryCode("");
+        setSelectedCityName("");
+        setCityCoordinates(null);
       }
     }
   }, [visible, existingRotation, userPhone]);
 
+  // Reset ciudad cuando cambia el país (solo si no estamos en modo edición con datos existentes)
+  useEffect(() => {
+    if (visible && !existingRotation) {
+      // Solo resetear si no hay rotación existente (modo creación)
+      setSelectedCityName("");
+      setCityCoordinates(null);
+    }
+  }, [selectedCountryCode, visible, existingRotation]);
+
+  const handleCountryChange = (countryCode) => {
+    setSelectedCountryCode(countryCode);
+  };
+
+  const handleCityChange = (cityValue) => {
+    if (!cityValue) {
+      setSelectedCityName("");
+      setCityCoordinates(null);
+      return;
+    }
+
+    try {
+      const cityData = JSON.parse(cityValue);
+      setSelectedCityName(cityData.name);
+      setCityCoordinates({
+        latitude: parseFloat(cityData.latitude),
+        longitude: parseFloat(cityData.longitude),
+      });
+      // Actualizar formData con las coordenadas
+      setFormData({
+        ...formData,
+        latitude: parseFloat(cityData.latitude),
+        longitude: parseFloat(cityData.longitude),
+      });
+    } catch (error) {
+      console.error("Error parsing city data:", error);
+      setSelectedCityName("");
+      setCityCoordinates(null);
+    }
+  };
+
   const handleSubmit = () => {
-    onSubmit(formData, hasEndDate);
+    if (!selectedCountryCode || !selectedCityName || !cityCoordinates) {
+      // Mostrar error si no hay país/ciudad seleccionados
+      return;
+    }
+
+    // Obtener el nombre del país seleccionado
+    const selectedCountry = Country.getCountryByCode(selectedCountryCode);
+
+    // Preparar datos con country y city
+    const rotationData = {
+      ...formData,
+      country: selectedCountry?.name || "",
+      city: selectedCityName,
+    };
+
+    onSubmit(rotationData, hasEndDate);
   };
 
   const handleStartDateChange = (event, selectedDate) => {
-    setShowStartDatePicker(Platform.OS === 'ios');
+    setShowStartDatePicker(Platform.OS === "ios");
     if (selectedDate) {
       setFormData({ ...formData, start_date: selectedDate });
     }
   };
 
   const handleEndDateChange = (event, selectedDate) => {
-    setShowEndDatePicker(Platform.OS === 'ios');
+    setShowEndDatePicker(Platform.OS === "ios");
     if (selectedDate) {
       setFormData({ ...formData, end_date: selectedDate });
     }
@@ -97,7 +311,7 @@ export const RotationModal = ({
     >
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <TouchableOpacity
           style={styles.overlayTouchable}
@@ -107,7 +321,7 @@ export const RotationModal = ({
         <View style={styles.content}>
           <View style={styles.header}>
             <Text style={styles.title}>
-              {existingRotation ? 'Editar Rotación' : 'Nueva Rotación'}
+              {existingRotation ? "Editar Rotación" : "Nueva Rotación"}
             </Text>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
@@ -120,31 +334,43 @@ export const RotationModal = ({
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Latitude */}
+            {/* Country Selector */}
             <View style={styles.field}>
-              <Text style={styles.label}>Latitud *</Text>
-              <TextInput
-                style={styles.input}
-                value={String(formData.latitude)}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, latitude: text })
-                }
-                keyboardType="numeric"
-                placeholder="40.4168"
+              <SelectFilter
+                label="País"
+                value={selectedCountryCode}
+                onChange={handleCountryChange}
+                options={countryOptions}
+                placeholder="Selecciona un país"
+                required
               />
             </View>
 
-            {/* Longitude */}
+            {/* City Selector - Solo habilitado si hay un país seleccionado */}
             <View style={styles.field}>
-              <Text style={styles.label}>Longitud *</Text>
-              <TextInput
-                style={styles.input}
-                value={String(formData.longitude)}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, longitude: text })
+              <SelectFilter
+                label="Ciudad"
+                value={
+                  selectedCityName
+                    ? cityOptions.find((opt) => {
+                        try {
+                          const cityData = JSON.parse(opt.value);
+                          return cityData.name === selectedCityName;
+                        } catch {
+                          return false;
+                        }
+                      })?.value || ""
+                    : ""
                 }
-                keyboardType="numeric"
-                placeholder="-3.7038"
+                onChange={handleCityChange}
+                options={cityOptions}
+                placeholder={
+                  selectedCountryCode
+                    ? "Selecciona una ciudad"
+                    : "Primero selecciona un país"
+                }
+                disabled={!selectedCountryCode}
+                required
               />
             </View>
 
@@ -156,7 +382,7 @@ export const RotationModal = ({
                 onPress={() => setShowStartDatePicker(true)}
               >
                 <Text style={styles.dateButtonText}>
-                  {formData.start_date.toLocaleDateString('es-ES')}
+                  {formData.start_date.toLocaleDateString("es-ES")}
                 </Text>
                 <Ionicons
                   name="calendar-outline"
@@ -168,15 +394,20 @@ export const RotationModal = ({
                 <DateTimePicker
                   value={formData.start_date}
                   mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
                   onChange={handleStartDateChange}
                 />
               )}
             </View>
 
             {/* End Date Checkbox */}
-            <TouchableOpacity style={styles.checkboxRow} onPress={toggleHasEndDate}>
-              <View style={[styles.checkbox, hasEndDate && styles.checkboxChecked]}>
+            <TouchableOpacity
+              style={styles.checkboxRow}
+              onPress={toggleHasEndDate}
+            >
+              <View
+                style={[styles.checkbox, hasEndDate && styles.checkboxChecked]}
+              >
                 {hasEndDate && (
                   <Ionicons name="checkmark" size={16} color={COLORS.WHITE} />
                 )}
@@ -194,8 +425,8 @@ export const RotationModal = ({
                 >
                   <Text style={styles.dateButtonText}>
                     {formData.end_date
-                      ? formData.end_date.toLocaleDateString('es-ES')
-                      : 'Seleccionar fecha'}
+                      ? formData.end_date.toLocaleDateString("es-ES")
+                      : "Seleccionar fecha"}
                   </Text>
                   <Ionicons
                     name="calendar-outline"
@@ -207,7 +438,7 @@ export const RotationModal = ({
                   <DateTimePicker
                     value={formData.end_date || new Date()}
                     mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
                     onChange={handleEndDateChange}
                     minimumDate={formData.start_date}
                   />
@@ -221,7 +452,9 @@ export const RotationModal = ({
               <TextInput
                 style={styles.input}
                 value={formData.phone}
-                onChangeText={(text) => setFormData({ ...formData, phone: text })}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, phone: text })
+                }
                 keyboardType="phone-pad"
                 placeholder="Teléfono de contacto"
               />
@@ -230,15 +463,26 @@ export const RotationModal = ({
 
           <View style={styles.actions}>
             <TouchableOpacity
-              style={styles.submitButton}
+              style={[
+                styles.submitButton,
+                (!selectedCountryCode ||
+                  !selectedCityName ||
+                  !cityCoordinates) &&
+                  styles.submitButtonDisabled,
+              ]}
               onPress={handleSubmit}
-              disabled={loading}
+              disabled={
+                loading ||
+                !selectedCountryCode ||
+                !selectedCityName ||
+                !cityCoordinates
+              }
             >
               {loading ? (
                 <ActivityIndicator size="small" color={COLORS.WHITE} />
               ) : (
                 <Text style={styles.submitButtonText}>
-                  {existingRotation ? 'Actualizar' : 'Crear'}
+                  {existingRotation ? "Actualizar" : "Crear"}
                 </Text>
               )}
             </TouchableOpacity>
@@ -255,8 +499,8 @@ export const RotationModal = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   overlayTouchable: {
     flex: 1,
@@ -265,20 +509,20 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.WHITE,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
-    minHeight: '75%',
+    maxHeight: "90%",
+    minHeight: "75%",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER,
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
   },
   form: {
@@ -292,7 +536,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
     marginBottom: 8,
   },
@@ -306,9 +550,9 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY_DARK,
   },
   dateButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     backgroundColor: COLORS.WHITE,
     borderWidth: 1,
     borderColor: COLORS.BORDER,
@@ -320,8 +564,8 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY_DARK,
   },
   checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 20,
   },
   checkbox: {
@@ -330,8 +574,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 2,
     borderColor: COLORS.BORDER,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   checkboxChecked: {
@@ -352,23 +596,32 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.PRIMARY,
     paddingVertical: 16,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
+  },
+  submitButtonDisabled: {
+    backgroundColor: COLORS.GRAY,
+    opacity: 0.5,
   },
   submitButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.WHITE,
+  },
+  coordinatesText: {
+    fontSize: 12,
+    color: COLORS.GRAY,
+    marginTop: 8,
+    fontStyle: "italic",
   },
   cancelButton: {
     backgroundColor: COLORS.BACKGROUND,
     paddingVertical: 16,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
   },
 });
-

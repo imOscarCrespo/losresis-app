@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ export const RotationReviewModal = ({
   onClose,
   onSubmit,
   existingReview,
+  existingRotation,
   questions,
   loadingQuestions,
   loading,
@@ -41,8 +42,6 @@ export const RotationReviewModal = ({
   const countryOptions = useMemo(() => {
     try {
       const countries = Country.getAllCountries();
-      console.log("📍 Países cargados:", countries.length);
-
       const options = [{ value: "", label: "Selecciona un país" }];
 
       countries
@@ -54,7 +53,6 @@ export const RotationReviewModal = ({
           });
         });
 
-      console.log("📍 Opciones de países generadas:", options.length);
       return options;
     } catch (error) {
       console.error("❌ Error cargando países:", error);
@@ -111,18 +109,107 @@ export const RotationReviewModal = ({
       setReviewFreeComment("");
       setCityCoordinates(null);
     } else if (visible && !isEditing) {
+      // Modo creación: cargar datos de la rotación si existe
       setReviewAnswers({});
       setReviewFreeComment("");
       setReviewHospitalName("");
-      setSelectedCountryCode("");
-      setSelectedCityName("");
-      setCityCoordinates(null);
-    }
-  }, [visible, isEditing, existingReview]);
 
-  // Reset ciudad cuando cambia el país
+      if (existingRotation) {
+        // Cargar país y ciudad de la rotación
+        if (existingRotation.country) {
+          const countries = Country.getAllCountries();
+          const foundCountry = countries.find(
+            (c) =>
+              c.name.toLowerCase() === existingRotation.country.toLowerCase() ||
+              c.name === existingRotation.country
+          );
+          if (foundCountry) {
+            setSelectedCountryCode(foundCountry.isoCode);
+            // La ciudad se establecerá en el useEffect que observa cityOptions
+          }
+        }
+      } else {
+        // Si no hay rotación, resetear campos
+        setSelectedCountryCode("");
+        setSelectedCityName("");
+        setCityCoordinates(null);
+      }
+    }
+  }, [visible, isEditing, existingReview, existingRotation]);
+
+  // Ref para rastrear si estamos cargando datos iniciales
+  const isInitialLoadRef = useRef(false);
+  const pendingCityRef = useRef(null);
+
+  // Cuando se abre el modal en modo creación, marcar que estamos en carga inicial
   useEffect(() => {
-    if (!isEditing) {
+    if (visible && !isEditing && existingRotation?.city) {
+      isInitialLoadRef.current = true;
+      pendingCityRef.current = existingRotation.city;
+    } else if (!visible) {
+      isInitialLoadRef.current = false;
+      pendingCityRef.current = null;
+    }
+  }, [visible, isEditing, existingRotation]);
+
+  // Cuando cityOptions se actualiza y hay una ciudad pendiente, establecerla
+  useEffect(() => {
+    if (
+      isInitialLoadRef.current &&
+      pendingCityRef.current &&
+      selectedCountryCode &&
+      cityOptions.length > 1 // Más de 1 porque el primer elemento es el placeholder
+    ) {
+      const cityToSet = pendingCityRef.current;
+
+      // Buscar la ciudad en las opciones
+      const foundOption = cityOptions.find((opt) => {
+        if (!opt.value) return false;
+        try {
+          const cityData = JSON.parse(opt.value);
+          return (
+            cityData.name === cityToSet ||
+            cityData.name.toLowerCase() === cityToSet.toLowerCase() ||
+            cityData.name.toLowerCase().includes(cityToSet.toLowerCase()) ||
+            cityToSet.toLowerCase().includes(cityData.name.toLowerCase())
+          );
+        } catch {
+          return false;
+        }
+      });
+
+      if (foundOption) {
+        try {
+          const cityData = JSON.parse(foundOption.value);
+          setSelectedCityName(cityData.name);
+          setCityCoordinates({
+            latitude: parseFloat(cityData.latitude),
+            longitude: parseFloat(cityData.longitude),
+          });
+        } catch (e) {
+          console.error("Error parsing city data:", e);
+        }
+      } else {
+        setSelectedCityName(cityToSet);
+        // Usar coordenadas de la rotación si están disponibles
+        if (existingRotation?.latitude && existingRotation?.longitude) {
+          setCityCoordinates({
+            latitude: existingRotation.latitude,
+            longitude: existingRotation.longitude,
+          });
+        }
+      }
+
+      // Limpiar el flag y la ciudad pendiente
+      isInitialLoadRef.current = false;
+      pendingCityRef.current = null;
+    }
+  }, [cityOptions, selectedCountryCode, existingRotation]);
+
+  // Reset ciudad cuando cambia el país (solo si el usuario cambia el país manualmente)
+  useEffect(() => {
+    // Solo resetear si no estamos en modo edición y no es la carga inicial
+    if (!isEditing && !isInitialLoadRef.current) {
       setSelectedCityName("");
       setCityCoordinates(null);
     }
@@ -168,16 +255,49 @@ export const RotationReviewModal = ({
   };
 
   const handleSubmit = () => {
-    // Obtener el nombre del país seleccionado
-    const selectedCountry = Country.getCountryByCode(selectedCountryCode);
+    let finalCity = selectedCityName;
+    let finalCountry = "";
+    let finalCountryCode = selectedCountryCode;
+    let finalCoordinates = cityCoordinates;
+
+    if (isEditing) {
+      // En modo edición, usar los valores de los selectores
+      const selectedCountry = Country.getCountryByCode(selectedCountryCode);
+      finalCountry = selectedCountry?.name || "";
+    } else {
+      // En modo creación, usar los valores de existingRotation
+      if (existingRotation) {
+        finalCity = existingRotation.city || "";
+        finalCountry = existingRotation.country || "";
+        // Buscar el código ISO del país
+        if (finalCountry) {
+          const countries = Country.getAllCountries();
+          const foundCountry = countries.find(
+            (c) =>
+              c.name.toLowerCase() === finalCountry.toLowerCase() ||
+              c.name === finalCountry
+          );
+          if (foundCountry) {
+            finalCountryCode = foundCountry.isoCode;
+          }
+        }
+        // Usar coordenadas de la rotación
+        if (existingRotation.latitude && existingRotation.longitude) {
+          finalCoordinates = {
+            latitude: existingRotation.latitude,
+            longitude: existingRotation.longitude,
+          };
+        }
+      }
+    }
 
     onSubmit({
       answers: reviewAnswers,
       hospitalName: reviewHospitalName,
-      city: selectedCityName,
-      country: selectedCountry?.name || "",
-      countryCode: selectedCountryCode,
-      coordinates: cityCoordinates,
+      city: finalCity,
+      country: finalCountry,
+      countryCode: finalCountryCode,
+      coordinates: finalCoordinates,
       freeComment: reviewFreeComment,
     });
   };
@@ -227,52 +347,61 @@ export const RotationReviewModal = ({
               />
             </View>
 
-            {/* Country Selector */}
-            <View style={styles.field}>
-              <SelectFilter
-                label="País"
-                value={selectedCountryCode}
-                onChange={handleCountryChange}
-                options={countryOptions}
-                placeholder="Selecciona un país"
-                required
-              />
-            </View>
+            {/* Country Selector - Solo en modo edición */}
+            {isEditing && (
+              <View style={styles.field}>
+                <SelectFilter
+                  label="País"
+                  value={selectedCountryCode}
+                  onChange={handleCountryChange}
+                  options={countryOptions}
+                  placeholder="Selecciona un país"
+                  required
+                />
+              </View>
+            )}
 
-            {/* City Selector - Solo habilitado si hay un país seleccionado */}
-            <View style={styles.field}>
-              <SelectFilter
-                label="Ciudad"
-                value={
-                  selectedCityName
-                    ? cityOptions.find((opt) => {
-                        try {
-                          const cityData = JSON.parse(opt.value);
-                          return cityData.name === selectedCityName;
-                        } catch {
-                          return false;
-                        }
-                      })?.value || ""
-                    : ""
-                }
-                onChange={handleCityChange}
-                options={cityOptions}
-                placeholder={
-                  selectedCountryCode
-                    ? "Selecciona una ciudad"
-                    : "Primero selecciona un país"
-                }
-                disabled={!selectedCountryCode}
-                required
-              />
-              {cityCoordinates && (
-                <Text style={styles.coordinatesText}>
-                  📍 Lat: {cityCoordinates.latitude.toFixed(4)}, Lon:{" "}
-                  {cityCoordinates.longitude.toFixed(4)}
-                </Text>
-              )}
-            </View>
-
+            {/* City Selector - Solo en modo edición */}
+            {isEditing && (
+              <View style={styles.field}>
+                <SelectFilter
+                  label="Ciudad"
+                  value={
+                    selectedCityName
+                      ? cityOptions.find((opt) => {
+                          if (!opt.value) return false;
+                          try {
+                            const cityData = JSON.parse(opt.value);
+                            // Búsqueda más flexible: exacta o que contenga el nombre
+                            return (
+                              cityData.name === selectedCityName ||
+                              cityData.name.toLowerCase() ===
+                                selectedCityName.toLowerCase() ||
+                              cityData.name
+                                .toLowerCase()
+                                .includes(selectedCityName.toLowerCase()) ||
+                              selectedCityName
+                                .toLowerCase()
+                                .includes(cityData.name.toLowerCase())
+                            );
+                          } catch {
+                            return false;
+                          }
+                        })?.value || ""
+                      : ""
+                  }
+                  onChange={handleCityChange}
+                  options={cityOptions}
+                  placeholder={
+                    selectedCountryCode
+                      ? "Selecciona una ciudad"
+                      : "Primero selecciona un país"
+                  }
+                  disabled={!selectedCountryCode}
+                  required
+                />
+              </View>
+            )}
 
             {loadingQuestions ? (
               <View style={styles.loadingContainer}>
