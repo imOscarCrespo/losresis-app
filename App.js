@@ -22,8 +22,13 @@ export default function App() {
 
   const checkAuth = async () => {
     try {
+      // Primero verificar si hay sesión activa
       const { success, session } = await getSession();
       const hasSession = Boolean(success && session);
+
+      // NO intentar restaurar automáticamente con biometría al iniciar
+      // Esto causa problemas en Expo Go y pide código de acceso
+      // La restauración con Face ID solo ocurre cuando el usuario presiona el botón explícitamente
 
       if (hasSession) {
         // Verificar si el usuario tiene perfil completo
@@ -47,7 +52,9 @@ export default function App() {
               if (reviewCheckSuccess) {
                 setResidentHasReview(hasReview);
                 console.log(
-                  `🔍 Residente verificado: ${hasReview ? "tiene" : "NO tiene"} review`
+                  `🔍 Residente verificado: ${
+                    hasReview ? "tiene" : "NO tiene"
+                  } review`
                 );
               } else {
                 // En caso de error, asumir que no tiene review para ser restrictivo
@@ -107,7 +114,9 @@ export default function App() {
           if (reviewCheckSuccess) {
             setResidentHasReview(hasReview);
             console.log(
-              `🔍 Residente verificado: ${hasReview ? "tiene" : "NO tiene"} review`
+              `🔍 Residente verificado: ${
+                hasReview ? "tiene" : "NO tiene"
+              } review`
             );
           } else {
             setResidentHasReview(false);
@@ -143,14 +152,21 @@ export default function App() {
       const { success: profileSuccess, profile } = await getUserProfile(
         user.id
       );
-      if (profileSuccess && profile && profile.is_resident && !profile.is_super_admin) {
+      if (
+        profileSuccess &&
+        profile &&
+        profile.is_resident &&
+        !profile.is_super_admin
+      ) {
         // Verificar si ahora tiene review
         const { success: reviewCheckSuccess, hasReview } =
           await checkResidentReview(user.id);
         if (reviewCheckSuccess) {
           setResidentHasReview(hasReview);
           console.log(
-            `✅ Review creada - Residente ahora ${hasReview ? "tiene" : "NO tiene"} review`
+            `✅ Review creada - Residente ahora ${
+              hasReview ? "tiene" : "NO tiene"
+            } review`
           );
         }
       }
@@ -164,14 +180,21 @@ export default function App() {
       const { success: profileSuccess, profile } = await getUserProfile(
         user.id
       );
-      if (profileSuccess && profile && profile.is_resident && !profile.is_super_admin) {
+      if (
+        profileSuccess &&
+        profile &&
+        profile.is_resident &&
+        !profile.is_super_admin
+      ) {
         // Verificar si ahora tiene review (debería ser false)
         const { success: reviewCheckSuccess, hasReview } =
           await checkResidentReview(user.id);
         if (reviewCheckSuccess) {
           setResidentHasReview(hasReview);
           console.log(
-            `❌ Review eliminada - Residente ahora ${hasReview ? "tiene" : "NO tiene"} review`
+            `❌ Review eliminada - Residente ahora ${
+              hasReview ? "tiene" : "NO tiene"
+            } review`
           );
         }
       }

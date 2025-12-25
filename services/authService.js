@@ -7,6 +7,11 @@ import { supabase } from "../config/supabase";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  saveTokensSecurely,
+  isBiometricEnabled,
+  clearStoredTokens,
+} from "./biometricService";
 
 // Clave para almacenar el userId en AsyncStorage
 const USER_ID_KEY = "@losresis:userId";
@@ -140,6 +145,9 @@ const signInWithOAuth = async (provider, redirectUrl) => {
               );
             }
 
+            // Guardar tokens de forma segura si la biometría está habilitada
+            await saveTokensForBiometric(accessToken, refreshToken);
+
             return {
               success: true,
               data: manualSession,
@@ -165,6 +173,17 @@ const signInWithOAuth = async (provider, redirectUrl) => {
               );
             }
 
+            // Guardar tokens de forma segura si la biometría está habilitada
+            if (
+              codeSession.session.access_token &&
+              codeSession.session.refresh_token
+            ) {
+              await saveTokensForBiometric(
+                codeSession.session.access_token,
+                codeSession.session.refresh_token
+              );
+            }
+
             return {
               success: true,
               data: codeSession,
@@ -187,6 +206,17 @@ const signInWithOAuth = async (provider, redirectUrl) => {
           console.log(
             "💾 userId guardado en caché:",
             sessionData.session.user.id
+          );
+        }
+
+        // Guardar tokens de forma segura si la biometría está habilitada
+        if (
+          sessionData.session.access_token &&
+          sessionData.session.refresh_token
+        ) {
+          await saveTokensForBiometric(
+            sessionData.session.access_token,
+            sessionData.session.refresh_token
           );
         }
 
@@ -375,6 +405,9 @@ export const signOut = async () => {
     await clearUserId();
     console.log("🧹 userId eliminado de caché");
 
+    // Limpiar tokens biométricos guardados
+    await clearStoredTokens();
+
     console.log("✅ Sesión cerrada correctamente");
     return {
       success: true,
@@ -460,5 +493,106 @@ export const clearUserId = async () => {
     console.log("🧹 userId eliminado de caché");
   } catch (error) {
     console.error("Error al limpiar userId:", error);
+  }
+};
+
+// ============================================================================
+// FUNCIONES DE BIOMETRÍA
+// ============================================================================
+
+/**
+ * Guardar tokens de forma segura para uso con biometría
+ * Solo guarda si la biometría está habilitada
+ * @param {string} accessToken - Token de acceso
+ * @param {string} refreshToken - Token de refresco
+ */
+const saveTokensForBiometric = async (accessToken, refreshToken) => {
+  try {
+    if (!accessToken || !refreshToken) {
+      console.warn("⚠️ No hay tokens para guardar");
+      return;
+    }
+
+    const biometricEnabled = await isBiometricEnabled();
+    console.log("🔐 Biometría habilitada:", biometricEnabled);
+
+    if (biometricEnabled) {
+      const result = await saveTokensSecurely(accessToken, refreshToken);
+      if (result.success) {
+        console.log("✅ Tokens guardados correctamente para biometría");
+      } else {
+        console.error("❌ Error al guardar tokens:", result.error);
+      }
+    } else {
+      console.log("ℹ️ Biometría no habilitada, no se guardan tokens");
+    }
+  } catch (error) {
+    console.error("❌ Error al guardar tokens para biometría:", error);
+    // No fallar el login si esto falla
+  }
+};
+
+/**
+ * Restaurar sesión usando tokens guardados con biometría
+ * @returns {Promise<{success: boolean, session: object|null, error: string|null}>}
+ */
+export const restoreSessionWithBiometric = async () => {
+  try {
+    const { getStoredTokens } = await import("./biometricService");
+    const result = await getStoredTokens();
+    const { accessToken, refreshToken, success, error } = result;
+
+    if (!success || !accessToken || !refreshToken) {
+      return {
+        success: false,
+        session: null,
+        error: error || "No se pudieron obtener los tokens guardados",
+      };
+    }
+
+    // Restaurar sesión con los tokens
+    const { data, error: sessionError } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    if (sessionError) {
+      console.error("❌ Error al restaurar sesión:", sessionError);
+      // Si los tokens son inválidos, limpiarlos
+      await clearStoredTokens();
+      return {
+        success: false,
+        session: null,
+        error: sessionError.message,
+      };
+    }
+
+    if (data?.session) {
+      console.log("✅ Sesión restaurada con biometría");
+
+      // Guardar userId en AsyncStorage
+      if (data.session.user?.id) {
+        await saveUserId(data.session.user.id);
+      }
+
+      return {
+        success: true,
+        session: data.session,
+        error: null,
+      };
+    }
+
+    return {
+      success: false,
+      session: null,
+      error: "No se pudo restaurar la sesión",
+    };
+  } catch (error) {
+    console.error("Error al restaurar sesión con biometría:", error);
+    return {
+      success: false,
+      session: null,
+      error: error.message,
+    };
   }
 };

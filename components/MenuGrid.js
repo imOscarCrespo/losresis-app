@@ -15,9 +15,7 @@ const ICON_SIZE = 40;
  */
 const MenuGridItem = ({ item, onPress, disabled = false }) => {
   // Colores por defecto si no están definidos
-  const backgroundColor = disabled
-    ? COLORS.GRAY
-    : item.color || COLORS.PRIMARY;
+  const backgroundColor = disabled ? COLORS.GRAY : item.color || COLORS.PRIMARY;
   const lightColor = item.lightColor || COLORS.BADGE_BLUE_BG;
 
   return (

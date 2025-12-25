@@ -18,6 +18,7 @@ export { ScreenHeader } from "./ScreenHeader";
 export { CourseCard } from "./CourseCard";
 export { GoogleLogo } from "./GoogleLogo";
 export { AppleLogo } from "./AppleLogo";
+export { FaceIdLogo } from "./FaceIdLogo";
 export { ConfirmationModal } from "./ConfirmationModal";
 export { RotationModal } from "./RotationModal";
 export { RotationReviewModal } from "./RotationReviewModal";

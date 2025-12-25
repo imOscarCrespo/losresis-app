@@ -22,7 +22,13 @@ import { useEmailReview } from "../hooks/useEmailReview";
 import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
 import { signOut } from "../services/authService";
 import { isProfileComplete, updateUserProfile } from "../services/userService";
+import {
+  isBiometricEnabled,
+  setBiometricEnabled,
+  checkBiometricAvailability,
+} from "../services/biometricService";
 import { RESIDENT_YEAR_OPTIONS } from "../constants/profileConstants";
+import { COLORS } from "../constants/colors";
 import {
   prepareHospitalOptions,
   prepareSpecialtyOptions,
@@ -72,6 +78,12 @@ export default function ProfileScreen({
     reset: resetEmailReview,
   } = useEmailReview();
 
+  // Estado para biometría
+  const [biometricEnabled, setBiometricEnabledState] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricType, setBiometricType] = useState(null);
+  const [loadingBiometric, setLoadingBiometric] = useState(false);
+
   // Obtener estado de la solicitud de revisión de email
   const {
     hasActiveRequest: hasActiveEmailReview,
@@ -98,6 +110,58 @@ export default function ProfileScreen({
   useEffect(() => {
     loadUserProfile();
   }, [loadUserProfile]);
+
+  // Cargar estado de biometría al montar
+  useEffect(() => {
+    const loadBiometricState = async () => {
+      const enabled = await isBiometricEnabled();
+      setBiometricEnabledState(enabled);
+
+      const availability = await checkBiometricAvailability();
+      setBiometricAvailable(availability.available);
+      setBiometricType(availability.type);
+    };
+    loadBiometricState();
+  }, []);
+
+  // Manejar cambio de estado de biometría
+  const handleBiometricToggle = async () => {
+    if (!biometricAvailable) {
+      Alert.alert(
+        "Biometría no disponible",
+        "Tu dispositivo no soporta autenticación biométrica o no está configurada."
+      );
+      return;
+    }
+
+    setLoadingBiometric(true);
+    try {
+      const newValue = !biometricEnabled;
+      const result = await setBiometricEnabled(newValue);
+
+      if (result.success) {
+        setBiometricEnabledState(newValue);
+        Alert.alert(
+          newValue ? "Biometría activada" : "Biometría desactivada",
+          newValue
+            ? "Ahora podrás usar Face ID/Touch ID para iniciar sesión rápidamente."
+            : "Ya no se usará biometría para iniciar sesión."
+        );
+      } else {
+        Alert.alert(
+          "Error",
+          result.error || "No se pudo cambiar el estado de la biometría."
+        );
+      }
+    } catch (error) {
+      Alert.alert(
+        "Error",
+        error.message || "Ocurrió un error al cambiar la configuración."
+      );
+    } finally {
+      setLoadingBiometric(false);
+    }
+  };
 
   // Manejar envío de revisión de email
   const handleSubmitEmailReview = async () => {
@@ -518,6 +582,62 @@ export default function ProfileScreen({
           </View>
         )}
 
+        {/* Security Section */}
+        {!isOnboarding && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Seguridad</Text>
+            <View style={styles.securityOption}>
+              <View style={styles.securityOptionContent}>
+                <Ionicons
+                  name={
+                    biometricType === "Face ID"
+                      ? "lock-closed"
+                      : "finger-print"
+                  }
+                  size={24}
+                  color={
+                    biometricAvailable ? COLORS.PRIMARY : COLORS.TEXT_LIGHT
+                  }
+                  style={styles.securityIcon}
+                />
+                <View style={styles.securityTextContainer}>
+                  <Text style={styles.securityTitle}>
+                    {biometricType || "Autenticación biométrica"}
+                  </Text>
+                  <Text style={styles.securityDescription}>
+                    {biometricAvailable
+                      ? "Inicia sesión rápidamente usando tu " +
+                        (biometricType || "biometría") +
+                        " sin necesidad de ingresar tus credenciales cada vez."
+                      : "Tu dispositivo no soporta autenticación biométrica o no está configurada."}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={handleBiometricToggle}
+                disabled={!biometricAvailable || loadingBiometric}
+                style={[
+                  styles.toggleSwitch,
+                  biometricEnabled && styles.toggleSwitchActive,
+                  (!biometricAvailable || loadingBiometric) &&
+                    styles.toggleSwitchDisabled,
+                ]}
+              >
+                {loadingBiometric ? (
+                  <ActivityIndicator size="small" color={COLORS.WHITE} />
+                ) : (
+                  <View
+                    style={[
+                      styles.toggleCircle,
+                      biometricEnabled && styles.toggleCircleActive,
+                    ]}
+                  />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
           <Button
@@ -682,5 +802,69 @@ const styles = StyleSheet.create({
   },
   signOutButton: {
     flex: 1,
+  },
+  securityOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+  },
+  securityOptionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 12,
+  },
+  securityIcon: {
+    marginRight: 12,
+  },
+  securityTextContainer: {
+    flex: 1,
+  },
+  securityTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    marginBottom: 4,
+  },
+  securityDescription: {
+    fontSize: 14,
+    color: "#666666",
+    lineHeight: 20,
+  },
+  toggleSwitch: {
+    width: 50,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#E5E5EA",
+    justifyContent: "center",
+    padding: 2,
+  },
+  toggleSwitchActive: {
+    backgroundColor: COLORS.PRIMARY,
+  },
+  toggleSwitchDisabled: {
+    opacity: 0.5,
+  },
+  toggleCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#ffffff",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  toggleCircleActive: {
+    transform: [{ translateX: 20 }],
   },
 });

@@ -39,7 +39,9 @@ export default function MyReviewScreen({
   // Obtener datos del hospital y especialidad
   const { hospitals, specialties } = useHospitals();
   const hospital = hospitals.find((h) => h.id === userProfile?.hospital_id);
-  const specialty = specialties.find((s) => s.id === userProfile?.speciality_id);
+  const specialty = specialties.find(
+    (s) => s.id === userProfile?.speciality_id
+  );
 
   // Hook de reseña
   const {
@@ -212,9 +214,12 @@ export default function MyReviewScreen({
               color={COLORS.ORANGE}
             />
           </View>
-          <Text style={styles.messageTitle}>Funcionalidad solo para residentes</Text>
+          <Text style={styles.messageTitle}>
+            Funcionalidad solo para residentes
+          </Text>
           <Text style={styles.messageText}>
-            Esta funcionalidad está disponible únicamente para usuarios residentes.
+            Esta funcionalidad está disponible únicamente para usuarios
+            residentes.
           </Text>
         </View>
       </View>
@@ -293,11 +298,7 @@ export default function MyReviewScreen({
         {/* Error Alert */}
         {error && (
           <View style={styles.errorAlert}>
-            <Ionicons
-              name="alert-circle"
-              size={20}
-              color={COLORS.RED}
-            />
+            <Ionicons name="alert-circle" size={20} color={COLORS.RED} />
             <View style={styles.alertTextContainer}>
               <Text style={styles.alertTitle}>Error</Text>
               <Text style={styles.alertText}>{error}</Text>
@@ -349,8 +350,7 @@ export default function MyReviewScreen({
                 <View>
                   <Text style={styles.reviewTitle}>Tu Reseña</Text>
                   <Text style={styles.reviewDate}>
-                    Creada el{" "}
-                    {formatShortDate(existingReview.created_at)}
+                    Creada el {formatShortDate(existingReview.created_at)}
                   </Text>
                   <View style={styles.badgesRow}>
                     <View
@@ -404,53 +404,56 @@ export default function MyReviewScreen({
               </View>
 
               {/* Mostrar respuestas existentes */}
-              {existingReview.review_answer && existingReview.review_answer.length > 0 && (
-                <View style={styles.answersSection}>
-                  <Text style={styles.sectionTitle}>Respuestas:</Text>
-                  {existingReview.review_answer.map((answer) => (
-                    <View key={answer.question_id} style={styles.answerCard}>
-                      <View style={styles.answerHeader}>
-                        <Text style={styles.answerQuestion}>
-                          {answer.question?.text}
-                        </Text>
-                        <View
-                          style={[
-                            styles.answerBadge,
-                            answer.question?.type === "rating"
-                              ? styles.answerBadgeRating
-                              : styles.answerBadgeText,
-                          ]}
-                        >
-                          <Text style={styles.answerBadgeText}>
-                            {answer.question?.type === "rating"
-                              ? "Rating"
-                              : "Texto"}
+              {existingReview.review_answer &&
+                existingReview.review_answer.length > 0 && (
+                  <View style={styles.answersSection}>
+                    <Text style={styles.sectionTitle}>Respuestas:</Text>
+                    {existingReview.review_answer.map((answer) => (
+                      <View key={answer.question_id} style={styles.answerCard}>
+                        <View style={styles.answerHeader}>
+                          <Text style={styles.answerQuestion}>
+                            {answer.question?.text}
                           </Text>
+                          <View
+                            style={[
+                              styles.answerBadge,
+                              answer.question?.type === "rating"
+                                ? styles.answerBadgeRating
+                                : styles.answerBadgeText,
+                            ]}
+                          >
+                            <Text style={styles.answerBadgeText}>
+                              {answer.question?.type === "rating"
+                                ? "Rating"
+                                : "Texto"}
+                            </Text>
+                          </View>
                         </View>
+                        {answer.question?.type === "rating" &&
+                          answer.rating_value && (
+                            <View style={styles.answerRating}>
+                              <StarRating
+                                rating={answer.rating_value}
+                                size={16}
+                                disabled
+                              />
+                              <Text style={styles.ratingText}>
+                                ({answer.rating_value}/5)
+                              </Text>
+                            </View>
+                          )}
+                        {answer.question?.type === "text" &&
+                          answer.text_value && (
+                            <View style={styles.answerTextBox}>
+                              <Text style={styles.answerText}>
+                                {answer.text_value}
+                              </Text>
+                            </View>
+                          )}
                       </View>
-                      {answer.question?.type === "rating" && answer.rating_value && (
-                        <View style={styles.answerRating}>
-                          <StarRating
-                            rating={answer.rating_value}
-                            size={16}
-                            disabled
-                          />
-                          <Text style={styles.ratingText}>
-                            ({answer.rating_value}/5)
-                          </Text>
-                        </View>
-                      )}
-                      {answer.question?.type === "text" && answer.text_value && (
-                        <View style={styles.answerTextBox}>
-                          <Text style={styles.answerText}>
-                            {answer.text_value}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              )}
+                    ))}
+                  </View>
+                )}
 
               {/* Comentario libre */}
               {existingReview.free_comment && (
@@ -466,11 +469,7 @@ export default function MyReviewScreen({
             // Sin reseña - Prompt para crear
             <View>
               <View style={styles.warningBanner}>
-                <Ionicons
-                  name="alert-circle"
-                  size={20}
-                  color={COLORS.RED}
-                />
+                <Ionicons name="alert-circle" size={20} color={COLORS.RED} />
                 <View style={styles.warningTextContainer}>
                   <Text style={styles.warningTitle}>Completa tu reseña</Text>
                   <Text style={styles.warningText}>
@@ -497,7 +496,9 @@ export default function MyReviewScreen({
                   style={styles.createReviewButton}
                 >
                   <Ionicons name="add" size={20} color="#FFFFFF" />
-                  <Text style={styles.createReviewButtonText}>Añadir Reseña</Text>
+                  <Text style={styles.createReviewButtonText}>
+                    Añadir Reseña
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -558,9 +559,9 @@ export default function MyReviewScreen({
                   <View style={styles.anonymousInfo}>
                     <Text style={styles.anonymousInfoText}>
                       <Text style={styles.anonymousInfoBold}>Información:</Text>{" "}
-                      Tu reseña será visible para otros usuarios pero sin mostrar
-                      tu nombre. Los administradores podrán ver tu identidad para
-                      moderación.
+                      Tu reseña será visible para otros usuarios pero sin
+                      mostrar tu nombre. Los administradores podrán ver tu
+                      identidad para moderación.
                     </Text>
                   </View>
                 )}
@@ -688,14 +689,20 @@ export default function MyReviewScreen({
             <View style={styles.deleteModalActions}>
               <TouchableOpacity
                 onPress={() => setShowDeleteConfirmation(false)}
-                style={[styles.deleteModalButton, styles.deleteModalCancelButton]}
+                style={[
+                  styles.deleteModalButton,
+                  styles.deleteModalCancelButton,
+                ]}
                 disabled={loading}
               >
                 <Text style={styles.deleteModalCancelText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleDelete}
-                style={[styles.deleteModalButton, styles.deleteModalConfirmButton]}
+                style={[
+                  styles.deleteModalButton,
+                  styles.deleteModalConfirmButton,
+                ]}
                 disabled={loading}
               >
                 {loading ? (

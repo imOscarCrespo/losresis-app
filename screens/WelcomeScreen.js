@@ -6,21 +6,36 @@ import {
   ScrollView,
   ActivityIndicator,
   Platform,
+  Alert,
+  Modal,
+  TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { Ionicons } from "@expo/vector-icons";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { FaceIdLogo } from "../components/FaceIdLogo";
 import {
   signInWithGoogle,
   signInWithApple,
   getCurrentUser,
   getUserProfile,
   saveUserId,
+  restoreSessionWithBiometric,
 } from "../services/authService";
 import { isProfileComplete } from "../services/userService";
+import {
+  checkBiometricAvailability,
+  isBiometricEnabled,
+  hasBeenAskedAboutBiometric,
+  markBiometricAsked,
+  setBiometricEnabled,
+  clearStoredTokens,
+} from "../services/biometricService";
 import { supabase } from "../config/supabase";
 import * as Linking from "expo-linking";
+import { COLORS } from "../constants/colors";
 
 const isDevelopment = __DEV__;
 const isIOS = Platform.OS === "ios";
@@ -28,7 +43,15 @@ const isIOS = Platform.OS === "ios";
 export default function WelcomeScreen({ onAuthSuccess }) {
   const [isChecking, setIsChecking] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [signingInProvider, setSigningInProvider] = useState(null); // 'google' | 'apple' | null
+  const [signingInProvider, setSigningInProvider] = useState(null); // 'google' | 'apple' | 'biometric' | null
+  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricType, setBiometricType] = useState(null);
+  const [biometricEnabled, setBiometricEnabledState] = useState(false);
+  const [signingInWithBiometric, setSigningInWithBiometric] = useState(false);
+  const [hasStoredTokensState, setHasStoredTokensState] = useState(false);
+  const [pendingAuthSuccess, setPendingAuthSuccess] = useState(false);
+  const [isProcessingAuth, setIsProcessingAuth] = useState(false);
   const isCheckingRef = useRef(false);
 
   useEffect(() => {
@@ -49,18 +72,254 @@ export default function WelcomeScreen({ onAuthSuccess }) {
 
     setupDeepLinking();
 
+    // Verificar disponibilidad de biometría
+    checkBiometricSetup();
+
     // Verificar si el usuario ya está autenticado
     checkAuth();
   }, []);
 
-  const handleAuthCallback = async (url) => {
-    console.log("🔗 Callback recibido:", url);
+  // Verificar configuración de biometría
+  const checkBiometricSetup = async () => {
+    try {
+      const availability = await checkBiometricAvailability();
+      setBiometricAvailable(availability.available);
+      setBiometricType(availability.type);
 
+      if (availability.available) {
+        const enabled = await isBiometricEnabled();
+        setBiometricEnabledState(enabled);
+
+        // Siempre verificar si hay tokens guardados (incluso si no está habilitado)
+        // Esto permite mostrar el estado correcto del botón
+        const { hasStoredTokens } = await import(
+          "../services/biometricService"
+        );
+        const hasTokens = await hasStoredTokens();
+        setHasStoredTokensState(hasTokens);
+      } else {
+        setBiometricEnabledState(false);
+        setHasStoredTokensState(false);
+      }
+    } catch (error) {
+      console.error("Error al verificar biometría:", error);
+      setBiometricEnabledState(false);
+      setHasStoredTokensState(false);
+    }
+  };
+
+  // Verificar si debemos mostrar el prompt después del login
+  const checkBiometricPromptAfterLogin = async () => {
+    try {
+      const availability = await checkBiometricAvailability();
+      if (!availability.available) {
+        return false;
+      }
+
+      const enabled = await isBiometricEnabled();
+      const hasBeenAsked = await hasBeenAskedAboutBiometric();
+
+      console.log("🔍 Verificando prompt de biometría:", {
+        enabled,
+        hasBeenAsked,
+        available: availability.available,
+      });
+
+      // Solo mostrar prompt si no está habilitado y no se ha preguntado
+      if (!enabled && !hasBeenAsked) {
+        // Marcar que hay un auth success pendiente
+        setPendingAuthSuccess(true);
+        setShowBiometricPrompt(true);
+        console.log("✅ Modal de biometría mostrado");
+        return true; // Indica que se mostró el prompt
+      }
+
+      console.log("ℹ️ No se muestra el modal:", {
+        enabled,
+        hasBeenAsked,
+      });
+      return false; // No se mostró el prompt
+    } catch (error) {
+      console.error("Error al verificar prompt de biometría:", error);
+      return false;
+    }
+  };
+
+  // Manejar respuesta del usuario sobre Face ID
+  const handleBiometricPromptResponse = async (accept) => {
+    setShowBiometricPrompt(false);
+    await markBiometricAsked();
+
+    if (accept) {
+      const result = await setBiometricEnabled(true);
+      if (result.success) {
+        setBiometricEnabledState(true);
+
+        // Esperar un momento para que la sesión se establezca completamente
+        // Luego intentar guardar los tokens con retry
+        const saveTokensWithRetry = async (retries = 3, delay = 500) => {
+          for (let i = 0; i < retries; i++) {
+            try {
+              const {
+                data: { session },
+                error: sessionError,
+              } = await supabase.auth.getSession();
+
+              if (sessionError) {
+                console.error("Error al obtener sesión:", sessionError);
+                if (i < retries - 1) {
+                  await new Promise((resolve) => setTimeout(resolve, delay));
+                  continue;
+                }
+                return;
+              }
+
+              if (session?.access_token && session?.refresh_token) {
+                const { saveTokensSecurely } = await import(
+                  "../services/biometricService"
+                );
+                const saveResult = await saveTokensSecurely(
+                  session.access_token,
+                  session.refresh_token
+                );
+                if (saveResult.success) {
+                  // Tokens guardados exitosamente
+                  // Actualizar el estado para mostrar el botón
+                  setHasStoredTokensState(true);
+                  return;
+                } else {
+                  console.error(
+                    "❌ Error al guardar tokens:",
+                    saveResult.error
+                  );
+                  if (i < retries - 1) {
+                    await new Promise((resolve) => setTimeout(resolve, delay));
+                    continue;
+                  }
+                }
+              } else {
+                if (i < retries - 1) {
+                  await new Promise((resolve) => setTimeout(resolve, delay));
+                  continue;
+                } else {
+                  console.error(
+                    "❌ No se pudieron obtener tokens después de varios intentos"
+                  );
+                }
+              }
+            } catch (error) {
+              console.error(
+                `Error al guardar tokens (intento ${i + 1}):`,
+                error
+              );
+              if (i < retries - 1) {
+                await new Promise((resolve) => setTimeout(resolve, delay));
+              }
+            }
+          }
+        };
+
+        // Iniciar el proceso de guardado con retry
+        await saveTokensWithRetry();
+      } else {
+        Alert.alert("Error", result.error || "No se pudo activar Face ID");
+      }
+    }
+
+    // Actualizar el estado de biometría después de la respuesta
+    await checkBiometricSetup();
+
+    // Si hay un auth success pendiente, ejecutarlo ahora
+    if (pendingAuthSuccess) {
+      setPendingAuthSuccess(false);
+      if (onAuthSuccess) {
+        onAuthSuccess();
+      }
+    }
+  };
+
+  // Manejar login con Face ID
+  const handleSignInWithBiometric = async () => {
+    // Solo permitir si Face ID está habilitado y hay tokens guardados
+    if (!biometricEnabled || !hasStoredTokensState) {
+      Alert.alert(
+        "Face ID no disponible",
+        "Primero debes iniciar sesión y activar Face ID para poder usarlo."
+      );
+      return;
+    }
+
+    if (signingInWithBiometric || isChecking) {
+      return;
+    }
+
+    try {
+      setSigningInWithBiometric(true);
+      setSigningInProvider("biometric");
+
+      const restoreResult = await restoreSessionWithBiometric();
+
+      if (restoreResult.success && restoreResult.session) {
+        // Actualizar estado de biometría después de restaurar sesión
+        await checkBiometricSetup();
+
+        // Verificar perfil del usuario
+        const { success: userSuccess, user } = await getCurrentUser();
+        if (userSuccess && user) {
+          const { success: profileSuccess, profile } = await getUserProfile(
+            user.id
+          );
+
+          if (profileSuccess && profile) {
+            const complete = isProfileComplete(profile, {
+              hasActiveEmailReview: false,
+              isEmailValid: true,
+            });
+
+            if (onAuthSuccess) {
+              onAuthSuccess();
+            }
+          } else {
+            if (onAuthSuccess) {
+              onAuthSuccess();
+            }
+          }
+        } else {
+          Alert.alert("Error", "No se pudo obtener la información del usuario");
+        }
+      } else {
+        // Si falla, puede ser que los tokens expiraron
+        // Limpiar tokens inválidos y actualizar estado
+        await clearStoredTokens();
+        await checkBiometricSetup();
+
+        Alert.alert(
+          "Face ID no disponible",
+          restoreResult.error ||
+            "No se pudo restaurar la sesión. Por favor, inicia sesión con Google o Apple."
+        );
+      }
+    } catch (error) {
+      console.error("Error en login con Face ID:", error);
+      Alert.alert(
+        "Error",
+        "Ocurrió un error al intentar iniciar sesión con Face ID"
+      );
+    } finally {
+      setSigningInWithBiometric(false);
+      setSigningInProvider(null);
+    }
+  };
+
+  const handleAuthCallback = async (url) => {
     try {
       // Extraer los parámetros de la URL
       const { queryParams } = Linking.parse(url);
 
       if (queryParams?.access_token || queryParams?.code) {
+        // Marcar que estamos procesando autenticación
+        setIsProcessingAuth(true);
+
         // El usuario se autenticó, verificar sesión
         const {
           data: { session },
@@ -69,31 +328,82 @@ export default function WelcomeScreen({ onAuthSuccess }) {
 
         if (sessionError) {
           console.error("❌ Error al obtener sesión:", sessionError);
+          setIsProcessingAuth(false);
           return;
         }
 
         if (session) {
-          console.log("✅ Usuario autenticado via callback, redirigiendo...");
-
           // Guardar userId en caché
           if (session.user?.id) {
             await saveUserId(session.user.id);
-            console.log("💾 userId guardado en caché:", session.user.id);
           }
 
-          // Resetear el estado de loading inmediatamente
-          setIsChecking(false);
-          setSigningInProvider(null);
+          // Guardar tokens para Face ID si está habilitado
+          const enabled = await isBiometricEnabled();
 
-          // Notificar que la autenticación fue exitosa
-          // La verificación del perfil y review se hace en App.js
-          if (onAuthSuccess) {
-            onAuthSuccess();
+          if (enabled && session.access_token && session.refresh_token) {
+            const { saveTokensSecurely } = await import(
+              "../services/biometricService"
+            );
+            const saveResult = await saveTokensSecurely(
+              session.access_token,
+              session.refresh_token
+            );
+            if (saveResult.success) {
+              // Actualizar el estado para mostrar el botón
+              setHasStoredTokensState(true);
+            }
+            // Resetear el estado de loading
+            setIsChecking(false);
+            setSigningInProvider(null);
+            setIsProcessingAuth(false);
+            // Notificar que la autenticación fue exitosa
+            if (onAuthSuccess) {
+              onAuthSuccess();
+            }
+          } else if (!enabled) {
+            // Si Face ID no está habilitado, verificar si debemos preguntar
+            // Esperar un momento para que la UI se actualice y la sesión se establezca
+            setTimeout(async () => {
+              // Verificar nuevamente el estado antes de mostrar el modal
+              const currentEnabled = await isBiometricEnabled();
+              const currentAsked = await hasBeenAskedAboutBiometric();
+
+              if (!currentEnabled && !currentAsked) {
+                const promptShown = await checkBiometricPromptAfterLogin();
+                // Solo notificar auth success si NO se mostró el prompt
+                if (!promptShown && onAuthSuccess) {
+                  onAuthSuccess();
+                }
+              } else {
+                // Si ya está habilitado o ya se preguntó, continuar normalmente
+                if (onAuthSuccess) {
+                  onAuthSuccess();
+                }
+              }
+              setIsProcessingAuth(false);
+            }, 1500);
+            // Resetear el estado de loading
+            setIsChecking(false);
+            setSigningInProvider(null);
+            return; // Salir temprano, el callback se manejará en el setTimeout
+          } else {
+            // Resetear el estado de loading inmediatamente
+            setIsChecking(false);
+            setSigningInProvider(null);
+            setIsProcessingAuth(false);
+            // Notificar que la autenticación fue exitosa
+            if (onAuthSuccess) {
+              onAuthSuccess();
+            }
           }
+        } else {
+          setIsProcessingAuth(false);
         }
       }
     } catch (error) {
       console.error("❌ Error en handleAuthCallback:", error);
+      setIsProcessingAuth(false);
     }
   };
 
@@ -111,15 +421,16 @@ export default function WelcomeScreen({ onAuthSuccess }) {
       isCheckingRef.current = true;
       setIsChecking(true);
 
+      // Verificar estado de biometría cuando se carga la pantalla
+      // Esto asegura que el botón se muestre correctamente si hay tokens guardados
+      await checkBiometricSetup();
+
       const { success, user } = await getCurrentUser();
 
       if (success && user) {
-        console.log("✅ Usuario ya autenticado, verificando perfil...");
-
         // Guardar userId en caché si aún no está guardado
         if (user.id) {
           await saveUserId(user.id);
-          console.log("💾 userId guardado en caché:", user.id);
         }
 
         const { success: profileSuccess, profile } = await getUserProfile(
@@ -127,29 +438,22 @@ export default function WelcomeScreen({ onAuthSuccess }) {
         );
 
         if (profileSuccess && profile) {
-          console.log("✅ Perfil de usuario obtenido:", profile);
-
           const complete = isProfileComplete(profile, {
             hasActiveEmailReview: false,
             isEmailValid: true,
           });
 
           if (complete) {
-            console.log("✅ Usuario con perfil completo, redirigiendo...");
             if (onAuthSuccess) {
               onAuthSuccess();
             }
           } else {
-            console.log(
-              "⚠️ Usuario sin perfil completo, será redirigido a onboarding"
-            );
             // Llamar a onAuthSuccess para que App.js maneje el onboarding
             if (onAuthSuccess) {
               onAuthSuccess();
             }
           }
         } else {
-          console.log("⚠️ Perfil no existe, será redirigido a onboarding");
           // Llamar a onAuthSuccess para que App.js maneje el onboarding
           if (onAuthSuccess) {
             onAuthSuccess();
@@ -171,7 +475,6 @@ export default function WelcomeScreen({ onAuthSuccess }) {
    */
   const handleSignIn = async (provider) => {
     if (isChecking || signingInProvider) {
-      console.log("⚠️ Sign in already in progress, skipping...");
       return;
     }
 
@@ -189,10 +492,7 @@ export default function WelcomeScreen({ onAuthSuccess }) {
       // Si createURL devuelve una URL exp:// o http://, forzar losresis://
       if (!redirectUrl.startsWith("losresis://")) {
         redirectUrl = "losresis://auth/callback";
-        console.log("🔄 Forzando URL móvil:", redirectUrl);
       }
-
-      console.log("🔗 Redirect URL creada:", redirectUrl);
 
       // Ejecutar el sign in correspondiente según el provider
       const signInFunction =
@@ -200,22 +500,43 @@ export default function WelcomeScreen({ onAuthSuccess }) {
       const result = await signInFunction(redirectUrl);
 
       if (result.success) {
-        console.log(`✅ Login exitoso con ${provider}`);
-        // Resetear el estado de loading del botón inmediatamente
-        setIsChecking(false);
-        setSigningInProvider(null);
-        
+        // Si handleAuthCallback ya está procesando, no hacer nada aquí
+        // El callback manejará el flujo completo
+        if (isProcessingAuth) {
+          setIsChecking(false);
+          setSigningInProvider(null);
+          return;
+        }
+
+        // Esperar un momento para que la sesión se establezca completamente
+        // antes de verificar tokens y mostrar el prompt
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+
         // Verificar el perfil del usuario después del login
         const { success: userSuccess, user } = await getCurrentUser();
-        if (userSuccess && user) {
-          console.log("✅ Usuario autenticado:", user.email);
 
-          // Notificar que la autenticación fue exitosa
-          // Esto puede tardar porque verifica el perfil y la review
-          if (onAuthSuccess) {
-            onAuthSuccess();
-          }
+        // Verificar si debemos mostrar el prompt de biometría después del login
+        // Esto debe hacerse independientemente de si se obtuvo el usuario o no
+        const promptShown = await checkBiometricPromptAfterLogin();
+
+        // Si se mostró el prompt, NO llamar a onAuthSuccess todavía
+        // Se llamará después de que el usuario responda en handleBiometricPromptResponse
+        if (promptShown) {
+          // El modal se mostrará y esperará la respuesta del usuario
+          // No redirigir todavía
+          setIsChecking(false);
+          setSigningInProvider(null);
+          return;
         }
+
+        // Solo notificar auth success si NO se mostró el prompt
+        if (onAuthSuccess) {
+          onAuthSuccess();
+        }
+
+        // Resetear el estado de loading del botón
+        setIsChecking(false);
+        setSigningInProvider(null);
       } else {
         console.error("❌ Error en OAuth:", result.error);
         setIsChecking(false);
@@ -266,6 +587,65 @@ export default function WelcomeScreen({ onAuthSuccess }) {
 
             {/* Sign In Buttons */}
             <View style={styles.buttonContainer}>
+              {/* Face ID Button - Siempre visible si Face ID está disponible */}
+              {biometricAvailable && (
+                <>
+                  <TouchableOpacity
+                    style={[
+                      styles.biometricButton,
+                      (!biometricEnabled ||
+                        !hasStoredTokensState ||
+                        signingInWithBiometric ||
+                        isChecking) &&
+                        styles.biometricButtonDisabled,
+                    ]}
+                    onPress={handleSignInWithBiometric}
+                    disabled={
+                      !biometricEnabled ||
+                      !hasStoredTokensState ||
+                      signingInWithBiometric ||
+                      isChecking
+                    }
+                  >
+                    {signingInWithBiometric ? (
+                      <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                    ) : (
+                      <>
+                        <FaceIdLogo
+                          width={24}
+                          height={24}
+                          color={
+                            biometricEnabled && hasStoredTokensState
+                              ? COLORS.PRIMARY
+                              : COLORS.TEXT_LIGHT
+                          }
+                        />
+                        <View style={styles.biometricButtonTextContainer}>
+                          <Text
+                            style={[
+                              styles.biometricButtonText,
+                              (!biometricEnabled || !hasStoredTokensState) &&
+                                styles.biometricButtonTextDisabled,
+                            ]}
+                          >
+                            {biometricEnabled && hasStoredTokensState
+                              ? `Accede con ${biometricType || "Face ID"}`
+                              : `Inicia sesión primero para activar ${
+                                  biometricType || "Face ID"
+                                }`}
+                          </Text>
+                        </View>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  <View style={styles.dividerContainer}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>o</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+                </>
+              )}
+
               {/* Apple Sign In Button - Solo en iOS */}
               {isIOS && (
                 <>
@@ -277,7 +657,7 @@ export default function WelcomeScreen({ onAuthSuccess }) {
                     }
                     onPress={() => handleSignIn("apple")}
                     loading={signingInProvider === "apple"}
-                    disabled={!!isChecking}
+                    disabled={!!isChecking || signingInWithBiometric}
                     variant="apple"
                     style={styles.appleButton}
                   />
@@ -294,7 +674,7 @@ export default function WelcomeScreen({ onAuthSuccess }) {
                 }
                 onPress={() => handleSignIn("google")}
                 loading={signingInProvider === "google"}
-                disabled={!!isChecking}
+                disabled={!!isChecking || signingInWithBiometric}
                 variant="google"
                 style={styles.googleButton}
               />
@@ -324,6 +704,50 @@ export default function WelcomeScreen({ onAuthSuccess }) {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Modal para preguntar sobre Face ID la primera vez */}
+      <Modal
+        visible={showBiometricPrompt}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          // No permitir cerrar sin responder si hay auth success pendiente
+          if (!pendingAuthSuccess) {
+            handleBiometricPromptResponse(false);
+          }
+        }}
+        presentationStyle="overFullScreen"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconContainer}>
+              <FaceIdLogo width={64} height={64} color={COLORS.PRIMARY} />
+            </View>
+            <Text style={styles.modalTitle}>
+              ¿Quieres usar {biometricType || "Face ID"}?
+            </Text>
+            <Text style={styles.modalDescription}>
+              Puedes iniciar sesión rápidamente usando tu{" "}
+              {biometricType || "autenticación biométrica"} sin necesidad de
+              ingresar tus credenciales cada vez.
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => handleBiometricPromptResponse(false)}
+              >
+                <Text style={styles.modalButtonTextSecondary}>Ahora no</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={() => handleBiometricPromptResponse(true)}
+              >
+                <Text style={styles.modalButtonTextPrimary}>Activar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -437,5 +861,123 @@ const styles = StyleSheet.create({
     color: "#999",
     textAlign: "center",
     marginTop: 8,
+  },
+  biometricButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.WHITE,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    gap: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  biometricButtonDisabled: {
+    opacity: 0.6,
+    backgroundColor: COLORS.GRAY_LIGHT,
+  },
+  biometricButtonTextContainer: {
+    flex: 1,
+    alignItems: "center",
+  },
+  biometricButtonText: {
+    color: COLORS.PRIMARY,
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  biometricButtonTextDisabled: {
+    color: COLORS.TEXT_LIGHT,
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  dividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.BORDER,
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 14,
+    color: COLORS.TEXT_LIGHT,
+    fontWeight: "500",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 20,
+    padding: 24,
+    width: "100%",
+    maxWidth: 400,
+    alignItems: "center",
+  },
+  modalIconContainer: {
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "600",
+    color: COLORS.TEXT_DARK,
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  modalDescription: {
+    fontSize: 15,
+    color: COLORS.TEXT_MEDIUM,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalButtonPrimary: {
+    backgroundColor: COLORS.PRIMARY,
+  },
+  modalButtonSecondary: {
+    backgroundColor: COLORS.GRAY_LIGHT,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+  },
+  modalButtonTextPrimary: {
+    color: COLORS.WHITE,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalButtonTextSecondary: {
+    color: COLORS.TEXT_DARK,
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
