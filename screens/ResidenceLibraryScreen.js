@@ -181,14 +181,31 @@ export default function ResidenceLibraryScreen({
   };
 
   // Manejar decrementar contador
-  const handleDecrement = (node) => {
-    // Por ahora, decrementar significa agregar una entrada con count negativo
-    // O podríamos mostrar un modal para seleccionar cuánto decrementar
-    Alert.alert(
-      "Decrementar",
-      "Esta funcionalidad se implementará próximamente",
-      [{ text: "OK" }]
-    );
+  const handleDecrement = async (node) => {
+    try {
+      // Verificar que el contador no sea 0
+      const currentCount = node.total_count || 0;
+      if (currentCount <= 0) {
+        return; // No hacer nada si el contador ya es 0
+      }
+
+      // Obtener el año de residencia del perfil o usar 1 por defecto
+      const residencyYear = userProfile?.resident_year || 1;
+
+      // Crear entrada con count = -1 para restar 1 al contador
+      const success = await addEntry(node.id, {
+        count: -1,
+        residency_year: residencyYear,
+        notes: "",
+      });
+
+      if (!success) {
+        Alert.alert("Error", "No se pudo decrementar el contador");
+      }
+    } catch (error) {
+      console.error("Error decrementing counter:", error);
+      Alert.alert("Error", "Error al decrementar el contador");
+    }
   };
 
   // Manejar agregar entrada

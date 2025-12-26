@@ -271,7 +271,7 @@ export const createEntry = async (nodeId, entryData, section) => {
 
     const newEntry = {
       node_id: nodeId,
-      count: entryData.count || 1,
+      count: entryData.count !== undefined ? entryData.count : 1,
       residency_year: entryData.residency_year || null,
       notes: entryData.notes || null,
       section: section,

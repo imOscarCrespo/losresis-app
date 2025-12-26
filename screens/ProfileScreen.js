@@ -489,7 +489,7 @@ export default function ProfileScreen({
                 }
                 options={hospitalOptions}
                 placeholder="Selecciona tu hospital"
-                enableSearch={false}
+                enableSearch={true}
               />
             </View>
 
@@ -590,9 +590,7 @@ export default function ProfileScreen({
               <View style={styles.securityOptionContent}>
                 <Ionicons
                   name={
-                    biometricType === "Face ID"
-                      ? "lock-closed"
-                      : "finger-print"
+                    biometricType === "Face ID" ? "lock-closed" : "finger-print"
                   }
                   size={24}
                   color={

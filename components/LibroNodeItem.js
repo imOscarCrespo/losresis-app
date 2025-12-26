@@ -294,9 +294,18 @@ export const LibroNodeItem = ({
             {!isParent && (
               <TouchableOpacity
                 onPress={onDecrement}
-                style={[styles.actionButton, styles.decrementButton]}
+                disabled={count <= 0}
+                style={[
+                  styles.actionButton,
+                  styles.decrementButton,
+                  count <= 0 && styles.disabledButton,
+                ]}
               >
-                <Ionicons name="remove" size={16} color={COLORS.ERROR} />
+                <Ionicons
+                  name="remove"
+                  size={16}
+                  color={count <= 0 ? COLORS.GRAY : COLORS.ERROR}
+                />
               </TouchableOpacity>
             )}
 
@@ -470,6 +479,10 @@ const styles = StyleSheet.create({
   },
   incrementButton: {
     backgroundColor: COLORS.SUCCESS_LIGHT,
+  },
+  disabledButton: {
+    opacity: 0.5,
+    backgroundColor: COLORS.GRAY_LIGHT,
   },
   addChildButton: {
     backgroundColor: COLORS.GRAY_LIGHT,
