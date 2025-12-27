@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  PanResponder,
+  Animated,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
@@ -71,6 +74,45 @@ export default function ResidenceLibraryScreen({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [expandedNodes, setExpandedNodes] = useState(new Set());
   const [selectedParentForChild, setSelectedParentForChild] = useState(null);
+
+  // Estado local para el orden de los nodos padre (solo para testing, no se guarda en BD)
+  const [orderedParentNodes, setOrderedParentNodes] = useState([]);
+
+  // Sincronizar el orden local con nodeTree cuando cambie
+  useEffect(() => {
+    if (nodeTree && nodeTree.length > 0) {
+      // Si es la primera vez o el número de nodos cambió, inicializar el orden
+      if (orderedParentNodes.length === 0) {
+        setOrderedParentNodes([...nodeTree]);
+      } else if (orderedParentNodes.length !== nodeTree.length) {
+        // Si el número de nodos cambió, actualizar manteniendo el orden cuando sea posible
+        const currentIds = new Set(orderedParentNodes.map((n) => n.id));
+        const newIds = new Set(nodeTree.map((n) => n.id));
+
+        // Mantener el orden de los nodos existentes
+        const updatedOrder = orderedParentNodes
+          .map((orderedNode) => {
+            const updatedNode = nodeTree.find((n) => n.id === orderedNode.id);
+            return updatedNode || null;
+          })
+          .filter(Boolean);
+
+        // Agregar nuevos nodos al final
+        const newNodes = nodeTree.filter((n) => !currentIds.has(n.id));
+        setOrderedParentNodes([...updatedOrder, ...newNodes]);
+      } else {
+        // Actualizar los datos de los nodos manteniendo el orden
+        const updatedOrder = orderedParentNodes.map((orderedNode) => {
+          const updatedNode = nodeTree.find((n) => n.id === orderedNode.id);
+          return updatedNode || orderedNode;
+        });
+        setOrderedParentNodes(updatedOrder);
+      }
+    } else {
+      setOrderedParentNodes([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeTree]);
 
   // Obtener todos los nodos planos para el selector de padres
   const allNodes = useMemo(() => {
@@ -222,17 +264,166 @@ export default function ResidenceLibraryScreen({
     }
   };
 
-  // Renderizar nodos recursivamente
-  const renderNode = (node, level = 0) => {
-    // Un nodo es padre si no tiene parent_node_id (es nodo raíz)
-    const isParent = !node.parent_node_id;
+  // Estados para el drag-and-drop
+  const [draggingIndex, setDraggingIndex] = useState(null);
+  const nodePositions = useRef({});
+  const scrollViewRef = useRef(null);
+  const scrollOffset = useRef(0);
+
+  // Medir posiciones de los nodos
+  const measureNode = (index, y, height) => {
+    if (index >= 0 && index < orderedParentNodes.length) {
+      nodePositions.current[index] = { y, height, centerY: y + height / 2 };
+    }
+  };
+
+  // Manejar el inicio del arrastre
+  const handleDragStartIndex = (index) => {
+    setDraggingIndex(index);
+  };
+
+  // Manejar el movimiento durante el arrastre
+  const handleDragMove = (index, gestureY) => {
+    if (draggingIndex === null) return;
+
+    const currentIndex = draggingIndex;
+    if (currentIndex < 0 || currentIndex >= orderedParentNodes.length) return;
+
+    // Obtener la posición inicial del nodo arrastrado
+    const initialPos = nodePositions.current[currentIndex];
+    if (!initialPos) return;
+
+    // Calcular la nueva posición Y del centro del nodo arrastrado
+    const draggedCenterY = initialPos.y + gestureY;
+
+    // Encontrar el índice de destino
+    let targetIndex = currentIndex;
+
+    // Buscar hacia arriba
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      const pos = nodePositions.current[i];
+      if (pos && draggedCenterY < pos.centerY) {
+        targetIndex = i;
+      } else {
+        break;
+      }
+    }
+
+    // Buscar hacia abajo
+    for (let i = currentIndex + 1; i < orderedParentNodes.length; i++) {
+      const pos = nodePositions.current[i];
+      if (pos && draggedCenterY > pos.centerY) {
+        targetIndex = i;
+      } else {
+        break;
+      }
+    }
+
+    // Reordenar si el índice cambió
+    if (targetIndex !== currentIndex) {
+      const newOrder = [...orderedParentNodes];
+      const [removed] = newOrder.splice(currentIndex, 1);
+      newOrder.splice(targetIndex, 0, removed);
+      setOrderedParentNodes(newOrder);
+      setDraggingIndex(targetIndex);
+    }
+  };
+
+  // Manejar el fin del arrastre
+  const handleDragEnd = () => {
+    // Limpiar intervalo de auto-scroll
+    if (autoScrollInterval.current) {
+      clearInterval(autoScrollInterval.current);
+      autoScrollInterval.current = null;
+    }
+
+    // Limpiar posiciones guardadas
+    nodePositions.current = {};
+
+    // Desactivar el drag completamente
+    setDraggingIndex(null);
+
+    // Aquí en el futuro se guardaría el orden en la base de datos
+    // Por ahora solo actualizamos el estado local
+  };
+
+  // Auto-scroll cuando se arrastra cerca de los bordes
+  const autoScrollInterval = useRef(null);
+  const handleAutoScroll = (gestureState) => {
+    if (!scrollViewRef.current || draggingIndex === null) return;
+
+    const { pageY } = gestureState;
+    const SCROLL_THRESHOLD = 80; // Distancia desde el borde para activar scroll (en píxeles)
+    const SCROLL_SPEED = 8; // Velocidad de scroll (píxeles por frame)
+
+    // Obtener dimensiones de la ventana
+    const windowHeight = Dimensions.get("window").height;
+
+    // Calcular distancia desde los bordes de la pantalla
+    const distanceFromTop = pageY;
+    const distanceFromBottom = windowHeight - pageY;
+
+    // Limpiar intervalo anterior
+    if (autoScrollInterval.current) {
+      clearInterval(autoScrollInterval.current);
+      autoScrollInterval.current = null;
+    }
+
+    // Scroll hacia arriba (cuando el dedo está cerca del borde superior)
+    if (distanceFromTop < SCROLL_THRESHOLD && distanceFromTop > 0) {
+      const scrollAmount = Math.max(
+        1,
+        ((SCROLL_THRESHOLD - distanceFromTop) / SCROLL_THRESHOLD) * SCROLL_SPEED
+      );
+      autoScrollInterval.current = setInterval(() => {
+        const newOffset = Math.max(0, scrollOffset.current - scrollAmount);
+        scrollOffset.current = newOffset;
+        scrollViewRef.current?.scrollTo({
+          y: newOffset,
+          animated: false,
+        });
+      }, 16); // ~60fps
+    }
+    // Scroll hacia abajo (cuando el dedo está cerca del borde inferior)
+    else if (distanceFromBottom < SCROLL_THRESHOLD && distanceFromBottom > 0) {
+      const scrollAmount = Math.max(
+        1,
+        ((SCROLL_THRESHOLD - distanceFromBottom) / SCROLL_THRESHOLD) *
+          SCROLL_SPEED
+      );
+      autoScrollInterval.current = setInterval(() => {
+        const newOffset = scrollOffset.current + scrollAmount;
+        scrollOffset.current = newOffset;
+        scrollViewRef.current?.scrollTo({
+          y: newOffset,
+          animated: false,
+        });
+      }, 16); // ~60fps
+    }
+  };
+
+  // Limpiar intervalo cuando termina el drag
+  React.useEffect(() => {
+    if (draggingIndex === null && autoScrollInterval.current) {
+      clearInterval(autoScrollInterval.current);
+      autoScrollInterval.current = null;
+    }
+    return () => {
+      if (autoScrollInterval.current) {
+        clearInterval(autoScrollInterval.current);
+      }
+    };
+  }, [draggingIndex]);
+
+  // Renderizar nodos hijos recursivamente (no se reordenan)
+  const renderChildNode = (node, level = 1) => {
     const isExpanded = expandedNodes.has(node.id);
 
     return (
       <View key={node.id}>
         <LibroNodeItem
           node={node}
-          isParent={isParent}
+          isParent={false}
           isExpanded={isExpanded}
           onToggleExpand={() => handleToggleExpand(node.id)}
           onIncrement={() => handleIncrement(node)}
@@ -245,15 +436,201 @@ export default function ResidenceLibraryScreen({
           onAddChild={() => handleAddChild(node)}
           level={level}
         />
-
-        {/* Renderizar hijos si está expandido */}
-        {isParent && isExpanded && node.children && (
-          <View style={styles.childrenContainer}>
-            {node.children.map((child) => renderNode(child, level + 1))}
-          </View>
-        )}
       </View>
     );
+  };
+
+  // Componente para nodo padre arrastrable
+  const DraggableParentNode = ({ node, index }) => {
+    const isExpanded = expandedNodes.has(node.id);
+    const isDragging = draggingIndex === index;
+    const translateY = useRef(new Animated.Value(0)).current;
+    const opacity = useRef(new Animated.Value(1)).current;
+    const scale = useRef(new Animated.Value(1)).current;
+    const nodeRef = useRef(null);
+    const startY = useRef(0);
+    const currentY = useRef(0);
+    const isDraggingRef = useRef(false);
+
+    // Actualizar ref cuando isDragging cambia
+    React.useEffect(() => {
+      isDraggingRef.current = isDragging;
+    }, [isDragging]);
+
+    // Función para iniciar el drag (long press de 2 segundos en el nodo)
+    const handleDragStart = () => {
+      if (draggingIndex !== null) return;
+
+      // Medir la posición del nodo actual
+      nodeRef.current?.measure((x, y, width, height, pageX, pageY) => {
+        measureNode(index, pageY, height);
+      });
+
+      // Iniciar arrastre
+      handleDragStartIndex(index);
+      translateY.setValue(0);
+      translateY.setOffset(0);
+      currentY.current = 0;
+      isDraggingRef.current = true;
+
+      // Animaciones de inicio
+      Animated.parallel([
+        Animated.spring(opacity, {
+          toValue: 0.9,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scale, {
+          toValue: 1.05,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    };
+
+    const panResponder = useRef(
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => isDraggingRef.current,
+        onMoveShouldSetPanResponder: () => isDraggingRef.current,
+        onPanResponderGrant: (_, gestureState) => {
+          if (isDraggingRef.current) {
+            startY.current = gestureState.y0;
+            translateY.setOffset(0);
+            translateY.setValue(0);
+          }
+        },
+        onPanResponderMove: (_, gestureState) => {
+          if (isDraggingRef.current) {
+            const dy = gestureState.dy;
+            translateY.setValue(dy);
+            currentY.current = dy;
+            handleDragMove(index, dy);
+
+            // Auto-scroll cuando se acerca a los bordes
+            handleAutoScroll(gestureState);
+          }
+        },
+        onPanResponderRelease: () => {
+          if (isDraggingRef.current || isDragging) {
+            // Desactivar inmediatamente el ref
+            isDraggingRef.current = false;
+
+            // Desactivar el drag en el estado principal INMEDIATAMENTE
+            // No esperar a que termine la animación
+            handleDragEnd();
+
+            // Animar de vuelta a la posición original
+            translateY.flattenOffset();
+            Animated.parallel([
+              Animated.spring(translateY, {
+                toValue: 0,
+                useNativeDriver: true,
+                tension: 50,
+                friction: 7,
+              }),
+              Animated.spring(opacity, {
+                toValue: 1,
+                useNativeDriver: true,
+              }),
+              Animated.spring(scale, {
+                toValue: 1,
+                useNativeDriver: true,
+              }),
+            ]).start();
+          }
+        },
+        onPanResponderTerminate: () => {
+          if (isDraggingRef.current || isDragging) {
+            // Desactivar inmediatamente el ref
+            isDraggingRef.current = false;
+
+            // Desactivar el drag en el estado principal INMEDIATAMENTE
+            handleDragEnd();
+
+            // Animar de vuelta a la posición original
+            translateY.flattenOffset();
+            Animated.parallel([
+              Animated.spring(translateY, {
+                toValue: 0,
+                useNativeDriver: true,
+              }),
+              Animated.spring(opacity, {
+                toValue: 1,
+                useNativeDriver: true,
+              }),
+              Animated.spring(scale, {
+                toValue: 1,
+                useNativeDriver: true,
+              }),
+            ]).start();
+          }
+        },
+      })
+    ).current;
+
+    return (
+      <Animated.View
+        ref={nodeRef}
+        style={[
+          styles.parentNodeContainer,
+          isDragging && styles.draggingNode,
+          {
+            transform: [{ translateY }, { scale }],
+            opacity,
+            zIndex: isDragging ? 1000 : 1,
+          },
+        ]}
+        {...(isDragging ? panResponder.panHandlers : {})}
+        onLayout={(event) => {
+          const { height } = event.nativeEvent.layout;
+          // Medir posición cuando el layout cambia
+          const currentIndex = orderedParentNodes.findIndex(
+            (n) => n.id === node.id
+          );
+          if (currentIndex !== -1 && !isDragging) {
+            nodeRef.current?.measure((x, y, width, heightPos, pageX, pageY) => {
+              measureNode(currentIndex, pageY, heightPos);
+            });
+          }
+        }}
+      >
+        <TouchableOpacity
+          onLongPress={handleDragStart}
+          delayLongPress={2000}
+          activeOpacity={1}
+          disabled={draggingIndex !== null}
+          style={{ width: "100%" }}
+        >
+          <LibroNodeItem
+            node={node}
+            isParent={true}
+            isExpanded={isExpanded}
+            onToggleExpand={() => handleToggleExpand(node.id)}
+            onIncrement={() => handleIncrement(node)}
+            onDecrement={() => handleDecrement(node)}
+            onEdit={() => {
+              setEditingNode(node);
+              setShowNodeModal(true);
+            }}
+            onDelete={() => setShowDeleteConfirm(node)}
+            onAddChild={() => handleAddChild(node)}
+            level={0}
+            onDragStart={handleDragStart}
+            isDragging={isDragging}
+          />
+        </TouchableOpacity>
+
+        {/* Renderizar hijos si está expandido */}
+        {isExpanded && node.children && node.children.length > 0 && (
+          <View style={styles.childrenContainer}>
+            {node.children.map((child) => renderChildNode(child, 1))}
+          </View>
+        )}
+      </Animated.View>
+    );
+  };
+
+  // Renderizar un nodo padre con sus hijos
+  const renderParentNode = (node, index) => {
+    return <DraggableParentNode key={node.id} node={node} index={index} />;
   };
 
   // Abrir modal para agregar nodo raíz o crear plantilla
@@ -305,11 +682,7 @@ export default function ResidenceLibraryScreen({
     <View style={styles.container}>
       <ScreenHeader title="Libro de Residente" />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.containerContent}>
         {/* Loading State */}
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -319,7 +692,7 @@ export default function ResidenceLibraryScreen({
         ) : (
           <>
             {/* Lista de nodos */}
-            {nodeTree.length === 0 ? (
+            {orderedParentNodes.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Ionicons
                   name="document-text-outline"
@@ -334,13 +707,28 @@ export default function ResidenceLibraryScreen({
                 </Text>
               </View>
             ) : (
-              <View style={styles.nodesContainer}>
-                {nodeTree.map((node) => renderNode(node, 0))}
-              </View>
+              <ScrollView
+                ref={scrollViewRef}
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                scrollEnabled={draggingIndex === null}
+                nestedScrollEnabled={false}
+                onScroll={(event) => {
+                  scrollOffset.current = event.nativeEvent.contentOffset.y;
+                }}
+                scrollEventThrottle={16}
+              >
+                <View style={styles.nodesContainer}>
+                  {orderedParentNodes.map((node, index) =>
+                    renderParentNode(node, index)
+                  )}
+                </View>
+              </ScrollView>
             )}
           </>
         )}
-      </ScrollView>
+      </View>
 
       {/* Floating Action Button - Solo mostrar si tiene review */}
       {!shouldShowReviewPrompt && (
@@ -423,12 +811,31 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.BACKGROUND,
   },
+  containerContent: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
     paddingBottom: 100,
+  },
+  parentNodeContainer: {
+    marginBottom: 8,
+  },
+  dragHandle: {
+    width: "100%",
+  },
+  draggingNode: {
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   bannerContainer: {
     marginBottom: 16,

@@ -38,6 +38,8 @@ export const LibroNodeItem = ({
   onDelete,
   onAddChild,
   level = 0,
+  onDragStart,
+  isDragging = false,
 }) => {
   const hasChildren = isParent && node.children && node.children.length > 0;
   const count = node.total_count || 0;
@@ -247,12 +249,20 @@ export const LibroNodeItem = ({
         <View style={styles.topRow}>
           <View style={styles.leftSection}>
             {isParent ? (
-              <Ionicons
-                name="folder-outline"
-                size={24}
-                color={COLORS.PRIMARY}
-                style={styles.icon}
-              />
+              <View style={styles.parentIconContainer}>
+                <Ionicons
+                  name="reorder-three-outline"
+                  size={20}
+                  color={isDragging ? COLORS.PRIMARY : COLORS.GRAY}
+                  style={styles.dragIcon}
+                />
+                <Ionicons
+                  name="folder-outline"
+                  size={24}
+                  color={COLORS.PRIMARY}
+                  style={styles.icon}
+                />
+              </View>
             ) : (
               <Ionicons
                 name="document-text-outline"
@@ -440,6 +450,19 @@ const styles = StyleSheet.create({
   icon: {
     marginRight: 8,
     marginTop: 2,
+  },
+  parentIconContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 4,
+  },
+  dragIcon: {
+    marginRight: 4,
+    marginTop: 2,
+  },
+  dragHandle: {
+    padding: 4,
+    marginRight: 4,
   },
   nameSection: {
     flex: 1,
