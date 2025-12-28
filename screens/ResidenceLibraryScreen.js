@@ -14,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
 import { useLibroSection } from "../hooks/useLibroSection";
+import { updateNodesPositions } from "../services/libroService";
 import { useResidentReviewCheck } from "../hooks/useResidentReviewCheck";
 import {
   InfoBanner,
@@ -66,6 +67,7 @@ export default function ResidenceLibraryScreen({
     deleteNode,
     addEntry,
     createTemplate,
+    fetchAllData,
   } = useLibroSection(userId, section);
 
   // Estados para modales
@@ -75,44 +77,11 @@ export default function ResidenceLibraryScreen({
   const [expandedNodes, setExpandedNodes] = useState(new Set());
   const [selectedParentForChild, setSelectedParentForChild] = useState(null);
 
-  // Estado local para el orden de los nodos padre (solo para testing, no se guarda en BD)
-  const [orderedParentNodes, setOrderedParentNodes] = useState([]);
+  // Estado temporal para el orden durante el drag (se guarda en BD al soltar)
+  const [draggingOrder, setDraggingOrder] = useState(null);
 
-  // Sincronizar el orden local con nodeTree cuando cambie
-  useEffect(() => {
-    if (nodeTree && nodeTree.length > 0) {
-      // Si es la primera vez o el número de nodos cambió, inicializar el orden
-      if (orderedParentNodes.length === 0) {
-        setOrderedParentNodes([...nodeTree]);
-      } else if (orderedParentNodes.length !== nodeTree.length) {
-        // Si el número de nodos cambió, actualizar manteniendo el orden cuando sea posible
-        const currentIds = new Set(orderedParentNodes.map((n) => n.id));
-        const newIds = new Set(nodeTree.map((n) => n.id));
-
-        // Mantener el orden de los nodos existentes
-        const updatedOrder = orderedParentNodes
-          .map((orderedNode) => {
-            const updatedNode = nodeTree.find((n) => n.id === orderedNode.id);
-            return updatedNode || null;
-          })
-          .filter(Boolean);
-
-        // Agregar nuevos nodos al final
-        const newNodes = nodeTree.filter((n) => !currentIds.has(n.id));
-        setOrderedParentNodes([...updatedOrder, ...newNodes]);
-      } else {
-        // Actualizar los datos de los nodos manteniendo el orden
-        const updatedOrder = orderedParentNodes.map((orderedNode) => {
-          const updatedNode = nodeTree.find((n) => n.id === orderedNode.id);
-          return updatedNode || orderedNode;
-        });
-        setOrderedParentNodes(updatedOrder);
-      }
-    } else {
-      setOrderedParentNodes([]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodeTree]);
+  // Obtener el orden actual de los nodos (usar draggingOrder si está en drag, sino nodeTree)
+  const currentOrder = draggingOrder || nodeTree || [];
 
   // Obtener todos los nodos planos para el selector de padres
   const allNodes = useMemo(() => {
@@ -272,7 +241,8 @@ export default function ResidenceLibraryScreen({
 
   // Medir posiciones de los nodos
   const measureNode = (index, y, height) => {
-    if (index >= 0 && index < orderedParentNodes.length) {
+    const currentOrderArray = draggingOrder || nodeTree;
+    if (index >= 0 && index < currentOrderArray.length) {
       nodePositions.current[index] = { y, height, centerY: y + height / 2 };
     }
   };
@@ -286,11 +256,14 @@ export default function ResidenceLibraryScreen({
   const handleDragMove = (index, gestureY) => {
     if (draggingIndex === null) return;
 
+    // Usar el orden actual (draggingOrder o nodeTree)
+    const currentOrderArray = draggingOrder || nodeTree;
     const currentIndex = draggingIndex;
-    if (currentIndex < 0 || currentIndex >= orderedParentNodes.length) return;
+    if (currentIndex < 0 || currentIndex >= currentOrderArray.length) return;
 
     // Obtener la posición inicial del nodo arrastrado
-    const initialPos = nodePositions.current[currentIndex];
+    const initialPos =
+      nodePositions.current[currentIndex] || nodePositions.current[index];
     if (!initialPos) return;
 
     // Calcular la nueva posición Y del centro del nodo arrastrado
@@ -310,7 +283,7 @@ export default function ResidenceLibraryScreen({
     }
 
     // Buscar hacia abajo
-    for (let i = currentIndex + 1; i < orderedParentNodes.length; i++) {
+    for (let i = currentIndex + 1; i < currentOrderArray.length; i++) {
       const pos = nodePositions.current[i];
       if (pos && draggedCenterY > pos.centerY) {
         targetIndex = i;
@@ -321,30 +294,54 @@ export default function ResidenceLibraryScreen({
 
     // Reordenar si el índice cambió
     if (targetIndex !== currentIndex) {
-      const newOrder = [...orderedParentNodes];
+      const newOrder = [...currentOrderArray];
       const [removed] = newOrder.splice(currentIndex, 1);
       newOrder.splice(targetIndex, 0, removed);
-      setOrderedParentNodes(newOrder);
+      setDraggingOrder(newOrder);
       setDraggingIndex(targetIndex);
     }
   };
 
   // Manejar el fin del arrastre
-  const handleDragEnd = () => {
+  const handleDragEnd = async () => {
     // Limpiar intervalo de auto-scroll
     if (autoScrollInterval.current) {
       clearInterval(autoScrollInterval.current);
       autoScrollInterval.current = null;
     }
 
-    // Limpiar posiciones guardadas
+    // Guardar el orden en la base de datos si hay cambios
+    if (draggingOrder && draggingOrder.length > 0 && userId) {
+      try {
+        // Preparar array con id y posición de cada nodo padre
+        const nodesWithPositions = draggingOrder.map((node, index) => ({
+          id: node.id,
+          position: index,
+        }));
+
+        // Actualizar posiciones en la base de datos
+        const success = await updateNodesPositions(nodesWithPositions, userId);
+
+        if (success) {
+          // Refrescar los datos para obtener el orden actualizado desde la BD
+          if (fetchAllData) {
+            await fetchAllData();
+          }
+        } else {
+          Alert.alert("Error", "No se pudo guardar el orden de los nodos");
+        }
+      } catch (error) {
+        console.error("Error saving nodes positions:", error);
+        Alert.alert("Error", "No se pudo guardar el orden de los nodos");
+      }
+    }
+
+    // Limpiar estado temporal de drag
+    setDraggingOrder(null);
     nodePositions.current = {};
 
     // Desactivar el drag completamente
     setDraggingIndex(null);
-
-    // Aquí en el futuro se guardaría el orden en la base de datos
-    // Por ahora solo actualizamos el estado local
   };
 
   // Auto-scroll cuando se arrastra cerca de los bordes
@@ -460,6 +457,11 @@ export default function ResidenceLibraryScreen({
     // Función para iniciar el drag (long press de 2 segundos en el nodo)
     const handleDragStart = () => {
       if (draggingIndex !== null) return;
+
+      // Inicializar el orden temporal con el orden actual de nodeTree
+      if (!draggingOrder) {
+        setDraggingOrder([...nodeTree]);
+      }
 
       // Medir la posición del nodo actual
       nodeRef.current?.measure((x, y, width, height, pageX, pageY) => {
@@ -582,7 +584,8 @@ export default function ResidenceLibraryScreen({
         onLayout={(event) => {
           const { height } = event.nativeEvent.layout;
           // Medir posición cuando el layout cambia
-          const currentIndex = orderedParentNodes.findIndex(
+          const currentOrderArray = draggingOrder || nodeTree;
+          const currentIndex = currentOrderArray.findIndex(
             (n) => n.id === node.id
           );
           if (currentIndex !== -1 && !isDragging) {
@@ -692,7 +695,7 @@ export default function ResidenceLibraryScreen({
         ) : (
           <>
             {/* Lista de nodos */}
-            {orderedParentNodes.length === 0 ? (
+            {currentOrder.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Ionicons
                   name="document-text-outline"
@@ -720,7 +723,7 @@ export default function ResidenceLibraryScreen({
                 scrollEventThrottle={16}
               >
                 <View style={styles.nodesContainer}>
-                  {orderedParentNodes.map((node, index) =>
+                  {currentOrder.map((node, index) =>
                     renderParentNode(node, index)
                   )}
                 </View>

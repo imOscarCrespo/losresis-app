@@ -22,6 +22,7 @@ export const getAllLibroData = async (userId, section) => {
       .select("*,entries:libro_entry(*),events:libro_event(*)")
       .eq("user_id", userId)
       .eq("section", section)
+      .order("position", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true });
 
     const { data, error } = await query;
@@ -51,6 +52,47 @@ export const getAllLibroData = async (userId, section) => {
       return cleanedNode;
     });
 
+    // Asignar posiciones automáticamente a nodos padre que no tienen position (null)
+    // Esto maneja el caso de nodos existentes creados antes de agregar la columna position
+    const parentNodesWithoutPosition = cleanedNodes.filter(
+      (node) =>
+        !node.parent_node_id &&
+        (node.position === null || node.position === undefined)
+    );
+
+    if (parentNodesWithoutPosition.length > 0) {
+      // Obtener la posición máxima actual (ignorando nulls)
+      const nodesWithPosition = cleanedNodes.filter(
+        (node) =>
+          !node.parent_node_id &&
+          node.position !== null &&
+          node.position !== undefined
+      );
+      const maxPosition =
+        nodesWithPosition.length > 0
+          ? Math.max(...nodesWithPosition.map((n) => n.position))
+          : -1;
+
+      // Asignar posiciones secuenciales a los nodos sin position
+      parentNodesWithoutPosition.forEach((node, index) => {
+        node.position = maxPosition + 1 + index;
+      });
+
+      // Actualizar en la base de datos (en segundo plano, no bloquea la respuesta)
+      parentNodesWithoutPosition.forEach(async (node) => {
+        try {
+          await supabase
+            .from("libro_node")
+            .update({ position: node.position })
+            .eq("id", node.id)
+            .eq("user_id", userId);
+        } catch (error) {
+          // Silently fail - no es crítico si falla
+          console.error("Error auto-assigning position:", error);
+        }
+      });
+    }
+
     return {
       nodes: cleanedNodes,
       entries: entriesData,
@@ -74,12 +116,41 @@ export const createNode = async (nodeData, userId) => {
       throw new Error("User ID is required");
     }
 
+    // Si es un nodo padre (sin parent_node_id), calcular la posición
+    let position = null;
+    if (!nodeData.parent_node_id) {
+      // Obtener la posición máxima de los nodos padre en esta sección (ignorando nulls)
+      const { data: maxPositionData, error: maxError } = await supabase
+        .from("libro_node")
+        .select("position")
+        .eq("user_id", userId)
+        .eq("section", nodeData.section)
+        .is("parent_node_id", null)
+        .not("position", "is", null) // Ignorar nodos sin position
+        .order("position", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (maxError && maxError.code !== "PGRST116") {
+        // PGRST116 es "no rows returned", que es normal si no hay nodos o todos tienen null
+        console.error("Error getting max position:", maxError);
+      }
+
+      // La nueva posición será la máxima + 1, o 0 si no hay nodos con position
+      position =
+        maxPositionData?.position !== null &&
+        maxPositionData?.position !== undefined
+          ? maxPositionData.position + 1
+          : 0;
+    }
+
     const newNode = {
       user_id: userId,
       section: nodeData.section,
       name: nodeData.name,
       parent_node_id: nodeData.parent_node_id || null,
       goal: nodeData.goal || null,
+      position: position,
     };
 
     const { data, error } = await supabase
@@ -438,6 +509,55 @@ export const deleteEvent = async (eventId) => {
   }
 };
 
+/**
+ * Actualiza las posiciones de múltiples nodos padre
+ * @param {Array} nodesWithPositions - Array de objetos {id: string, position: number}
+ * @param {string} userId - ID del usuario (para verificar permisos)
+ * @returns {Promise<boolean>} True si se actualizaron correctamente
+ */
+export const updateNodesPositions = async (nodesWithPositions, userId) => {
+  try {
+    if (!userId || !Array.isArray(nodesWithPositions)) {
+      throw new Error("User ID and nodes array are required");
+    }
+
+    // Filtrar nodos válidos (con id y position definidos)
+    const validNodes = nodesWithPositions.filter(
+      ({ id, position }) => id && position !== null && position !== undefined
+    );
+
+    if (validNodes.length === 0) {
+      return true; // No hay nada que actualizar
+    }
+
+    // Actualizar cada nodo con su nueva posición
+    const updatePromises = validNodes.map(({ id, position }) =>
+      supabase
+        .from("libro_node")
+        .update({ position })
+        .eq("id", id)
+        .eq("user_id", userId)
+    );
+
+    const results = await Promise.all(updatePromises);
+
+    // Verificar si hubo errores
+    const hasErrors = results.some(({ error }) => error);
+    if (hasErrors) {
+      const errors = results
+        .filter(({ error }) => error)
+        .map(({ error }) => error);
+      console.error("Error updating nodes positions:", errors);
+      throw new Error("Error updating some nodes positions");
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Exception in updateNodesPositions:", error);
+    throw error;
+  }
+};
+
 export default {
   getAllLibroData,
   createNode,
@@ -447,4 +567,5 @@ export default {
   createEvent,
   updateEvent,
   deleteEvent,
+  updateNodesPositions,
 };

@@ -250,12 +250,19 @@ export const LibroNodeItem = ({
           <View style={styles.leftSection}>
             {isParent ? (
               <View style={styles.parentIconContainer}>
-                <Ionicons
-                  name="reorder-three-outline"
-                  size={20}
-                  color={isDragging ? COLORS.PRIMARY : COLORS.GRAY}
-                  style={styles.dragIcon}
-                />
+                <TouchableOpacity
+                  onPress={onDragStart}
+                  style={styles.dragHandle}
+                  activeOpacity={0.7}
+                  disabled={!onDragStart}
+                >
+                  <Ionicons
+                    name="reorder-three-outline"
+                    size={20}
+                    color={isDragging ? COLORS.PRIMARY : COLORS.GRAY}
+                    style={styles.dragIcon}
+                  />
+                </TouchableOpacity>
                 <Ionicons
                   name="folder-outline"
                   size={24}
