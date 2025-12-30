@@ -25,6 +25,7 @@ import { ExternalRotationsScreen } from "./ExternalRotationsScreen";
 import { LecturesScreen } from "./LecturesScreen";
 import LeisureScreen from "./LeisureScreen";
 import LeisureForumScreen from "./LeisureForumScreen";
+import SportsSelectionScreen from "./SportsSelectionScreen";
 import ThreadDetailScreen from "./ThreadDetailScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
@@ -158,8 +159,8 @@ export default function DashboardScreen({
     if (sectionId === "leisureForum" && params.forumType) {
       setLeisureForumType(params.forumType);
     }
-    // Si volvemos a ocio, limpiar el tipo de foro
-    if (sectionId === "ocio") {
+    // Si volvemos a ocio o sportsSelection, limpiar el tipo de foro
+    if (sectionId === "ocio" || sectionId === "sportsSelection") {
       setLeisureForumType(null);
     }
     // Si es threadDetail, guardar el threadId
@@ -491,6 +492,15 @@ export default function DashboardScreen({
       case "ocio":
         return (
           <LeisureScreen
+            onSectionChange={handleSectionChange}
+            userProfile={userProfile}
+          />
+        );
+
+      // Pantalla de selección de deportes
+      case "sportsSelection":
+        return (
+          <SportsSelectionScreen
             onSectionChange={handleSectionChange}
             userProfile={userProfile}
           />

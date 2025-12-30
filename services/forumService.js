@@ -7,7 +7,7 @@ import { supabase } from "../config/supabase";
 /**
  * Obtener o crear un foro para una ciudad y tipo específico
  * @param {string} city - Nombre de la ciudad del usuario
- * @param {string} forumType - Tipo de foro: "Fiesta" o "Deporte"
+ * @param {string} forumType - Tipo de foro: "Fiesta", "padel", "tenis", "futbol", "deporte_otros"
  * @param {string} roleScope - Rol del usuario: "student", "resident" o "doctor"
  * @returns {Promise<{success: boolean, forum: object|null, error: string|null}>}
  */

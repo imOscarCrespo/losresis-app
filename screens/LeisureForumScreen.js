@@ -35,6 +35,19 @@ const getUserRoleScope = (userProfile) => {
 };
 
 /**
+ * Helper para formatear el nombre del tipo de foro para mostrar
+ */
+const formatForumTypeName = (forumType) => {
+  const typeMap = {
+    padel: "Pádel",
+    tenis: "Tenis",
+    futbol: "Fútbol",
+    deporte_otros: "Otros Deportes",
+  };
+  return typeMap[forumType] || forumType;
+};
+
+/**
  * Card de thread
  */
 const ThreadCard = ({ thread, onPress, onDelete, currentUserId, deleting }) => {
@@ -338,7 +351,7 @@ export default function LeisureForumScreen({
           <Ionicons name="arrow-back" size={24} color={COLORS.TEXT_PRIMARY} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.title}>{forumType}</Text>
+          <Text style={styles.title}>{formatForumTypeName(forumType)}</Text>
           <Text style={styles.subtitle}>
             {userProfile?.city || "Tu ciudad"}
           </Text>

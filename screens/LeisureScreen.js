@@ -11,6 +11,45 @@ import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
 
 /**
+ * Item individual del grid con diseño moderno (reutilizado de MenuGrid)
+ */
+const LeisureGridItem = ({ item, onPress }) => {
+  return (
+    <TouchableOpacity
+      style={styles.gridItem}
+      onPress={() => onPress(item)}
+      activeOpacity={0.8}
+      accessibilityLabel={item.name}
+      accessibilityRole="button"
+    >
+      <View style={[styles.gridItemContent, { backgroundColor: item.color }]}>
+        {/* Overlay con gradiente sutil */}
+        <View style={styles.gradientOverlay} />
+
+        {/* Icono en círculo blanco en la esquina superior derecha */}
+        <View style={styles.iconCircle}>
+          <Ionicons name={item.icon} size={24} color={item.color} />
+        </View>
+
+        {/* Contenido principal */}
+        <View style={styles.gridItemTextContainer}>
+          <Text style={styles.gridItemTitle} numberOfLines={2}>
+            {item.name}
+          </Text>
+
+          {/* Información adicional opcional */}
+          {item.description && (
+            <Text style={styles.gridItemSubtitle} numberOfLines={2}>
+              {item.description}
+            </Text>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+/**
  * Pantalla principal de Ocio
  * Muestra un menú con dos opciones: "Fiesta" y "Deporte"
  */
@@ -26,57 +65,62 @@ export default function LeisureScreen({ onSectionChange, userProfile }) {
     }
   };
 
+  const handleDeportePress = () => {
+    if (onSectionChange) {
+      onSectionChange("sportsSelection", { userProfile });
+    }
+  };
+
+  const handleItemPress = (item) => {
+    if (item.forumType) {
+      handleOptionPress(item.forumType);
+    } else if (item.action === "sportsSelection") {
+      handleDeportePress();
+    }
+  };
+
+  // Opciones de ocio
+  const leisureOptions = [
+    {
+      id: "fiesta",
+      name: "Fiesta",
+      description: "Comparte planes de fiesta y eventos nocturnos en tu ciudad",
+      icon: "wine",
+      color: "#EC4899",
+      forumType: "Fiesta",
+    },
+    {
+      id: "deporte",
+      name: "Deporte",
+      description:
+        "Organiza partidos, entrenamientos y actividades deportivas",
+      icon: "football",
+      color: "#3B82F6",
+      action: "sportsSelection",
+    },
+  ];
+
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Ocio</Text>
-        <Text style={styles.subtitle}>
-          Comparte actividades de ocio en {userProfile?.city || "tu ciudad"}
-        </Text>
+        <Text style={styles.headerTitle}>Ocio</Text>
       </View>
-
-      {/* Menu Options */}
       <ScrollView
         style={styles.content}
-        contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.contentContainer}
       >
-        {/* Fiesta Option */}
-        <TouchableOpacity
-          style={styles.optionCard}
-          onPress={() => handleOptionPress("Fiesta")}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.iconContainer, { backgroundColor: "#FCE7F3" }]}>
-            <Ionicons name="wine" size={32} color="#EC4899" />
+        <View style={styles.gridContainer}>
+          <View style={styles.gridRow}>
+            {leisureOptions.map((item) => (
+              <LeisureGridItem
+                key={item.id}
+                item={item}
+                onPress={handleItemPress}
+              />
+            ))}
           </View>
-          <View style={styles.optionContent}>
-            <Text style={styles.optionTitle}>Fiesta</Text>
-            <Text style={styles.optionDescription}>
-              Comparte planes de fiesta y eventos nocturnos en tu ciudad
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color={COLORS.GRAY} />
-        </TouchableOpacity>
-
-        {/* Deporte Option */}
-        <TouchableOpacity
-          style={styles.optionCard}
-          onPress={() => handleOptionPress("Deporte")}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.iconContainer, { backgroundColor: "#DBEAFE" }]}>
-            <Ionicons name="football" size={32} color="#3B82F6" />
-          </View>
-          <View style={styles.optionContent}>
-            <Text style={styles.optionTitle}>Deporte</Text>
-            <Text style={styles.optionDescription}>
-              Organiza partidos, entrenamientos y actividades deportivas
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color={COLORS.GRAY} />
-        </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -85,69 +129,103 @@ export default function LeisureScreen({ onSectionChange, userProfile }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#F5F5F5",
   },
   header: {
-    padding: 20,
-    paddingBottom: 16,
+    backgroundColor: "#FFFFFF",
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: "#E5E5EA",
   },
-  title: {
-    fontSize: 28,
+  headerTitle: {
+    fontSize: 20,
     fontWeight: "bold",
-    color: COLORS.TEXT_PRIMARY,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: COLORS.GRAY,
+    color: "#1a1a1a",
   },
   content: {
     flex: 1,
   },
   contentContainer: {
-    padding: 20,
-    paddingTop: 24,
+    paddingBottom: 16,
   },
-  optionCard: {
+  gridContainer: {
+    padding: 12,
+  },
+  gridRow: {
     flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
+    marginBottom: 12,
+    gap: 12,
+  },
+  gridItem: {
+    flex: 1,
+    aspectRatio: 1,
+  },
+  gridItemContent: {
+    flex: 1,
+    borderRadius: 24,
     padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    justifyContent: "space-between",
+    overflow: "hidden",
+    // Sombra sutil
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  gradientOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
+    borderRadius: 24,
+  },
+  iconCircle: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+    // Sombra del círculo
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
   },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  optionContent: {
+  gridItemTextContainer: {
     flex: 1,
+    justifyContent: "flex-end",
+    paddingRight: 8,
   },
-  optionTitle: {
+  gridItemTitle: {
     fontSize: 20,
-    fontWeight: "600",
-    color: COLORS.TEXT_PRIMARY,
+    fontWeight: "bold",
+    color: "#FFFFFF",
     marginBottom: 4,
+    lineHeight: 24,
+    textShadowColor: "rgba(0, 0, 0, 0.1)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  optionDescription: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    lineHeight: 20,
+  gridItemSubtitle: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.85)",
+    lineHeight: 16,
+    textShadowColor: "rgba(0, 0, 0, 0.1)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });
