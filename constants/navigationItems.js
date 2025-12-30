@@ -113,6 +113,14 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#ECFCCB",
   },
   {
+    id: "ocio",
+    name: "Ocio",
+    icon: "wine",
+    description: "Comparte actividades de ocio en tu ciudad",
+    color: "#EC4899", // Pink
+    lightColor: "#FCE7F3",
+  },
+  {
     id: "jobs",
     name: "Ofertas de trabajo",
     icon: "briefcase",
@@ -166,6 +174,8 @@ export const IMPLEMENTED_SECTIONS = [
   "reviewDetail",
   "articulos",
   "vivienda",
+  "ocio",
+  "leisureForum",
 ];
 
 /**

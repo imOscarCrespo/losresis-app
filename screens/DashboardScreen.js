@@ -22,6 +22,9 @@ import ContactScreen from "./ContactScreen";
 import ShiftsScreen from "./ShiftsScreen";
 import { ExternalRotationsScreen } from "./ExternalRotationsScreen";
 import { LecturesScreen } from "./LecturesScreen";
+import LeisureScreen from "./LeisureScreen";
+import LeisureForumScreen from "./LeisureForumScreen";
+import ThreadDetailScreen from "./ThreadDetailScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 
@@ -42,6 +45,8 @@ export default function DashboardScreen({
   const [creatingHousingAd, setCreatingHousingAd] = useState(false);
   const [editingHousingAdId, setEditingHousingAdId] = useState(null);
   const [previousSection, setPreviousSection] = useState(null); // Para volver a la sección correcta
+  const [leisureForumType, setLeisureForumType] = useState(null); // Tipo de foro: "Fiesta" o "Deporte"
+  const [selectedThreadId, setSelectedThreadId] = useState(null); // ID del thread seleccionado
 
   // Determinar sección inicial según el tipo de usuario
   const getInitialSection = (profile) => {
@@ -126,6 +131,22 @@ export default function DashboardScreen({
     if (sectionId === "editHousingAd" && params.adId) {
       setEditingHousingAdId(params.adId);
     }
+    // Si es leisureForum, guardar el tipo de foro
+    if (sectionId === "leisureForum" && params.forumType) {
+      setLeisureForumType(params.forumType);
+    }
+    // Si volvemos a ocio, limpiar el tipo de foro
+    if (sectionId === "ocio") {
+      setLeisureForumType(null);
+    }
+    // Si es threadDetail, guardar el threadId
+    if (sectionId === "threadDetail" && params.threadId) {
+      setSelectedThreadId(params.threadId);
+    }
+    // Si volvemos desde threadDetail, limpiar el threadId
+    if (sectionId === "leisureForum") {
+      setSelectedThreadId(null);
+    }
   };
 
   const handleHospitalSelect = (hospital, specialtyId, fromSection = null) => {
@@ -157,6 +178,30 @@ export default function DashboardScreen({
   const handleBackFromProfile = () => {
     setCurrentSection(getDefaultSection());
   };
+
+  const handleBackFromThreadDetail = () => {
+    setSelectedThreadId(null);
+    setCurrentSection("leisureForum");
+  };
+
+  // Si estamos en la pantalla de detalle del thread
+  if (selectedThreadId) {
+    return (
+      <ScreenLayout
+        userProfile={userProfile}
+        activeSection="ocio"
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <ThreadDetailScreen
+          threadId={selectedThreadId}
+          onBack={handleBackFromThreadDetail}
+          userProfile={userProfile}
+          onSectionChange={handleSectionChange}
+        />
+      </ScreenLayout>
+    );
+  }
 
   // Si estamos en la pantalla de detalle del hospital
   if (selectedHospital) {
@@ -395,6 +440,25 @@ export default function DashboardScreen({
             onSectionChange={handleSectionChange}
             currentSection={currentSection}
             userProfile={userProfile}
+          />
+        );
+
+      // Pantalla de ocio
+      case "ocio":
+        return (
+          <LeisureScreen
+            onSectionChange={handleSectionChange}
+            userProfile={userProfile}
+          />
+        );
+
+      // Pantalla del foro de ocio (Fiesta o Deporte)
+      case "leisureForum":
+        return (
+          <LeisureForumScreen
+            onSectionChange={handleSectionChange}
+            userProfile={userProfile}
+            forumType={leisureForumType}
           />
         );
 
