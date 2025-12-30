@@ -269,19 +269,7 @@ export const LibroNodeItem = ({
                   color={COLORS.PRIMARY}
                   style={styles.icon}
                 />
-              </View>
-            ) : (
-              <Ionicons
-                name="document-text-outline"
-                size={24}
-                color={COLORS.SUCCESS}
-                style={styles.icon}
-              />
-            )}
-
-            <View style={styles.nameSection}>
-              <View style={styles.nameRow}>
-                {isParent && hasChildren && (
+                {hasChildren && (
                   <TouchableOpacity
                     onPress={onToggleExpand}
                     style={styles.expandButton}
@@ -293,8 +281,20 @@ export const LibroNodeItem = ({
                     />
                   </TouchableOpacity>
                 )}
-                <Text style={styles.name}>{node.name}</Text>
               </View>
+            ) : (
+              <Ionicons
+                name="document-text-outline"
+                size={24}
+                color={COLORS.SUCCESS}
+                style={styles.icon}
+              />
+            )}
+
+            <View style={styles.nameSection}>
+              <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
+                {node.name}
+              </Text>
 
               {/* Contador debajo del nombre - Solo para hijos */}
               {!isParent && (
@@ -452,20 +452,19 @@ const styles = StyleSheet.create({
   leftSection: {
     flex: 1,
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
+    minWidth: 0,
   },
   icon: {
     marginRight: 8,
-    marginTop: 2,
   },
   parentIconContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 4,
+    marginRight: 8,
   },
   dragIcon: {
     marginRight: 4,
-    marginTop: 2,
   },
   dragHandle: {
     padding: 4,
@@ -473,14 +472,14 @@ const styles = StyleSheet.create({
   },
   nameSection: {
     flex: 1,
-  },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexShrink: 1,
+    minWidth: 0,
   },
   expandButton: {
-    marginRight: 4,
-    padding: 4,
+    marginLeft: 4,
+    padding: 2,
+    justifyContent: "center",
+    alignItems: "center",
   },
   name: {
     fontSize: 18,
