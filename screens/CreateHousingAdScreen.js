@@ -28,6 +28,7 @@ import {
 } from "../services/housingService";
 import { getCachedUserId } from "../services/authService";
 import { COLORS } from "../constants/colors";
+import posthogLogger from "../services/posthogService";
 
 // ============================================================================
 // MAIN COMPONENT
@@ -78,6 +79,12 @@ export default function CreateHousingAdScreen({
     () => prepareCityOptions(uniqueCities),
     [uniqueCities]
   );
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    const screenName = isEditMode ? "CreateHousingAdScreen_Edit" : "CreateHousingAdScreen_Create";
+    posthogLogger.logScreen(screenName, { adId, isEditMode });
+  }, [isEditMode, adId]);
 
   // Cargar anuncio si estamos en modo edición
   useEffect(() => {

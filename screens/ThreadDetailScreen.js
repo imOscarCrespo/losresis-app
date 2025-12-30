@@ -21,6 +21,7 @@ import {
 } from "../services/forumService";
 import { getCurrentUser } from "../services/authService";
 import { FloatingActionButton } from "../components/FloatingActionButton";
+import posthogLogger from "../services/posthogService";
 
 /**
  * Componente para renderizar un post y sus respuestas de forma anidada
@@ -175,6 +176,11 @@ export default function ThreadDetailScreen({
   const [newPostBody, setNewPostBody] = useState("");
   const [creating, setCreating] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("ThreadDetailScreen", { threadId });
+  }, [threadId]);
 
   // Cargar usuario actual
   useEffect(() => {

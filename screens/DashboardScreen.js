@@ -27,6 +27,7 @@ import LeisureForumScreen from "./LeisureForumScreen";
 import ThreadDetailScreen from "./ThreadDetailScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
+import posthogLogger from "../services/posthogService";
 
 export default function DashboardScreen({
   onSignOut,
@@ -71,6 +72,20 @@ export default function DashboardScreen({
       setCurrentSection(initialSection);
     }
   }, [userProfile, loadingProfile]);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("DashboardScreen");
+  }, []);
+
+  // Tracking de cambios de sección
+  useEffect(() => {
+    if (currentSection) {
+      posthogLogger.logScreen(`DashboardScreen_${currentSection}`, {
+        section: currentSection,
+      });
+    }
+  }, [currentSection]);
 
   const loadUserProfile = async () => {
     try {

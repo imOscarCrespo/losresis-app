@@ -22,6 +22,7 @@ import {
   deleteThread,
 } from "../services/forumService";
 import { getCurrentUser } from "../services/authService";
+import posthogLogger from "../services/posthogService";
 
 /**
  * Helper para obtener el roleScope del usuario
@@ -116,6 +117,11 @@ export default function LeisureForumScreen({
   const [currentUserId, setCurrentUserId] = useState(null);
   const [showMyThreads, setShowMyThreads] = useState(false); // Filtro para mostrar solo mis threads
   const [deletingThreadId, setDeletingThreadId] = useState(null);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("LeisureForumScreen", { forumType });
+  }, [forumType]);
 
   // Cargar usuario actual
   useEffect(() => {

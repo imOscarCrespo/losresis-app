@@ -34,6 +34,7 @@ import {
   prepareSpecialtyOptions,
   prepareCityOptions,
 } from "../utils/profileOptions";
+import posthogLogger from "../services/posthogService";
 
 export default function ProfileScreen({
   onBack,
@@ -123,6 +124,12 @@ export default function ProfileScreen({
     };
     loadBiometricState();
   }, []);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    const screenName = isOnboarding ? "ProfileScreen_Onboarding" : "ProfileScreen";
+    posthogLogger.logScreen(screenName, { isOnboarding });
+  }, [isOnboarding]);
 
   // Manejar cambio de estado de biometría
   const handleBiometricToggle = async () => {

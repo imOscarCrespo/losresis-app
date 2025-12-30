@@ -14,6 +14,7 @@ import {
   getDetailedGrades,
   getSpecialtyById,
 } from "../services/hospitalService";
+import posthogLogger from "../services/posthogService";
 
 /**
  * Pantalla de detalle del hospital con especialidades y notas de corte
@@ -32,6 +33,14 @@ export default function HospitalDetailScreen({
   const [expandedSpecialty, setExpandedSpecialty] = useState(null);
   const [detailedGrades, setDetailedGrades] = useState({});
   const [loadingDetails, setLoadingDetails] = useState({});
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("HospitalDetailScreen", {
+      hospitalId: hospital?.id,
+      specialtyId: selectedSpecialtyId,
+    });
+  }, [hospital?.id, selectedSpecialtyId]);
 
   useEffect(() => {
     if (hospital?.id) {

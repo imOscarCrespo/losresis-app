@@ -25,7 +25,9 @@
         "NSFaceIDUsageDescription": "Esta app usa Face ID para autenticarte de forma rápida y segura."
       },
       "entitlements": {
-        "com.apple.developer.applesignin": ["Default"]
+        "com.apple.developer.applesignin": [
+          "Default"
+        ]
       }
     },
     "android": {
@@ -36,7 +38,10 @@
       "edgeToEdgeEnabled": true,
       "package": "com.losresis.app",
       "versionCode": 9,
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
       "config": {
         "googleMaps": {
           "apiKey": ""
@@ -50,6 +55,9 @@
       "eas": {
         "projectId": "5dedd807-d5dc-4234-9cc0-37212b09f70e"
       }
-    }
+    },
+    "plugins": [
+      "expo-localization"
+    ]
   }
 }

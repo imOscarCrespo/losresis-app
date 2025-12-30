@@ -1,13 +1,19 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
+import posthogLogger from "../services/posthogService";
 
 /**
  * Pantalla principal de Ocio
  * Muestra un menú con dos opciones: "Fiesta" y "Deporte"
  */
 export default function LeisureScreen({ onSectionChange, userProfile }) {
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("LeisureScreen");
+  }, []);
+
   const handleOptionPress = (forumType) => {
     if (onSectionChange) {
       onSectionChange("leisureForum", { forumType, userProfile });

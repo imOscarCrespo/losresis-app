@@ -18,6 +18,7 @@ import { SelectFilter } from "../components/SelectFilter";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { prepareHospitalOptions } from "../utils/profileOptions";
 import { COLORS } from "../constants/colors";
+import posthogLogger from "../services/posthogService";
 
 // ============================================================================
 // COMPONENTS
@@ -353,6 +354,11 @@ export default function MyPreferencesScreen({
       setOrderDraft([...preferences]);
     }
   }, [editingOrder, preferences]);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("MyPreferencesScreen");
+  }, []);
 
   const displayPreferences = editingOrder ? orderDraft : preferences;
 

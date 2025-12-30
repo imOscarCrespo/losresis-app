@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { MenuGrid } from "../components/MenuGrid";
 import { NAVIGATION_ITEMS } from "../constants/navigationItems";
 import { getFooterConfig } from "../constants/footerConfig";
+import posthogLogger from "../services/posthogService";
 
 /**
  * Pantalla de Menú con grid de opciones
@@ -24,6 +25,11 @@ export default function MenuScreen({
       onSectionChange(sectionId);
     }
   };
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("MenuScreen");
+  }, []);
 
   return (
     <View style={styles.container}>

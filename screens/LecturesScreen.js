@@ -15,6 +15,7 @@ import { ScreenHeader } from "../components/ScreenHeader";
 import { Filters } from "../components/Filters";
 import { CourseCard } from "../components/CourseCard";
 import { filterCoursesBySearch } from "../utils/courseUtils";
+import posthogLogger from "../services/posthogService";
 
 /**
  * Pantalla de Cursos y Formaciones
@@ -37,6 +38,11 @@ export const LecturesScreen = ({ userProfile, navigation }) => {
   } = useLectures();
 
   const { hospitals, specialties } = useHospitals();
+
+  // Tracking de pantalla con PostHog
+  React.useEffect(() => {
+    posthogLogger.logScreen("LecturesScreen");
+  }, []);
 
   // Update filters when selections change
   React.useEffect(() => {

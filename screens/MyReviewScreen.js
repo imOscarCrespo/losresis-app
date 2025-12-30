@@ -18,6 +18,7 @@ import { useMyReview } from "../hooks/useMyReview";
 import { useHospitals } from "../hooks/useHospitals";
 import { formatShortDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
+import posthogLogger from "../services/posthogService";
 
 /**
  * Pantalla para crear/editar/ver la reseña del usuario residente
@@ -83,6 +84,11 @@ export default function MyReviewScreen({
       setIsAnonymous(existingReview.is_anonymous || false);
     }
   }, [existingReview]);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("MyReviewScreen");
+  }, []);
 
   // Handlers
   const handleStartReview = useCallback(() => {

@@ -9,6 +9,7 @@ import {
 } from "./services/authService";
 import { isProfileComplete } from "./services/userService";
 import { checkResidentReview } from "./services/communityService";
+import posthogLogger from "./services/posthogService";
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -17,6 +18,8 @@ export default function App() {
   const [residentHasReview, setResidentHasReview] = useState(true); // Por defecto true para no bloquear
 
   useEffect(() => {
+    // Inicializar PostHog al iniciar la aplicación
+    posthogLogger.initialize();
     checkAuth();
   }, []);
 
@@ -67,11 +70,22 @@ export default function App() {
 
             setIsAuthenticated(true);
             setNeedsOnboarding(!complete);
+            // Identificar usuario en PostHog
+            posthogLogger.identify(user.id, {
+              email: user.email,
+              is_resident: profile.is_resident,
+              is_student: profile.is_student,
+              is_super_admin: profile.is_super_admin,
+            });
           } else {
             // Usuario autenticado pero sin perfil en la base de datos
             setIsAuthenticated(true);
             setNeedsOnboarding(true);
             setResidentHasReview(true); // No aplicar restricción si no hay perfil
+            // Identificar usuario en PostHog sin perfil completo
+            posthogLogger.identify(user.id, {
+              email: user.email,
+            });
           }
         } else {
           setIsAuthenticated(false);
@@ -127,11 +141,22 @@ export default function App() {
 
         setIsAuthenticated(true);
         setNeedsOnboarding(!complete);
+        // Identificar usuario en PostHog después del login
+        posthogLogger.identify(user.id, {
+          email: user.email,
+          is_resident: profile.is_resident,
+          is_student: profile.is_student,
+          is_super_admin: profile.is_super_admin,
+        });
       } else {
         // Usuario sin perfil
         setIsAuthenticated(true);
         setNeedsOnboarding(true);
         setResidentHasReview(true);
+        // Identificar usuario en PostHog sin perfil completo
+        posthogLogger.identify(user.id, {
+          email: user.email,
+        });
       }
     } else {
       setIsAuthenticated(true);
@@ -202,6 +227,8 @@ export default function App() {
   };
 
   const handleSignOut = async () => {
+    // Resetear identificación de usuario en PostHog
+    posthogLogger.reset();
     // Forzar que el usuario vuelva a hacer login
     setIsAuthenticated(false);
     setNeedsOnboarding(false);

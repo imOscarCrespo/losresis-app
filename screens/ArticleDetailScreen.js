@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useArticles } from "../hooks/useArticles";
 import { formatLongDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
+import posthogLogger from "../services/posthogService";
 
 /**
  * Componente para renderizar contenido JSONB de TipTap
@@ -300,6 +301,11 @@ export default function ArticleDetailScreen({ articleId, onBack, userProfile }) 
   const { fetchArticleById, toggleLike, loading } = useArticles();
   const [article, setArticle] = useState(null);
   const [isLiking, setIsLiking] = useState(false);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("ArticleDetailScreen", { articleId });
+  }, [articleId]);
 
   // Cargar artículo al montar
   useEffect(() => {

@@ -15,6 +15,7 @@ import { useReviewDetail } from "../hooks/useReviewDetail";
 import { formatLongDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
 import { StudentQuestionsSection } from "../components/StudentQuestionsSection";
+import posthogLogger from "../services/posthogService";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = (SCREEN_WIDTH - 64) / 4; // 4 columnas con padding
@@ -57,6 +58,11 @@ StarRating.displayName = "StarRating";
 export default function ReviewDetailScreen({ reviewId, onBack, userProfile }) {
   const { review, loading, error, fetchReviewDetail } = useReviewDetail();
   const [selectedImage, setSelectedImage] = useState(null);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("ReviewDetailScreen", { reviewId });
+  }, [reviewId]);
 
   // Validar reviewId
   useEffect(() => {

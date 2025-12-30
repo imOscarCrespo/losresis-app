@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Filters } from "../components/Filters";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { useHospitals } from "../hooks/useHospitals";
+import posthogLogger from "../services/posthogService";
 
 export default function HospitalsScreen({
   onHospitalSelect,
@@ -111,6 +112,11 @@ export default function HospitalsScreen({
       selectedSpecialty
     );
   }, [searchTerm, selectedRegion, selectedCity, selectedSpecialty]);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("HospitalsScreen");
+  }, []);
 
   const handleHospitalItemPress = (hospital) => {
     if (onHospitalSelect) {

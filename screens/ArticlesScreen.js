@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useArticles } from "../hooks/useArticles";
 import { formatShortDate, formatLongDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
+import posthogLogger from "../services/posthogService";
 
 // ============================================================================
 // COMPONENTS
@@ -154,6 +155,11 @@ export default function ArticlesScreen({ onSectionChange, userProfile }) {
   } = useArticles();
 
   const [refreshing, setRefreshing] = useState(false);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("ArticlesScreen");
+  }, []);
 
   // Cargar artículos al montar
   useEffect(() => {

@@ -31,6 +31,7 @@ import {
 import { supabase } from "../config/supabase";
 import { Country, City } from "country-state-city";
 import RotationReviewDetailScreen from "./RotationReviewDetailScreen";
+import posthogLogger from "../services/posthogService";
 
 /**
  * Pantalla de Rotaciones Externas - Refactorizada
@@ -60,6 +61,11 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
   const [selectedMapCity, setSelectedMapCity] = useState("");
   const [selectedCountry, setSelectedCountry] = useState("");
   const [selectedCity, setSelectedCity] = useState("");
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("ExternalRotationsScreen");
+  }, []);
 
   // Cargar especialidades
   useEffect(() => {

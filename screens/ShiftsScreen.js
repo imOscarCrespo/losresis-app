@@ -22,6 +22,7 @@ import { useResidentReviewCheck } from "../hooks/useResidentReviewCheck";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { TeamCalendarView } from "./TeamCalendarView";
+import posthogLogger from "../services/posthogService";
 
 /**
  * Pantalla de Guardias
@@ -111,6 +112,11 @@ export const ShiftsScreen = ({
     saturday: "#C2410C",
     sunday: "#991B1B",
   };
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("ShiftsScreen");
+  }, []);
 
   // Handler para nueva guardia
   const handleNewShiftClick = useCallback(() => {

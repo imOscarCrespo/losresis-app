@@ -25,6 +25,7 @@ import {
   FloatingActionButton,
   ScreenHeader,
 } from "../components";
+import posthogLogger from "../services/posthogService";
 
 /**
  * Pantalla del Libro de Residente
@@ -102,6 +103,11 @@ export default function ResidenceLibraryScreen({
   const parentNodes = useMemo(() => {
     return allNodes.filter((node) => !node.parent_node_id);
   }, [allNodes]);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("ResidenceLibraryScreen");
+  }, []);
 
   // Manejar toggle de expansión de nodos
   const handleToggleExpand = (nodeId) => {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SelectFilter } from "../components/SelectFilter";
 import { useHospitals } from "../hooks/useHospitals";
 import { calculateMIRProbabilities } from "../services/mirSimulatorService";
+import posthogLogger from "../services/posthogService";
 
 export default function MirSimulatorScreen({ onBack }) {
   const { specialties, uniqueRegions } = useHospitals();
@@ -42,6 +43,11 @@ export default function MirSimulatorScreen({ onBack }) {
         name: region,
       }));
   }, [uniqueRegions]);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("MirSimulatorScreen");
+  }, []);
 
   // Validar si se puede calcular
   const canCalculate = mirScore && selectedSpecialty && !loading;

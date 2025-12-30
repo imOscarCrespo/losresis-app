@@ -14,6 +14,7 @@ import { Filters } from "../components/Filters";
 import { useCommunityUsers } from "../hooks/useCommunityUsers";
 import { useCities } from "../hooks/useCities";
 import { useResidentReviewCheck } from "../hooks/useResidentReviewCheck";
+import posthogLogger from "../services/posthogService";
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 
@@ -123,6 +124,11 @@ export default function ComunityScreen({ userProfile, navigation }) {
       }, 100);
     }
   }, [users, mapRegion]);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("ComunityScreen");
+  }, []);
 
   // Determinar si debe mostrar blur/overlay (residente sin reseña)
   const shouldShowReviewPrompt =

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
+import posthogLogger from "../services/posthogService";
 
 // ============================================================================
 // SUB-COMPONENTS
@@ -75,6 +76,11 @@ export default function ContactScreen({ userProfile }) {
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("ContactScreen");
+  }, []);
 
   // Actualizar campo del formulario
   const updateField = useCallback(

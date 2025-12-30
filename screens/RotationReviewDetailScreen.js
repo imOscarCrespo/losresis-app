@@ -12,6 +12,7 @@ import { getRotationReviewWithAnswers } from "../services/externalRotationReview
 import { formatLongDate, formatShortDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
 import { StarRating } from "../components/StarRating";
+import posthogLogger from "../services/posthogService";
 
 /**
  * Pantalla de detalle de reseña de rotación externa
@@ -24,6 +25,11 @@ export default function RotationReviewDetailScreen({
   const [review, setReview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("RotationReviewDetailScreen", { reviewId });
+  }, [reviewId]);
 
   // Cargar detalle de la reseña
   useEffect(() => {

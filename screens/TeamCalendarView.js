@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 import { useTeamShifts } from '../hooks/useTeamShifts';
 import { supabase } from '../config/supabase';
+import posthogLogger from '../services/posthogService';
 
 // Configurar locale en español
 LocaleConfig.locales['es'] = {
@@ -54,6 +55,11 @@ export const TeamCalendarView = ({ userProfile, userShifts, onClose }) => {
   const [requestedPurchaseIds, setRequestedPurchaseIds] = useState(new Set());
 
   // Fetch pending swap requests where user is the requester
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("TeamCalendarView");
+  }, []);
+
   useEffect(() => {
     const fetchPendingSwapRequests = async () => {
       if (!userId || !userShifts || userShifts.length === 0) {

@@ -17,6 +17,7 @@ import { useHousingAds } from "../hooks/useHousingAds";
 import { formatDateOnly } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
 import { getCurrentUser } from "../services/authService";
+import posthogLogger from "../services/posthogService";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const IMAGE_SIZE = (SCREEN_WIDTH - 64) / 3; // 3 columnas con padding
@@ -81,6 +82,11 @@ export default function HousingAdDetailScreen({
   const [error, setError] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("HousingAdDetailScreen", { adId });
+  }, [adId]);
 
   // Cargar usuario actual
   useEffect(() => {

@@ -36,6 +36,7 @@ import {
 import { supabase } from "../config/supabase";
 import * as Linking from "expo-linking";
 import { COLORS } from "../constants/colors";
+import posthogLogger from "../services/posthogService";
 
 const isDevelopment = __DEV__;
 const isIOS = Platform.OS === "ios";
@@ -77,6 +78,11 @@ export default function WelcomeScreen({ onAuthSuccess }) {
 
     // Verificar si el usuario ya está autenticado
     checkAuth();
+  }, []);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("WelcomeScreen");
   }, []);
 
   // Verificar configuración de biometría

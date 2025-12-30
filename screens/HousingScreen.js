@@ -1,4 +1,4 @@
-import React, { useMemo, memo, useCallback } from "react";
+import React, { useMemo, memo, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { FloatingActionButton } from "../components/FloatingActionButton";
 import { prepareHospitalOptions } from "../utils/profileOptions";
 import { formatLongDate, formatDateOnly } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
+import posthogLogger from "../services/posthogService";
 
 // ============================================================================
 // UTILITIES
@@ -307,6 +308,11 @@ export default function HousingScreen({
 
   const { hospitals } = useHospitals();
   const [refreshing, setRefreshing] = React.useState(false);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("HousingScreen");
+  }, []);
 
   // Preparar opciones para los filtros
   const hospitalOptions = useMemo(() => {

@@ -15,6 +15,7 @@ import { ScreenHeader } from "../components/ScreenHeader";
 import { prepareHospitalOptions } from "../utils/profileOptions";
 import { formatShortDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
+import posthogLogger from "../services/posthogService";
 
 // ============================================================================
 // COMPONENTS
@@ -152,6 +153,11 @@ export default function ReviewsScreen({
   const hasActiveFilters = useMemo(() => {
     return !!(hospitalSearchTerm || selectedHospital || selectedSpecialty);
   }, [hospitalSearchTerm, selectedHospital, selectedSpecialty]);
+
+  // Tracking de pantalla con PostHog
+  useEffect(() => {
+    posthogLogger.logScreen("ReviewsScreen");
+  }, []);
 
   const handleReviewPress = (summary) => {
     if (onSectionChange && summary.review_id) {
