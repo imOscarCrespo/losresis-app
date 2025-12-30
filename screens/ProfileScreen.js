@@ -127,7 +127,9 @@ export default function ProfileScreen({
 
   // Tracking de pantalla con PostHog
   useEffect(() => {
-    const screenName = isOnboarding ? "ProfileScreen_Onboarding" : "ProfileScreen";
+    const screenName = isOnboarding
+      ? "ProfileScreen_Onboarding"
+      : "ProfileScreen";
     posthogLogger.logScreen(screenName, { isOnboarding });
   }, [isOnboarding]);
 

@@ -1,5 +1,11 @@
 import React, { useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
@@ -22,56 +28,56 @@ export default function LeisureScreen({ onSectionChange, userProfile }) {
 
   return (
     <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Ocio</Text>
-          <Text style={styles.subtitle}>
-            Comparte actividades de ocio en {userProfile?.city || "tu ciudad"}
-          </Text>
-        </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Ocio</Text>
+        <Text style={styles.subtitle}>
+          Comparte actividades de ocio en {userProfile?.city || "tu ciudad"}
+        </Text>
+      </View>
 
-        {/* Menu Options */}
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.contentContainer}
-          showsVerticalScrollIndicator={false}
+      {/* Menu Options */}
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Fiesta Option */}
+        <TouchableOpacity
+          style={styles.optionCard}
+          onPress={() => handleOptionPress("Fiesta")}
+          activeOpacity={0.7}
         >
-          {/* Fiesta Option */}
-          <TouchableOpacity
-            style={styles.optionCard}
-            onPress={() => handleOptionPress("Fiesta")}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.iconContainer, { backgroundColor: "#FCE7F3" }]}>
-              <Ionicons name="wine" size={32} color="#EC4899" />
-            </View>
-            <View style={styles.optionContent}>
-              <Text style={styles.optionTitle}>Fiesta</Text>
-              <Text style={styles.optionDescription}>
-                Comparte planes de fiesta y eventos nocturnos en tu ciudad
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color={COLORS.GRAY} />
-          </TouchableOpacity>
+          <View style={[styles.iconContainer, { backgroundColor: "#FCE7F3" }]}>
+            <Ionicons name="wine" size={32} color="#EC4899" />
+          </View>
+          <View style={styles.optionContent}>
+            <Text style={styles.optionTitle}>Fiesta</Text>
+            <Text style={styles.optionDescription}>
+              Comparte planes de fiesta y eventos nocturnos en tu ciudad
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color={COLORS.GRAY} />
+        </TouchableOpacity>
 
-          {/* Deporte Option */}
-          <TouchableOpacity
-            style={styles.optionCard}
-            onPress={() => handleOptionPress("Deporte")}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.iconContainer, { backgroundColor: "#DBEAFE" }]}>
-              <Ionicons name="football" size={32} color="#3B82F6" />
-            </View>
-            <View style={styles.optionContent}>
-              <Text style={styles.optionTitle}>Deporte</Text>
-              <Text style={styles.optionDescription}>
-                Organiza partidos, entrenamientos y actividades deportivas
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color={COLORS.GRAY} />
-          </TouchableOpacity>
-        </ScrollView>
+        {/* Deporte Option */}
+        <TouchableOpacity
+          style={styles.optionCard}
+          onPress={() => handleOptionPress("Deporte")}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: "#DBEAFE" }]}>
+            <Ionicons name="football" size={32} color="#3B82F6" />
+          </View>
+          <View style={styles.optionContent}>
+            <Text style={styles.optionTitle}>Deporte</Text>
+            <Text style={styles.optionDescription}>
+              Organiza partidos, entrenamientos y actividades deportivas
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color={COLORS.GRAY} />
+        </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 }
@@ -145,4 +151,3 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
-

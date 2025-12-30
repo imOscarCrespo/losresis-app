@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,26 +9,57 @@ import {
   Modal,
   Alert,
   TextInput,
-} from 'react-native';
-import { Calendar, LocaleConfig } from 'react-native-calendars';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../constants/colors';
-import { useTeamShifts } from '../hooks/useTeamShifts';
-import { supabase } from '../config/supabase';
-import posthogLogger from '../services/posthogService';
+} from "react-native";
+import { Calendar, LocaleConfig } from "react-native-calendars";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS } from "../constants/colors";
+import { useTeamShifts } from "../hooks/useTeamShifts";
+import { supabase } from "../config/supabase";
+import posthogLogger from "../services/posthogService";
 
 // Configurar locale en español
-LocaleConfig.locales['es'] = {
+LocaleConfig.locales["es"] = {
   monthNames: [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
   ],
-  monthNamesShort: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
-  dayNames: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
-  dayNamesShort: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
-  today: 'Hoy'
+  monthNamesShort: [
+    "Ene",
+    "Feb",
+    "Mar",
+    "Abr",
+    "May",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dic",
+  ],
+  dayNames: [
+    "Domingo",
+    "Lunes",
+    "Martes",
+    "Miércoles",
+    "Jueves",
+    "Viernes",
+    "Sábado",
+  ],
+  dayNamesShort: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"],
+  today: "Hoy",
 };
-LocaleConfig.defaultLocale = 'es';
+LocaleConfig.defaultLocale = "es";
 
 /**
  * Vista del calendario del equipo
@@ -75,20 +106,22 @@ export const TeamCalendarView = ({ userProfile, userShifts, onClose }) => {
         }
 
         const { data, error } = await supabase
-          .from('shift_swap_requests')
-          .select('target_shift_id')
-          .in('requester_shift_id', userShiftIds)
-          .eq('status', 'pending');
+          .from("shift_swap_requests")
+          .select("target_shift_id")
+          .in("requester_shift_id", userShiftIds)
+          .eq("status", "pending");
 
         if (error) {
-          console.error('Error fetching pending swap requests:', error);
+          console.error("Error fetching pending swap requests:", error);
           return;
         }
 
-        const targetIds = new Set((data || []).map((req) => req.target_shift_id));
+        const targetIds = new Set(
+          (data || []).map((req) => req.target_shift_id)
+        );
         setPendingSwapTargetIds(targetIds);
       } catch (error) {
-        console.error('Exception fetching pending swap requests:', error);
+        console.error("Exception fetching pending swap requests:", error);
       }
     };
 
@@ -102,20 +135,20 @@ export const TeamCalendarView = ({ userProfile, userShifts, onClose }) => {
 
       try {
         const { data, error } = await supabase
-          .from('shift_purchase_requests')
-          .select('shift_id')
-          .eq('buyer_id', userId)
-          .eq('status', 'PENDING');
+          .from("shift_purchase_requests")
+          .select("shift_id")
+          .eq("buyer_id", userId)
+          .eq("status", "PENDING");
 
         if (error) {
-          console.error('Error fetching requested purchases:', error);
+          console.error("Error fetching requested purchases:", error);
           return;
         }
 
         const ids = new Set((data || []).map((req) => req.shift_id));
         setRequestedPurchaseIds(ids);
       } catch (error) {
-        console.error('Exception fetching requested purchases:', error);
+        console.error("Exception fetching requested purchases:", error);
       }
     };
 
@@ -171,7 +204,10 @@ export const TeamCalendarView = ({ userProfile, userShifts, onClose }) => {
     if (shift.user_id === userId) return;
 
     // Si ya está solicitada, no hacer nada
-    if (pendingSwapTargetIds.has(shift.id) || requestedPurchaseIds.has(shift.id)) {
+    if (
+      pendingSwapTargetIds.has(shift.id) ||
+      requestedPurchaseIds.has(shift.id)
+    ) {
       return;
     }
 
@@ -189,32 +225,43 @@ export const TeamCalendarView = ({ userProfile, userShifts, onClose }) => {
     const date = new Date(dateString);
     const day = date.getDate();
     const monthNames = [
-      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      "Enero",
+      "Febrero",
+      "Marzo",
+      "Abril",
+      "Mayo",
+      "Junio",
+      "Julio",
+      "Agosto",
+      "Septiembre",
+      "Octubre",
+      "Noviembre",
+      "Diciembre",
     ];
     const month = monthNames[date.getMonth()];
     const year = date.getFullYear();
-    const dayName = date.toLocaleDateString('es-ES', { weekday: 'long' });
-    const capitalizedDayName = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+    const dayName = date.toLocaleDateString("es-ES", { weekday: "long" });
+    const capitalizedDayName =
+      dayName.charAt(0).toUpperCase() + dayName.slice(1);
     return `${capitalizedDayName}, ${day} de ${month} ${year}`;
   };
 
   const guardTypeLabels = {
-    regular: 'Laborable',
-    saturday: 'Sábado',
-    sunday: 'Domingo',
+    regular: "Laborable",
+    saturday: "Sábado",
+    sunday: "Domingo",
   };
 
   const guardTypeColors = {
-    regular: '#FFF3E0',
-    saturday: '#FCE4EC',
-    sunday: '#FFEBEE',
+    regular: "#FFF3E0",
+    saturday: "#FCE4EC",
+    sunday: "#FFEBEE",
   };
 
   const guardTypeTextColors = {
-    regular: '#E65100',
-    saturday: '#C2185B',
-    sunday: '#C62828',
+    regular: "#E65100",
+    saturday: "#C2185B",
+    sunday: "#C62828",
   };
 
   if (loading) {
@@ -228,7 +275,9 @@ export const TeamCalendarView = ({ userProfile, userShifts, onClose }) => {
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-          <Text style={styles.loadingText}>Cargando guardias del equipo...</Text>
+          <Text style={styles.loadingText}>
+            Cargando guardias del equipo...
+          </Text>
         </View>
       </View>
     );
@@ -251,38 +300,48 @@ export const TeamCalendarView = ({ userProfile, userShifts, onClose }) => {
       {/* Legend */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: COLORS.PRIMARY }]} />
+          <View
+            style={[styles.legendDot, { backgroundColor: COLORS.PRIMARY }]}
+          />
           <Text style={styles.legendText}>Tus guardias</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: COLORS.ORANGE }]} />
+          <View
+            style={[styles.legendDot, { backgroundColor: COLORS.ORANGE }]}
+          />
           <Text style={styles.legendText}>Guardias del equipo</Text>
         </View>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Calendar */}
         <View style={styles.calendarContainer}>
           <Calendar
-            current={`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`}
-            monthFormat={'MMMM yyyy'}
+            current={`${currentYear}-${String(currentMonth + 1).padStart(
+              2,
+              "0"
+            )}-01`}
+            monthFormat={"MMMM yyyy"}
             hideArrows={false}
             renderArrow={(direction) => (
               <Ionicons
-                name={direction === 'left' ? 'chevron-back' : 'chevron-forward'}
+                name={direction === "left" ? "chevron-back" : "chevron-forward"}
                 size={24}
                 color={COLORS.PRIMARY}
               />
             )}
             markedDates={markedDates}
-            minDate={new Date().toISOString().split('T')[0]}
+            minDate={new Date().toISOString().split("T")[0]}
             theme={{
               todayTextColor: COLORS.PRIMARY,
               selectedDayBackgroundColor: COLORS.PRIMARY,
               selectedDayTextColor: COLORS.WHITE,
               arrowColor: COLORS.PRIMARY,
               monthTextColor: COLORS.GRAY_DARK,
-              textMonthFontWeight: 'bold',
+              textMonthFontWeight: "bold",
               textMonthFontSize: 18,
             }}
             onMonthChange={(month) => {
@@ -291,14 +350,16 @@ export const TeamCalendarView = ({ userProfile, userShifts, onClose }) => {
             }}
             dayComponent={({ date, state }) => {
               if (!date) return null;
-              
+
               const dateString = date.dateString;
-              const { userShiftsForDate: userShifts, teamShiftsForDate: teamShifts } = 
-                getShiftsForDate(dateString);
-              
-              const isDisabled = state === 'disabled';
-              const isToday = state === 'today';
-              
+              const {
+                userShiftsForDate: userShifts,
+                teamShiftsForDate: teamShifts,
+              } = getShiftsForDate(dateString);
+
+              const isDisabled = state === "disabled";
+              const isToday = state === "today";
+
               return (
                 <View style={styles.dayCell}>
                   <Text
@@ -316,7 +377,10 @@ export const TeamCalendarView = ({ userProfile, userShifts, onClose }) => {
                         key={`user-${shift.id}-${index}`}
                         style={[styles.shiftBadgeSmall, styles.userShiftBadge]}
                       >
-                        <Text style={styles.shiftBadgeSmallText} numberOfLines={1}>
+                        <Text
+                          style={styles.shiftBadgeSmallText}
+                          numberOfLines={1}
+                        >
                           Tu guardia
                         </Text>
                       </View>
@@ -328,12 +392,15 @@ export const TeamCalendarView = ({ userProfile, userShifts, onClose }) => {
                         onPress={() => !isDisabled && handleShiftPress(shift)}
                         disabled={isDisabled}
                       >
-                        <Text style={styles.shiftBadgeSmallText} numberOfLines={1}>
-                          {shift.user_name || 'Compañero'}
+                        <Text
+                          style={styles.shiftBadgeSmallText}
+                          numberOfLines={1}
+                        >
+                          {shift.user_name || "Compañero"}
                         </Text>
                       </TouchableOpacity>
                     ))}
-                    {(userShifts.length + teamShifts.length > 2) && (
+                    {userShifts.length + teamShifts.length > 2 && (
                       <Text style={styles.moreShiftsText}>
                         +{userShifts.length + teamShifts.length - 2}
                       </Text>
@@ -394,9 +461,9 @@ const SwapRequestModal = ({
   guardTypeColors,
   guardTypeTextColors,
 }) => {
-  const [selectedUserShift, setSelectedUserShift] = useState('');
+  const [selectedUserShift, setSelectedUserShift] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   // Filtrar guardias del usuario (solo futuras y de este mes y el siguiente)
   const availableGuards = useMemo(() => {
@@ -427,34 +494,32 @@ const SwapRequestModal = ({
 
   const handleRequestSwap = async () => {
     if (!selectedUserShift) {
-      setError('Por favor, selecciona una guardia para intercambiar');
+      setError("Por favor, selecciona una guardia para intercambiar");
       return;
     }
 
-    setError('');
+    setError("");
     setSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('shift_swap_requests')
-        .insert([
-          {
-            requester_shift_id: selectedUserShift,
-            target_shift_id: shift.id,
-            status: 'pending',
-          },
-        ]);
+      const { error } = await supabase.from("shift_swap_requests").insert([
+        {
+          requester_shift_id: selectedUserShift,
+          target_shift_id: shift.id,
+          status: "pending",
+        },
+      ]);
 
       if (error) {
-        console.error('Error creating swap request:', error);
-        Alert.alert('Error', 'No se pudo crear la solicitud de cambio');
+        console.error("Error creating swap request:", error);
+        Alert.alert("Error", "No se pudo crear la solicitud de cambio");
         return;
       }
 
-      Alert.alert('Éxito', 'Solicitud de intercambio enviada correctamente');
+      Alert.alert("Éxito", "Solicitud de intercambio enviada correctamente");
       onSwapRequestCreated(shift.id);
     } catch (error) {
-      console.error('Exception creating swap request:', error);
-      Alert.alert('Error', 'No se pudo crear la solicitud de cambio');
+      console.error("Exception creating swap request:", error);
+      Alert.alert("Error", "No se pudo crear la solicitud de cambio");
     } finally {
       setSubmitting(false);
     }
@@ -471,15 +536,23 @@ const SwapRequestModal = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.modalContent}
+            showsVerticalScrollIndicator={false}
+          >
             <Text style={styles.modalSubtitle}>
-              Solicita un intercambio de guardia con {shift.user_name} {shift.user_surname}
+              Solicita un intercambio de guardia con {shift.user_name}{" "}
+              {shift.user_surname}
             </Text>
 
             {/* Shift Details */}
             <View style={styles.shiftDetailCard}>
-              <Text style={styles.shiftDetailTitle}>Detalles de la guardia</Text>
-              <Text style={styles.shiftDetailDate}>{formatDate(shift.date)}</Text>
+              <Text style={styles.shiftDetailTitle}>
+                Detalles de la guardia
+              </Text>
+              <Text style={styles.shiftDetailDate}>
+                {formatDate(shift.date)}
+              </Text>
               <View
                 style={[
                   styles.shiftTypeBadge,
@@ -498,7 +571,9 @@ const SwapRequestModal = ({
             </View>
 
             {/* User Shift Selection */}
-            <Text style={styles.inputLabel}>Selecciona tu guardia para intercambiar</Text>
+            <Text style={styles.inputLabel}>
+              Selecciona tu guardia para intercambiar
+            </Text>
             <ScrollView
               style={styles.shiftsSelectContainer}
               showsVerticalScrollIndicator={false}
@@ -513,15 +588,18 @@ const SwapRequestModal = ({
                     key={userShift.id}
                     style={[
                       styles.shiftSelectOption,
-                      selectedUserShift === userShift.id && styles.shiftSelectOptionSelected,
+                      selectedUserShift === userShift.id &&
+                        styles.shiftSelectOptionSelected,
                     ]}
                     onPress={() => {
                       setSelectedUserShift(userShift.id);
-                      setError('');
+                      setError("");
                     }}
                   >
                     <View style={styles.shiftSelectContent}>
-                      <Text style={styles.shiftSelectDate}>{formatDate(userShift.date)}</Text>
+                      <Text style={styles.shiftSelectDate}>
+                        {formatDate(userShift.date)}
+                      </Text>
                       <View
                         style={[
                           styles.shiftTypeBadgeSmall,
@@ -539,7 +617,11 @@ const SwapRequestModal = ({
                       </View>
                     </View>
                     {selectedUserShift === userShift.id && (
-                      <Ionicons name="checkmark-circle" size={24} color={COLORS.SUCCESS} />
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={24}
+                        color={COLORS.SUCCESS}
+                      />
                     )}
                   </TouchableOpacity>
                 ))
@@ -550,26 +632,37 @@ const SwapRequestModal = ({
 
             {/* Info message */}
             <View style={styles.infoCard}>
-              <Ionicons name="information-circle" size={20} color={COLORS.PRIMARY} />
+              <Ionicons
+                name="information-circle"
+                size={20}
+                color={COLORS.PRIMARY}
+              />
               <Text style={styles.infoText}>
-                Se enviará una solicitud a {shift.user_name} {shift.user_surname}. Podrás ver el
-                estado en la sección de guardias.
+                Se enviará una solicitud a {shift.user_name}{" "}
+                {shift.user_surname}. Podrás ver el estado en la sección de
+                guardias.
               </Text>
             </View>
           </ScrollView>
 
           {/* Actions */}
           <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.modalCancelButton} onPress={onClose}>
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={onClose}
+            >
               <Text style={styles.modalCancelButtonText}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.modalSubmitButton, submitting && styles.modalSubmitButtonDisabled]}
+              style={[
+                styles.modalSubmitButton,
+                submitting && styles.modalSubmitButtonDisabled,
+              ]}
               onPress={handleRequestSwap}
               disabled={submitting || availableGuards.length === 0}
             >
               <Text style={styles.modalSubmitButtonText}>
-                {submitting ? 'Enviando...' : 'Solicitar Cambio'}
+                {submitting ? "Enviando..." : "Solicitar Cambio"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -592,11 +685,14 @@ const PurchaseRequestModal = ({
 }) => {
   const [submitting, setSubmitting] = useState(false);
 
-  const amount = shift.price_eur !== null && shift.price_eur !== undefined ? Number(shift.price_eur) : 0;
+  const amount =
+    shift.price_eur !== null && shift.price_eur !== undefined
+      ? Number(shift.price_eur)
+      : 0;
 
   const handleRequestPurchase = async () => {
     if (amount <= 0) {
-      Alert.alert('Error', 'Esta guardia no tiene un precio disponible');
+      Alert.alert("Error", "Esta guardia no tiene un precio disponible");
       return;
     }
 
@@ -604,33 +700,31 @@ const PurchaseRequestModal = ({
     const roundedAmount = Math.round(amount * 100) / 100;
 
     try {
-      const { error } = await supabase
-        .from('shift_purchase_requests')
-        .insert([
-          {
-            shift_id: shift.id,
-            buyer_id: userId,
-            owner_id: shift.user_id,
-            offered_price_eur: roundedAmount,
-            status: 'PENDING',
-          },
-        ]);
+      const { error } = await supabase.from("shift_purchase_requests").insert([
+        {
+          shift_id: shift.id,
+          buyer_id: userId,
+          owner_id: shift.user_id,
+          offered_price_eur: roundedAmount,
+          status: "PENDING",
+        },
+      ]);
 
       if (error) {
-        console.error('Error creating purchase request:', error);
-        if (error.code === '23505') {
-          Alert.alert('Error', 'Ya has solicitado comprar esta guardia');
+        console.error("Error creating purchase request:", error);
+        if (error.code === "23505") {
+          Alert.alert("Error", "Ya has solicitado comprar esta guardia");
         } else {
-          Alert.alert('Error', 'No se pudo enviar la solicitud de compra');
+          Alert.alert("Error", "No se pudo enviar la solicitud de compra");
         }
         return;
       }
 
-      Alert.alert('Éxito', 'Solicitud de compra enviada correctamente');
+      Alert.alert("Éxito", "Solicitud de compra enviada correctamente");
       onPurchaseCreated(shift.id);
     } catch (error) {
-      console.error('Exception creating purchase request:', error);
-      Alert.alert('Error', 'No se pudo enviar la solicitud de compra');
+      console.error("Exception creating purchase request:", error);
+      Alert.alert("Error", "No se pudo enviar la solicitud de compra");
     } finally {
       setSubmitting(false);
     }
@@ -647,15 +741,23 @@ const PurchaseRequestModal = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.modalContent}
+            showsVerticalScrollIndicator={false}
+          >
             <Text style={styles.modalSubtitle}>
-              Enviaremos una solicitud para que puedas cubrir esta guardia remunerada
+              Enviaremos una solicitud para que puedas cubrir esta guardia
+              remunerada
             </Text>
 
             {/* Shift Details */}
             <View style={styles.shiftDetailCard}>
-              <Text style={styles.shiftDetailTitle}>Detalles de la guardia</Text>
-              <Text style={styles.shiftDetailDate}>{formatDate(shift.date)}</Text>
+              <Text style={styles.shiftDetailTitle}>
+                Detalles de la guardia
+              </Text>
+              <Text style={styles.shiftDetailDate}>
+                {formatDate(shift.date)}
+              </Text>
               <View style={styles.shiftCardHeader}>
                 <View
                   style={[
@@ -692,26 +794,36 @@ const PurchaseRequestModal = ({
 
             {/* Info message */}
             <View style={styles.infoCard}>
-              <Ionicons name="information-circle" size={20} color={COLORS.PRIMARY} />
+              <Ionicons
+                name="information-circle"
+                size={20}
+                color={COLORS.PRIMARY}
+              />
               <Text style={styles.infoText}>
-                Se enviará la solicitud para ejercer esta guardia. Cuando el compañero la acepte,
-                coordinaremos el pago entre ambos.
+                Se enviará la solicitud para ejercer esta guardia. Cuando el
+                compañero la acepte, coordinaremos el pago entre ambos.
               </Text>
             </View>
           </ScrollView>
 
           {/* Actions */}
           <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.modalCancelButton} onPress={onClose}>
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={onClose}
+            >
               <Text style={styles.modalCancelButtonText}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.modalSubmitButton, submitting && styles.modalSubmitButtonDisabled]}
+              style={[
+                styles.modalSubmitButton,
+                submitting && styles.modalSubmitButtonDisabled,
+              ]}
               onPress={handleRequestPurchase}
               disabled={submitting}
             >
               <Text style={styles.modalSubmitButtonText}>
-                {submitting ? 'Enviando...' : 'Solicitar Compra'}
+                {submitting ? "Enviando..." : "Solicitar Compra"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -727,9 +839,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 16,
     backgroundColor: COLORS.WHITE,
     borderBottomWidth: 1,
@@ -740,7 +852,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.GRAY_DARK,
     marginBottom: 4,
   },
@@ -753,8 +865,8 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   loadingText: {
@@ -763,16 +875,16 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
   legend: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 16,
     gap: 24,
     backgroundColor: COLORS.WHITE,
   },
   legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   legendDot: {
@@ -792,7 +904,7 @@ const styles = StyleSheet.create({
     margin: 16,
     borderRadius: 16,
     padding: 8,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -803,26 +915,26 @@ const styles = StyleSheet.create({
   },
   shiftsTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.GRAY_DARK,
     marginBottom: 16,
   },
   emptyState: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: 40,
   },
   emptyStateText: {
     marginTop: 12,
     fontSize: 16,
     color: COLORS.GRAY,
-    textAlign: 'center',
+    textAlign: "center",
   },
   shiftsSection: {
     marginBottom: 24,
   },
   shiftsSectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
     marginBottom: 12,
   },
@@ -831,7 +943,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -852,14 +964,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   shiftCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
   shiftUserName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
     flex: 1,
   },
@@ -868,28 +980,28 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
   priceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: "#F0FDF4",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
   priceText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.SUCCESS,
   },
   shiftTypeBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   shiftTypeBadgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   shiftTypeBadgeSmall: {
     paddingHorizontal: 8,
@@ -898,7 +1010,7 @@ const styles = StyleSheet.create({
   },
   shiftTypeBadgeTextSmall: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   shiftNotes: {
     fontSize: 14,
@@ -907,39 +1019,39 @@ const styles = StyleSheet.create({
   pendingText: {
     fontSize: 12,
     color: COLORS.GRAY,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   modalContainer: {
     backgroundColor: COLORS.WHITE,
     borderRadius: 20,
-    width: '100%',
+    width: "100%",
     maxWidth: 500,
-    maxHeight: '90%',
-    shadowColor: '#000',
+    maxHeight: "90%",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 8,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.GRAY_DARK,
     flex: 1,
   },
@@ -955,28 +1067,28 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   shiftDetailCard: {
-    backgroundColor: '#FFF8F0',
+    backgroundColor: "#FFF8F0",
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#FFE4CC',
+    borderColor: "#FFE4CC",
   },
   shiftDetailTitle: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY,
     marginBottom: 8,
   },
   shiftDetailDate: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
     marginBottom: 12,
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
     marginBottom: 12,
   },
@@ -987,13 +1099,13 @@ const styles = StyleSheet.create({
   noShiftsText: {
     fontSize: 14,
     color: COLORS.GRAY,
-    textAlign: 'center',
+    textAlign: "center",
     padding: 20,
   },
   shiftSelectOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 12,
     borderRadius: 12,
     borderWidth: 2,
@@ -1002,7 +1114,7 @@ const styles = StyleSheet.create({
   },
   shiftSelectOptionSelected: {
     borderColor: COLORS.SUCCESS,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: "#F0FDF4",
   },
   shiftSelectContent: {
     flex: 1,
@@ -1011,7 +1123,7 @@ const styles = StyleSheet.create({
   shiftSelectDate: {
     fontSize: 14,
     color: COLORS.GRAY_DARK,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   errorText: {
     fontSize: 14,
@@ -1019,54 +1131,54 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   infoCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 12,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: "#EFF6FF",
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: "#DBEAFE",
   },
   infoText: {
     flex: 1,
     fontSize: 13,
-    color: '#1E40AF',
+    color: "#1E40AF",
     lineHeight: 18,
   },
   priceCard: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: "#F0FDF4",
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
-    alignItems: 'center',
+    borderColor: "#BBF7D0",
+    alignItems: "center",
   },
   priceCardTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY,
     marginBottom: 12,
   },
   priceCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     marginBottom: 8,
   },
   priceCardAmount: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.SUCCESS,
   },
   priceCardSubtext: {
     fontSize: 12,
     color: COLORS.GRAY,
-    textAlign: 'center',
+    textAlign: "center",
   },
   modalActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     padding: 20,
     borderTopWidth: 1,
@@ -1077,11 +1189,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND,
     paddingVertical: 14,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalCancelButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.GRAY_DARK,
   },
   modalSubmitButton: {
@@ -1089,25 +1201,25 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.PRIMARY,
     paddingVertical: 14,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalSubmitButtonDisabled: {
     backgroundColor: COLORS.GRAY,
   },
   modalSubmitButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.WHITE,
   },
   // Day cell styles
   dayCell: {
     width: 50,
     height: 80,
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 4,
   },
   dayCellSelected: {
-    backgroundColor: COLORS.PRIMARY + '20',
+    backgroundColor: COLORS.PRIMARY + "20",
     borderRadius: 8,
   },
   dayText: {
@@ -1116,46 +1228,45 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   dayTextDisabled: {
-    color: COLORS.GRAY + '80',
+    color: COLORS.GRAY + "80",
   },
   dayTextToday: {
     color: COLORS.PRIMARY,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   dayTextSelected: {
     color: COLORS.PRIMARY,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   shiftsInDay: {
-    width: '100%',
+    width: "100%",
     gap: 2,
   },
   shiftBadgeSmall: {
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 4,
-    width: '100%',
+    width: "100%",
     borderWidth: 1,
   },
   userShiftBadge: {
-    backgroundColor: '#2196F3',
-    borderColor: '#1976D2',
+    backgroundColor: "#2196F3",
+    borderColor: "#1976D2",
   },
   teamShiftBadge: {
-    backgroundColor: '#FFB74D',
-    borderColor: '#F57C00',
+    backgroundColor: "#FFB74D",
+    borderColor: "#F57C00",
   },
   shiftBadgeSmallText: {
     fontSize: 9,
-    color: '#1a1a1a',
-    fontWeight: '700',
-    textAlign: 'center',
+    color: "#1a1a1a",
+    fontWeight: "700",
+    textAlign: "center",
   },
   moreShiftsText: {
     fontSize: 8,
     color: COLORS.GRAY,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 2,
   },
 });
-

@@ -59,7 +59,10 @@ export default function RotationReviewDetailScreen({
 
   // Separar respuestas por tipo
   const { ratingAnswers, textAnswers } = useMemo(() => {
-    if (!review?.external_rotation_review_answer || !Array.isArray(review.external_rotation_review_answer)) {
+    if (
+      !review?.external_rotation_review_answer ||
+      !Array.isArray(review.external_rotation_review_answer)
+    ) {
       return { ratingAnswers: [], textAnswers: [] };
     }
 
@@ -456,4 +459,3 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
-

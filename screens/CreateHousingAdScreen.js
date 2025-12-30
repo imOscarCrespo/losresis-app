@@ -82,7 +82,9 @@ export default function CreateHousingAdScreen({
 
   // Tracking de pantalla con PostHog
   useEffect(() => {
-    const screenName = isEditMode ? "CreateHousingAdScreen_Edit" : "CreateHousingAdScreen_Create";
+    const screenName = isEditMode
+      ? "CreateHousingAdScreen_Edit"
+      : "CreateHousingAdScreen_Create";
     posthogLogger.logScreen(screenName, { adId, isEditMode });
   }, [isEditMode, adId]);
 

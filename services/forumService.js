@@ -401,7 +401,12 @@ export const getThreadPosts = async (threadId) => {
  * @param {string} parentPostId - ID del post padre (opcional, para respuestas)
  * @returns {Promise<{success: boolean, post: object|null, error: string|null}>}
  */
-export const createPost = async (threadId, userId, body, parentPostId = null) => {
+export const createPost = async (
+  threadId,
+  userId,
+  body,
+  parentPostId = null
+) => {
   try {
     if (!threadId || !userId || !body) {
       return {

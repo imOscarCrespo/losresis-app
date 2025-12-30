@@ -92,7 +92,11 @@ const PostItem = ({ post, level = 0, onReply, currentUserId }) => {
             onPress={() => setShowReplyInput(!showReplyInput)}
             activeOpacity={0.7}
           >
-            <Ionicons name="chatbubble-outline" size={16} color={COLORS.PRIMARY} />
+            <Ionicons
+              name="chatbubble-outline"
+              size={16}
+              color={COLORS.PRIMARY}
+            />
             <Text style={styles.replyButtonText}>Responder</Text>
           </TouchableOpacity>
         )}
@@ -123,7 +127,8 @@ const PostItem = ({ post, level = 0, onReply, currentUserId }) => {
               <TouchableOpacity
                 style={[
                   styles.submitReplyButton,
-                  (!replyText.trim() || replying) && styles.submitReplyButtonDisabled,
+                  (!replyText.trim() || replying) &&
+                    styles.submitReplyButtonDisabled,
                 ]}
                 onPress={handleReply}
                 disabled={!replyText.trim() || replying}
@@ -206,8 +211,11 @@ export default function ThreadDetailScreen({
 
     try {
       // Cargar thread
-      const { success: threadSuccess, thread: threadData, error: threadError } =
-        await getThreadById(threadId);
+      const {
+        success: threadSuccess,
+        thread: threadData,
+        error: threadError,
+      } = await getThreadById(threadId);
 
       if (!threadSuccess) {
         setError(threadError || "Error al cargar el thread");
@@ -218,8 +226,11 @@ export default function ThreadDetailScreen({
       setThread(threadData);
 
       // Cargar posts
-      const { success: postsSuccess, posts: postsData, error: postsError } =
-        await getThreadPosts(threadId);
+      const {
+        success: postsSuccess,
+        posts: postsData,
+        error: postsError,
+      } = await getThreadPosts(threadId);
 
       if (!postsSuccess) {
         setError(postsError || "Error al cargar los posts");
@@ -264,11 +275,11 @@ export default function ThreadDetailScreen({
     setCreating(true);
 
     try {
-      const { success, post, error: createError } = await createPost(
-        threadId,
-        currentUserId,
-        trimmedBody
-      );
+      const {
+        success,
+        post,
+        error: createError,
+      } = await createPost(threadId, currentUserId, trimmedBody);
 
       if (success) {
         setNewPostBody("");
@@ -378,7 +389,11 @@ export default function ThreadDetailScreen({
             <View style={styles.threadCard}>
               <View style={styles.threadHeader}>
                 <View style={styles.authorInfo}>
-                  <Ionicons name="person-circle" size={24} color={COLORS.PRIMARY} />
+                  <Ionicons
+                    name="person-circle"
+                    size={24}
+                    color={COLORS.PRIMARY}
+                  />
                   <Text style={styles.authorName} numberOfLines={1}>
                     {thread.user?.name} {thread.user?.surname}
                   </Text>
@@ -407,9 +422,7 @@ export default function ThreadDetailScreen({
                   size={48}
                   color={COLORS.GRAY}
                 />
-                <Text style={styles.emptyPostsText}>
-                  Aún no hay respuestas
-                </Text>
+                <Text style={styles.emptyPostsText}>Aún no hay respuestas</Text>
                 <Text style={styles.emptyPostsSubtext}>
                   Sé el primero en responder
                 </Text>
@@ -472,7 +485,8 @@ export default function ThreadDetailScreen({
               <TouchableOpacity
                 style={[
                   styles.submitButton,
-                  (!newPostBody.trim() || creating) && styles.submitButtonDisabled,
+                  (!newPostBody.trim() || creating) &&
+                    styles.submitButtonDisabled,
                 ]}
                 onPress={handleCreatePost}
                 disabled={!newPostBody.trim() || creating}
@@ -806,4 +820,3 @@ const styles = StyleSheet.create({
     color: "#ffffff",
   },
 });
-

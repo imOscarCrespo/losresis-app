@@ -204,9 +204,8 @@ export default function ArticlesScreen({ onSectionChange, userProfile }) {
       <View style={styles.header}>
         <Text style={styles.title}>Artículos</Text>
         <Text style={styles.resultsText}>
-          Mostrando{" "}
-          <Text style={styles.resultsNumber}>{articles.length}</Text> de{" "}
-          {totalCount} artículos
+          Mostrando <Text style={styles.resultsNumber}>{articles.length}</Text>{" "}
+          de {totalCount} artículos
         </Text>
       </View>
 
@@ -236,7 +235,11 @@ export default function ArticlesScreen({ onSectionChange, userProfile }) {
           }
         >
           <View style={styles.emptyContainer}>
-            <Ionicons name="document-text-outline" size={64} color={COLORS.GRAY} />
+            <Ionicons
+              name="document-text-outline"
+              size={64}
+              color={COLORS.GRAY}
+            />
             <Text style={styles.emptyTitle}>
               Aún no hay artículos disponibles
             </Text>
@@ -255,7 +258,8 @@ export default function ArticlesScreen({ onSectionChange, userProfile }) {
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
           }
           onScroll={({ nativeEvent }) => {
-            const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+            const { layoutMeasurement, contentOffset, contentSize } =
+              nativeEvent;
             const paddingToBottom = 20;
             if (
               layoutMeasurement.height + contentOffset.y >=
@@ -280,7 +284,9 @@ export default function ArticlesScreen({ onSectionChange, userProfile }) {
           {loading && articles.length > 0 && (
             <View style={styles.loadingMoreContainer}>
               <ActivityIndicator size="small" color={COLORS.PRIMARY} />
-              <Text style={styles.loadingMoreText}>Cargando más artículos...</Text>
+              <Text style={styles.loadingMoreText}>
+                Cargando más artículos...
+              </Text>
             </View>
           )}
 
@@ -501,4 +507,3 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
 });
-

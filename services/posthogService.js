@@ -3,7 +3,7 @@
  * Maneja la inicialización y el registro de eventos de pantallas
  */
 
-import PostHog from 'posthog-react-native';
+import PostHog from "posthog-react-native";
 
 class PostHogLogger {
   constructor() {
@@ -17,23 +17,26 @@ class PostHogLogger {
    */
   initialize() {
     if (this.isInitialized) {
-      console.warn('PostHog ya está inicializado');
+      console.warn("PostHog ya está inicializado");
       return;
     }
 
     try {
-      this.posthog = new PostHog('phc_FNmlb2xye4Wpq4weZyRWRynMV7lgivEnZcmk4X69XVA', {
-        host: 'https://eu.i.posthog.com',
-        // Opciones adicionales para mejor tracking
-        enableSessionReplay: false, // Desactivado por defecto para mejor rendimiento
-        captureApplicationLifecycleEvents: true,
-        captureDeepLinks: true,
-      });
+      this.posthog = new PostHog(
+        "phc_FNmlb2xye4Wpq4weZyRWRynMV7lgivEnZcmk4X69XVA",
+        {
+          host: "https://eu.i.posthog.com",
+          // Opciones adicionales para mejor tracking
+          enableSessionReplay: false, // Desactivado por defecto para mejor rendimiento
+          captureApplicationLifecycleEvents: true,
+          captureDeepLinks: true,
+        }
+      );
 
       this.isInitialized = true;
-      console.log('✅ PostHog inicializado correctamente');
+      console.log("✅ PostHog inicializado correctamente");
     } catch (error) {
-      console.error('❌ Error al inicializar PostHog:', error);
+      console.error("❌ Error al inicializar PostHog:", error);
     }
   }
 
@@ -44,7 +47,10 @@ class PostHogLogger {
    */
   logScreen(screenName, properties = {}) {
     if (!this.isInitialized || !this.posthog) {
-      console.warn('PostHog no está inicializado. No se puede registrar la pantalla:', screenName);
+      console.warn(
+        "PostHog no está inicializado. No se puede registrar la pantalla:",
+        screenName
+      );
       return;
     }
 
@@ -55,7 +61,7 @@ class PostHogLogger {
       });
       console.log(`📊 PostHog: Pantalla registrada - ${screenName}`);
     } catch (error) {
-      console.error('❌ Error al registrar pantalla en PostHog:', error);
+      console.error("❌ Error al registrar pantalla en PostHog:", error);
     }
   }
 
@@ -66,7 +72,10 @@ class PostHogLogger {
    */
   capture(eventName, properties = {}) {
     if (!this.isInitialized || !this.posthog) {
-      console.warn('PostHog no está inicializado. No se puede capturar el evento:', eventName);
+      console.warn(
+        "PostHog no está inicializado. No se puede capturar el evento:",
+        eventName
+      );
       return;
     }
 
@@ -74,7 +83,7 @@ class PostHogLogger {
       this.posthog.capture(eventName, properties);
       console.log(`📊 PostHog: Evento capturado - ${eventName}`);
     } catch (error) {
-      console.error('❌ Error al capturar evento en PostHog:', error);
+      console.error("❌ Error al capturar evento en PostHog:", error);
     }
   }
 
@@ -85,7 +94,9 @@ class PostHogLogger {
    */
   identify(userId, properties = {}) {
     if (!this.isInitialized || !this.posthog) {
-      console.warn('PostHog no está inicializado. No se puede identificar al usuario');
+      console.warn(
+        "PostHog no está inicializado. No se puede identificar al usuario"
+      );
       return;
     }
 
@@ -93,7 +104,7 @@ class PostHogLogger {
       this.posthog.identify(userId, properties);
       console.log(`📊 PostHog: Usuario identificado - ${userId}`);
     } catch (error) {
-      console.error('❌ Error al identificar usuario en PostHog:', error);
+      console.error("❌ Error al identificar usuario en PostHog:", error);
     }
   }
 
@@ -107,13 +118,12 @@ class PostHogLogger {
 
     try {
       this.posthog.reset();
-      console.log('📊 PostHog: Usuario reseteado');
+      console.log("📊 PostHog: Usuario reseteado");
     } catch (error) {
-      console.error('❌ Error al resetear PostHog:', error);
+      console.error("❌ Error al resetear PostHog:", error);
     }
   }
 }
 
 // Exportar una instancia singleton
 export default new PostHogLogger();
-

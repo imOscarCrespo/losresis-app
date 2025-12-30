@@ -144,8 +144,7 @@ const renderNode = (node, index = 0) => {
       // Lista (con o sin numeración)
       return (
         <View key={index} style={styles.listContainer}>
-          {content &&
-            content.map((child, i) => renderNode(child, i))}
+          {content && content.map((child, i) => renderNode(child, i))}
         </View>
       );
 
@@ -217,11 +216,7 @@ const renderNode = (node, index = 0) => {
                   {emojiIcon ? (
                     <Text style={styles.customBlockEmoji}>{emojiIcon}</Text>
                   ) : iconName ? (
-                    <Ionicons
-                      name={iconName}
-                      size={20}
-                      color={COLORS.ERROR}
-                    />
+                    <Ionicons name={iconName} size={20} color={COLORS.ERROR} />
                   ) : null}
                 </View>
               )}
@@ -285,7 +280,9 @@ const ArticleContent = ({ content }) => {
   if (typeof parsedContent !== "object" || !parsedContent.type) {
     return (
       <View style={styles.emptyContentContainer}>
-        <Text style={styles.emptyContentText}>Formato de contenido no válido</Text>
+        <Text style={styles.emptyContentText}>
+          Formato de contenido no válido
+        </Text>
       </View>
     );
   }
@@ -297,7 +294,11 @@ const ArticleContent = ({ content }) => {
 /**
  * Pantalla de detalle de artículo
  */
-export default function ArticleDetailScreen({ articleId, onBack, userProfile }) {
+export default function ArticleDetailScreen({
+  articleId,
+  onBack,
+  userProfile,
+}) {
   const { fetchArticleById, toggleLike, loading } = useArticles();
   const [article, setArticle] = useState(null);
   const [isLiking, setIsLiking] = useState(false);
@@ -356,7 +357,11 @@ export default function ArticleDetailScreen({ articleId, onBack, userProfile }) 
     return (
       <View style={styles.errorContainer}>
         <View style={styles.errorContent}>
-          <Ionicons name="document-text-outline" size={64} color={COLORS.GRAY} />
+          <Ionicons
+            name="document-text-outline"
+            size={64}
+            color={COLORS.GRAY}
+          />
           <Text style={styles.errorTitle}>Artículo no encontrado</Text>
           <Text style={styles.errorText}>
             El artículo que buscas no existe o ha sido eliminado.
@@ -409,9 +414,7 @@ export default function ArticleDetailScreen({ articleId, onBack, userProfile }) 
           <View style={styles.metaItem}>
             <Ionicons name="calendar" size={16} color={COLORS.GRAY} />
             <Text style={styles.metaText}>
-              {formatLongDate(
-                article.published_at || article.created_at
-              )}
+              {formatLongDate(article.published_at || article.created_at)}
             </Text>
           </View>
 
@@ -730,4 +733,3 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
-

@@ -154,8 +154,11 @@ export default function LeisureForumScreen({
       }
 
       // Obtener o crear el foro
-      const { success: forumSuccess, forum: forumData, error: forumError } =
-        await getOrCreateForum(userProfile.city, forumType, roleScope);
+      const {
+        success: forumSuccess,
+        forum: forumData,
+        error: forumError,
+      } = await getOrCreateForum(userProfile.city, forumType, roleScope);
 
       if (!forumSuccess) {
         setError(forumError || "Error al cargar el foro");
@@ -221,7 +224,11 @@ export default function LeisureForumScreen({
     setCreating(true);
 
     try {
-      const { success, thread, error: createError } = await createThread(
+      const {
+        success,
+        thread,
+        error: createError,
+      } = await createThread(
         forum.id,
         currentUserId,
         trimmedTitle,
@@ -243,7 +250,13 @@ export default function LeisureForumScreen({
     } finally {
       setCreating(false);
     }
-  }, [newThreadTitle, newThreadBody, forum, currentUserId, loadForumAndThreads]);
+  }, [
+    newThreadTitle,
+    newThreadBody,
+    forum,
+    currentUserId,
+    loadForumAndThreads,
+  ]);
 
   const handleThreadPress = useCallback(
     (thread) => {
@@ -294,7 +307,10 @@ export default function LeisureForumScreen({
                   // Recargar threads
                   await loadForumAndThreads();
                 } else {
-                  Alert.alert("Error", deleteError || "No se pudo eliminar el thread");
+                  Alert.alert(
+                    "Error",
+                    deleteError || "No se pudo eliminar el thread"
+                  );
                 }
               } catch (err) {
                 console.error("Error deleting thread:", err);
@@ -312,173 +328,174 @@ export default function LeisureForumScreen({
 
   return (
     <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={handleBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT_PRIMARY} />
+        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <Text style={styles.title}>{forumType}</Text>
+          <Text style={styles.subtitle}>
+            {userProfile?.city || "Tu ciudad"}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.filterButton}
+          onPress={() => setShowMyThreads(!showMyThreads)}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={showMyThreads ? "filter" : "filter-outline"}
+            size={24}
+            color={showMyThreads ? COLORS.PRIMARY : COLORS.GRAY}
+          />
+        </TouchableOpacity>
+      </View>
+
+      {/* Content */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+          <Text style={styles.loadingText}>Cargando...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={48} color={COLORS.ERROR} />
+          <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            activeOpacity={0.7}
+            style={styles.retryButton}
+            onPress={loadForumAndThreads}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT_PRIMARY} />
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.title}>{forumType}</Text>
-            <Text style={styles.subtitle}>
-              {userProfile?.city || "Tu ciudad"}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setShowMyThreads(!showMyThreads)}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={showMyThreads ? "filter" : "filter-outline"}
-              size={24}
-              color={showMyThreads ? COLORS.PRIMARY : COLORS.GRAY}
-            />
+            <Text style={styles.retryButtonText}>Reintentar</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Content */}
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-            <Text style={styles.loadingText}>Cargando...</Text>
-          </View>
-        ) : error ? (
-          <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle" size={48} color={COLORS.ERROR} />
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={loadForumAndThreads}
-            >
-              <Text style={styles.retryButtonText}>Reintentar</Text>
-            </TouchableOpacity>
-          </View>
-        ) : filteredThreads.length === 0 ? (
-          <ScrollView
-            style={styles.content}
-            contentContainerStyle={styles.emptyContentContainer}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-            }
-          >
-            <View style={styles.emptyContainer}>
-              <Ionicons
-                name="chatbubbles-outline"
-                size={64}
-                color={COLORS.GRAY}
-              />
-              <Text style={styles.emptyTitle}>
-                {showMyThreads
-                  ? "No has creado ningún thread"
-                  : "Aún no hay publicaciones"}
-              </Text>
-              <Text style={styles.emptySubtitle}>
-                {showMyThreads
-                  ? "Crea tu primer thread para comenzar"
-                  : "Sé el primero en compartir algo en este foro"}
-              </Text>
-            </View>
-          </ScrollView>
-        ) : (
-          <ScrollView
-            style={styles.content}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-            }
-          >
-            {filteredThreads.map((thread) => (
-              <ThreadCard
-                key={thread.id}
-                thread={thread}
-                onPress={handleThreadPress}
-                onDelete={handleDeleteThread}
-                currentUserId={currentUserId}
-                deleting={deletingThreadId}
-              />
-            ))}
-          </ScrollView>
-        )}
-
-        {/* Create Thread Modal */}
-        <Modal
-          visible={showCreateModal}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setShowCreateModal(false)}
+      ) : filteredThreads.length === 0 ? (
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.emptyContentContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Nueva publicación</Text>
-                <TouchableOpacity
-                  onPress={() => setShowCreateModal(false)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="close" size={24} color={COLORS.TEXT_PRIMARY} />
-                </TouchableOpacity>
-              </View>
+          <View style={styles.emptyContainer}>
+            <Ionicons
+              name="chatbubbles-outline"
+              size={64}
+              color={COLORS.GRAY}
+            />
+            <Text style={styles.emptyTitle}>
+              {showMyThreads
+                ? "No has creado ningún thread"
+                : "Aún no hay publicaciones"}
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              {showMyThreads
+                ? "Crea tu primer thread para comenzar"
+                : "Sé el primero en compartir algo en este foro"}
+            </Text>
+          </View>
+        </ScrollView>
+      ) : (
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+        >
+          {filteredThreads.map((thread) => (
+            <ThreadCard
+              key={thread.id}
+              thread={thread}
+              onPress={handleThreadPress}
+              onDelete={handleDeleteThread}
+              currentUserId={currentUserId}
+              deleting={deletingThreadId}
+            />
+          ))}
+        </ScrollView>
+      )}
 
-              <TextInput
-                style={styles.input}
-                placeholder="Título *"
-                value={newThreadTitle}
-                onChangeText={setNewThreadTitle}
-                placeholderTextColor={COLORS.GRAY}
-              />
+      {/* Create Thread Modal */}
+      <Modal
+        visible={showCreateModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCreateModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Nueva publicación</Text>
+              <TouchableOpacity
+                onPress={() => setShowCreateModal(false)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={24} color={COLORS.TEXT_PRIMARY} />
+              </TouchableOpacity>
+            </View>
 
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Descripción (opcional)"
-                value={newThreadBody}
-                onChangeText={setNewThreadBody}
-                multiline
-                numberOfLines={4}
-                placeholderTextColor={COLORS.GRAY}
-                textAlignVertical="top"
-              />
+            <TextInput
+              style={styles.input}
+              placeholder="Título *"
+              value={newThreadTitle}
+              onChangeText={setNewThreadTitle}
+              placeholderTextColor={COLORS.GRAY}
+            />
 
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => setShowCreateModal(false)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.cancelButtonText}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.submitButton,
-                    (!newThreadTitle.trim() || creating) && styles.submitButtonDisabled,
-                  ]}
-                  onPress={handleCreateThread}
-                  disabled={!newThreadTitle.trim() || creating}
-                  activeOpacity={0.7}
-                >
-                  {creating ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <Text style={styles.submitButtonText}>Publicar</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Descripción (opcional)"
+              value={newThreadBody}
+              onChangeText={setNewThreadBody}
+              multiline
+              numberOfLines={4}
+              placeholderTextColor={COLORS.GRAY}
+              textAlignVertical="top"
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowCreateModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.submitButton,
+                  (!newThreadTitle.trim() || creating) &&
+                    styles.submitButtonDisabled,
+                ]}
+                onPress={handleCreateThread}
+                disabled={!newThreadTitle.trim() || creating}
+                activeOpacity={0.7}
+              >
+                {creating ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Publicar</Text>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
-        </Modal>
+        </View>
+      </Modal>
 
-        {/* Floating Action Button */}
-        <FloatingActionButton
-          onPress={() => setShowCreateModal(true)}
-          icon="add"
-          backgroundColor={COLORS.PRIMARY}
-          bottom={20}
-          right={20}
-        />
+      {/* Floating Action Button */}
+      <FloatingActionButton
+        onPress={() => setShowCreateModal(true)}
+        icon="add"
+        backgroundColor={COLORS.PRIMARY}
+        bottom={20}
+        right={20}
+      />
     </View>
   );
 }
@@ -698,4 +715,3 @@ const styles = StyleSheet.create({
     color: "#ffffff",
   },
 });
-
