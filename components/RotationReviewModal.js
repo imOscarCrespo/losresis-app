@@ -597,7 +597,9 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   actions: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
     borderTopWidth: 1,
     borderTopColor: COLORS.BORDER,
     gap: 12,

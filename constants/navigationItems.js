@@ -89,7 +89,7 @@ export const NAVIGATION_ITEMS = [
   },
   {
     id: "cursos",
-    name: "Cursos y formaciones",
+    name: "Cursos",
     icon: "bookmark",
     description: "Explora cursos y formaciones disponibles en tu área",
     color: "#6366F1", // Indigo

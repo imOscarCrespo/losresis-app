@@ -1180,7 +1180,9 @@ const styles = StyleSheet.create({
   modalActions: {
     flexDirection: "row",
     gap: 12,
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
     borderTopWidth: 1,
     borderTopColor: COLORS.BORDER,
   },

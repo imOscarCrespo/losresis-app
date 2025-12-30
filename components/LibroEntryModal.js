@@ -240,7 +240,8 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: "row",
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 16,
+    paddingBottom: 32,
     gap: 12,
   },
   submitButton: {

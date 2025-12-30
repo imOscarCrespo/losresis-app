@@ -587,7 +587,9 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY_DARK,
   },
   actions: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
     borderTopWidth: 1,
     borderTopColor: COLORS.BORDER,
     gap: 12,

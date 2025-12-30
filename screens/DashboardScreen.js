@@ -15,6 +15,7 @@ import ReviewsScreen from "./ReviewsScreen";
 import ReviewDetailScreen from "./ReviewDetailScreen";
 import ArticlesScreen from "./ArticlesScreen";
 import ArticleDetailScreen from "./ArticleDetailScreen";
+import CourseDetailScreen from "./CourseDetailScreen";
 import HousingScreen from "./HousingScreen";
 import HousingAdDetailScreen from "./HousingAdDetailScreen";
 import CreateHousingAdScreen from "./CreateHousingAdScreen";
@@ -42,6 +43,7 @@ export default function DashboardScreen({
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState(null);
   const [selectedReviewId, setSelectedReviewId] = useState(null);
   const [selectedArticleId, setSelectedArticleId] = useState(null);
+  const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [selectedHousingAdId, setSelectedHousingAdId] = useState(null);
   const [creatingHousingAd, setCreatingHousingAd] = useState(false);
   const [editingHousingAdId, setEditingHousingAdId] = useState(null);
@@ -113,6 +115,7 @@ export default function DashboardScreen({
       sectionId !== "hospitalDetail" &&
       sectionId !== "reviewDetail" &&
       sectionId !== "articleDetail" &&
+      sectionId !== "courseDetail" &&
       sectionId !== "housingDetail" &&
       sectionId !== "createHousingAd" &&
       sectionId !== "editHousingAd"
@@ -121,6 +124,7 @@ export default function DashboardScreen({
       setSelectedSpecialtyId(null);
       setSelectedReviewId(null);
       setSelectedArticleId(null);
+      setSelectedCourseId(null);
       setSelectedHousingAdId(null);
       setCreatingHousingAd(false);
       setEditingHousingAdId(null);
@@ -133,6 +137,10 @@ export default function DashboardScreen({
     // Si es articleDetail, guardar el articleId
     if (sectionId === "articleDetail" && params.articleId) {
       setSelectedArticleId(params.articleId);
+    }
+    // Si es courseDetail, guardar el courseId
+    if (sectionId === "courseDetail" && params.courseId) {
+      setSelectedCourseId(params.courseId);
     }
     // Si es housingDetail, guardar el adId
     if (sectionId === "housingDetail" && params.adId) {
@@ -271,6 +279,27 @@ export default function DashboardScreen({
           onBack={() => {
             setSelectedArticleId(null);
             setCurrentSection("articulos");
+          }}
+          userProfile={userProfile}
+        />
+      </ScreenLayout>
+    );
+  }
+
+  // Si estamos en la pantalla de detalle del curso
+  if (selectedCourseId) {
+    return (
+      <ScreenLayout
+        userProfile={userProfile}
+        activeSection={currentSection}
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <CourseDetailScreen
+          courseId={selectedCourseId}
+          onBack={() => {
+            setSelectedCourseId(null);
+            setCurrentSection("cursos");
           }}
           userProfile={userProfile}
         />

@@ -1253,7 +1253,7 @@ const styles = StyleSheet.create({
   modalActions: {
     flexDirection: "row",
     gap: 12,
-    marginBottom: 20,
+    marginBottom: 32,
   },
   modalButton: {
     flex: 1,
