@@ -92,6 +92,11 @@ export const getUserById = async (id) => {
 - `npm run web` - Ejecuta en web
 - `eas build --platform ios --profile production --auto-submit`- Deploy ios
 
+## Deploy gratuito usando eas en local
+
+- `eas build --platform ios --profile production --local`
+- `eas submit --platform ios --profile production --path /ruta/al/archivo.ipa`
+
 ## Próximos Pasos
 
 - [ ] Configurar variables de entorno
