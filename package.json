@@ -6,6 +6,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
+    "ios-ipad": "expo start --ios --device",
+    "ios-ipad-13": "xcrun simctl boot \"iPad Pro 13-inch (M4)\" 2>/dev/null; open -a Simulator; expo start --ios",
     "web": "expo start --web"
   },
   "dependencies": {
