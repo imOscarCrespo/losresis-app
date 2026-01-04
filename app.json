@@ -35,11 +35,35 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.losresis.app",
-      "versionCode": 11,
+      "versionCode": 12,
       "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "losresis",
+              "host": "auth",
+              "pathPrefix": "/callback"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "losresis"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "config": {
         "googleMaps": {
-          "apiKey": ""
+          "apiKey": "AIzaSyClVaeTmphgqiWGKEUEb6JmOKwItduYN8g"
         }
       }
     },

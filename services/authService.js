@@ -5,7 +5,7 @@
 
 import { supabase } from "../config/supabase";
 import * as WebBrowser from "expo-web-browser";
-import * as Linking from "expo-linking";
+import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   saveTokensSecurely,
@@ -39,7 +39,7 @@ const signInWithOAuth = async (provider, redirectUrl) => {
     // Configurar opciones específicas por provider
     const oauthOptions = {
       redirectTo: finalRedirectUrl,
-      skipBrowserRedirect: true, // Importante: no abrir el navegador automáticamente
+      // skipBrowserRedirect: false en Android para que funcione correctamente
       queryParams: {
         redirect_to: finalRedirectUrl, // Forzar explícitamente la URL de redirección
       },
@@ -48,6 +48,12 @@ const signInWithOAuth = async (provider, redirectUrl) => {
     // Google requiere prompt para selección de cuenta
     if (provider === "google") {
       oauthOptions.queryParams.prompt = "select_account";
+    }
+
+    // En Android, no usar skipBrowserRedirect para que el flujo funcione correctamente
+    // En iOS funciona con skipBrowserRedirect, pero en Android puede causar problemas
+    if (Platform.OS === "ios") {
+      oauthOptions.skipBrowserRedirect = true;
     }
 
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -74,9 +80,80 @@ const signInWithOAuth = async (provider, redirectUrl) => {
     console.log("🌐 Abriendo navegador con URL:", data.url);
 
     // Abrir el navegador con la URL de OAuth
-    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+    // En Android, a veces el callback llega por deep linking en lugar de por el resultado directo
+    let result;
+    try {
+      console.log("⏳ Esperando respuesta del navegador...");
 
-    console.log("🔙 Resultado del navegador:", result);
+      // Crear una promesa con timeout más corto (30 segundos) para detectar problemas de Chrome
+      // Usar finalRedirectUrl en lugar de redirectUrl para asegurar consistencia
+      const browserPromise = WebBrowser.openAuthSessionAsync(
+        data.url,
+        finalRedirectUrl
+      );
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Timeout esperando respuesta del navegador")),
+          30000 // Reducido a 30 segundos
+        )
+      );
+
+      result = await Promise.race([browserPromise, timeoutPromise]);
+      console.log("✅ Respuesta recibida del navegador");
+    } catch (browserError) {
+      console.error("❌ Error al abrir navegador:", browserError);
+
+      // Si hay un timeout, puede ser que Chrome no funcione en el emulador
+      // En ese caso, esperar y verificar si el callback llegó por deep linking
+      if (browserError.message.includes("Timeout")) {
+        console.log(
+          "⏱️ Timeout esperando navegador (posible problema con Chrome en emulador)"
+        );
+        console.log("🔄 Esperando callback por deep linking...");
+
+        // Esperar más tiempo para que el deep linking procese el callback
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+
+        // Verificar múltiples veces si hay sesión
+        for (let i = 0; i < 5; i++) {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session) {
+            console.log(
+              "✅ Sesión encontrada después del timeout (callback llegó por deep linking)"
+            );
+            return {
+              success: true,
+              data: sessionData,
+            };
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+
+        console.error("❌ No se recibió callback por deep linking");
+        console.error(
+          "⚠️ IMPORTANTE: Los intent filters solo funcionan en builds de producción"
+        );
+        console.error(
+          "⚠️ Si estás usando 'yarn run android', necesitas hacer un build de producción:"
+        );
+        console.error("⚠️ eas build --platform android --profile production");
+        return {
+          success: false,
+          error:
+            "El callback no llegó. Los intent filters solo funcionan en builds de producción. Haz un build con: eas build --platform android --profile production",
+        };
+      }
+
+      return {
+        success: false,
+        error: `Error al abrir navegador: ${browserError.message}`,
+      };
+    }
+
+    console.log("🔙 Resultado del navegador:", JSON.stringify(result, null, 2));
+    console.log("📊 Tipo de resultado:", result?.type || "undefined");
+    console.log("📊 URL recibida:", result?.url || "No hay URL");
+    console.log("📊 Resultado completo:", result);
 
     if (result.type === "success" && result.url) {
       console.log("✅ URL de callback recibida:", result.url);
@@ -237,11 +314,89 @@ const signInWithOAuth = async (provider, redirectUrl) => {
         success: false,
         error: "Login cancelado por el usuario",
       };
-    } else {
-      console.error("❌ Error en el flujo de OAuth:", result);
+    } else if (result.type === "dismiss") {
+      console.log("⚠️ Usuario cerró el navegador sin completar el login");
+      console.log("🔄 Esperando callback por deep linking (dismiss)...");
+      // En Android, a veces el callback viene después del dismiss por deep linking
+      // Esperar más tiempo y verificar múltiples veces
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      // Verificar múltiples veces si hay sesión
+      for (let i = 0; i < 10; i++) {
+        console.log(
+          `🔄 Verificando sesión después de dismiss (intento ${i + 1}/10)...`
+        );
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session) {
+          console.log(
+            "✅ Sesión encontrada después del dismiss (callback llegó por deep linking)"
+          );
+          return {
+            success: true,
+            data: sessionData,
+          };
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      console.error(
+        "❌ No se recibió callback por deep linking después de dismiss"
+      );
       return {
         success: false,
-        error: "Error en el flujo de autenticación",
+        error: "El login no se completó. Por favor, intenta de nuevo.",
+      };
+    } else {
+      console.error(
+        "❌ Error en el flujo de OAuth:",
+        JSON.stringify(result, null, 2)
+      );
+      console.error(
+        "❌ Tipo de resultado inesperado:",
+        result?.type || "undefined"
+      );
+      console.error("❌ Resultado completo:", result);
+
+      // En Android, a veces el callback llega por deep linking aunque el resultado no sea "success"
+      // Esperar un momento y verificar si hay sesión
+      console.log(
+        "🔄 Esperando callback por deep linking (tipo inesperado)..."
+      );
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      // Verificar múltiples veces si hay sesión
+      for (let i = 0; i < 5; i++) {
+        console.log(`🔄 Verificando sesión (intento ${i + 1}/5)...`);
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session) {
+          console.log(
+            "✅ Sesión encontrada después del tipo inesperado (callback llegó por deep linking)"
+          );
+          return {
+            success: true,
+            data: sessionData,
+          };
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      // Si result es undefined o null, puede ser un problema de deep linking
+      if (!result || !result.type) {
+        console.error(
+          "❌ Resultado del navegador es undefined/null - posible problema de deep linking"
+        );
+        return {
+          success: false,
+          error:
+            "No se recibió respuesta del navegador. Verifica que el deep linking esté configurado correctamente.",
+        };
+      }
+
+      return {
+        success: false,
+        error: `Error en el flujo de autenticación (tipo: ${
+          result.type || "desconocido"
+        }). El callback puede haber llegado por deep linking, pero no se pudo establecer la sesión.`,
       };
     }
   } catch (error) {

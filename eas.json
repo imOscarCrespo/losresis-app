@@ -19,7 +19,9 @@
         "simulator": false
       },
       "env": {
-        "EXPO_NO_CAPABILITY_SYNC": "1"
+        "EXPO_NO_CAPABILITY_SYNC": "1",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://chgretwxywvaaruwovbb.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoZ3JldHd4eXd2YWFydXdvdmJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA3NDc5NDEsImV4cCI6MjA2NjMyMzk0MX0.h49s3p9lyTasy_oTyniQ5j68-MftHwajYRD_MLjBBnA"
       }
     },
     "production": {

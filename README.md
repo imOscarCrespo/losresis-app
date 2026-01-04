@@ -90,12 +90,25 @@ export const getUserById = async (id) => {
 - `npm run ios` - Ejecuta en iOS
 - `npm run android` - Ejecuta en Android
 - `npm run web` - Ejecuta en web
-- `eas build --platform ios --profile production --auto-submit`- Deploy ios
 
-## Deploy gratuito usando eas en local
+## Deploy con EAS Build
 
-- `eas build --platform ios --profile production --local`
-- `eas submit --platform ios --profile production --path /ruta/al/archivo.ipa`
+### iOS
+
+- `eas build --platform ios --profile production --auto-submit` - Build y deploy automático a TestFlight
+- `eas build --platform ios --profile production` - Build de producción para iOS
+
+### Android
+
+- `eas build --platform android --profile production` - Genera el AAB (Android App Bundle) para Google Play Store
+  - El archivo AAB se descargará automáticamente o estará disponible en el dashboard de Expo
+  - Sube el archivo `.aab` generado a Google Play Console
+
+### Builds locales (gratuito)
+
+- `eas build --platform ios --profile production --local` - Build iOS local
+- `eas build --platform android --profile production --local` - Build Android local
+- `eas submit --platform ios --profile production --path /ruta/al/archivo.ipa` - Submit manual de iOS
 
 ## Próximos Pasos
 

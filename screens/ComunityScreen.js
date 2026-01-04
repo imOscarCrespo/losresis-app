@@ -60,7 +60,7 @@ export default function ComunityScreen({ userProfile, navigation }) {
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [selectedMarker, setSelectedMarker] = useState(null);
-  const [viewMode, setViewMode] = useState("map"); // "map" o "list"
+  const [viewMode, setViewMode] = useState(MAP_AVAILABLE ? "map" : "list"); // "map" o "list"
 
   // Hooks personalizados
   const { cityOptions, loading: citiesLoading } = useCities();
@@ -391,8 +391,9 @@ export default function ComunityScreen({ userProfile, navigation }) {
                       color="#FF9500"
                     />
                     <Text style={styles.listHeaderText}>
-                      Mapa no disponible. Ejecuta 'npx expo run:ios' para
-                      habilitar el mapa
+                      Mapa no disponible. La API key está configurada en
+                      app.json. Necesitas hacer un nuevo build: "eas build
+                      --platform android --profile preview"
                     </Text>
                   </View>
                 )}

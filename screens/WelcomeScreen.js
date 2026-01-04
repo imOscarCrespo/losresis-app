@@ -319,24 +319,98 @@ export default function WelcomeScreen({ onAuthSuccess }) {
 
   const handleAuthCallback = async (url) => {
     try {
-      // Extraer los parámetros de la URL
-      const { queryParams } = Linking.parse(url);
+      console.log("🔗 handleAuthCallback recibió URL:", url);
 
-      if (queryParams?.access_token || queryParams?.code) {
+      // Extraer parámetros tanto del query string como del hash
+      // Linking.parse() no extrae parámetros del hash, necesitamos hacerlo manualmente
+      const extractHashParams = (url) => {
+        const hashIndex = url.indexOf("#");
+        if (hashIndex === -1) return {};
+        const hash = url.substring(hashIndex + 1);
+        const params = {};
+        hash.split("&").forEach((param) => {
+          const [key, value] = param.split("=");
+          if (key && value) {
+            params[key] = decodeURIComponent(value);
+          }
+        });
+        return params;
+      };
+
+      const { queryParams } = Linking.parse(url);
+      const hashParams = extractHashParams(url);
+
+      console.log("📋 Query params:", Object.keys(queryParams || {}));
+      console.log("📋 Hash params:", Object.keys(hashParams));
+
+      // Buscar tokens tanto en queryParams como en hashParams
+      const hasToken =
+        queryParams?.access_token ||
+        queryParams?.code ||
+        hashParams?.access_token ||
+        hashParams?.code;
+
+      if (hasToken) {
         // Marcar que estamos procesando autenticación
         setIsProcessingAuth(true);
 
-        // El usuario se autenticó, verificar sesión
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession();
+        // Intentar obtener la sesión actual primero
+        let { data: sessionData, error: sessionError } =
+          await supabase.auth.getSession();
 
-        if (sessionError) {
+        // Si no hay sesión y tenemos tokens en el hash, establecerla manualmente
+        if (
+          (sessionError || !sessionData?.session) &&
+          (hashParams?.access_token || hashParams?.refresh_token)
+        ) {
+          console.log(
+            "🔄 No hay sesión activa, intentando establecer con tokens del hash..."
+          );
+
+          const accessToken = hashParams.access_token;
+          const refreshToken = hashParams.refresh_token;
+
+          if (accessToken && refreshToken) {
+            console.log("🔑 Estableciendo sesión con tokens del hash...");
+            const { data: manualSession, error: manualError } =
+              await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+
+            if (manualError) {
+              console.error(
+                "❌ Error al establecer sesión manualmente:",
+                manualError
+              );
+              setIsProcessingAuth(false);
+              return;
+            }
+
+            if (manualSession?.session) {
+              console.log("✅ Sesión establecida correctamente desde hash");
+              sessionData = manualSession;
+            }
+          } else if (hashParams?.code) {
+            // Si hay un code, intentar intercambiarlo por sesión
+            console.log("🔄 Intentando intercambiar código por sesión...");
+            const { data: codeSession, error: codeError } =
+              await supabase.auth.exchangeCodeForSession(hashParams.code);
+
+            if (!codeError && codeSession?.session) {
+              console.log("✅ Sesión obtenida mediante código");
+              sessionData = codeSession;
+            }
+          }
+        }
+
+        if (sessionError && !sessionData?.session) {
           console.error("❌ Error al obtener sesión:", sessionError);
           setIsProcessingAuth(false);
           return;
         }
+
+        const session = sessionData?.session;
 
         if (session) {
           // Guardar userId en caché
@@ -547,7 +621,12 @@ export default function WelcomeScreen({ onAuthSuccess }) {
         console.error("❌ Error en OAuth:", result.error);
         setIsChecking(false);
         setSigningInProvider(null);
-        alert("Error al iniciar sesión: " + result.error);
+        Alert.alert(
+          "Error al iniciar sesión",
+          result.error ||
+            "No se pudo completar el inicio de sesión. Por favor, intenta de nuevo.",
+          [{ text: "OK" }]
+        );
       }
     } catch (error) {
       console.error("❌ Error en sign in:", error);
