@@ -30,7 +30,7 @@ export const getReviewSummaries = async (filters = {}) => {
         speciality:speciality_id(id, name)
       `
       )
-      .not("approved_at", "is", null); // Solo reseñas aprobadas
+      .not("is_approved", "is", false); // Solo reseñas aprobadas
 
     // Aplicar filtros
     if (filters.hospitalId) {
@@ -74,32 +74,23 @@ export const getReviewSummaries = async (filters = {}) => {
       });
     }
 
-    // Agrupar por hospital_id y speciality_id, tomando la reseña más reciente
-    const summariesMap = new Map();
+    // Crear lista plana de resúmenes SIN agrupar por hospital/especialidad
+    const summaries = filteredData
+      .map((review) => {
+        // Validar que tenga los datos necesarios
+        const hospital = review.hospital || review.hospitals;
+        const speciality = review.speciality || review.specialities;
 
-    filteredData.forEach((review) => {
-      // Validar que tenga los datos necesarios
-      // Nota: Los nombres pueden variar según la sintaxis de la relación
-      const hospital = review.hospital || review.hospitals;
-      const speciality = review.speciality || review.specialities;
+        if (
+          !review?.hospital_id ||
+          !review?.speciality_id ||
+          !hospital ||
+          !speciality
+        ) {
+          return null; // Saltar reviews inválidas
+        }
 
-      if (
-        !review?.hospital_id ||
-        !review?.speciality_id ||
-        !hospital ||
-        !speciality
-      ) {
-        return; // Saltar reviews inválidas
-      }
-
-      const key = `${review.hospital_id}-${review.speciality_id}`;
-      const existing = summariesMap.get(key);
-
-      if (
-        !existing ||
-        new Date(review.created_at) > new Date(existing.created_at)
-      ) {
-        summariesMap.set(key, {
+        return {
           review_id: review.id,
           hospital_id: review.hospital_id,
           speciality_id: review.speciality_id,
@@ -108,11 +99,9 @@ export const getReviewSummaries = async (filters = {}) => {
           hospital_region: hospital.region || "",
           speciality_name: speciality.name || "",
           latest_review_date: review.created_at,
-        });
-      }
-    });
-
-    const summaries = Array.from(summariesMap.values());
+        };
+      })
+      .filter(Boolean);
 
     return {
       success: true,
