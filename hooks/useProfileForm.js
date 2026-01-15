@@ -51,8 +51,30 @@ export const useProfileForm = () => {
       const { success, profile } = await getUserProfile(currentUser.id);
       if (success && profile) {
         setUserProfile(profile);
+
+        // Si el nombre está vacío, intentar obtenerlo del display name o email de Supabase Auth
+        let nameValue = profile.name || "";
+        if (!nameValue || nameValue.trim() === "") {
+          // Intentar primero con display name de user_metadata
+          nameValue =
+            currentUser.user_metadata?.display_name ||
+            currentUser.user_metadata?.full_name ||
+            currentUser.user_metadata?.name ||
+            "";
+
+          // Si no hay display name, usar el email
+          if (!nameValue || nameValue.trim() === "") {
+            nameValue = currentUser.email || "";
+          }
+        }
+
+        // Si ningún tipo está seleccionado, establecer estudiante por defecto
+        const hasAnyType =
+          profile.is_student || profile.is_resident || profile.is_doctor;
+        const defaultToStudent = !hasAnyType;
+
         setFormData({
-          name: profile.name || "",
+          name: nameValue,
           surname: profile.surname || "",
           phone: profile.phone || "",
           city: profile.city || "",
@@ -60,14 +82,30 @@ export const useProfileForm = () => {
           hospital_id: profile.hospital_id || "",
           speciality_id: profile.speciality_id || "",
           resident_year: profile.resident_year?.toString() || "",
-          is_student: profile.is_student || false,
+          is_student: profile.is_student || defaultToStudent,
           is_resident: profile.is_resident || false,
           is_doctor: profile.is_doctor || false,
         });
       } else {
-        // Si no hay perfil, establecer estudiante por defecto
+        // Si no hay perfil, verificar si viene de Apple para pre-llenar el nombre con el email
+        let nameFromEmail = "";
+
+        // Verificar si el usuario se autenticó con Apple
+        const isAppleUser =
+          currentUser.app_metadata?.provider === "apple" ||
+          currentUser.identities?.some(
+            (identity) => identity.provider === "apple"
+          );
+
+        // Si viene de Apple y tiene email, pre-llenar el nombre con el email
+        if (isAppleUser && currentUser.email) {
+          nameFromEmail = currentUser.email;
+        }
+
+        // Establecer estudiante por defecto y pre-llenar nombre si viene de Apple
         setFormData({
           ...INITIAL_FORM_DATA,
+          name: nameFromEmail,
           is_student: true,
           is_resident: false,
           is_doctor: false,
@@ -133,9 +171,11 @@ export const useProfileForm = () => {
 
   /**
    * Valida y envía el formulario
+   * @param {Function} validateEmailDomain - Función para validar el dominio del email
+   * @param {boolean} skipSuccessMessage - Si es true, no muestra mensaje de éxito (útil en onboarding)
    */
   const handleSubmit = useCallback(
-    async (validateEmailDomain) => {
+    async (validateEmailDomain, skipSuccessMessage = false) => {
       setLoading(true);
       setMessage(null);
 
@@ -202,15 +242,19 @@ export const useProfileForm = () => {
         }
 
         setUserProfile(profile);
-        setMessage({
-          type: "success",
-          text: "Perfil actualizado correctamente.",
-        });
 
-        // Recargar perfil después de un breve delay
-        setTimeout(() => {
-          loadUserProfile();
-        }, 1000);
+        // Solo mostrar mensaje de éxito si no se solicita omitirlo (modo onboarding)
+        if (!skipSuccessMessage) {
+          setMessage({
+            type: "success",
+            text: "Perfil actualizado correctamente.",
+          });
+
+          // Recargar perfil después de un breve delay solo en modo edición
+          setTimeout(() => {
+            loadUserProfile();
+          }, 1000);
+        }
 
         // Retornar éxito para que el componente padre pueda manejar la redirección
         return { success: true, profile };
@@ -221,7 +265,11 @@ export const useProfileForm = () => {
           text: "Error al actualizar el perfil. Inténtalo de nuevo.",
         });
       } finally {
-        setLoading(false);
+        // En modo onboarding (skipSuccessMessage = true), no detener el loading aquí
+        // El componente padre lo manejará después de la redirección
+        if (!skipSuccessMessage) {
+          setLoading(false);
+        }
       }
     },
     [formData, user, loadUserProfile]

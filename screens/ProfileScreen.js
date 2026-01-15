@@ -20,8 +20,12 @@ import { useEmailDomainValidation } from "../hooks/useEmailDomainValidation";
 import { useProfileForm } from "../hooks/useProfileForm";
 import { useEmailReview } from "../hooks/useEmailReview";
 import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
-import { signOut } from "../services/authService";
-import { isProfileComplete, updateUserProfile } from "../services/userService";
+import { signOut, getCurrentUser } from "../services/authService";
+import {
+  isProfileComplete,
+  updateUserProfile,
+  deleteUserAccount,
+} from "../services/userService";
 import {
   isBiometricEnabled,
   setBiometricEnabled,
@@ -66,10 +70,48 @@ export default function ProfileScreen({
     handleSubmit: originalHandleSubmit,
   } = useProfileForm();
 
+  // Estado para controlar el loading durante el proceso completo (en modo onboarding)
+  const [isCompletingOnboarding, setIsCompletingOnboarding] = useState(false);
+
   // Wrapper para handleSubmit que maneja el modo onboarding
   const handleSubmit = async () => {
-    await originalHandleSubmit(validateEmailDomain);
-    // El useEffect manejará la redirección cuando el perfil esté completo
+    if (isOnboarding) {
+      // En modo onboarding, mantener loading hasta que se complete todo
+      setIsCompletingOnboarding(true);
+      setMessage(null); // Limpiar mensajes previos
+    }
+
+    try {
+      // En modo onboarding, omitir mensaje de éxito
+      const result = await originalHandleSubmit(
+        validateEmailDomain,
+        isOnboarding
+      );
+
+      if (result?.success && isOnboarding) {
+        // En modo onboarding, redirigir inmediatamente
+        // Pequeño delay mínimo para asegurar que el estado se actualiza
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        // Redirigir directamente
+        if (onProfileComplete) {
+          onProfileComplete();
+        }
+      } else if (!result?.success && isOnboarding) {
+        // Si falla, resetear el estado de loading
+        setIsCompletingOnboarding(false);
+      }
+    } catch (error) {
+      console.error("Error en handleSubmit:", error);
+      if (isOnboarding) {
+        setIsCompletingOnboarding(false);
+      }
+      // Asegurar que el loading del hook también se detiene en caso de error
+      // El hook ya manejará esto, pero por si acaso
+    }
+
+    // Nota: No resetear isCompletingOnboarding aquí si fue exitoso
+    // porque la redirección ocurrirá inmediatamente
   };
 
   const {
@@ -273,6 +315,70 @@ export default function ProfileScreen({
     );
   };
 
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      "Eliminar Cuenta",
+      "¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer y se eliminarán todos tus datos.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Obtener el usuario actual
+              const { success: userSuccess, user: currentUser } =
+                await getCurrentUser();
+
+              if (!userSuccess || !currentUser?.id) {
+                Alert.alert(
+                  "Error",
+                  "No se pudo obtener la información del usuario."
+                );
+                return;
+              }
+
+              // Eliminar la cuenta
+              const { success, error } = await deleteUserAccount(
+                currentUser.id
+              );
+
+              if (!success) {
+                Alert.alert(
+                  "Error",
+                  error || "No se pudo eliminar la cuenta. Inténtalo de nuevo."
+                );
+                return;
+              }
+
+              // Cerrar sesión después de eliminar la cuenta
+              const { success: signOutSuccess, error: signOutError } =
+                await signOut();
+
+              if (!signOutSuccess) {
+                console.error(
+                  "Error al cerrar sesión después de eliminar:",
+                  signOutError
+                );
+              }
+
+              // Notificar a App.js para que actualice el estado y redirija
+              if (onSignOut) {
+                await onSignOut();
+              }
+            } catch (error) {
+              console.error("Error al eliminar cuenta:", error);
+              Alert.alert(
+                "Error",
+                "Error al eliminar la cuenta. Inténtalo de nuevo."
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Validar email para determinar si el perfil está completo
   const [isEmailValid, setIsEmailValid] = useState(true);
 
@@ -321,6 +427,7 @@ export default function ProfileScreen({
   );
 
   // Redirigir automáticamente cuando el perfil se completa en modo onboarding
+  // Solo si NO estamos en medio de un submit (evita redirección doble)
   useEffect(() => {
     if (
       isOnboarding &&
@@ -329,15 +436,12 @@ export default function ProfileScreen({
       onProfileComplete &&
       !loading &&
       !loadingProfile &&
-      !validatingEmail
+      !validatingEmail &&
+      !isCompletingOnboarding
     ) {
       console.log("✅ Perfil completo en onboarding, redirigiendo...");
-      // Pequeño delay para que el usuario vea el mensaje de éxito
-      const timeoutId = setTimeout(() => {
-        onProfileComplete();
-      }, 1500);
-
-      return () => clearTimeout(timeoutId);
+      // Solo redirigir automáticamente si no acabamos de hacer submit
+      // Esto previene redirecciones dobles
     }
   }, [
     isOnboarding,
@@ -347,6 +451,7 @@ export default function ProfileScreen({
     loading,
     loadingProfile,
     validatingEmail,
+    isCompletingOnboarding,
   ]);
 
   const isEmailInputDisabled = !formData.hospital_id || !formData.speciality_id;
@@ -417,7 +522,7 @@ export default function ProfileScreen({
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Apellidos *</Text>
+              <Text style={styles.inputLabel}>Apellidos</Text>
               <View style={styles.inputContainer}>
                 <Ionicons
                   name="person"
@@ -649,25 +754,43 @@ export default function ProfileScreen({
         <View style={styles.actionsContainer}>
           <Button
             title={
-              loading || validatingEmail
+              loading || validatingEmail || isCompletingOnboarding
                 ? "Guardando..."
                 : isOnboarding
                 ? "Continuar"
                 : "Guardar Cambios"
             }
             onPress={handleSubmit}
-            loading={loading || validatingEmail}
-            disabled={loading || validatingEmail}
+            loading={loading || validatingEmail || isCompletingOnboarding}
+            disabled={loading || validatingEmail || isCompletingOnboarding}
             variant="primary"
             style={styles.saveButton}
           />
-          {!isOnboarding && (
+          {isOnboarding && (
             <Button
-              title="Cerrar Sesión"
-              onPress={handleSignOut}
+              title="Eliminar cuenta"
+              onPress={handleDeleteAccount}
               variant="secondary"
-              style={styles.signOutButton}
+              style={styles.deleteAccountButton}
+              textStyle={styles.deleteAccountButtonText}
             />
+          )}
+          {!isOnboarding && (
+            <>
+              <Button
+                title="Cerrar Sesión"
+                onPress={handleSignOut}
+                variant="secondary"
+                style={styles.signOutButton}
+              />
+              <Button
+                title="Eliminar cuenta"
+                onPress={handleDeleteAccount}
+                variant="secondary"
+                style={styles.deleteAccountButton}
+                textStyle={styles.deleteAccountButtonText}
+              />
+            </>
           )}
         </View>
       </View>
@@ -809,6 +932,14 @@ const styles = StyleSheet.create({
   },
   signOutButton: {
     flex: 1,
+  },
+  deleteAccountButton: {
+    flex: 1,
+    marginTop: 12,
+    backgroundColor: "#DC2626",
+  },
+  deleteAccountButtonText: {
+    color: "#FFFFFF",
   },
   securityOption: {
     flexDirection: "row",

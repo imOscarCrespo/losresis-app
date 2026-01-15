@@ -246,6 +246,7 @@ export default function App() {
       <ProfileScreen
         isOnboarding={true}
         onProfileComplete={handleProfileComplete}
+        onSignOut={handleSignOut}
         onHospitalPress={() => {}}
         onStudentPress={() => {}}
         onReviewsPress={() => {}}

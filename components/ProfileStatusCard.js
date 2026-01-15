@@ -31,7 +31,7 @@ export const ProfileStatusCard = ({ isComplete }) => {
           >
             {isComplete
               ? "Tu perfil está completo y tienes acceso a todas las funciones"
-              : "Completa tu perfil para desbloquear todas las funcionalidades"}
+              : "Completa tu perfil para para personalizar tu experiencia"}
           </Text>
         </View>
       </View>

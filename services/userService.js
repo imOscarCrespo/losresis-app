@@ -120,14 +120,10 @@ export const isProfileComplete = (
 ) => {
   if (!profile) return false;
 
-  const hasRequiredBasicInfo = !!(
-    profile.name &&
-    profile.surname &&
-    profile.city
-  );
+  const hasRequiredBasicInfo = !!(profile.name && profile.city);
 
   if (profile.is_student) {
-    return hasRequiredBasicInfo; // Estudiantes solo necesitan nombre, apellidos y ciudad
+    return hasRequiredBasicInfo; // Estudiantes solo necesitan nombre y ciudad (apellidos es opcional)
   }
 
   if (profile.is_resident) {
@@ -166,4 +162,109 @@ export const isProfileComplete = (
   }
 
   return false;
+};
+
+/**
+ * Eliminar la cuenta del usuario (elimina de la tabla users)
+ * Nota: La eliminación de auth.users requiere permisos de admin y debería hacerse
+ * desde el backend mediante un trigger o función Edge.
+ * @param {string} userId - ID del usuario
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export const deleteUserAccount = async (userId) => {
+  try {
+    console.log("🗑️ Eliminando cuenta de usuario:", userId);
+
+    // Intentar eliminar el registro de la tabla users
+    // Nota: Si hay un trigger mal configurado, esto puede fallar
+    const { error: deleteProfileError, data } = await supabase
+      .from("users")
+      .delete()
+      .eq("id", userId)
+      .select();
+
+    // El error 42883 indica que hay un problema con una función en un trigger
+    // Esto típicamente ocurre cuando hay un trigger que intenta llamar a una función Edge
+    // que no existe o está mal configurada (como supabase_functions.http_request)
+    if (deleteProfileError) {
+      console.warn(
+        "⚠️ Error al eliminar (probablemente del trigger):",
+        deleteProfileError.code,
+        deleteProfileError.message
+      );
+
+      // Verificar si el registro todavía existe
+      // Si el error es del trigger pero el DELETE se ejecutó, el registro no debería existir
+      const { data: checkData, error: checkError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("id", userId)
+        .single();
+
+      // PGRST116 = "no rows returned" - significa que el registro NO existe (se eliminó)
+      if (checkError && checkError.code === "PGRST116") {
+        console.log(
+          "✅ El usuario fue eliminado correctamente (aunque el trigger falló)"
+        );
+        return {
+          success: true,
+          error: null,
+        };
+      }
+
+      // Si el registro todavía existe, el DELETE falló completamente
+      if (checkData) {
+        console.error(
+          "❌ El usuario NO fue eliminado. El trigger está bloqueando la transacción."
+        );
+        return {
+          success: false,
+          error:
+            "No se pudo eliminar el usuario debido a un error en el trigger de la base de datos. " +
+            "Por favor, contacta con el administrador o corrige el trigger en Supabase que intenta " +
+            "llamar a 'supabase_functions.http_request' cuando se elimina un usuario.",
+        };
+      }
+    }
+
+    // Verificar una vez más que el registro se eliminó
+    const { data: verifyData, error: verifyError } = await supabase
+      .from("users")
+      .select("id")
+      .eq("id", userId)
+      .single();
+
+    if (verifyData) {
+      console.error(
+        "❌ El usuario todavía existe después de intentar eliminarlo"
+      );
+      return {
+        success: false,
+        error: "No se pudo eliminar el usuario. El registro todavía existe.",
+      };
+    }
+
+    // Si verifyError es PGRST116, significa que el registro no existe (se eliminó correctamente)
+    if (verifyError && verifyError.code !== "PGRST116") {
+      console.warn("⚠️ Error al verificar eliminación:", verifyError);
+      // Continuar de todas formas si no es un error crítico
+    }
+
+    console.log("✅ Perfil de usuario eliminado de la tabla users");
+    console.log(
+      "ℹ️ Nota: Si hay un error en el trigger, puede ser necesario " +
+        "configurarlo correctamente en Supabase para eliminar también de auth.users."
+    );
+
+    return {
+      success: true,
+      error: null,
+    };
+  } catch (error) {
+    console.error("❌ Exception eliminando cuenta:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
 };

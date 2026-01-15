@@ -18,6 +18,7 @@ import { AppleLogo } from "./AppleLogo";
  * @param {boolean} props.disabled - Si está deshabilitado
  * @param {string} props.variant - Variante del botón: 'primary' | 'secondary' | 'google' | 'apple'
  * @param {object} props.style - Estilos adicionales
+ * @param {object} props.textStyle - Estilos adicionales para el texto
  */
 export const Button = ({
   onPress,
@@ -26,6 +27,7 @@ export const Button = ({
   disabled = false,
   variant = "primary",
   style,
+  textStyle,
 }) => {
   // Asegurar que loading y disabled sean booleanos explícitamente
   const isLoading = Boolean(loading);
@@ -38,10 +40,11 @@ export const Button = ({
     style,
   ];
 
-  const textStyle = [
+  const textStyleCombined = [
     styles.text,
     styles[`${variant}Text`],
     (isDisabled || isLoading) && styles.disabledText,
+    textStyle, // Estilos adicionales pasados como prop
   ];
 
   // Logos SVG para Google y Apple
@@ -78,7 +81,7 @@ export const Button = ({
               <View style={{ width: 12 }} />
             </>
           )}
-          <Text style={textStyle}>{title}</Text>
+          <Text style={textStyleCombined}>{title}</Text>
         </View>
       )}
     </TouchableOpacity>
