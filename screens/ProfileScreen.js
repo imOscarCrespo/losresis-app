@@ -568,7 +568,7 @@ export default function ProfileScreen({
                 onSelect={(city) => updateField("city", city)}
                 options={cityOptions}
                 placeholder="Selecciona tu ciudad"
-                enableSearch={false}
+                enableSearch={true}
               />
             </View>
           </View>
@@ -617,7 +617,7 @@ export default function ProfileScreen({
                 }
                 options={specialtyOptions}
                 placeholder="Selecciona tu especialidad"
-                enableSearch={false}
+                enableSearch={true}
               />
             </View>
 

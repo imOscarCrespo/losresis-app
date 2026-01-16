@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   View,
   Text,
@@ -10,6 +16,10 @@ import {
   Alert,
   TextInput,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
@@ -130,11 +140,49 @@ export default function LeisureForumScreen({
   const [currentUserId, setCurrentUserId] = useState(null);
   const [showMyThreads, setShowMyThreads] = useState(false); // Filtro para mostrar solo mis threads
   const [deletingThreadId, setDeletingThreadId] = useState(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Refs para inputs y scroll
+  const titleInputRef = useRef(null);
+  const descriptionInputRef = useRef(null);
+  const modalScrollViewRef = useRef(null);
 
   // Tracking de pantalla con PostHog
   useEffect(() => {
     posthogLogger.logScreen("LeisureForumScreen", { forumType });
   }, [forumType]);
+
+  // Detectar altura del teclado solo cuando el modal está abierto
+  useEffect(() => {
+    if (!showCreateModal) {
+      setKeyboardHeight(0);
+      return;
+    }
+
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+        // Si el campo de descripción tiene foco, hacer scroll al final
+        setTimeout(() => {
+          if (descriptionInputRef.current?.isFocused()) {
+            modalScrollViewRef.current?.scrollToEnd({ animated: true });
+          }
+        }, 100);
+      }
+    );
+    const keyboardWillHideListener = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShowListener.remove();
+      keyboardWillHideListener.remove();
+    };
+  }, [showCreateModal]);
 
   // Cargar usuario actual
   useEffect(() => {
@@ -249,9 +297,7 @@ export default function LeisureForumScreen({
       );
 
       if (success) {
-        setNewThreadTitle("");
-        setNewThreadBody("");
-        setShowCreateModal(false);
+        handleCloseModal();
         // Recargar threads
         await loadForumAndThreads();
       } else {
@@ -269,6 +315,7 @@ export default function LeisureForumScreen({
     forum,
     currentUserId,
     loadForumAndThreads,
+    handleCloseModal,
   ]);
 
   const handleThreadPress = useCallback(
@@ -293,6 +340,44 @@ export default function LeisureForumScreen({
     }
     return threads;
   }, [threads, showMyThreads, currentUserId]);
+
+  // Funciones para manejo del teclado y navegación
+  const focusDescription = useCallback(() => {
+    descriptionInputRef.current?.focus();
+    // Scroll al campo de descripción después de un pequeño delay
+    setTimeout(() => {
+      modalScrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  }, []);
+
+  const scrollToField = useCallback((field) => {
+    // Scroll suave al campo cuando recibe foco
+    if (field === "description") {
+      // Esperar a que el teclado aparezca y luego hacer scroll
+      setTimeout(() => {
+        modalScrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 300);
+      // También hacer scroll después de un delay adicional para asegurar
+      setTimeout(() => {
+        modalScrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 500);
+    } else {
+      setTimeout(() => {
+        modalScrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      }, 100);
+    }
+  }, []);
+
+  const dismissKeyboard = useCallback(() => {
+    Keyboard.dismiss();
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    dismissKeyboard();
+    setNewThreadTitle("");
+    setNewThreadBody("");
+    setShowCreateModal(false);
+  }, [dismissKeyboard]);
 
   // Manejar eliminación de thread
   const handleDeleteThread = useCallback(
@@ -439,66 +524,108 @@ export default function LeisureForumScreen({
         visible={showCreateModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowCreateModal(false)}
+        onRequestClose={handleCloseModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? undefined : "height"}
+          keyboardVerticalOffset={0}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlayTouchable}
+            activeOpacity={1}
+            onPress={dismissKeyboard}
+          />
+          <View
+            style={[
+              styles.modalContent,
+              keyboardHeight > 0 && {
+                maxHeight:
+                  Dimensions.get("window").height -
+                  keyboardHeight -
+                  (Platform.OS === "ios" ? 60 : 40),
+                marginBottom: keyboardHeight,
+              },
+            ]}
+          >
+            {/* Header */}
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Nueva publicación</Text>
-              <TouchableOpacity
-                onPress={() => setShowCreateModal(false)}
-                activeOpacity={0.7}
-              >
+              <TouchableOpacity onPress={handleCloseModal} activeOpacity={0.7}>
                 <Ionicons name="close" size={24} color={COLORS.TEXT_PRIMARY} />
               </TouchableOpacity>
-            </View>
-
-            <TextInput
-              style={styles.input}
-              placeholder="Título *"
-              value={newThreadTitle}
-              onChangeText={setNewThreadTitle}
-              placeholderTextColor={COLORS.GRAY}
-            />
-
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Descripción (opcional)"
-              value={newThreadBody}
-              onChangeText={setNewThreadBody}
-              multiline
-              numberOfLines={4}
-              placeholderTextColor={COLORS.GRAY}
-              textAlignVertical="top"
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setShowCreateModal(false)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Nueva publicación</Text>
               <TouchableOpacity
                 style={[
-                  styles.submitButton,
+                  styles.headerActionButton,
                   (!newThreadTitle.trim() || creating) &&
-                    styles.submitButtonDisabled,
+                    styles.headerActionButtonDisabled,
                 ]}
                 onPress={handleCreateThread}
                 disabled={!newThreadTitle.trim() || creating}
                 activeOpacity={0.7}
               >
                 {creating ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
+                  <ActivityIndicator size="small" color={COLORS.PRIMARY} />
                 ) : (
-                  <Text style={styles.submitButtonText}>Publicar</Text>
+                  <Text
+                    style={[
+                      styles.headerActionButtonText,
+                      (!newThreadTitle.trim() || creating) &&
+                        styles.headerActionButtonTextDisabled,
+                    ]}
+                  >
+                    Publicar
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
+
+            {/* Scrollable Form Content */}
+            <ScrollView
+              ref={modalScrollViewRef}
+              style={styles.modalForm}
+              contentContainerStyle={styles.modalFormContent}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
+              onContentSizeChange={() => {
+                // Hacer scroll al final cuando el contenido cambia y el campo de descripción tiene foco
+                if (descriptionInputRef.current?.isFocused()) {
+                  setTimeout(() => {
+                    modalScrollViewRef.current?.scrollToEnd({ animated: true });
+                  }, 100);
+                }
+              }}
+            >
+              <TextInput
+                ref={titleInputRef}
+                style={styles.input}
+                placeholder="Título *"
+                value={newThreadTitle}
+                onChangeText={setNewThreadTitle}
+                placeholderTextColor={COLORS.GRAY}
+                returnKeyType="next"
+                onSubmitEditing={focusDescription}
+                onFocus={() => scrollToField("title")}
+              />
+
+              <TextInput
+                ref={descriptionInputRef}
+                style={[styles.input, styles.textArea]}
+                placeholder="Descripción (opcional)"
+                value={newThreadBody}
+                onChangeText={setNewThreadBody}
+                multiline
+                numberOfLines={4}
+                placeholderTextColor={COLORS.GRAY}
+                textAlignVertical="top"
+                returnKeyType="done"
+                onFocus={() => scrollToField("description")}
+                blurOnSubmit={true}
+              />
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Floating Action Button */}
@@ -665,24 +792,59 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "flex-end",
   },
+  modalOverlayTouchable: {
+    flex: 1,
+  },
   modalContent: {
     backgroundColor: "#ffffff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 20,
     maxHeight: "85%",
-    minHeight: "60%",
+    minHeight: "50%",
+    width: "100%",
+    flexDirection: "column",
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    padding: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
     color: COLORS.TEXT_PRIMARY,
+    flex: 1,
+    textAlign: "center",
+    marginHorizontal: 16,
+  },
+  headerActionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 80,
+    alignItems: "center",
+  },
+  headerActionButtonDisabled: {
+    opacity: 0.5,
+  },
+  headerActionButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.PRIMARY,
+  },
+  headerActionButtonTextDisabled: {
+    color: COLORS.GRAY,
+  },
+  modalForm: {
+    flex: 1,
+  },
+  modalFormContent: {
+    padding: 20,
+    paddingBottom: 100,
+    flexGrow: 1,
   },
   input: {
     backgroundColor: "#F9FAFB",
@@ -690,41 +852,13 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     color: COLORS.TEXT_PRIMARY,
-    marginBottom: 12,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
   textArea: {
-    height: 100,
+    minHeight: 120,
     paddingTop: 12,
-  },
-  modalActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 8,
-  },
-  cancelButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginRight: 12,
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    color: COLORS.GRAY,
-  },
-  submitButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 8,
-  },
-  submitButtonDisabled: {
-    backgroundColor: COLORS.GRAY,
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#ffffff",
+    textAlignVertical: "top",
   },
 });

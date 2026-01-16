@@ -454,12 +454,36 @@ export default function ThreadDetailScreen({
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Nueva respuesta</Text>
               <TouchableOpacity
                 onPress={() => setShowCreateModal(false)}
                 activeOpacity={0.7}
               >
                 <Ionicons name="close" size={24} color={COLORS.TEXT_PRIMARY} />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Nueva respuesta</Text>
+              <TouchableOpacity
+                style={[
+                  styles.headerActionButton,
+                  (!newPostBody.trim() || creating) &&
+                    styles.headerActionButtonDisabled,
+                ]}
+                onPress={handleCreatePost}
+                disabled={!newPostBody.trim() || creating}
+                activeOpacity={0.7}
+              >
+                {creating ? (
+                  <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.headerActionButtonText,
+                      (!newPostBody.trim() || creating) &&
+                        styles.headerActionButtonTextDisabled,
+                    ]}
+                  >
+                    Publicar
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -473,32 +497,6 @@ export default function ThreadDetailScreen({
               placeholderTextColor={COLORS.GRAY}
               textAlignVertical="top"
             />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setShowCreateModal(false)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.submitButton,
-                  (!newPostBody.trim() || creating) &&
-                    styles.submitButtonDisabled,
-                ]}
-                onPress={handleCreatePost}
-                disabled={!newPostBody.trim() || creating}
-                activeOpacity={0.7}
-              >
-                {creating ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text style={styles.submitButtonText}>Publicar</Text>
-                )}
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>
@@ -775,6 +773,26 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     color: COLORS.TEXT_PRIMARY,
+    flex: 1,
+    textAlign: "center",
+    marginHorizontal: 16,
+  },
+  headerActionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 80,
+    alignItems: "center",
+  },
+  headerActionButtonDisabled: {
+    opacity: 0.5,
+  },
+  headerActionButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.PRIMARY,
+  },
+  headerActionButtonTextDisabled: {
+    color: COLORS.GRAY,
   },
   input: {
     backgroundColor: "#F9FAFB",
@@ -789,34 +807,5 @@ const styles = StyleSheet.create({
   textArea: {
     height: 120,
     paddingTop: 12,
-  },
-  modalActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 8,
-  },
-  cancelButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginRight: 12,
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    color: COLORS.GRAY,
-  },
-  submitButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 8,
-  },
-  submitButtonDisabled: {
-    backgroundColor: COLORS.GRAY,
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#ffffff",
   },
 });

@@ -11,6 +11,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -79,6 +81,33 @@ export const ShiftsScreen = ({
   });
 
   const [showPriceInput, setShowPriceInput] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Detectar altura del teclado solo cuando los modales están abiertos
+  useEffect(() => {
+    if (!showAddModal && !showEditModal) {
+      setKeyboardHeight(0);
+      return;
+    }
+
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const keyboardWillHideListener = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShowListener.remove();
+      keyboardWillHideListener.remove();
+    };
+  }, [showAddModal, showEditModal]);
 
   const monthNames = [
     "Enero",
@@ -495,7 +524,7 @@ export const ShiftsScreen = ({
       >
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? undefined : "height"}
           keyboardVerticalOffset={0}
         >
           <TouchableOpacity
@@ -503,15 +532,32 @@ export const ShiftsScreen = ({
             activeOpacity={1}
             onPress={() => setShowAddModal(false)}
           />
-          <View style={styles.modalContent}>
+          <View
+            style={[
+              styles.modalContent,
+              keyboardHeight > 0 && {
+                maxHeight:
+                  Dimensions.get("window").height -
+                  keyboardHeight -
+                  (Platform.OS === "ios" ? 0 : 20),
+                marginBottom: keyboardHeight,
+              },
+            ]}
+          >
             {/* Header */}
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Nueva Guardia</Text>
               <TouchableOpacity
                 onPress={() => setShowAddModal(false)}
                 style={styles.closeButton}
               >
                 <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Nueva Guardia</Text>
+              <TouchableOpacity
+                style={styles.headerActionButton}
+                onPress={handleAddShift}
+              >
+                <Text style={styles.headerActionButtonText}>Crear</Text>
               </TouchableOpacity>
             </View>
 
@@ -519,8 +565,9 @@ export const ShiftsScreen = ({
             <ScrollView
               style={styles.modalForm}
               contentContainerStyle={styles.modalFormContent}
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={true}
               keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
             >
               <View style={styles.formRow}>
                 {/* Fecha */}
@@ -613,21 +660,6 @@ export const ShiftsScreen = ({
               </View>
             </ScrollView>
 
-            {/* Actions */}
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={handleAddShift}
-              >
-                <Text style={styles.addButtonText}>Crear Guardia</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setShowAddModal(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -642,7 +674,7 @@ export const ShiftsScreen = ({
         >
           <KeyboardAvoidingView
             style={styles.modalOverlay}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            behavior={Platform.OS === "ios" ? undefined : "height"}
             keyboardVerticalOffset={0}
           >
             <TouchableOpacity
@@ -650,15 +682,32 @@ export const ShiftsScreen = ({
               activeOpacity={1}
               onPress={() => setShowEditModal(false)}
             />
-            <View style={styles.modalContent}>
+            <View
+              style={[
+                styles.modalContent,
+                keyboardHeight > 0 && {
+                  maxHeight:
+                    Dimensions.get("window").height -
+                    keyboardHeight -
+                    (Platform.OS === "ios" ? 0 : 20),
+                  marginBottom: keyboardHeight,
+                },
+              ]}
+            >
               {/* Header */}
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Editar Guardia</Text>
                 <TouchableOpacity
                   onPress={() => setShowEditModal(false)}
                   style={styles.closeButton}
                 >
                   <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>Editar Guardia</Text>
+                <TouchableOpacity
+                  style={styles.headerActionButton}
+                  onPress={handleEditShift}
+                >
+                  <Text style={styles.headerActionButtonText}>Guardar</Text>
                 </TouchableOpacity>
               </View>
 
@@ -666,8 +715,9 @@ export const ShiftsScreen = ({
               <ScrollView
                 style={styles.modalForm}
                 contentContainerStyle={styles.modalFormContent}
-                showsVerticalScrollIndicator={false}
+                showsVerticalScrollIndicator={true}
                 keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled={true}
               >
                 {/* Preview Card */}
                 <View style={styles.previewCard}>
@@ -760,21 +810,6 @@ export const ShiftsScreen = ({
                 </View>
               </ScrollView>
 
-              {/* Actions */}
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.addButton}
-                  onPress={handleEditShift}
-                >
-                  <Text style={styles.addButtonText}>Guardar Cambios</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => setShowEditModal(false)}
-                >
-                  <Text style={styles.cancelButtonText}>Cancelar</Text>
-                </TouchableOpacity>
-              </View>
             </View>
           </KeyboardAvoidingView>
         </Modal>
@@ -1228,8 +1263,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.WHITE,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "90%",
-    minHeight: "75%",
+    maxHeight: "95%",
+    minHeight: "85%",
+    flexDirection: "column",
   },
   modalHeader: {
     flexDirection: "row",
@@ -1243,6 +1279,20 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
     color: COLORS.GRAY_DARK,
+    flex: 1,
+    textAlign: "center",
+    marginHorizontal: 16,
+  },
+  headerActionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 80,
+    alignItems: "center",
+  },
+  headerActionButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.SUCCESS,
   },
   closeButton: {
     padding: 4,
@@ -1252,7 +1302,8 @@ const styles = StyleSheet.create({
   },
   modalFormContent: {
     padding: 20,
-    paddingBottom: 20,
+    paddingBottom: 40,
+    flexGrow: 1,
   },
   previewCard: {
     backgroundColor: "#EFF6FF",
@@ -1388,29 +1439,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.GRAY,
     marginTop: 4,
-  },
-  modalActions: {
-    flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
-    backgroundColor: COLORS.WHITE,
-  },
-  addButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: COLORS.SUCCESS,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  addButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.WHITE,
   },
   cancelButton: {
     flex: 1,
