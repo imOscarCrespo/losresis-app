@@ -94,6 +94,7 @@ export const NAVIGATION_ITEMS = [
     description: "Explora cursos y formaciones disponibles en tu área",
     color: "#6366F1", // Indigo
     lightColor: "#E0E7FF",
+    doctorOnly: true,
   },
   {
     id: "articulos",
@@ -126,19 +127,19 @@ export const NAVIGATION_ITEMS = [
     icon: "briefcase",
     description: "Explora ofertas de trabajo para residentes y adjuntos",
     doctorOnly: true,
-    commingSoon: true,
+    comingSoon: true,
     color: "#EF4444", // Red
     lightColor: "#FEE2E2",
   },
-  {
-    id: "faq-reseñas",
-    name: "Gestión interna",
-    icon: "help-circle",
-    description: "Gestiona las reseñas de usuarios sobre la aplicación",
-    superAdminOnly: true,
-    color: "#A855F7", // Purple
-    lightColor: "#F3E8FF",
-  },
+  // {
+  //   id: "faq-reseñas",
+  //   name: "Gestión interna",
+  //   icon: "help-circle",
+  //   description: "Gestiona las reseñas de usuarios sobre la aplicación",
+  //   superAdminOnly: true,
+  //   color: "#A855F7", // Purple
+  //   lightColor: "#F3E8FF",
+  // },
   {
     id: "contacto",
     name: "Contacto",

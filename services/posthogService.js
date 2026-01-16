@@ -1,6 +1,7 @@
 /**
  * Servicio de PostHog para tracking de analytics
  * Maneja la inicialización y el registro de eventos de pantallas
+ * Incluye soporte para Session Replay para capturar videos de sesiones de usuario
  */
 
 import PostHog from "posthog-react-native";
@@ -27,16 +28,42 @@ class PostHogLogger {
         {
           host: "https://eu.i.posthog.com",
           // Opciones adicionales para mejor tracking
-          enableSessionReplay: false, // Desactivado por defecto para mejor rendimiento
+          enableSessionReplay: true, // Habilitado para capturar videos de sesión
           captureApplicationLifecycleEvents: true,
           captureDeepLinks: true,
+          // Modo debug para diagnosticar problemas (puedes desactivarlo en producción)
+          debug: __DEV__, // Solo en modo desarrollo
+          // Configuración específica de Session Replay
+          sessionReplayConfig: {
+            // Enmascarar inputs de texto por privacidad (ajustar según necesidades)
+            maskAllTextInputs: true,
+            // Enmascarar imágenes por privacidad (ajustar según necesidades)
+            maskAllImages: false,
+            // Enmascarar vistas sandboxed
+            maskAllSandboxedViews: true,
+            // Capturar logs de la consola
+            captureLog: true,
+            // Capturar telemetría de red
+            captureNetworkTelemetry: true,
+            // Delay entre capturas para optimizar rendimiento (ms)
+            throttleDelayMs: 1000,
+          },
         }
       );
 
       this.isInitialized = true;
       console.log("✅ PostHog inicializado correctamente");
+      console.log("📹 Session Replay habilitado con configuración:", {
+        maskAllTextInputs: true,
+        maskAllImages: false,
+        captureLog: true,
+        captureNetworkTelemetry: true,
+      });
     } catch (error) {
       console.error("❌ Error al inicializar PostHog:", error);
+      console.error(
+        "💡 Asegúrate de que 'posthog-react-native-session-replay' esté instalado"
+      );
     }
   }
 

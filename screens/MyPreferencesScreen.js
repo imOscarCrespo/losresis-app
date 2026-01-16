@@ -140,7 +140,7 @@ const PreferenceCard = ({
               onViewHospital(preference.hospital_id, preference.speciality_id)
             }
           >
-            <Ionicons name="eye" size={18} color={COLORS.PRIMARY} />
+            {/* <Ionicons name="eye" size={18} color={COLORS.PRIMARY} /> */}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}
@@ -237,9 +237,32 @@ const AddPreferenceModal = ({
         <View style={styles.modalContent}>
           {/* Header */}
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Añadir Nueva Preferencia</Text>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Añadir Nueva Preferencia</Text>
+            <TouchableOpacity
+              style={[
+                styles.headerActionButton,
+                (!selectedHospital || !selectedSpecialty || loading) &&
+                  styles.headerActionButtonDisabled,
+              ]}
+              onPress={handleAdd}
+              disabled={!selectedHospital || !selectedSpecialty || loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={COLORS.SUCCESS} />
+              ) : (
+                <Text
+                  style={[
+                    styles.headerActionButtonText,
+                    (!selectedHospital || !selectedSpecialty || loading) &&
+                      styles.headerActionButtonTextDisabled,
+                  ]}
+                >
+                  Añadir
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -279,28 +302,6 @@ const AddPreferenceModal = ({
               </View>
             </View>
           </ScrollView>
-
-          {/* Actions */}
-          <View style={styles.modalActions}>
-            <TouchableOpacity
-              style={[
-                styles.addButton,
-                (!selectedHospital || !selectedSpecialty) &&
-                  styles.addButtonDisabled,
-              ]}
-              onPress={handleAdd}
-              disabled={!selectedHospital || !selectedSpecialty || loading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.addButtonText}>Añadir Preferencia</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -898,9 +899,29 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
     color: COLORS.TEXT_DARK,
+    flex: 1,
+    textAlign: "center",
+    marginHorizontal: 16,
   },
   closeButton: {
     padding: 4,
+  },
+  headerActionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 80,
+    alignItems: "center",
+  },
+  headerActionButtonDisabled: {
+    opacity: 0.5,
+  },
+  headerActionButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.SUCCESS,
+  },
+  headerActionButtonTextDisabled: {
+    color: COLORS.GRAY,
   },
   errorContainer: {
     margin: 20,
@@ -931,45 +952,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: COLORS.TEXT_DARK,
-  },
-  modalActions: {
-    flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
-    backgroundColor: COLORS.WHITE,
-  },
-  addButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: COLORS.SUCCESS,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  addButtonDisabled: {
-    backgroundColor: COLORS.TEXT_LIGHT,
-    opacity: 0.5,
-  },
-  addButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.WHITE,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: COLORS.TEXT_LIGHT,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.WHITE,
   },
 });

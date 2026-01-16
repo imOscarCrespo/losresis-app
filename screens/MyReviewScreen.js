@@ -521,11 +521,27 @@ export default function MyReviewScreen({
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
+              <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
+            </TouchableOpacity>
             <Text style={styles.modalTitle}>
               {isEditing ? "Editar Reseña" : "Nueva Reseña"}
             </Text>
-            <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
+            <TouchableOpacity
+              style={[
+                styles.headerActionButton,
+                loading && styles.headerActionButtonDisabled,
+              ]}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+              ) : (
+                <Text style={styles.headerActionButtonText}>
+                  {isEditing ? "Actualizar" : "Enviar"}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -649,29 +665,6 @@ export default function MyReviewScreen({
                   placeholder="Comparte detalles adicionales sobre tu experiencia..."
                   placeholderTextColor={COLORS.GRAY}
                 />
-              </View>
-
-              {/* Botones de acción */}
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  onPress={handleCancel}
-                  style={[styles.modalButton, styles.cancelButton]}
-                >
-                  <Text style={styles.cancelButtonText}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleSubmit}
-                  style={[styles.modalButton, styles.submitButton]}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.submitButtonText}>
-                      {isEditing ? "Actualizar Reseña" : "Enviar Reseña"}
-                    </Text>
-                  )}
-                </TouchableOpacity>
               </View>
             </ScrollView>
           )}
@@ -1113,9 +1106,26 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
     color: COLORS.GRAY_DARK,
+    flex: 1,
+    textAlign: "center",
+    marginHorizontal: 16,
   },
   closeButton: {
     padding: 4,
+  },
+  headerActionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 80,
+    alignItems: "center",
+  },
+  headerActionButtonDisabled: {
+    opacity: 0.5,
+  },
+  headerActionButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.PRIMARY,
   },
   modalContent: {
     flex: 1,
@@ -1249,34 +1259,6 @@ const styles = StyleSheet.create({
   },
   freeCommentInput: {
     minHeight: 100,
-  },
-  modalActions: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 32,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelButton: {
-    backgroundColor: "#F3F4F6",
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-  },
-  submitButton: {
-    backgroundColor: COLORS.PRIMARY,
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#FFFFFF",
   },
   deleteModalOverlay: {
     flex: 1,

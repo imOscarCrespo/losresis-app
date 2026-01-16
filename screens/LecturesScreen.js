@@ -479,12 +479,26 @@ export const LecturesScreen = ({ userProfile, navigation }) => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Nuevo Curso</Text>
             <TouchableOpacity
               onPress={handleCloseAddModal}
               style={styles.closeButton}
             >
               <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Nuevo Curso</Text>
+            <TouchableOpacity
+              style={[
+                styles.headerActionButton,
+                loading && styles.headerActionButtonDisabled,
+              ]}
+              onPress={handleSubmitCourse}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+              ) : (
+                <Text style={styles.headerActionButtonText}>Crear</Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -767,24 +781,6 @@ export const LecturesScreen = ({ userProfile, navigation }) => {
             </View>
 
             {/* Actions */}
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.submitButton}
-                onPress={handleSubmitCourse}
-                disabled={loading}
-              >
-                <Text style={styles.submitButtonText}>
-                  {loading ? "Creando..." : "Crear Curso"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={handleCloseAddModal}
-                disabled={loading}
-              >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
           </ScrollView>
 
           {/* Date Picker Overlay - Dentro del modal del formulario */}
@@ -933,12 +929,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: COLORS.ERROR + "15",
+    backgroundColor: `${COLORS.ERROR}15`,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: COLORS.ERROR + "30",
+    borderColor: `${COLORS.ERROR}30`,
   },
   errorText: {
     flex: 1,
@@ -1041,20 +1037,37 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
     color: COLORS.GRAY_DARK,
+    flex: 1,
+    textAlign: "center",
+    marginHorizontal: 16,
   },
   closeButton: {
     padding: 4,
+  },
+  headerActionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 80,
+    alignItems: "center",
+  },
+  headerActionButtonDisabled: {
+    opacity: 0.5,
+  },
+  headerActionButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.PRIMARY,
   },
   errorContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: COLORS.ERROR + "15",
+    backgroundColor: `${COLORS.ERROR}15`,
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: COLORS.ERROR + "30",
+    borderColor: `${COLORS.ERROR}30`,
   },
   errorText: {
     flex: 1,
@@ -1094,11 +1107,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: COLORS.PRIMARY + "15",
+    backgroundColor: `${COLORS.PRIMARY}15`,
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY + "30",
+    borderColor: `${COLORS.PRIMARY}30`,
   },
   dateItemContent: {
     flexDirection: "row",
@@ -1120,51 +1133,16 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: COLORS.PRIMARY + "15",
+    backgroundColor: `${COLORS.PRIMARY}15`,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.PRIMARY + "30",
+    borderColor: `${COLORS.PRIMARY}30`,
     borderStyle: "dashed",
   },
   addDateButtonText: {
     fontSize: 14,
     fontWeight: "600",
     color: COLORS.PRIMARY,
-  },
-  modalActions: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
-  },
-  submitButton: {
-    flex: 1,
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.WHITE,
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: COLORS.GRAY_LIGHT,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
   },
   datePickerOverlay: {
     position: "absolute",

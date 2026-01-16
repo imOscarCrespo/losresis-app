@@ -530,9 +530,24 @@ const SwapRequestModal = ({
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Solicitar Cambio de Guardia</Text>
             <TouchableOpacity onPress={onClose} style={styles.modalCloseButton}>
               <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Solicitar Cambio de Guardia</Text>
+            <TouchableOpacity
+              style={[
+                styles.headerActionButton,
+                (submitting || availableGuards.length === 0) &&
+                  styles.headerActionButtonDisabled,
+              ]}
+              onPress={handleRequestSwap}
+              disabled={submitting || availableGuards.length === 0}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+              ) : (
+                <Text style={styles.headerActionButtonText}>Solicitar</Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -644,28 +659,6 @@ const SwapRequestModal = ({
               </Text>
             </View>
           </ScrollView>
-
-          {/* Actions */}
-          <View style={styles.modalActions}>
-            <TouchableOpacity
-              style={styles.modalCancelButton}
-              onPress={onClose}
-            >
-              <Text style={styles.modalCancelButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.modalSubmitButton,
-                submitting && styles.modalSubmitButtonDisabled,
-              ]}
-              onPress={handleRequestSwap}
-              disabled={submitting || availableGuards.length === 0}
-            >
-              <Text style={styles.modalSubmitButtonText}>
-                {submitting ? "Enviando..." : "Solicitar Cambio"}
-              </Text>
-            </TouchableOpacity>
-          </View>
         </View>
       </View>
     </Modal>
@@ -735,9 +728,23 @@ const PurchaseRequestModal = ({
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Solicitar Compra de Guardia</Text>
             <TouchableOpacity onPress={onClose} style={styles.modalCloseButton}>
               <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Solicitar Compra de Guardia</Text>
+            <TouchableOpacity
+              style={[
+                styles.headerActionButton,
+                submitting && styles.headerActionButtonDisabled,
+              ]}
+              onPress={handleRequestPurchase}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+              ) : (
+                <Text style={styles.headerActionButtonText}>Solicitar</Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -807,26 +814,6 @@ const PurchaseRequestModal = ({
           </ScrollView>
 
           {/* Actions */}
-          <View style={styles.modalActions}>
-            <TouchableOpacity
-              style={styles.modalCancelButton}
-              onPress={onClose}
-            >
-              <Text style={styles.modalCancelButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.modalSubmitButton,
-                submitting && styles.modalSubmitButtonDisabled,
-              ]}
-              onPress={handleRequestPurchase}
-              disabled={submitting}
-            >
-              <Text style={styles.modalSubmitButtonText}>
-                {submitting ? "Enviando..." : "Solicitar Compra"}
-              </Text>
-            </TouchableOpacity>
-          </View>
         </View>
       </View>
     </Modal>
@@ -1054,6 +1041,22 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: COLORS.GRAY_DARK,
     flex: 1,
+    textAlign: "center",
+    marginHorizontal: 16,
+  },
+  headerActionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 80,
+    alignItems: "center",
+  },
+  headerActionButtonDisabled: {
+    opacity: 0.5,
+  },
+  headerActionButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.PRIMARY,
   },
   modalCloseButton: {
     padding: 4,
@@ -1176,42 +1179,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.GRAY,
     textAlign: "center",
-  },
-  modalActions: {
-    flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
-  },
-  modalCancelButton: {
-    flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  modalCancelButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-  },
-  modalSubmitButton: {
-    flex: 1,
-    backgroundColor: COLORS.PRIMARY,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  modalSubmitButtonDisabled: {
-    backgroundColor: COLORS.GRAY,
-  },
-  modalSubmitButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.WHITE,
   },
   // Day cell styles
   dayCell: {

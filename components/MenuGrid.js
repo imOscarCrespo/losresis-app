@@ -67,7 +67,7 @@ const MenuGridItem = ({ item, onPress, disabled = false }) => {
         </View>
 
         {/* Badge "Próximamente" si aplica */}
-        {item.commingSoon && (
+        {(item.comingSoon || item.commingSoon) && (
           <View style={styles.comingSoonBadge}>
             <Text style={styles.comingSoonText}>Próximamente</Text>
           </View>
@@ -181,6 +181,11 @@ export const MenuGrid = ({
 
   // Determinar si un item debe estar deshabilitado
   const isItemDisabled = (item) => {
+    // Si tiene comingSoon (o commingSoon por compatibilidad), deshabilitar
+    if (item.comingSoon || item.commingSoon) {
+      return true;
+    }
+
     // Si es residente sin review y no es super admin, deshabilitar todos los botones excepto "mi-resena"
     if (
       userProfile?.is_resident &&
