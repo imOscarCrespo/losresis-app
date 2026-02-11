@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Share,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SelectFilter } from "../components/SelectFilter";
@@ -26,6 +27,11 @@ import {
   updateUserProfile,
   deleteUserAccount,
 } from "../services/userService";
+import {
+  getActiveRaffle,
+  checkReferralAlreadyApplied,
+  applyReferralCode,
+} from "../services/referralService";
 import {
   isBiometricEnabled,
   setBiometricEnabled,
@@ -276,6 +282,78 @@ export default function ProfileScreen({
     resetEmailReview();
   };
 
+  const handleShareReferralCode = async () => {
+    const code = userProfile?.referral_code;
+    if (!code) return;
+    try {
+      await Share.share({
+        message: code,
+        title: "Mi código de referido",
+      });
+    } catch (err) {
+      if (err.message !== "User did not share") {
+        console.error("Error sharing referral code:", err);
+      }
+    }
+  };
+
+  const handleApplyReferralCode = async () => {
+    const normalized = referralCodeInput.trim().toUpperCase();
+    const formatOk = /^[A-Z]{5}$/.test(normalized);
+    if (!formatOk) {
+      setReferralApplyMessage({
+        type: "error",
+        text: "El código debe tener exactamente 5 letras mayúsculas.",
+      });
+      return;
+    }
+
+    if (!user?.id) return;
+
+    if (!activeRaffle) {
+      setReferralApplyMessage({
+        type: "error",
+        text: "No hay ninguna promoción activa en este momento.",
+      });
+      return;
+    }
+
+    setApplyingReferralCode(true);
+    setReferralApplyMessage(null);
+
+    try {
+      const { success, error } = await applyReferralCode(
+        user.id,
+        normalized,
+        activeRaffle
+      );
+
+      if (!success) {
+        setReferralApplyMessage({
+          type: "error",
+          text: error || "Error al aplicar el código. Inténtalo de nuevo.",
+        });
+        setApplyingReferralCode(false);
+        return;
+      }
+
+      setReferralApplyMessage({
+        type: "success",
+        text: "¡Código aplicado correctamente! Ya participas en la promoción.",
+      });
+      setReferralCodeInput("");
+      setReferralAlreadyApplied(true);
+    } catch (err) {
+      console.error("Error applying referral code:", err);
+      setReferralApplyMessage({
+        type: "error",
+        text: "Error inesperado. Inténtalo de nuevo.",
+      });
+    } finally {
+      setApplyingReferralCode(false);
+    }
+  };
+
   const handleSignOut = async () => {
     Alert.alert(
       "Cerrar Sesión",
@@ -381,6 +459,53 @@ export default function ProfileScreen({
 
   // Validar email para determinar si el perfil está completo
   const [isEmailValid, setIsEmailValid] = useState(true);
+
+  // Referral / sorteo: solo mostrar si el usuario se creó hace menos de 5 minutos
+  const FIVE_MINUTES_MS = 5 * 60 * 1000;
+  const userCreatedAtRaw = user?.created_at ?? userProfile?.created_at;
+  const userCreatedAtMs = userCreatedAtRaw
+    ? new Date(userCreatedAtRaw).getTime()
+    : NaN;
+  const showReferralApplySection =
+    !Number.isNaN(userCreatedAtMs) &&
+    Date.now() - userCreatedAtMs < FIVE_MINUTES_MS;
+
+  const [referralCodeInput, setReferralCodeInput] = useState("");
+  const [applyingReferralCode, setApplyingReferralCode] = useState(false);
+  const [referralApplyMessage, setReferralApplyMessage] = useState(null);
+  const [activeRaffle, setActiveRaffle] = useState(null);
+  const [loadingActiveRaffle, setLoadingActiveRaffle] = useState(false);
+  const [referralAlreadyApplied, setReferralAlreadyApplied] = useState(false);
+
+  // Cargar raffle activo y comprobar si ya aplicó código (solo si sección visible)
+  useEffect(() => {
+    if (!showReferralApplySection || !user?.id) return;
+
+    const run = async () => {
+      setLoadingActiveRaffle(true);
+      try {
+        const { success, raffle, error: raffleError } = await getActiveRaffle();
+        if (raffleError || !success) {
+          setActiveRaffle(null);
+          setLoadingActiveRaffle(false);
+          return;
+        }
+        setActiveRaffle(raffle ?? null);
+
+        if (raffle) {
+          const { alreadyApplied } = await checkReferralAlreadyApplied(
+            raffle.id,
+            user.id
+          );
+          setReferralAlreadyApplied(alreadyApplied);
+        }
+      } finally {
+        setLoadingActiveRaffle(false);
+      }
+    };
+
+    run();
+  }, [showReferralApplySection, user?.id]);
 
   // Validar email cuando cambia (solo si es residente o doctor)
   useEffect(() => {
@@ -490,6 +615,115 @@ export default function ProfileScreen({
 
       {/* Profile Status */}
       <ProfileStatusCard isComplete={profileComplete} />
+
+      {/* Aplicar código de referido (solo si usuario creado hace < 5 min) */}
+      {showReferralApplySection && (
+        <View style={styles.referralSection}>
+          <Text style={styles.referralSectionTitle}>
+            ¿Tienes un código de quien te invitó?
+          </Text>
+          <Text style={styles.referralSectionHint}>
+            Introduce el código de 5 letras para participar en la promoción
+            actual.
+          </Text>
+          {loadingActiveRaffle ? (
+            <View style={styles.referralLoadingRow}>
+              <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+              <Text style={styles.referralLoadingText}>
+                Cargando promociones...
+              </Text>
+            </View>
+          ) : !activeRaffle ? (
+            <Text style={styles.referralMutedText}>
+              No hay ninguna promoción activa en este momento.
+            </Text>
+          ) : referralAlreadyApplied ? (
+            <View style={styles.referralSuccessRow}>
+              <Ionicons name="checkmark-circle" size={22} color="#047857" />
+              <Text style={styles.referralSuccessText}>
+                Ya has aplicado un código para esta promoción.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.referralInputRow}>
+              <View style={styles.referralInputContainer}>
+                <TextInput
+                  style={styles.referralCodeInput}
+                  placeholder="ABCDE"
+                  placeholderTextColor="#999"
+                  value={referralCodeInput}
+                  onChangeText={(text) =>
+                    setReferralCodeInput(
+                      text
+                        .replace(/[^A-Za-z]/g, "")
+                        .toUpperCase()
+                        .slice(0, 5)
+                    )
+                  }
+                  maxLength={5}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  editable={!applyingReferralCode}
+                />
+              </View>
+              <Button
+                title={applyingReferralCode ? "Aplicando..." : "Aplicar código"}
+                onPress={handleApplyReferralCode}
+                loading={applyingReferralCode}
+                disabled={
+                  applyingReferralCode || referralCodeInput.trim().length !== 5
+                }
+                variant="primary"
+                style={styles.referralApplyButton}
+              />
+            </View>
+          )}
+          {referralApplyMessage && (
+            <View
+              style={[
+                styles.messageContainer,
+                referralApplyMessage.type === "success"
+                  ? styles.messageSuccess
+                  : styles.messageError,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.messageText,
+                  referralApplyMessage.type === "success"
+                    ? styles.messageTextSuccess
+                    : styles.messageTextError,
+                ]}
+              >
+                {referralApplyMessage.text}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Tu código de referido */}
+      {!isOnboarding && (
+        <View style={styles.myReferralSection}>
+          <Text style={styles.referralSectionTitle}>Tu código de referido</Text>
+          {userProfile?.referral_code ? (
+            <TouchableOpacity
+              style={styles.myReferralCodeTouchable}
+              onPress={handleShareReferralCode}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.myReferralCodeText}>
+                {userProfile.referral_code}
+              </Text>
+              <Ionicons name="share-outline" size={22} color={COLORS.PRIMARY} />
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.referralMutedText}>
+              Tu código de referido se mostrará aquí cuando esté disponible.
+            </Text>
+          )}
+        </View>
+      )}
 
       {/* Form Card */}
       <View style={styles.formCard}>
@@ -1004,5 +1238,101 @@ const styles = StyleSheet.create({
   },
   toggleCircleActive: {
     transform: [{ translateX: 20 }],
+  },
+  referralSection: {
+    backgroundColor: "#EFF6FF",
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  referralSectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    marginBottom: 8,
+  },
+  referralSectionHint: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 16,
+  },
+  referralLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+  },
+  referralLoadingText: {
+    fontSize: 14,
+    color: "#666",
+  },
+  referralMutedText: {
+    fontSize: 14,
+    color: "#666",
+  },
+  referralSuccessRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  referralSuccessText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#047857",
+  },
+  referralInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  referralInputContainer: {
+    flex: 1,
+    minWidth: 100,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+    paddingHorizontal: 12,
+  },
+  referralCodeInput: {
+    paddingVertical: 12,
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    letterSpacing: 4,
+  },
+  referralApplyButton: {
+    minWidth: 140,
+  },
+  myReferralSection: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+  },
+  myReferralCodeTouchable: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: "#E5E5EA",
+  },
+  myReferralCodeText: {
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: 4,
+    color: "#1a1a1a",
   },
 });

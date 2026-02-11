@@ -1,5 +1,8 @@
 import { supabase } from "../config/supabase";
 
+const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
+const MADRID_FALLBACK = { latitude: 40.4168, longitude: -3.7038 };
+
 /**
  * Servicio para gestionar usuarios de la comunidad
  */
@@ -112,78 +115,40 @@ export const getCities = async () => {
 };
 
 /**
- * Obtiene coordenadas para una ciudad usando geocodificación
- * Nota: En React Native, esto requeriría una API de geocodificación
- * Por ahora devolvemos coordenadas predeterminadas de ciudades españolas principales
+ * Obtiene coordenadas para una ciudad usando la API de geocodificación de Mapbox
  * @param {string} city - Nombre de la ciudad
  * @returns {Promise<{latitude: number, longitude: number}>}
  */
 export const getCityCoordinates = async (city) => {
-  // Coordenadas predeterminadas para ciudades principales de España
-  const cityCoordinates = {
-    Madrid: { latitude: 40.4168, longitude: -3.7038 },
-    Barcelona: { latitude: 41.3851, longitude: 2.1734 },
-    Valencia: { latitude: 39.4699, longitude: -0.3763 },
-    Sevilla: { latitude: 37.3891, longitude: -5.9845 },
-    Zaragoza: { latitude: 41.6488, longitude: -0.8891 },
-    Málaga: { latitude: 36.7213, longitude: -4.4214 },
-    Murcia: { latitude: 37.9922, longitude: -1.1307 },
-    "Palma de Mallorca": { latitude: 39.5696, longitude: 2.6502 },
-    "Las Palmas de Gran Canaria": { latitude: 28.1248, longitude: -15.43 },
-    Bilbao: { latitude: 43.263, longitude: -2.935 },
-    Alicante: { latitude: 38.3452, longitude: -0.481 },
-    Córdoba: { latitude: 37.8882, longitude: -4.7794 },
-    Valladolid: { latitude: 41.6521, longitude: -4.7288 },
-    Vigo: { latitude: 42.2406, longitude: -8.7207 },
-    Gijón: { latitude: 43.5322, longitude: -5.6611 },
-    "Hospitalet de Llobregat": { latitude: 41.3598, longitude: 2.1007 },
-    "A Coruña": { latitude: 43.3623, longitude: -8.4115 },
-    Granada: { latitude: 37.1773, longitude: -3.5986 },
-    Vitoria: { latitude: 42.8467, longitude: -2.6716 },
-    Elche: { latitude: 38.2699, longitude: -0.6983 },
-    Oviedo: { latitude: 43.3614, longitude: -5.8593 },
-    "Santa Cruz de Tenerife": { latitude: 28.4636, longitude: -16.2518 },
-    Badalona: { latitude: 41.4507, longitude: 2.2469 },
-    Cartagena: { latitude: 37.6256, longitude: -0.9963 },
-    Terrassa: { latitude: 41.5633, longitude: 2.0095 },
-    Jerez: { latitude: 36.6866, longitude: -6.1369 },
-    Sabadell: { latitude: 41.5433, longitude: 2.1089 },
-    Pamplona: { latitude: 42.8125, longitude: -1.6458 },
-    Santander: { latitude: 43.4623, longitude: -3.8099 },
-    Almería: { latitude: 36.8381, longitude: -2.4597 },
-    Salamanca: { latitude: 40.9701, longitude: -5.6635 },
-    Logroño: { latitude: 42.4627, longitude: -2.445 },
-    Badajoz: { latitude: 38.8794, longitude: -6.9707 },
-    Huelva: { latitude: 37.2578, longitude: -6.95 },
-    Tarragona: { latitude: 41.1189, longitude: 1.2445 },
-    Lleida: { latitude: 41.6175, longitude: 0.62 },
-    Cáceres: { latitude: 39.4753, longitude: -6.3724 },
-    "Castellón de la Plana": { latitude: 39.9864, longitude: -0.0513 },
-    Albacete: { latitude: 38.9943, longitude: -1.8585 },
-    Burgos: { latitude: 42.3439, longitude: -3.6969 },
-    "San Sebastián": { latitude: 43.3183, longitude: -1.9812 },
-    León: { latitude: 42.5987, longitude: -5.5671 },
-    Toledo: { latitude: 39.8628, longitude: -4.0273 },
-    Cádiz: { latitude: 36.5271, longitude: -6.2886 },
-    Segovia: { latitude: 40.9429, longitude: -4.1088 },
-    Ávila: { latitude: 40.6565, longitude: -4.6818 },
-    Guadalajara: { latitude: 40.6324, longitude: -3.1604 },
-    Cuenca: { latitude: 40.0704, longitude: -2.1374 },
-    Soria: { latitude: 41.7665, longitude: -2.479 },
-    Teruel: { latitude: 40.3456, longitude: -1.1065 },
-  };
-
-  // Buscar la ciudad (case-insensitive)
-  const cityKey = Object.keys(cityCoordinates).find(
-    (key) => key.toLowerCase() === city.toLowerCase()
-  );
-
-  if (cityKey) {
-    return cityCoordinates[cityKey];
+  if (!city || typeof city !== "string" || !city.trim()) {
+    return MADRID_FALLBACK;
   }
 
-  // Si no se encuentra, devolver coordenadas de Madrid por defecto
-  return { latitude: 40.4168, longitude: -3.7038 };
+  if (!MAPBOX_ACCESS_TOKEN) {
+    console.warn(
+      "EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN no está definido. Usando coordenadas por defecto (Madrid)."
+    );
+    return MADRID_FALLBACK;
+  }
+
+  try {
+    const query = encodeURIComponent(`${city.trim()}, España`);
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${MAPBOX_ACCESS_TOKEN}&country=es&types=place`;
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.features && data.features.length > 0) {
+      const [lng, lat] = data.features[0].center;
+      return { latitude: lat, longitude: lng };
+    }
+
+    console.log("No se encontraron coordenadas para la ciudad:", city);
+    return MADRID_FALLBACK;
+  } catch (error) {
+    console.error("Error al geocodificar la ciudad:", error);
+    return MADRID_FALLBACK;
+  }
 };
 
 /**
