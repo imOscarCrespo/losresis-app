@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
   ActivityIndicator,
   Alert,
   Share,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SelectFilter } from "../components/SelectFilter";
@@ -477,6 +480,42 @@ export default function ProfileScreen({
   const [loadingActiveRaffle, setLoadingActiveRaffle] = useState(false);
   const [referralAlreadyApplied, setReferralAlreadyApplied] = useState(false);
 
+  // Refs para inputs y scroll
+  const scrollViewRef = useRef(null);
+  const nameInputRef = useRef(null);
+  const surnameInputRef = useRef(null);
+  const phoneInputRef = useRef(null);
+  const workEmailInputRef = useRef(null);
+  const referralCodeInputRef = useRef(null);
+
+  // Función helper para hacer scroll a un input cuando recibe foco
+  const scrollToInput = (inputRef, offset = 100) => {
+    if (!inputRef.current || !scrollViewRef.current) return;
+
+    setTimeout(
+      () => {
+        inputRef.current?.measureLayout(
+          scrollViewRef.current,
+          (x, y, width, height) => {
+            // Scroll para que el input quede visible con un padding adicional
+            scrollViewRef.current?.scrollTo({
+              y: Math.max(0, y - offset),
+              animated: true,
+            });
+          },
+          () => {
+            // Fallback: si measureLayout falla, hacer scroll incremental
+            scrollViewRef.current?.scrollTo({
+              y: offset,
+              animated: true,
+            });
+          }
+        );
+      },
+      Platform.OS === "ios" ? 250 : 100
+    );
+  };
+
   // Cargar raffle activo y comprobar si ya aplicó código (solo si sección visible)
   useEffect(() => {
     if (!showReferralApplySection || !user?.id) return;
@@ -542,14 +581,36 @@ export default function ProfileScreen({
     validateEmailDomain,
   ]);
 
-  const profileComplete = useMemo(
-    () =>
-      isProfileComplete(formData, {
-        hasActiveEmailReview,
-        isEmailValid,
-      }),
-    [formData, hasActiveEmailReview, isEmailValid]
-  );
+  // Determinar si el perfil está completo basándose en los datos guardados (userProfile)
+  // Solo mostrar "completo" cuando los datos realmente están guardados en la BD
+  const profileComplete = useMemo(() => {
+    // Si no hay userProfile, el perfil no puede estar completo (no hay datos guardados)
+    if (!userProfile) return false;
+
+    // Verificar si hay cambios sin guardar comparando formData con userProfile
+    const hasUnsavedChanges =
+      formData.name !== (userProfile.name || "") ||
+      formData.surname !== (userProfile.surname || "") ||
+      formData.phone !== (userProfile.phone || "") ||
+      formData.city !== (userProfile.city || "") ||
+      formData.is_student !== (userProfile.is_student || false) ||
+      formData.is_resident !== (userProfile.is_resident || false) ||
+      formData.is_doctor !== (userProfile.is_doctor || false) ||
+      formData.work_email !== (userProfile.work_email || "") ||
+      formData.hospital_id !== (userProfile.hospital_id || "") ||
+      formData.speciality_id !== (userProfile.speciality_id || "") ||
+      formData.resident_year?.toString() !==
+        (userProfile.resident_year?.toString() || "");
+
+    // Si hay cambios sin guardar, el perfil no está completo (los cambios no están en BD)
+    if (hasUnsavedChanges) return false;
+
+    // Usar userProfile (datos guardados) para determinar si está completo
+    return isProfileComplete(userProfile, {
+      hasActiveEmailReview,
+      isEmailValid,
+    });
+  }, [userProfile, formData, hasActiveEmailReview, isEmailValid]);
 
   // Redirigir automáticamente cuando el perfil se completa en modo onboarding
   // Solo si NO estamos en medio de un submit (evita redirección doble)
@@ -591,98 +652,363 @@ export default function ProfileScreen({
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
-      <View style={styles.header}>
-        {!isOnboarding && (
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBack}
-            activeOpacity={0.7}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+    >
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollViewContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          {!isOnboarding && (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={onBack}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
+            </TouchableOpacity>
+          )}
+          <Text
+            style={[
+              styles.headerTitle,
+              isOnboarding && styles.headerTitleCentered,
+            ]}
           >
-            <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-          </TouchableOpacity>
-        )}
-        <Text
-          style={[
-            styles.headerTitle,
-            isOnboarding && styles.headerTitleCentered,
-          ]}
-        >
-          {isOnboarding ? "Completa tu Perfil" : "Mi Perfil"}
-        </Text>
-      </View>
-
-      {/* Profile Status */}
-      <ProfileStatusCard isComplete={profileComplete} />
-
-      {/* Aplicar código de referido (solo si usuario creado hace < 5 min) */}
-      {showReferralApplySection && (
-        <View style={styles.referralSection}>
-          <Text style={styles.referralSectionTitle}>
-            ¿Tienes un código de quien te invitó?
+            {isOnboarding ? "Completa tu Perfil" : "Mi Perfil"}
           </Text>
-          <Text style={styles.referralSectionHint}>
-            Introduce el código de 5 letras para participar en la promoción
-            actual.
-          </Text>
-          {loadingActiveRaffle ? (
-            <View style={styles.referralLoadingRow}>
-              <ActivityIndicator size="small" color={COLORS.PRIMARY} />
-              <Text style={styles.referralLoadingText}>
-                Cargando promociones...
-              </Text>
-            </View>
-          ) : !activeRaffle ? (
-            <Text style={styles.referralMutedText}>
-              No hay ninguna promoción activa en este momento.
+        </View>
+
+        {/* Profile Status */}
+        <ProfileStatusCard isComplete={profileComplete} />
+
+        {/* Aplicar código de referido (solo si usuario creado hace < 5 min Y hay raffle activa) */}
+        {showReferralApplySection && (loadingActiveRaffle || activeRaffle) && (
+          <View style={styles.referralSection}>
+            <Text style={styles.referralSectionTitle}>
+              ¿Tienes un código de quien te invitó?
             </Text>
-          ) : referralAlreadyApplied ? (
-            <View style={styles.referralSuccessRow}>
-              <Ionicons name="checkmark-circle" size={22} color="#047857" />
-              <Text style={styles.referralSuccessText}>
-                Ya has aplicado un código para esta promoción.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.referralInputRow}>
-              <View style={styles.referralInputContainer}>
-                <TextInput
-                  style={styles.referralCodeInput}
-                  placeholder="ABCDE"
-                  placeholderTextColor="#999"
-                  value={referralCodeInput}
-                  onChangeText={(text) =>
-                    setReferralCodeInput(
-                      text
-                        .replace(/[^A-Za-z]/g, "")
-                        .toUpperCase()
-                        .slice(0, 5)
-                    )
+            <Text style={styles.referralSectionHint}>
+              Introduce el código de 5 letras para participar en la promoción
+              actual.
+            </Text>
+            {loadingActiveRaffle ? (
+              <View style={styles.referralLoadingRow}>
+                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                <Text style={styles.referralLoadingText}>
+                  Cargando promociones...
+                </Text>
+              </View>
+            ) : referralAlreadyApplied ? (
+              <View style={styles.referralSuccessRow}>
+                <Ionicons name="checkmark-circle" size={22} color="#047857" />
+                <Text style={styles.referralSuccessText}>
+                  Ya has aplicado un código para esta promoción.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.referralInputRow}>
+                <View style={styles.referralInputContainer}>
+                  <TextInput
+                    ref={referralCodeInputRef}
+                    style={styles.referralCodeInput}
+                    placeholder="ABCDE"
+                    placeholderTextColor="#999"
+                    value={referralCodeInput}
+                    onChangeText={(text) =>
+                      setReferralCodeInput(
+                        text
+                          .replace(/[^A-Za-z]/g, "")
+                          .toUpperCase()
+                          .slice(0, 5)
+                      )
+                    }
+                    maxLength={5}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    editable={!applyingReferralCode}
+                    onFocus={() => scrollToInput(referralCodeInputRef, 150)}
+                  />
+                </View>
+                <Button
+                  title={
+                    applyingReferralCode ? "Aplicando..." : "Aplicar código"
                   }
-                  maxLength={5}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  editable={!applyingReferralCode}
+                  onPress={handleApplyReferralCode}
+                  loading={applyingReferralCode}
+                  disabled={
+                    applyingReferralCode ||
+                    referralCodeInput.trim().length !== 5
+                  }
+                  variant="primary"
+                  style={styles.referralApplyButton}
                 />
               </View>
-              <Button
-                title={applyingReferralCode ? "Aplicando..." : "Aplicar código"}
-                onPress={handleApplyReferralCode}
-                loading={applyingReferralCode}
-                disabled={
-                  applyingReferralCode || referralCodeInput.trim().length !== 5
-                }
-                variant="primary"
-                style={styles.referralApplyButton}
+            )}
+            {referralApplyMessage && (
+              <View
+                style={[
+                  styles.messageContainer,
+                  referralApplyMessage.type === "success"
+                    ? styles.messageSuccess
+                    : styles.messageError,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.messageText,
+                    referralApplyMessage.type === "success"
+                      ? styles.messageTextSuccess
+                      : styles.messageTextError,
+                  ]}
+                >
+                  {referralApplyMessage.text}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Tu código de referido */}
+        {!isOnboarding && (
+          <View style={styles.myReferralSection}>
+            <Text style={styles.referralSectionTitle}>
+              Tu código de referido
+            </Text>
+            {userProfile?.referral_code ? (
+              <TouchableOpacity
+                style={styles.myReferralCodeTouchable}
+                onPress={handleShareReferralCode}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.myReferralCodeText}>
+                  {userProfile.referral_code}
+                </Text>
+                <Ionicons
+                  name="share-outline"
+                  size={22}
+                  color={COLORS.PRIMARY}
+                />
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.referralMutedText}>
+                Tu código de referido se mostrará aquí cuando esté disponible.
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Form Card */}
+        <View style={styles.formCard}>
+          {/* User Type Selection */}
+          <UserTypeSelector
+            selectedType={getCurrentUserType()}
+            onTypeChange={handleUserTypeChange}
+          />
+
+          {/* Personal Information */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Información Personal</Text>
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Nombre *</Text>
+                <View style={styles.inputContainer}>
+                  <Ionicons
+                    name="person"
+                    size={20}
+                    color="#999"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    ref={nameInputRef}
+                    style={styles.input}
+                    placeholder="Tu nombre"
+                    value={formData.name}
+                    onChangeText={(text) => updateField("name", text)}
+                    onFocus={() => scrollToInput(nameInputRef, 120)}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Apellidos</Text>
+                <View style={styles.inputContainer}>
+                  <Ionicons
+                    name="person"
+                    size={20}
+                    color="#999"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    ref={surnameInputRef}
+                    style={styles.input}
+                    placeholder="Tus apellidos"
+                    value={formData.surname}
+                    onChangeText={(text) => updateField("surname", text)}
+                    onFocus={() => scrollToInput(surnameInputRef, 120)}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Teléfono</Text>
+                <View style={styles.inputContainer}>
+                  <Ionicons
+                    name="call"
+                    size={20}
+                    color="#999"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    ref={phoneInputRef}
+                    style={styles.input}
+                    placeholder="+34 600 000 000"
+                    value={formData.phone}
+                    onChangeText={(text) => updateField("phone", text)}
+                    keyboardType="phone-pad"
+                    onFocus={() => scrollToInput(phoneInputRef, 120)}
+                  />
+                </View>
+              </View>
+
+            <View style={[styles.inputGroup, styles.inputGroupLast]}>
+              <Text style={styles.inputLabel}>Ciudad *</Text>
+              <SelectFilter
+                label=""
+                value={formData.city}
+                onSelect={(city) => {
+                  Keyboard.dismiss();
+                  updateField("city", city);
+                }}
+                options={cityOptions}
+                placeholder="Selecciona tu ciudad"
+                enableSearch={true}
               />
             </View>
+            </View>
+          </View>
+
+          {/* Professional Information */}
+          {(formData.is_resident || formData.is_doctor) && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Información Profesional</Text>
+
+              {formData.is_resident && (
+                <View style={styles.professionalInputGroup}>
+                  <Text style={styles.inputLabel}>Año de residencia *</Text>
+                  <SelectFilter
+                    label=""
+                    value={formData.resident_year}
+                    onSelect={(year) => {
+                      Keyboard.dismiss();
+                      updateField("resident_year", year);
+                    }}
+                    options={RESIDENT_YEAR_OPTIONS}
+                    placeholder="Selecciona el año"
+                    enableSearch={false}
+                  />
+                </View>
+              )}
+
+              <View style={styles.professionalInputGroup}>
+                <Text style={styles.inputLabel}>Hospital *</Text>
+                <SelectFilter
+                  label=""
+                  value={formData.hospital_id}
+                  onSelect={(hospitalId) => {
+                    Keyboard.dismiss();
+                    updateField("hospital_id", hospitalId);
+                  }}
+                  options={hospitalOptions}
+                  placeholder="Selecciona tu hospital"
+                  enableSearch={true}
+                />
+              </View>
+
+              <View style={styles.professionalInputGroup}>
+                <Text style={styles.inputLabel}>Especialidad *</Text>
+                <SelectFilter
+                  label=""
+                  value={formData.speciality_id}
+                  onSelect={(specialtyId) => {
+                    Keyboard.dismiss();
+                    updateField("speciality_id", specialtyId);
+                  }}
+                  options={specialtyOptions}
+                  placeholder="Selecciona tu especialidad"
+                  enableSearch={true}
+                />
+              </View>
+
+              <View style={styles.professionalInputGroup}>
+                <Text style={styles.inputLabel}>
+                  Email de trabajo *
+                  {isEmailInputDisabled && (
+                    <Text style={styles.inputHint}>
+                      {" "}
+                      (Selecciona hospital y especialidad primero)
+                    </Text>
+                  )}
+                </Text>
+                <View style={styles.inputContainer}>
+                  <Ionicons
+                    name="mail"
+                    size={20}
+                    color={isEmailInputDisabled ? "#CCC" : "#999"}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    ref={workEmailInputRef}
+                    style={[
+                      styles.input,
+                      isEmailInputDisabled && styles.inputDisabled,
+                    ]}
+                    placeholder={
+                      isEmailInputDisabled
+                        ? "Selecciona hospital y especialidad primero"
+                        : "tu.email@hospital.com"
+                    }
+                    value={formData.work_email}
+                    onChangeText={handleWorkEmailChange}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    editable={!isEmailInputDisabled}
+                    onFocus={() => scrollToInput(workEmailInputRef, 150)}
+                  />
+                </View>
+              </View>
+            </View>
           )}
-          {referralApplyMessage && (
+
+          {/* Email Review Request Section */}
+          {showEmailReviewSection &&
+            formData.is_resident &&
+            formData.work_email &&
+            formData.hospital_id && (
+              <EmailReviewSection
+                workEmail={formData.work_email}
+                onSubmit={handleSubmitEmailReview}
+                onCancel={handleCancelEmailReview}
+                isSubmitting={emailReviewSubmitting}
+                isSubmitted={emailReviewSubmitted}
+              />
+            )}
+
+          {/* Message Display */}
+          {message && (
             <View
               style={[
                 styles.messageContainer,
-                referralApplyMessage.type === "success"
+                message.type === "success"
                   ? styles.messageSuccess
                   : styles.messageError,
               ]}
@@ -690,333 +1016,89 @@ export default function ProfileScreen({
               <Text
                 style={[
                   styles.messageText,
-                  referralApplyMessage.type === "success"
+                  message.type === "success"
                     ? styles.messageTextSuccess
                     : styles.messageTextError,
                 ]}
               >
-                {referralApplyMessage.text}
+                {message.text}
               </Text>
             </View>
           )}
-        </View>
-      )}
 
-      {/* Tu código de referido */}
-      {!isOnboarding && (
-        <View style={styles.myReferralSection}>
-          <Text style={styles.referralSectionTitle}>Tu código de referido</Text>
-          {userProfile?.referral_code ? (
-            <TouchableOpacity
-              style={styles.myReferralCodeTouchable}
-              onPress={handleShareReferralCode}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.myReferralCodeText}>
-                {userProfile.referral_code}
-              </Text>
-              <Ionicons name="share-outline" size={22} color={COLORS.PRIMARY} />
-            </TouchableOpacity>
-          ) : (
-            <Text style={styles.referralMutedText}>
-              Tu código de referido se mostrará aquí cuando esté disponible.
-            </Text>
-          )}
-        </View>
-      )}
-
-      {/* Form Card */}
-      <View style={styles.formCard}>
-        {/* User Type Selection */}
-        <UserTypeSelector
-          selectedType={getCurrentUserType()}
-          onTypeChange={handleUserTypeChange}
-        />
-
-        {/* Personal Information */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Información Personal</Text>
-          <View style={styles.inputRow}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Nombre *</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons
-                  name="person"
-                  size={20}
-                  color="#999"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Tu nombre"
-                  value={formData.name}
-                  onChangeText={(text) => updateField("name", text)}
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Apellidos</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons
-                  name="person"
-                  size={20}
-                  color="#999"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Tus apellidos"
-                  value={formData.surname}
-                  onChangeText={(text) => updateField("surname", text)}
-                />
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.inputRow}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Teléfono</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons
-                  name="call"
-                  size={20}
-                  color="#999"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="+34 600 000 000"
-                  value={formData.phone}
-                  onChangeText={(text) => updateField("phone", text)}
-                  keyboardType="phone-pad"
-                />
-              </View>
-            </View>
-
-            <View style={[styles.inputGroup, styles.inputGroupLast]}>
-              <Text style={styles.inputLabel}>Ciudad *</Text>
-              <SelectFilter
-                label=""
-                value={formData.city}
-                onSelect={(city) => updateField("city", city)}
-                options={cityOptions}
-                placeholder="Selecciona tu ciudad"
-                enableSearch={true}
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Professional Information */}
-        {(formData.is_resident || formData.is_doctor) && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Información Profesional</Text>
-
-            {formData.is_resident && (
-              <View style={styles.professionalInputGroup}>
-                <Text style={styles.inputLabel}>Año de residencia *</Text>
-                <SelectFilter
-                  label=""
-                  value={formData.resident_year}
-                  onSelect={(year) => updateField("resident_year", year)}
-                  options={RESIDENT_YEAR_OPTIONS}
-                  placeholder="Selecciona el año"
-                  enableSearch={false}
-                />
-              </View>
-            )}
-
-            <View style={styles.professionalInputGroup}>
-              <Text style={styles.inputLabel}>Hospital *</Text>
-              <SelectFilter
-                label=""
-                value={formData.hospital_id}
-                onSelect={(hospitalId) =>
-                  updateField("hospital_id", hospitalId)
-                }
-                options={hospitalOptions}
-                placeholder="Selecciona tu hospital"
-                enableSearch={true}
-              />
-            </View>
-
-            <View style={styles.professionalInputGroup}>
-              <Text style={styles.inputLabel}>Especialidad *</Text>
-              <SelectFilter
-                label=""
-                value={formData.speciality_id}
-                onSelect={(specialtyId) =>
-                  updateField("speciality_id", specialtyId)
-                }
-                options={specialtyOptions}
-                placeholder="Selecciona tu especialidad"
-                enableSearch={true}
-              />
-            </View>
-
-            <View style={styles.professionalInputGroup}>
-              <Text style={styles.inputLabel}>
-                Email de trabajo *
-                {isEmailInputDisabled && (
-                  <Text style={styles.inputHint}>
-                    {" "}
-                    (Selecciona hospital y especialidad primero)
-                  </Text>
-                )}
-              </Text>
-              <View style={styles.inputContainer}>
-                <Ionicons
-                  name="mail"
-                  size={20}
-                  color={isEmailInputDisabled ? "#CCC" : "#999"}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={[
-                    styles.input,
-                    isEmailInputDisabled && styles.inputDisabled,
-                  ]}
-                  placeholder={
-                    isEmailInputDisabled
-                      ? "Selecciona hospital y especialidad primero"
-                      : "tu.email@hospital.com"
-                  }
-                  value={formData.work_email}
-                  onChangeText={handleWorkEmailChange}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  editable={!isEmailInputDisabled}
-                />
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Email Review Request Section */}
-        {showEmailReviewSection &&
-          formData.is_resident &&
-          formData.work_email &&
-          formData.hospital_id && (
-            <EmailReviewSection
-              workEmail={formData.work_email}
-              onSubmit={handleSubmitEmailReview}
-              onCancel={handleCancelEmailReview}
-              isSubmitting={emailReviewSubmitting}
-              isSubmitted={emailReviewSubmitted}
-            />
-          )}
-
-        {/* Message Display */}
-        {message && (
-          <View
-            style={[
-              styles.messageContainer,
-              message.type === "success"
-                ? styles.messageSuccess
-                : styles.messageError,
-            ]}
-          >
-            <Text
-              style={[
-                styles.messageText,
-                message.type === "success"
-                  ? styles.messageTextSuccess
-                  : styles.messageTextError,
-              ]}
-            >
-              {message.text}
-            </Text>
-          </View>
-        )}
-
-        {/* Security Section */}
-        {!isOnboarding && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Seguridad</Text>
-            <View style={styles.securityOption}>
-              <View style={styles.securityOptionContent}>
-                <Ionicons
-                  name={
-                    biometricType === "Face ID" ? "lock-closed" : "finger-print"
-                  }
-                  size={24}
-                  color={
-                    biometricAvailable ? COLORS.PRIMARY : COLORS.TEXT_LIGHT
-                  }
-                  style={styles.securityIcon}
-                />
-                <View style={styles.securityTextContainer}>
-                  <Text style={styles.securityTitle}>
-                    {biometricType || "Autenticación biométrica"}
-                  </Text>
-                  <Text style={styles.securityDescription}>
-                    {biometricAvailable
-                      ? "Inicia sesión rápidamente usando tu " +
-                        (biometricType || "biometría") +
-                        " sin necesidad de ingresar tus credenciales cada vez."
-                      : "Tu dispositivo no soporta autenticación biométrica o no está configurada."}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                onPress={handleBiometricToggle}
-                disabled={!biometricAvailable || loadingBiometric}
-                style={[
-                  styles.toggleSwitch,
-                  biometricEnabled && styles.toggleSwitchActive,
-                  (!biometricAvailable || loadingBiometric) &&
-                    styles.toggleSwitchDisabled,
-                ]}
-              >
-                {loadingBiometric ? (
-                  <ActivityIndicator size="small" color={COLORS.WHITE} />
-                ) : (
-                  <View
-                    style={[
-                      styles.toggleCircle,
-                      biometricEnabled && styles.toggleCircleActive,
-                    ]}
-                  />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Action Buttons */}
-        <View style={styles.actionsContainer}>
-          <Button
-            title={
-              loading || validatingEmail || isCompletingOnboarding
-                ? "Guardando..."
-                : isOnboarding
-                ? "Continuar"
-                : "Guardar Cambios"
-            }
-            onPress={handleSubmit}
-            loading={loading || validatingEmail || isCompletingOnboarding}
-            disabled={loading || validatingEmail || isCompletingOnboarding}
-            variant="primary"
-            style={styles.saveButton}
-          />
-          {isOnboarding && (
-            <Button
-              title="Eliminar cuenta"
-              onPress={handleDeleteAccount}
-              variant="secondary"
-              style={styles.deleteAccountButton}
-              textStyle={styles.deleteAccountButtonText}
-            />
-          )}
+          {/* Security Section */}
           {!isOnboarding && (
-            <>
-              <Button
-                title="Cerrar Sesión"
-                onPress={handleSignOut}
-                variant="secondary"
-                style={styles.signOutButton}
-              />
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Seguridad</Text>
+              <View style={styles.securityOption}>
+                <View style={styles.securityOptionContent}>
+                  <Ionicons
+                    name={
+                      biometricType === "Face ID"
+                        ? "lock-closed"
+                        : "finger-print"
+                    }
+                    size={24}
+                    color={
+                      biometricAvailable ? COLORS.PRIMARY : COLORS.TEXT_LIGHT
+                    }
+                    style={styles.securityIcon}
+                  />
+                  <View style={styles.securityTextContainer}>
+                    <Text style={styles.securityTitle}>
+                      {biometricType || "Autenticación biométrica"}
+                    </Text>
+                    <Text style={styles.securityDescription}>
+                      {biometricAvailable
+                        ? "Inicia sesión rápidamente usando tu " +
+                          (biometricType || "biometría") +
+                          " sin necesidad de ingresar tus credenciales cada vez."
+                        : "Tu dispositivo no soporta autenticación biométrica o no está configurada."}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={handleBiometricToggle}
+                  disabled={!biometricAvailable || loadingBiometric}
+                  style={[
+                    styles.toggleSwitch,
+                    biometricEnabled && styles.toggleSwitchActive,
+                    (!biometricAvailable || loadingBiometric) &&
+                      styles.toggleSwitchDisabled,
+                  ]}
+                >
+                  {loadingBiometric ? (
+                    <ActivityIndicator size="small" color={COLORS.WHITE} />
+                  ) : (
+                    <View
+                      style={[
+                        styles.toggleCircle,
+                        biometricEnabled && styles.toggleCircleActive,
+                      ]}
+                    />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Action Buttons */}
+          <View style={styles.actionsContainer}>
+            <Button
+              title={
+                loading || validatingEmail || isCompletingOnboarding
+                  ? "Guardando..."
+                  : isOnboarding
+                  ? "Continuar"
+                  : "Guardar Cambios"
+              }
+              onPress={handleSubmit}
+              loading={loading || validatingEmail || isCompletingOnboarding}
+              disabled={loading || validatingEmail || isCompletingOnboarding}
+              variant="primary"
+              style={styles.saveButton}
+            />
+            {isOnboarding && (
               <Button
                 title="Eliminar cuenta"
                 onPress={handleDeleteAccount}
@@ -1024,11 +1106,28 @@ export default function ProfileScreen({
                 style={styles.deleteAccountButton}
                 textStyle={styles.deleteAccountButtonText}
               />
-            </>
-          )}
+            )}
+            {!isOnboarding && (
+              <>
+                <Button
+                  title="Cerrar Sesión"
+                  onPress={handleSignOut}
+                  variant="secondary"
+                  style={styles.signOutButton}
+                />
+                <Button
+                  title="Eliminar cuenta"
+                  onPress={handleDeleteAccount}
+                  variant="secondary"
+                  style={styles.deleteAccountButton}
+                  textStyle={styles.deleteAccountButtonText}
+                />
+              </>
+            )}
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -1036,6 +1135,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    flexGrow: 1,
   },
   loadingContainer: {
     flex: 1,

@@ -46,6 +46,7 @@ export const Filters = ({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filtersScroll}
+        keyboardShouldPersistTaps="handled"
       >
         {filters.map((filter, index) => {
           if (filter.type === "search") {

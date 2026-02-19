@@ -3,12 +3,14 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   Modal,
   FlatList,
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -42,6 +44,7 @@ export const SelectFilter = ({
   const handleChange = onChange || onSelect;
   const [modalVisible, setModalVisible] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const searchInputRef = React.useRef(null);
 
   const selectedOption = options.find(
     (opt) => (opt.id || opt.value) === value || opt === value
@@ -75,10 +78,16 @@ export const SelectFilter = ({
   }, [options, searchText]);
 
   const handleSelect = (option) => {
+    // Procesar la selección inmediatamente
     const optionValue = option.value || option.id || option;
     handleChange(optionValue === value ? "" : optionValue);
     setModalVisible(false);
     setSearchText(""); // Limpiar búsqueda al seleccionar
+    // Cerrar teclado después de procesar la selección
+    if (searchInputRef.current) {
+      searchInputRef.current.blur();
+    }
+    Keyboard.dismiss();
   };
 
   const handleModalClose = () => {
@@ -92,16 +101,17 @@ export const SelectFilter = ({
     const optionName =
       typeof item === "string"
         ? item
-        : item.label ||
-          item.name ||
-          String(item.value || item.id || "");
+        : item.label || item.name || String(item.value || item.id || "");
     const isSelected = optionValue === value;
 
     return (
-      <TouchableOpacity
-        style={[styles.optionItem, isSelected && styles.optionItemSelected]}
+      <Pressable
+        style={({ pressed }) => [
+          styles.optionItem,
+          isSelected && styles.optionItemSelected,
+          pressed && styles.optionItemPressed,
+        ]}
         onPress={() => handleSelect(item)}
-        activeOpacity={0.7}
       >
         <Text
           style={[styles.optionText, isSelected && styles.optionTextSelected]}
@@ -109,7 +119,7 @@ export const SelectFilter = ({
           {optionName}
         </Text>
         {isSelected && <Ionicons name="checkmark" size={20} color="#007AFF" />}
-      </TouchableOpacity>
+      </Pressable>
     );
   };
 
@@ -157,20 +167,20 @@ export const SelectFilter = ({
         animationType="slide"
         onRequestClose={handleModalClose}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={handleModalClose}
-        >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={handleModalClose}
+          >
+            <View style={{ flex: 1 }} />
+          </TouchableOpacity>
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={styles.keyboardAvoidingView}
             keyboardVerticalOffset={0}
           >
-            <View
-              style={styles.modalContent}
-              onStartShouldSetResponder={() => true}
-            >
+            <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{label || placeholder}</Text>
                 <TouchableOpacity
@@ -191,12 +201,15 @@ export const SelectFilter = ({
                     style={styles.searchIcon}
                   />
                   <TextInput
+                    ref={searchInputRef}
                     style={styles.searchInput}
                     placeholder="Buscar..."
                     placeholderTextColor="#999"
                     value={searchText}
                     onChangeText={setSearchText}
                     autoFocus={false}
+                    blurOnSubmit={false}
+                    returnKeyType="done"
                   />
                   {searchText.length > 0 && (
                     <TouchableOpacity
@@ -218,6 +231,7 @@ export const SelectFilter = ({
                 style={styles.optionsList}
                 contentContainerStyle={styles.optionsListContent}
                 keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled={true}
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>
                     <Text style={styles.emptyText}>
@@ -228,7 +242,7 @@ export const SelectFilter = ({
               />
             </View>
           </KeyboardAvoidingView>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </View>
   );
@@ -357,6 +371,9 @@ const styles = StyleSheet.create({
   },
   optionItemSelected: {
     backgroundColor: "#F0F8FF",
+  },
+  optionItemPressed: {
+    opacity: 0.7,
   },
   optionText: {
     fontSize: 16,

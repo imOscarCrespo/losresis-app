@@ -5,8 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 const USER_TYPES = [
   {
     id: "student",
-    label: "Estudiante",
-    subtitle: "Estudiante de medicina",
+    label: "Estudiante/PostMir",
+    subtitle: "Estudiante/PostMir de medicina",
     icon: "school",
     color: "#059669",
   },
