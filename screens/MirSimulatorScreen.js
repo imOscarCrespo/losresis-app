@@ -105,6 +105,15 @@ export default function MirSimulatorScreen({ onBack }) {
   };
 
   const renderResultItem = ({ item }) => {
+    const currentYear = new Date().getFullYear();
+
+    // Filtrar grades para excluir el año actual (comparando como números)
+    const filteredGrades = item.grades.filter((grade) => {
+      const year =
+        typeof grade.year === "string" ? parseInt(grade.year, 10) : grade.year;
+      return year !== currentYear;
+    });
+
     return (
       <View style={styles.resultCard}>
         <View style={styles.resultHeader}>
@@ -139,13 +148,31 @@ export default function MirSimulatorScreen({ onBack }) {
               </Text>
             </View>
           )}
+          {item.currentYearSlots !== null &&
+            item.currentYearSlots !== undefined && (
+              <View style={styles.slotsBadge}>
+                <Text style={styles.slotsText}>
+                  {item.currentYearSlots}{" "}
+                  {item.currentYearSlots === 1 ? "plaza" : "plazas"}
+                </Text>
+              </View>
+            )}
         </View>
 
         {/* Historical grades */}
         <View style={styles.gradesGrid}>
-          {item.grades.map((grade) => {
-            const hasGrade = grade.grade !== null && grade.grade !== undefined;
-            const isAbove = hasGrade && parseFloat(mirScore) <= grade.grade;
+          {filteredGrades.map((grade) => {
+            // Verificar si hay un grade válido (no null, undefined, cadena vacía, o NaN)
+            const gradeValue = grade.grade;
+            const hasGrade =
+              gradeValue !== null &&
+              gradeValue !== undefined &&
+              gradeValue !== "" &&
+              !isNaN(parseFloat(gradeValue)) &&
+              isFinite(parseFloat(gradeValue));
+
+            const isAbove =
+              hasGrade && parseFloat(mirScore) <= parseFloat(gradeValue);
 
             return (
               <View
@@ -159,7 +186,11 @@ export default function MirSimulatorScreen({ onBack }) {
                     : styles.gradeCardEmpty,
                 ]}
               >
-                <Text style={styles.gradeYear}>{grade.year}</Text>
+                <Text
+                  style={[styles.gradeYear, !hasGrade && styles.gradeYearEmpty]}
+                >
+                  {grade.year}
+                </Text>
                 <Text
                   style={[
                     styles.gradeValue,
@@ -170,7 +201,7 @@ export default function MirSimulatorScreen({ onBack }) {
                       : styles.gradeValueEmpty,
                   ]}
                 >
-                  {grade.grade ?? "N/A"}
+                  {hasGrade ? gradeValue : "N/A"}
                 </Text>
               </View>
             );
@@ -477,6 +508,17 @@ const styles = StyleSheet.create({
     color: "#2563EB",
     fontWeight: "500",
   },
+  slotsBadge: {
+    backgroundColor: "#FEF3C7",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  slotsText: {
+    fontSize: 12,
+    color: "#D97706",
+    fontWeight: "500",
+  },
   gradesGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -507,6 +549,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#666",
     marginBottom: 4,
+  },
+  gradeYearEmpty: {
+    color: "#9CA3AF",
   },
   gradeValue: {
     fontSize: 14,

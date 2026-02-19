@@ -82,19 +82,13 @@ export default function HospitalDetailScreen({
 
             if (specSuccess && specialty) {
               console.log("✅ Adding specialty to list:", specialty.name);
-              // Añadir la especialidad sin datos de grados
+              // Añadir la especialidad sin datos de grados (estructura dinámica)
               finalSpecialties = [
                 {
                   id: specialty.id,
                   name: specialty.name,
                   description: "",
-                  grade_2025: undefined,
-                  grade_2024: undefined,
-                  grade_2023: undefined,
-                  grade_2022: undefined,
-                  grade_2021: undefined,
-                  grade_2020: undefined,
-                  grade_2019: undefined,
+                  years: [], // Array vacío de años
                   slots: undefined,
                 },
                 ...specialtiesData,
@@ -170,26 +164,16 @@ export default function HospitalDetailScreen({
   const renderSpecialtyItem = ({ item }) => {
     // Debug: verificar los datos de la especialidad
     console.log("🎯 Rendering specialty:", item.name);
-    console.log("🎯 Grades data:", {
-      grade_2025: item.grade_2025,
-      grade_2024: item.grade_2024,
-      grade_2023: item.grade_2023,
-      grade_2022: item.grade_2022,
-      grade_2021: item.grade_2021,
-      grade_2020: item.grade_2020,
-      grade_2019: item.grade_2019,
-    });
+    console.log("🎯 Years data:", item.years);
 
-    // Años esperados para mostrar (igual que la web app)
-    const grades = [
-      { year: "2025", grade: item.grade_2025 },
-      { year: "2024", grade: item.grade_2024 },
-      { year: "2023", grade: item.grade_2023 },
-      { year: "2022", grade: item.grade_2022 },
-      { year: "2021", grade: item.grade_2021 },
-      { year: "2020", grade: item.grade_2020 },
-      { year: "2019", grade: item.grade_2019 },
-    ];
+    // Obtener años dinámicamente desde la base de datos (igual que la web app)
+    // Obtener años dinámicamente desde la base de datos (igual que la web app)
+    const grades = (item.years || [])
+      .map((yearData) => ({
+        year: yearData.year.toString(),
+        grade: yearData.grade,
+      }))
+      .sort((a, b) => parseInt(b.year) - parseInt(a.year)); // Ordenar descendente
 
     return (
       <View style={styles.specialtyCard}>
@@ -222,37 +206,43 @@ export default function HospitalDetailScreen({
           {expandedSpecialty !== item.id ? (
             // Vista condensada - mostrar todas las notas en grid
             <View style={styles.cutOffScoresGrid}>
-              {grades.map((gradeItem) => {
-                const hasScore =
-                  gradeItem.grade !== null && gradeItem.grade !== undefined;
+              {grades.length > 0 ? (
+                grades.map((gradeItem) => {
+                  const hasScore =
+                    gradeItem.grade !== null && gradeItem.grade !== undefined;
 
-                return (
-                  <View
-                    key={gradeItem.year}
-                    style={[
-                      styles.cutOffScoreBadge,
-                      !hasScore && styles.cutOffScoreBadgeEmpty,
-                    ]}
-                  >
-                    <Text
+                  return (
+                    <View
+                      key={gradeItem.year}
                       style={[
-                        styles.cutOffScoreYear,
-                        !hasScore && styles.cutOffScoreYearEmpty,
+                        styles.cutOffScoreBadge,
+                        !hasScore && styles.cutOffScoreBadgeEmpty,
                       ]}
                     >
-                      {gradeItem.year}:
-                    </Text>
-                    <Text
-                      style={[
-                        styles.cutOffScoreValue,
-                        !hasScore && styles.cutOffScoreValueEmpty,
-                      ]}
-                    >
-                      {hasScore ? gradeItem.grade : "N/A"}
-                    </Text>
-                  </View>
-                );
-              })}
+                      <Text
+                        style={[
+                          styles.cutOffScoreYear,
+                          !hasScore && styles.cutOffScoreYearEmpty,
+                        ]}
+                      >
+                        {gradeItem.year}:
+                      </Text>
+                      <Text
+                        style={[
+                          styles.cutOffScoreValue,
+                          !hasScore && styles.cutOffScoreValueEmpty,
+                        ]}
+                      >
+                        {hasScore ? gradeItem.grade : "N/A"}
+                      </Text>
+                    </View>
+                  );
+                })
+              ) : (
+                <Text style={styles.noDataText}>
+                  No hay datos de años disponibles
+                </Text>
+              )}
             </View>
           ) : (
             // Vista expandida - tabla detallada

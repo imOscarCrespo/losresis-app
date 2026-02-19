@@ -200,11 +200,23 @@ export const calculateMIRProbabilities = async (
           probability = `${probabilityPercentage}%`;
         }
 
+        // Get slots for current year
+        const currentYear = new Date().getFullYear();
+        const currentYearRecord = hospitalGrades.find(
+          (record) => parseInt(record.year) === currentYear
+        );
+        const currentYearSlots =
+          currentYearRecord?.slots !== null &&
+          currentYearRecord?.slots !== undefined
+            ? currentYearRecord.slots
+            : null;
+
         return {
           hospital: hospital,
           probability,
           grades,
           yearsUsed: validGrades.length,
+          currentYearSlots,
         };
       })
       .filter((result) => result !== null)

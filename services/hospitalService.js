@@ -270,25 +270,19 @@ export const getHospitalSpecialties = async (hospitalId) => {
       );
     }
 
-    // Agrupar por especialidad - similar a como lo hace fetchHospitalSpecialties en la web app
-    // La estructura debe ser: [{ speciality_id, grade_2025, grade_2024, ..., slots }, ...]
+    // Agrupar por especialidad con años dinámicos (igual que la web app)
     const specialtiesMap = {};
+    const currentYear = new Date().getFullYear();
 
     gradesData.forEach((gradeItem) => {
       const specialtyId = gradeItem.speciality_id;
 
       if (!specialtiesMap[specialtyId]) {
-        // Inicializar con la estructura que espera la web app
+        // Inicializar con estructura dinámica
         specialtiesMap[specialtyId] = {
           speciality_id: specialtyId,
           hospital_id: gradeItem.hospital_id,
-          grade_2025: null,
-          grade_2024: null,
-          grade_2023: null,
-          grade_2022: null,
-          grade_2021: null,
-          grade_2020: null,
-          grade_2019: null,
+          years: [], // Array dinámico de años
           slots: null,
         };
       }
@@ -301,8 +295,9 @@ export const getHospitalSpecialties = async (hospitalId) => {
         year = Math.floor(year);
       }
 
-      // Obtener la nota - el usuario mencionó "rate"
-      // Intentar diferentes nombres de campos posibles
+      if (isNaN(year)) return;
+
+      // Obtener la nota - intentar diferentes nombres de campos posibles
       let score =
         gradeItem.rate ||
         gradeItem.grade ||
@@ -313,8 +308,7 @@ export const getHospitalSpecialties = async (hospitalId) => {
       // Si es un array, tomar el valor más alto (nota de corte más alta)
       if (Array.isArray(score)) {
         if (score.length > 0) {
-          // Ordenar descendente y tomar el primer valor (el más alto)
-          score = score.sort((a, b) => b - a)[0];
+          score = Math.max(...score);
         } else {
           score = null;
         }
@@ -328,28 +322,39 @@ export const getHospitalSpecialties = async (hospitalId) => {
         }
       }
 
-      // Asignar la nota al año correspondiente (tomar la más alta si hay múltiples)
-      if (!isNaN(year) && year >= 2019 && year <= 2025) {
-        if (score !== null && score !== undefined && !isNaN(score)) {
-          const yearField = `grade_${year}`;
-          if (specialtiesMap[specialtyId].hasOwnProperty(yearField)) {
-            const currentValue = specialtiesMap[specialtyId][yearField];
-            // Si ya hay un valor, tomar el más alto
-            if (currentValue === null || score > currentValue) {
-              specialtiesMap[specialtyId][yearField] = score;
-            }
-          }
+      // Añadir o actualizar el año en el array dinámico
+      const existingYearIndex = specialtiesMap[specialtyId].years.findIndex(
+        (y) => y.year === year
+      );
+
+      const gradeValue =
+        score !== null && score !== undefined && !isNaN(score) ? score : null;
+
+      if (existingYearIndex >= 0) {
+        // Si el año ya existe, tomar el valor más alto
+        const currentGrade =
+          specialtiesMap[specialtyId].years[existingYearIndex].grade;
+        if (
+          currentGrade === null ||
+          (gradeValue !== null && gradeValue > currentGrade)
+        ) {
+          specialtiesMap[specialtyId].years[existingYearIndex].grade =
+            gradeValue;
         }
+      } else {
+        // Añadir nuevo año
+        specialtiesMap[specialtyId].years.push({
+          year: year,
+          grade: gradeValue,
+        });
       }
 
-      // Actualizar plazas (tomar el más reciente)
+      // Guardar slots por año para poder obtener el del año actual después
       if (gradeItem.slots !== null && gradeItem.slots !== undefined) {
-        if (
-          specialtiesMap[specialtyId].slots === null ||
-          (year && year >= 2020)
-        ) {
-          specialtiesMap[specialtyId].slots = gradeItem.slots;
+        if (!specialtiesMap[specialtyId].slotsByYear) {
+          specialtiesMap[specialtyId].slotsByYear = {};
         }
+        specialtiesMap[specialtyId].slotsByYear[year] = gradeItem.slots;
       }
     });
 
@@ -384,27 +389,39 @@ export const getHospitalSpecialties = async (hospitalId) => {
       throw new Error(specialtyDetailsError.message);
     }
 
-    // Helper function to convert null to undefined (igual que la web app)
-    const nullToUndefined = (value) => (value === null ? undefined : value);
-
-    // Combinar datos: especialidad + plazas + notas de corte (formato exacto de la web app)
+    // Combinar datos: especialidad + plazas + años dinámicos (igual que la web app)
     const formattedSpecialties = (specialtyDetails || []).map((specialty) => {
       const gradeInfo = hospitalSpecialtiesData.find(
         (item) => item.speciality_id === specialty.id
       );
 
+      // Ordenar años descendente
+      const years = (gradeInfo?.years || [])
+        .sort((a, b) => b.year - a.year)
+        .map((y) => ({
+          year: y.year,
+          grade: y.grade,
+        }));
+
+      // Obtener slots del año actual o más reciente disponible
+      const currentYear = new Date().getFullYear();
+      const slotsByYear = gradeInfo?.slotsByYear || {};
+      const slots =
+        slotsByYear[currentYear] !== null &&
+        slotsByYear[currentYear] !== undefined
+          ? slotsByYear[currentYear]
+          : years.length > 0 &&
+            slotsByYear[years[0].year] !== null &&
+            slotsByYear[years[0].year] !== undefined
+          ? slotsByYear[years[0].year]
+          : undefined;
+
       return {
         id: specialty.id || "",
         name: specialty.name || "",
         description: "", // No description field in specialities table
-        grade_2025: nullToUndefined(gradeInfo?.grade_2025),
-        grade_2024: nullToUndefined(gradeInfo?.grade_2024),
-        grade_2023: nullToUndefined(gradeInfo?.grade_2023),
-        grade_2022: nullToUndefined(gradeInfo?.grade_2022),
-        grade_2021: nullToUndefined(gradeInfo?.grade_2021),
-        grade_2020: nullToUndefined(gradeInfo?.grade_2020),
-        grade_2019: nullToUndefined(gradeInfo?.grade_2019),
-        slots: gradeInfo?.slots,
+        years: years, // Array dinámico de años con grades
+        slots: slots !== null && slots !== undefined ? slots : undefined,
       };
     });
 
