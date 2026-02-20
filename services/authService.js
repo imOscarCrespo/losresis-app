@@ -12,6 +12,7 @@ import {
   isBiometricEnabled,
   clearStoredTokens,
 } from "./biometricService";
+import { clearAllFilters } from "./filterStorageService";
 
 // Clave para almacenar el userId en AsyncStorage
 const USER_ID_KEY = "@losresis:userId";
@@ -562,6 +563,10 @@ export const signOut = async () => {
 
     // Limpiar tokens biométricos guardados
     await clearStoredTokens();
+
+    // Limpiar todos los filtros guardados
+    await clearAllFilters();
+    console.log("🧹 Filtros eliminados de caché");
 
     console.log("✅ Sesión cerrada correctamente");
     return {

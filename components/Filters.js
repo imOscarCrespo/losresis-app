@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { SearchFilter } from "./SearchFilter";
 import { SelectFilter } from "./SelectFilter";
+import { FilterCountBadge } from "./FilterCountBadge";
+import { countActiveFilters } from "../utils/filterUtils";
 
 /**
  * Componente genérico de filtros
@@ -17,16 +19,25 @@ import { SelectFilter } from "./SelectFilter";
  * @param {function} props.onClearFilters - Callback para limpiar todos los filtros
  * @param {boolean} props.hasActiveFilters - Si hay filtros activos
  * @param {object} props.style - Estilos adicionales
+ * @param {boolean} props.showCount - Mostrar contador de filtros activos (default: true)
+ * @param {string} props.countVariant - Variante del contador ('badge' | 'text', default: 'badge')
  */
 export const Filters = ({
   filters = [],
   onClearFilters,
   hasActiveFilters,
   style,
+  showCount = true,
+  countVariant = "badge",
 }) => {
   if (filters.length === 0) {
     return null;
   }
+
+  // Contar filtros activos
+  const activeFiltersCount = useMemo(() => {
+    return countActiveFilters(filters);
+  }, [filters]);
 
   return (
     <View style={[styles.container, style]}>
@@ -34,6 +45,9 @@ export const Filters = ({
         <View style={styles.headerLeft}>
           <Ionicons name="filter" size={20} color="#007AFF" />
           <Text style={styles.headerTitle}>Filtros</Text>
+          {showCount && (
+            <FilterCountBadge count={activeFiltersCount} variant={countVariant} />
+          )}
         </View>
         {hasActiveFilters && onClearFilters && (
           <TouchableOpacity onPress={onClearFilters} style={styles.clearButton}>

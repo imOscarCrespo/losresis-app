@@ -251,9 +251,7 @@ export const getInitialHospitals = async () => {
     }
 
     // Filtrar hospitales que no empiezan con "Ud" y obtener los primeros 10
-    const filtered = data
-      .filter((hospital) => !hospital.name.toLowerCase().startsWith("ud"))
-      .slice(0, 10);
+    const filtered = data.slice(0, 10);
 
     return {
       success: true,

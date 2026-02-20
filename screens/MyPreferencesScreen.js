@@ -172,26 +172,28 @@ const AddPreferenceModal = ({
 
   // Preparar opciones para los selectores
   // Usamos siempre 'hospitals' que contiene todos los hospitales
-  // Aplicamos el mismo filtrado que en ProfileScreen (excluye hospitales que empiezan con "ud")
+  // NO aplicamos el filtro de "ud" aquí (solo se aplica en ProfileScreen)
   const hospitalOptions = useMemo(() => {
     // Usar hospitals que tiene todos los hospitales cargados
     const allHospitals = hospitals.length > 0 ? hospitals : initialHospitals;
 
-    // Usar la misma función de preparación que ProfileScreen para mantener consistencia
-    const prepared = prepareHospitalOptions(allHospitals);
+    if (!allHospitals || allHospitals.length === 0) return [];
 
-    // Ajustar el formato para incluir la región (ProfileScreen solo muestra ciudad)
-    return prepared.map((option) => {
-      // Buscar el hospital original para obtener la región
-      const hospital = allHospitals.find((h) => h.id === option.id);
-      if (hospital && hospital.region) {
+    // Preparar opciones SIN filtrar hospitales que empiezan con "ud"
+    return allHospitals
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((hospital) => {
+        const baseName = `${hospital.name} - ${hospital.city}`;
+        // Incluir la región en el nombre
+        const nameWithRegion = hospital.region
+          ? `${baseName}, ${hospital.region}`
+          : baseName;
         return {
-          ...option,
-          name: `${option.name}, ${hospital.region}`,
+          id: hospital.id,
+          name: nameWithRegion,
         };
-      }
-      return option;
-    });
+      });
   }, [hospitals, initialHospitals]);
 
   const specialtyOptions = useMemo(() => {

@@ -5,6 +5,7 @@ import {
   getHospitalIdsBySpecialty,
   getSpecialtyCounts,
 } from "../services/hospitalService";
+import { usePersistedFilters } from "./usePersistedFilters";
 
 /**
  * Hook para obtener y filtrar hospitales
@@ -13,14 +14,50 @@ import {
 export const useHospitals = () => {
   const [hospitals, setHospitals] = useState([]);
   const [specialties, setSpecialties] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedRegion, setSelectedRegion] = useState("");
-  const [selectedCity, setSelectedCity] = useState("");
-  const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [loadingHospitals, setLoadingHospitals] = useState(false);
   const [loadingSpecialties, setLoadingSpecialties] = useState(false);
   const [loadingSpecialtyFilter, setLoadingSpecialtyFilter] = useState(false);
   const [hospitalIdsBySpecialty, setHospitalIdsBySpecialty] = useState([]);
+
+  // Filtros persistentes
+  const {
+    filters,
+    isLoading: isLoadingFilters,
+    updateFilter,
+    clearAllFilters: clearPersistedFilters,
+  } = usePersistedFilters(
+    "hospitals",
+    {
+      searchTerm: "",
+      selectedRegion: "",
+      selectedCity: "",
+      selectedSpecialty: "",
+    },
+    { enableDebounce: true, debounceMs: 500 }
+  );
+
+  const searchTerm = filters.searchTerm;
+  const selectedRegion = filters.selectedRegion;
+  const selectedCity = filters.selectedCity;
+  const selectedSpecialty = filters.selectedSpecialty;
+
+  // Setters que actualizan los filtros persistentes
+  const setSearchTerm = useCallback(
+    (value) => updateFilter("searchTerm", value),
+    [updateFilter]
+  );
+  const setSelectedRegion = useCallback(
+    (value) => updateFilter("selectedRegion", value),
+    [updateFilter]
+  );
+  const setSelectedCity = useCallback(
+    (value) => updateFilter("selectedCity", value),
+    [updateFilter]
+  );
+  const setSelectedSpecialty = useCallback(
+    (value) => updateFilter("selectedSpecialty", value),
+    [updateFilter]
+  );
 
   // Hospitales destacados para mostrar primero cuando no hay filtros
   const featuredHospitalNames = [
@@ -176,20 +213,31 @@ export const useHospitals = () => {
   }, []);
 
   // Limpiar todos los filtros
-  const clearFilters = useCallback(() => {
-    setSearchTerm("");
-    setSelectedRegion("");
-    setSelectedCity("");
-    setSelectedSpecialty("");
+  const clearFilters = useCallback(async () => {
+    await clearPersistedFilters();
     setHospitalIdsBySpecialty([]);
-  }, []);
+  }, [clearPersistedFilters]);
 
-  // Resetear ciudad cuando cambia la región
+  // Resetear ciudad cuando cambia la región (solo si hay hospitales cargados)
   useEffect(() => {
-    if (selectedRegion) {
-      setSelectedCity("");
+    // Solo ejecutar si hay hospitales cargados y hay una región seleccionada
+    if (hospitals.length === 0 || !selectedRegion) {
+      return;
     }
-  }, [selectedRegion]);
+
+    // Si hay una ciudad seleccionada, verificar que pertenece a la región actual
+    if (selectedCity) {
+      const citiesInRegion = hospitals
+        .filter((h) => h.region === selectedRegion)
+        .map((h) => h.city)
+        .filter((city, index, self) => self.indexOf(city) === index);
+      
+      // Si la ciudad seleccionada no está en la región actual, resetearla
+      if (!citiesInRegion.includes(selectedCity)) {
+        setSelectedCity("");
+      }
+    }
+  }, [selectedRegion, hospitals, selectedCity, setSelectedCity]);
 
   // Cargar hospitales y especialidades al montar
   useEffect(() => {

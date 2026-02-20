@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getReviewSummaries } from "../services/reviewsService";
 import { debounce } from "../utils/debounce";
+import { usePersistedFilters } from "./usePersistedFilters";
 
 /**
  * Hook personalizado para manejar las reseñas
@@ -9,10 +10,40 @@ export const useReviews = () => {
   const [reviewSummaries, setReviewSummaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedHospital, setSelectedHospital] = useState("");
-  const [selectedSpecialty, setSelectedSpecialty] = useState("");
-  const [hospitalSearchTerm, setHospitalSearchTerm] = useState("");
   const [internalSearchTerm, setInternalSearchTerm] = useState("");
+
+  // Filtros persistentes
+  const {
+    filters,
+    updateFilter,
+    clearAllFilters: clearPersistedFilters,
+  } = usePersistedFilters(
+    "reviews",
+    {
+      selectedHospital: "",
+      selectedSpecialty: "",
+      hospitalSearchTerm: "",
+    },
+    { enableDebounce: true, debounceMs: 500 }
+  );
+
+  const selectedHospital = filters.selectedHospital;
+  const selectedSpecialty = filters.selectedSpecialty;
+  const hospitalSearchTerm = filters.hospitalSearchTerm;
+
+  // Setters que actualizan los filtros persistentes
+  const setSelectedHospital = useCallback(
+    (value) => updateFilter("selectedHospital", value),
+    [updateFilter]
+  );
+  const setSelectedSpecialty = useCallback(
+    (value) => updateFilter("selectedSpecialty", value),
+    [updateFilter]
+  );
+  const setHospitalSearchTerm = useCallback(
+    (value) => updateFilter("hospitalSearchTerm", value),
+    [updateFilter]
+  );
 
   // Cargar resúmenes de reseñas
   const fetchReviewSummaries = useCallback(async () => {
@@ -63,12 +94,10 @@ export const useReviews = () => {
   );
 
   // Limpiar filtros
-  const clearFilters = useCallback(() => {
-    setSelectedHospital("");
-    setSelectedSpecialty("");
-    setHospitalSearchTerm("");
+  const clearFilters = useCallback(async () => {
+    await clearPersistedFilters();
     setInternalSearchTerm("");
-  }, []);
+  }, [clearPersistedFilters]);
 
   // Cargar reseñas cuando cambian los filtros
   useEffect(() => {
