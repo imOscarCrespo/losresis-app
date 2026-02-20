@@ -1,8 +1,10 @@
 import React from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Footer } from "./Footer";
+import { UpdateBanner } from "./UpdateBanner";
+import { useVersionCheck } from "../hooks/useVersionCheck";
 
 /**
  * Componente Layout que envuelve las pantallas con Footer fijo de navegación
@@ -22,11 +24,31 @@ export const ScreenLayout = ({
   onSectionChange,
   style,
 }) => {
+  const { needsUpdate, updateUrl, currentVersion, isLoading } =
+    useVersionCheck();
+  const showUpdateBanner = needsUpdate; // Mostrar en iOS y Android
+
+  // Debug log
+  if (__DEV__) {
+    console.log("🎨 [ScreenLayout] Estado del banner:", {
+      needsUpdate,
+      showUpdateBanner,
+      currentVersion,
+      updateUrl,
+      isLoading,
+    });
+  }
+
   return (
     <SafeAreaView style={[styles.container, style]}>
       <StatusBar style="auto" />
       <View style={styles.content}>{children}</View>
       <View style={styles.footerWrapper}>
+        {showUpdateBanner && (
+          <View style={styles.bannerWrapper}>
+            <UpdateBanner updateUrl={updateUrl} />
+          </View>
+        )}
         <Footer
           userProfile={userProfile}
           activeSection={activeSection}
@@ -48,5 +70,9 @@ const styles = StyleSheet.create({
   },
   footerWrapper: {
     backgroundColor: "#ffffff",
+    position: "relative",
+  },
+  bannerWrapper: {
+    width: "100%",
   },
 });

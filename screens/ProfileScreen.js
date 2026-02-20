@@ -48,6 +48,7 @@ import {
   prepareCityOptions,
 } from "../utils/profileOptions";
 import posthogLogger from "../services/posthogService";
+import Constants from "expo-constants";
 
 export default function ProfileScreen({
   onBack,
@@ -1125,6 +1126,13 @@ export default function ProfileScreen({
               </>
             )}
           </View>
+
+          {/* Version Info */}
+          <View style={styles.versionContainer}>
+            <Text style={styles.versionText}>
+              Versión {Constants.expoConfig?.version || "N/A"}
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -1439,5 +1447,16 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 4,
     color: "#1a1a1a",
+  },
+  versionContainer: {
+    alignItems: "center",
+    paddingVertical: 20,
+    paddingBottom: 32,
+    marginTop: 8,
+  },
+  versionText: {
+    fontSize: 11,
+    color: "#8E8E93",
+    fontWeight: "400",
   },
 });

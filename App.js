@@ -10,6 +10,7 @@ import {
 import { isProfileComplete } from "./services/userService";
 import { checkResidentReview } from "./services/communityService";
 import posthogLogger from "./services/posthogService";
+import { checkVersionUpdate } from "./services/versionService";
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -34,6 +35,15 @@ export default function App() {
       // La restauración con Face ID solo ocurre cuando el usuario presiona el botón explícitamente
 
       if (hasSession) {
+        // Verificar versión de la app al iniciar (si hay sesión activa)
+        // Esto asegura que siempre tengamos la versión más reciente cuando el usuario abre la app
+        try {
+          await checkVersionUpdate(true); // forceRefresh = true para obtener la versión más reciente
+        } catch (error) {
+          console.warn("Error verificando versión al iniciar:", error);
+          // No bloquear el flujo si falla la verificación de versión
+        }
+
         // Verificar si el usuario tiene perfil completo
         const { success: userSuccess, user } = await getCurrentUser();
         if (userSuccess && user) {
@@ -108,6 +118,16 @@ export default function App() {
   };
 
   const handleAuthSuccess = async () => {
+    // Verificar versión de la app después del login (siempre consultar al backend)
+    try {
+      console.log("🔄 Verificando versión después del login...");
+      await checkVersionUpdate(true); // forceRefresh = true para ignorar caché y consultar Supabase
+      console.log("✅ Verificación de versión completada");
+    } catch (error) {
+      console.warn("Error verificando versión después del login:", error);
+      // No bloquear el flujo si falla la verificación de versión
+    }
+
     // Después del login, verificar si necesita onboarding
     const { success: userSuccess, user } = await getCurrentUser();
     if (userSuccess && user) {

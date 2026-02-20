@@ -150,13 +150,13 @@ const signInWithOAuth = async (provider, redirectUrl) => {
       };
     }
 
-    console.log("🔙 Resultado del navegador:", JSON.stringify(result, null, 2));
-    console.log("📊 Tipo de resultado:", result?.type || "undefined");
-    console.log("📊 URL recibida:", result?.url || "No hay URL");
-    console.log("📊 Resultado completo:", result);
+    // console.log("🔙 Resultado del navegador:", JSON.stringify(result, null, 2));
+    // console.log("📊 Tipo de resultado:", result?.type || "undefined");
+    // console.log("📊 URL recibida:", result?.url || "No hay URL");
+    // console.log("📊 Resultado completo:", result);
 
     if (result.type === "success" && result.url) {
-      console.log("✅ URL de callback recibida:", result.url);
+      // console.log("✅ URL de callback recibida:", result.url);
 
       // Extraer tokens del hash de la URL (#access_token=...)
       // Linking.parse() no extrae parámetros del hash, necesitamos hacerlo manualmente

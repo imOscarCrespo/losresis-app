@@ -3,11 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import {
   getHospitalSpecialties,
@@ -58,9 +58,6 @@ export default function HospitalDetailScreen({
       } = await getHospitalSpecialties(hospital.id);
 
       if (success) {
-        console.log("📊 Specialties loaded:", specialtiesData.length);
-        console.log("📊 First specialty sample:", specialtiesData[0]);
-
         let finalSpecialties = specialtiesData;
 
         // Si hay una especialidad seleccionada y no está en la lista, añadirla
@@ -162,10 +159,6 @@ export default function HospitalDetailScreen({
   };
 
   const renderSpecialtyItem = ({ item }) => {
-    // Debug: verificar los datos de la especialidad
-    console.log("🎯 Rendering specialty:", item.name);
-    console.log("🎯 Years data:", item.years);
-
     // Obtener años dinámicamente desde la base de datos (igual que la web app)
     // Obtener años dinámicamente desde la base de datos (igual que la web app)
     const grades = (item.years || [])

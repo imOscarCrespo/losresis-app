@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { ScreenLayout } from "../components/ScreenLayout";
 import { PlaceholderScreen } from "../components/PlaceholderScreen";
+import { SwipeBackWrapper } from "../components/SwipeBackWrapper";
 import HospitalsScreen from "./HospitalsScreen";
 import HospitalDetailScreen from "./HospitalDetailScreen";
 import MirSimulatorScreen from "./MirSimulatorScreen";
@@ -217,12 +218,14 @@ export default function DashboardScreen({
         isProfileIncomplete={isProfileIncomplete}
         onSectionChange={handleSectionChange}
       >
-        <ThreadDetailScreen
-          threadId={selectedThreadId}
-          onBack={handleBackFromThreadDetail}
-          userProfile={userProfile}
-          onSectionChange={handleSectionChange}
-        />
+        <SwipeBackWrapper onSwipeBack={handleBackFromThreadDetail}>
+          <ThreadDetailScreen
+            threadId={selectedThreadId}
+            onBack={handleBackFromThreadDetail}
+            userProfile={userProfile}
+            onSectionChange={handleSectionChange}
+          />
+        </SwipeBackWrapper>
       </ScreenLayout>
     );
   }
@@ -236,17 +239,23 @@ export default function DashboardScreen({
         isProfileIncomplete={isProfileIncomplete}
         onSectionChange={handleSectionChange}
       >
-        <HospitalDetailScreen
-          hospital={selectedHospital}
-          selectedSpecialtyId={selectedSpecialtyId}
-          onBack={handleBackFromDetail}
-        />
+        <SwipeBackWrapper onSwipeBack={handleBackFromDetail}>
+          <HospitalDetailScreen
+            hospital={selectedHospital}
+            selectedSpecialtyId={selectedSpecialtyId}
+            onBack={handleBackFromDetail}
+          />
+        </SwipeBackWrapper>
       </ScreenLayout>
     );
   }
 
   // Si estamos en la pantalla de detalle de reseña
   if (selectedReviewId) {
+    const handleBackFromReview = () => {
+      setSelectedReviewId(null);
+      setCurrentSection("reseñas");
+    };
     return (
       <ScreenLayout
         userProfile={userProfile}
@@ -254,20 +263,23 @@ export default function DashboardScreen({
         isProfileIncomplete={isProfileIncomplete}
         onSectionChange={handleSectionChange}
       >
-        <ReviewDetailScreen
-          reviewId={selectedReviewId}
-          onBack={() => {
-            setSelectedReviewId(null);
-            setCurrentSection("reseñas");
-          }}
-          userProfile={userProfile}
-        />
+        <SwipeBackWrapper onSwipeBack={handleBackFromReview}>
+          <ReviewDetailScreen
+            reviewId={selectedReviewId}
+            onBack={handleBackFromReview}
+            userProfile={userProfile}
+          />
+        </SwipeBackWrapper>
       </ScreenLayout>
     );
   }
 
   // Si estamos en la pantalla de detalle del artículo
   if (selectedArticleId) {
+    const handleBackFromArticle = () => {
+      setSelectedArticleId(null);
+      setCurrentSection("articulos");
+    };
     return (
       <ScreenLayout
         userProfile={userProfile}
@@ -275,20 +287,23 @@ export default function DashboardScreen({
         isProfileIncomplete={isProfileIncomplete}
         onSectionChange={handleSectionChange}
       >
-        <ArticleDetailScreen
-          articleId={selectedArticleId}
-          onBack={() => {
-            setSelectedArticleId(null);
-            setCurrentSection("articulos");
-          }}
-          userProfile={userProfile}
-        />
+        <SwipeBackWrapper onSwipeBack={handleBackFromArticle}>
+          <ArticleDetailScreen
+            articleId={selectedArticleId}
+            onBack={handleBackFromArticle}
+            userProfile={userProfile}
+          />
+        </SwipeBackWrapper>
       </ScreenLayout>
     );
   }
 
   // Si estamos en la pantalla de detalle del curso
   if (selectedCourseId) {
+    const handleBackFromCourse = () => {
+      setSelectedCourseId(null);
+      setCurrentSection("cursos");
+    };
     return (
       <ScreenLayout
         userProfile={userProfile}
@@ -296,20 +311,23 @@ export default function DashboardScreen({
         isProfileIncomplete={isProfileIncomplete}
         onSectionChange={handleSectionChange}
       >
-        <CourseDetailScreen
-          courseId={selectedCourseId}
-          onBack={() => {
-            setSelectedCourseId(null);
-            setCurrentSection("cursos");
-          }}
-          userProfile={userProfile}
-        />
+        <SwipeBackWrapper onSwipeBack={handleBackFromCourse}>
+          <CourseDetailScreen
+            courseId={selectedCourseId}
+            onBack={handleBackFromCourse}
+            userProfile={userProfile}
+          />
+        </SwipeBackWrapper>
       </ScreenLayout>
     );
   }
 
   // Si estamos en la pantalla de detalle del anuncio de vivienda
   if (selectedHousingAdId) {
+    const handleBackFromHousing = () => {
+      setSelectedHousingAdId(null);
+      setCurrentSection("vivienda");
+    };
     return (
       <ScreenLayout
         userProfile={userProfile}
@@ -317,31 +335,34 @@ export default function DashboardScreen({
         isProfileIncomplete={isProfileIncomplete}
         onSectionChange={handleSectionChange}
       >
-        <HousingAdDetailScreen
-          adId={selectedHousingAdId}
-          onBack={() => {
-            setSelectedHousingAdId(null);
-            setCurrentSection("vivienda");
-          }}
-          userProfile={userProfile}
-          onEdit={(adId) => {
-            // Por ahora solo volvemos, luego se puede implementar edición
-            console.log("Edit housing ad:", adId);
-            setSelectedHousingAdId(null);
-            setCurrentSection("vivienda");
-          }}
-          onDelete={(adId) => {
-            // El delete se maneja dentro del componente
-            setSelectedHousingAdId(null);
-            setCurrentSection("vivienda");
-          }}
-        />
+        <SwipeBackWrapper onSwipeBack={handleBackFromHousing}>
+          <HousingAdDetailScreen
+            adId={selectedHousingAdId}
+            onBack={handleBackFromHousing}
+            userProfile={userProfile}
+            onEdit={(adId) => {
+              // Por ahora solo volvemos, luego se puede implementar edición
+              console.log("Edit housing ad:", adId);
+              setSelectedHousingAdId(null);
+              setCurrentSection("vivienda");
+            }}
+            onDelete={(adId) => {
+              // El delete se maneja dentro del componente
+              setSelectedHousingAdId(null);
+              setCurrentSection("vivienda");
+            }}
+          />
+        </SwipeBackWrapper>
       </ScreenLayout>
     );
   }
 
   // Si estamos en la pantalla de crear anuncio de vivienda
   if (creatingHousingAd) {
+    const handleBackFromCreateHousing = () => {
+      setCreatingHousingAd(false);
+      setCurrentSection("vivienda");
+    };
     return (
       <ScreenLayout
         userProfile={userProfile}
@@ -349,24 +370,27 @@ export default function DashboardScreen({
         isProfileIncomplete={isProfileIncomplete}
         onSectionChange={handleSectionChange}
       >
-        <CreateHousingAdScreen
-          onBack={() => {
-            setCreatingHousingAd(false);
-            setCurrentSection("vivienda");
-          }}
-          onSuccess={() => {
-            // Anuncio creado exitosamente
-            setCreatingHousingAd(false);
-            setCurrentSection("vivienda");
-          }}
-          userProfile={userProfile}
-        />
+        <SwipeBackWrapper onSwipeBack={handleBackFromCreateHousing}>
+          <CreateHousingAdScreen
+            onBack={handleBackFromCreateHousing}
+            onSuccess={() => {
+              // Anuncio creado exitosamente
+              setCreatingHousingAd(false);
+              setCurrentSection("vivienda");
+            }}
+            userProfile={userProfile}
+          />
+        </SwipeBackWrapper>
       </ScreenLayout>
     );
   }
 
   // Si estamos en la pantalla de editar anuncio de vivienda
   if (editingHousingAdId) {
+    const handleBackFromEditHousing = () => {
+      setEditingHousingAdId(null);
+      setCurrentSection("vivienda");
+    };
     return (
       <ScreenLayout
         userProfile={userProfile}
@@ -374,19 +398,18 @@ export default function DashboardScreen({
         isProfileIncomplete={isProfileIncomplete}
         onSectionChange={handleSectionChange}
       >
-        <CreateHousingAdScreen
-          adId={editingHousingAdId}
-          onBack={() => {
-            setEditingHousingAdId(null);
-            setCurrentSection("vivienda");
-          }}
-          onSuccess={() => {
-            // Anuncio editado exitosamente
-            setEditingHousingAdId(null);
-            setCurrentSection("vivienda");
-          }}
-          userProfile={userProfile}
-        />
+        <SwipeBackWrapper onSwipeBack={handleBackFromEditHousing}>
+          <CreateHousingAdScreen
+            adId={editingHousingAdId}
+            onBack={handleBackFromEditHousing}
+            onSuccess={() => {
+              // Anuncio editado exitosamente
+              setEditingHousingAdId(null);
+              setCurrentSection("vivienda");
+            }}
+            userProfile={userProfile}
+          />
+        </SwipeBackWrapper>
       </ScreenLayout>
     );
   }

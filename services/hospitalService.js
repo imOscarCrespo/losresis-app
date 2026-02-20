@@ -262,14 +262,6 @@ export const getHospitalSpecialties = async (hospitalId) => {
       };
     }
 
-    console.log("📊 Grades data received:", gradesData.length, "records");
-    if (gradesData.length > 0) {
-      console.log(
-        "📊 First grade item sample:",
-        JSON.stringify(gradesData[0], null, 2)
-      );
-    }
-
     // Agrupar por especialidad con años dinámicos (igual que la web app)
     const specialtiesMap = {};
     const currentYear = new Date().getFullYear();
@@ -360,10 +352,6 @@ export const getHospitalSpecialties = async (hospitalId) => {
 
     // Convertir el mapa a array (similar a fetchHospitalSpecialties)
     const hospitalSpecialtiesData = Object.values(specialtiesMap);
-    console.log(
-      "📊 Hospital specialties data (formatted):",
-      hospitalSpecialtiesData
-    );
 
     // Obtener IDs de especialidades únicas
     const specialtyIds = hospitalSpecialtiesData.map(
@@ -424,8 +412,6 @@ export const getHospitalSpecialties = async (hospitalId) => {
         slots: slots !== null && slots !== undefined ? slots : undefined,
       };
     });
-
-    console.log("Final specialties data:", formattedSpecialties);
 
     return {
       success: true,

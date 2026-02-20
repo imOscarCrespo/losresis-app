@@ -86,7 +86,7 @@ class PostHogLogger {
         ...properties,
         timestamp: new Date().toISOString(),
       });
-      console.log(`📊 PostHog: Pantalla registrada - ${screenName}`);
+      // console.log(`📊 PostHog: Pantalla registrada - ${screenName}`);
     } catch (error) {
       console.error("❌ Error al registrar pantalla en PostHog:", error);
     }
@@ -108,7 +108,7 @@ class PostHogLogger {
 
     try {
       this.posthog.capture(eventName, properties);
-      console.log(`📊 PostHog: Evento capturado - ${eventName}`);
+      // console.log(`📊 PostHog: Evento capturado - ${eventName}`);
     } catch (error) {
       console.error("❌ Error al capturar evento en PostHog:", error);
     }
@@ -129,7 +129,7 @@ class PostHogLogger {
 
     try {
       this.posthog.identify(userId, properties);
-      console.log(`📊 PostHog: Usuario identificado - ${userId}`);
+      // console.log(`📊 PostHog: Usuario identificado - ${userId}`);
     } catch (error) {
       console.error("❌ Error al identificar usuario en PostHog:", error);
     }
@@ -145,7 +145,7 @@ class PostHogLogger {
 
     try {
       this.posthog.reset();
-      console.log("📊 PostHog: Usuario reseteado");
+      // console.log("📊 PostHog: Usuario reseteado");
     } catch (error) {
       console.error("❌ Error al resetear PostHog:", error);
     }
