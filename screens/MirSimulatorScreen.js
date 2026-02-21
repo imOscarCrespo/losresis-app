@@ -66,7 +66,9 @@ export default function MirSimulatorScreen({ onBack }) {
       } = await calculateMIRProbabilities(
         score,
         selectedSpecialty,
-        selectedRegion || null
+        selectedRegion && typeof selectedRegion === "string" && selectedRegion.trim() !== "" 
+          ? selectedRegion.trim() 
+          : null
       );
 
       if (success) {

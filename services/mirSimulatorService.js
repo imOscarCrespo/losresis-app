@@ -2,6 +2,40 @@ import { supabase } from "../config/supabase";
 import { getCurrentUser } from "./authService";
 
 /**
+ * Consultar hospital_speciality_grades en batches para evitar límites de Supabase
+ * @param {Array<number>} hospitalIds - Array de IDs de hospitales
+ * @param {string} specialtyId - ID de la especialidad
+ * @returns {Promise<Array>} Array con todos los registros obtenidos
+ */
+const fetchGradesInBatches = async (hospitalIds, specialtyId) => {
+  const BATCH_SIZE = 50; // Reducido para evitar límites de respuesta de Supabase
+  const allResults = [];
+
+  // Dividir hospitalIds en batches
+  for (let i = 0; i < hospitalIds.length; i += BATCH_SIZE) {
+    const batch = hospitalIds.slice(i, i + BATCH_SIZE);
+
+    const { data, error } = await supabase
+      .from("hospital_speciality_grades")
+      .select("*")
+      .eq("speciality_id", specialtyId)
+      .in("hospital_id", batch)
+      .order("hospital_id, year");
+
+    if (error) {
+      console.error(`Error fetching batch ${i / BATCH_SIZE + 1}:`, error);
+      throw new Error(error.message);
+    }
+
+    if (data && data.length > 0) {
+      allResults.push(...data);
+    }
+  }
+
+  return allResults;
+};
+
+/**
  * Calcular probabilidades MIR para hospitales
  * @param {number} mirScore - Posición del usuario en el MIR
  * @param {string} specialtyId - ID de la especialidad
@@ -22,10 +56,16 @@ export const calculateMIRProbabilities = async (
       };
     }
 
+    // Normalizar región: convertir strings vacíos a null
+    const normalizedRegion = 
+      region && typeof region === "string" && region.trim() !== "" 
+        ? region.trim() 
+        : null;
+
     console.log("🔍 Calculating MIR probabilities:", {
       score: mirScore,
       specialty: specialtyId,
-      region: region || "all",
+      region: normalizedRegion || "all",
     });
 
     // Log search to Supabase if user is logged in
@@ -63,8 +103,8 @@ export const calculateMIRProbabilities = async (
     }
 
     // Step 2: Filter hospitals by region if specified
-    const filteredHospitals = region
-      ? allHospitalsData.filter((hospital) => hospital.region === region)
+    const filteredHospitals = normalizedRegion
+      ? allHospitalsData.filter((hospital) => hospital.region === normalizedRegion)
       : allHospitalsData;
 
     if (filteredHospitals.length === 0) {
@@ -86,39 +126,14 @@ export const calculateMIRProbabilities = async (
       };
     }
 
-    // Step 4: Get detailed grades for this specialty
-    // Use alternative approach if too many hospitals
+    // Step 4: Get detailed grades for this specialty in batches
+    // Always use batch approach to avoid Supabase limits
     let detailedGradesData;
 
-    if (hospitalIds.length > 500) {
-      // Query all grades for specialty, then filter
-      const { data, error } = await supabase
-        .from("hospital_speciality_grades")
-        .select("*")
-        .eq("speciality_id", specialtyId)
-        .order("hospital_id, year");
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      const hospitalIdSet = new Set(hospitalIds);
-      detailedGradesData =
-        data?.filter((record) => hospitalIdSet.has(record.hospital_id)) || [];
-    } else {
-      // Query with hospital filter
-      const { data, error } = await supabase
-        .from("hospital_speciality_grades")
-        .select("*")
-        .eq("speciality_id", specialtyId)
-        .in("hospital_id", hospitalIds)
-        .order("hospital_id, year");
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      detailedGradesData = data || [];
+    try {
+      detailedGradesData = await fetchGradesInBatches(hospitalIds, specialtyId);
+    } catch (error) {
+      throw new Error(`Error fetching grades: ${error.message}`);
     }
 
     if (!detailedGradesData || detailedGradesData.length === 0) {
