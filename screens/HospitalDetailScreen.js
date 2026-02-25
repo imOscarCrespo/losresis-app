@@ -179,6 +179,10 @@ export default function HospitalDetailScreen({
           )}
         </View>
 
+        {item.info_note ? (
+          <Text style={styles.infoNoteText}>{item.info_note}</Text>
+        ) : null}
+
         <View style={styles.cutOffSection}>
           <View style={styles.cutOffHeader}>
             <Ionicons name="bar-chart" size={16} color="#666" />
@@ -498,6 +502,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#8B5CF6",
+  },
+  infoNoteText: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 12,
   },
   cutOffSection: {
     marginTop: 12,

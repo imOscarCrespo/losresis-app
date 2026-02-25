@@ -7,6 +7,27 @@ import { getCurrentUser } from "./authService";
  * @param {string} specialtyId - ID de la especialidad
  * @returns {Promise<Array>} Array con todos los registros obtenidos
  */
+/**
+ * Obtener info_note de hospital_specialities por hospital y especialidad
+ */
+const fetchInfoNotes = async (hospitalIds, specialtyId) => {
+  const { data, error } = await supabase
+    .from("hospital_specialities")
+    .select("hospital_id, info_note")
+    .eq("speciality_id", specialtyId)
+    .in("hospital_id", hospitalIds);
+
+  if (error) {
+    console.warn("Error fetching info_notes:", error);
+    return {};
+  }
+  const map = {};
+  (data || []).forEach((row) => {
+    if (row.info_note != null && row.info_note !== "") map[row.hospital_id] = row.info_note;
+  });
+  return map;
+};
+
 const fetchGradesInBatches = async (hospitalIds, specialtyId) => {
   const BATCH_SIZE = 50; // Reducido para evitar límites de respuesta de Supabase
   const allResults = [];
@@ -126,12 +147,15 @@ export const calculateMIRProbabilities = async (
       };
     }
 
-    // Step 4: Get detailed grades for this specialty in batches
-    // Always use batch approach to avoid Supabase limits
+    // Step 4: Get detailed grades and info_notes in parallel
     let detailedGradesData;
+    let infoNotesMap = {};
 
     try {
-      detailedGradesData = await fetchGradesInBatches(hospitalIds, specialtyId);
+      [detailedGradesData, infoNotesMap] = await Promise.all([
+        fetchGradesInBatches(hospitalIds, specialtyId),
+        fetchInfoNotes(hospitalIds, specialtyId),
+      ]);
     } catch (error) {
       throw new Error(`Error fetching grades: ${error.message}`);
     }
@@ -232,6 +256,7 @@ export const calculateMIRProbabilities = async (
           grades,
           yearsUsed: validGrades.length,
           currentYearSlots,
+          info_note: infoNotesMap[hospital.id] || null,
         };
       })
       .filter((result) => result !== null)

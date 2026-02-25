@@ -66,8 +66,10 @@ export default function MirSimulatorScreen({ onBack }) {
       } = await calculateMIRProbabilities(
         score,
         selectedSpecialty,
-        selectedRegion && typeof selectedRegion === "string" && selectedRegion.trim() !== "" 
-          ? selectedRegion.trim() 
+        selectedRegion &&
+          typeof selectedRegion === "string" &&
+          selectedRegion.trim() !== ""
+          ? selectedRegion.trim()
           : null
       );
 
@@ -160,6 +162,10 @@ export default function MirSimulatorScreen({ onBack }) {
               </View>
             )}
         </View>
+
+        {item.info_note ? (
+          <Text style={styles.infoNoteText}>{item.info_note}</Text>
+        ) : null}
 
         {/* Historical grades */}
         <View style={styles.gradesGrid}>
@@ -520,6 +526,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#D97706",
     fontWeight: "500",
+  },
+  infoNoteText: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 8,
   },
   gradesGrid: {
     flexDirection: "row",

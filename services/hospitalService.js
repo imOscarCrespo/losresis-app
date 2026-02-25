@@ -366,6 +366,19 @@ export const getHospitalSpecialties = async (hospitalId) => {
       };
     }
 
+    // Obtener info_note de hospital_specialities
+    const { data: infoNotesData } = await supabase
+      .from("hospital_specialities")
+      .select("speciality_id, info_note")
+      .eq("hospital_id", hospitalId)
+      .in("speciality_id", specialtyIds);
+    const infoNoteBySpecialty = {};
+    (infoNotesData || []).forEach((row) => {
+      if (row.info_note != null && row.info_note !== "") {
+        infoNoteBySpecialty[row.speciality_id] = row.info_note;
+      }
+    });
+
     // Obtener nombres de especialidades desde Supabase
     const { data: specialtyDetails, error: specialtyDetailsError } =
       await supabase
@@ -410,6 +423,7 @@ export const getHospitalSpecialties = async (hospitalId) => {
         description: "", // No description field in specialities table
         years: years, // Array dinámico de años con grades
         slots: slots !== null && slots !== undefined ? slots : undefined,
+        info_note: infoNoteBySpecialty[specialty.id] || null,
       };
     });
 
