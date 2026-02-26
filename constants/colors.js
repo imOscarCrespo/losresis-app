@@ -8,6 +8,7 @@ export const COLORS = {
   PRIMARY: "#007AFF",
   PURPLE: "#8B5CF6",
   RED: "#EF4444",
+  ORANGE: "#F97316",
 
   // Colores de estado
   SUCCESS: "#10B981",

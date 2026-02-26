@@ -11,12 +11,14 @@ const ITEMS_PER_PAGE = 20;
  * @param {Object} options - Opciones de búsqueda
  * @param {string} options.hospitalId - ID del hospital (opcional)
  * @param {string} options.specialityId - ID de la especialidad (opcional)
+ * @param {string} options.createdById - ID del usuario creador (para \"Mis cursos\")
  * @param {number} options.page - Página actual (0-indexed)
  * @returns {Promise<Object>} Objeto con cursos y metadatos
  */
 export const getCourses = async ({
   hospitalId = null,
   specialityId = null,
+  createdById = null,
   page = 0,
 }) => {
   try {
@@ -44,6 +46,9 @@ export const getCourses = async ({
     if (specialityId) {
       query = query.eq("speciality_id", specialityId);
     }
+    if (createdById) {
+      query = query.eq("created_by_id", createdById);
+    }
 
     const { data, error, count } = await query;
 
@@ -60,18 +65,27 @@ export const getCourses = async ({
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
-    const activeCourses = (data || []).filter((course) => {
-      if (!course.event_dates || course.event_dates.length === 0) return false;
+    const activeCourses = (data || [])
+      .filter((course) => {
+        if (!course.event_dates || course.event_dates.length === 0) {
+          return false;
+        }
 
-      const dates = course.event_dates
-        .map((d) => new Date(d))
-        .sort((a, b) => a.getTime() - b.getTime());
+        const dates = course.event_dates
+          .map((d) => new Date(d))
+          .sort((a, b) => a.getTime() - b.getTime());
 
-      const lastDate = dates[dates.length - 1];
+        const lastDate = dates[dates.length - 1];
 
-      // Keep if at least one date is in the future OR last date is within last 7 days
-      return dates.some((d) => d >= today) || lastDate >= sevenDaysAgo;
-    });
+        // Keep if at least one date is in the future OR last date is within last 7 days
+        return dates.some((d) => d >= today) || lastDate >= sevenDaysAgo;
+      })
+      // Ordenar para que primero aparezcan los cursos cuya próxima fecha es más cercana
+      .sort((a, b) => {
+        const aNext = (a.event_dates || []).slice().sort()[0] || "9999-12-31";
+        const bNext = (b.event_dates || []).slice().sort()[0] || "9999-12-31";
+        return aNext.localeCompare(bNext);
+      });
 
     console.log(
       `✅ Fetched ${activeCourses.length} active courses (page ${page + 1})`
@@ -113,6 +127,7 @@ export const createCourse = async (courseData) => {
       registration_url: courseData.registration_url || null,
       hospital_id: courseData.hospital_id || null,
       speciality_id: courseData.speciality_id || null,
+      ...(courseData.created_by_id && { created_by_id: courseData.created_by_id }),
     };
 
     const { data, error } = await supabase
@@ -195,7 +210,10 @@ export const updateCourse = async (courseId, courseData) => {
 };
 
 /**
- * Elimina un curso
+ * Elimina un curso.
+ * La tabla courses debe tener la columna created_by_id (UUID).
+ * En Supabase, conviene usar RLS para que solo el creador (o admin) pueda eliminar:
+ *   DELETE: auth.uid() = created_by_id (o rol admin).
  * @param {string} courseId - ID del curso
  * @returns {Promise<boolean>} True si se eliminó correctamente
  */

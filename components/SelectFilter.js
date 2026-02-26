@@ -78,9 +78,12 @@ export const SelectFilter = ({
   }, [options, searchText]);
 
   const handleSelect = (option) => {
-    // Procesar la selección inmediatamente
-    const optionValue = option.value || option.id || option;
-    handleChange(optionValue === value ? "" : optionValue);
+    // Procesar la selección: usar ?? para no pasar el objeto cuando value/id son ""
+    const optionValue =
+      option?.value ?? option?.id ?? (typeof option === "string" ? option : "");
+    const isObject = typeof optionValue === "object" && optionValue !== null;
+    const valueToSend = isObject ? "" : optionValue === value ? "" : optionValue;
+    handleChange(valueToSend);
     setModalVisible(false);
     setSearchText(""); // Limpiar búsqueda al seleccionar
     // Cerrar teclado después de procesar la selección

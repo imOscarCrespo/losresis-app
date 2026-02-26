@@ -20,6 +20,7 @@ import CourseDetailScreen from "./CourseDetailScreen";
 import HousingScreen from "./HousingScreen";
 import HousingAdDetailScreen from "./HousingAdDetailScreen";
 import CreateHousingAdScreen from "./CreateHousingAdScreen";
+import CreateCourseScreen from "./CreateCourseScreen";
 import ContactScreen from "./ContactScreen";
 import ShiftsScreen from "./ShiftsScreen";
 import { ExternalRotationsScreen } from "./ExternalRotationsScreen";
@@ -49,6 +50,8 @@ export default function DashboardScreen({
   const [selectedHousingAdId, setSelectedHousingAdId] = useState(null);
   const [creatingHousingAd, setCreatingHousingAd] = useState(false);
   const [editingHousingAdId, setEditingHousingAdId] = useState(null);
+  const [creatingCourse, setCreatingCourse] = useState(false);
+  const [editingCourseId, setEditingCourseId] = useState(null);
   const [previousSection, setPreviousSection] = useState(null); // Para volver a la sección correcta
   const [leisureForumType, setLeisureForumType] = useState(null); // Tipo de foro: "Fiesta" o "Deporte"
   const [selectedThreadId, setSelectedThreadId] = useState(null); // ID del thread seleccionado
@@ -120,7 +123,9 @@ export default function DashboardScreen({
       sectionId !== "courseDetail" &&
       sectionId !== "housingDetail" &&
       sectionId !== "createHousingAd" &&
-      sectionId !== "editHousingAd"
+      sectionId !== "editHousingAd" &&
+      sectionId !== "createCourse" &&
+      sectionId !== "editCourse"
     ) {
       setSelectedHospital(null);
       setSelectedSpecialtyId(null);
@@ -130,6 +135,8 @@ export default function DashboardScreen({
       setSelectedHousingAdId(null);
       setCreatingHousingAd(false);
       setEditingHousingAdId(null);
+      setCreatingCourse(false);
+      setEditingCourseId(null);
       setPreviousSection(null); // Limpiar la sección anterior al cambiar de sección
     }
     // Si es reviewDetail, guardar el reviewId
@@ -155,6 +162,14 @@ export default function DashboardScreen({
     // Si es editHousingAd, activar modo edición
     if (sectionId === "editHousingAd" && params.adId) {
       setEditingHousingAdId(params.adId);
+    }
+    // Si es createCourse, activar pantalla de crear curso
+    if (sectionId === "createCourse") {
+      setCreatingCourse(true);
+    }
+    // Si es editCourse, activar pantalla de editar curso
+    if (sectionId === "editCourse" && params.courseId) {
+      setEditingCourseId(params.courseId);
     }
     // Si es leisureForum, guardar el tipo de foro
     if (sectionId === "leisureForum" && params.forumType) {
@@ -298,6 +313,61 @@ export default function DashboardScreen({
     );
   }
 
+  // Si estamos en la pantalla de crear curso
+  if (creatingCourse) {
+    const handleBackFromCreateCourse = () => {
+      setCreatingCourse(false);
+      setCurrentSection("cursos");
+    };
+    return (
+      <ScreenLayout
+        userProfile={userProfile}
+        activeSection={currentSection}
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <SwipeBackWrapper onSwipeBack={handleBackFromCreateCourse}>
+          <CreateCourseScreen
+            onBack={handleBackFromCreateCourse}
+            onSuccess={() => {
+              setCreatingCourse(false);
+              setCurrentSection("cursos");
+            }}
+            userProfile={userProfile}
+          />
+        </SwipeBackWrapper>
+      </ScreenLayout>
+    );
+  }
+
+  // Si estamos en la pantalla de editar curso
+  if (editingCourseId) {
+    const handleBackFromEditCourse = () => {
+      setEditingCourseId(null);
+      setCurrentSection("cursos");
+    };
+    return (
+      <ScreenLayout
+        userProfile={userProfile}
+        activeSection={currentSection}
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <SwipeBackWrapper onSwipeBack={handleBackFromEditCourse}>
+          <CreateCourseScreen
+            courseId={editingCourseId}
+            onBack={handleBackFromEditCourse}
+            onSuccess={() => {
+              setEditingCourseId(null);
+              setCurrentSection("cursos");
+            }}
+            userProfile={userProfile}
+          />
+        </SwipeBackWrapper>
+      </ScreenLayout>
+    );
+  }
+
   // Si estamos en la pantalla de detalle del curso
   if (selectedCourseId) {
     const handleBackFromCourse = () => {
@@ -315,6 +385,15 @@ export default function DashboardScreen({
           <CourseDetailScreen
             courseId={selectedCourseId}
             onBack={handleBackFromCourse}
+            onEdit={(courseId) => {
+              setSelectedCourseId(null);
+              setEditingCourseId(courseId);
+              setCurrentSection("cursos");
+            }}
+            onDelete={() => {
+              setSelectedCourseId(null);
+              setCurrentSection("cursos");
+            }}
             userProfile={userProfile}
           />
         </SwipeBackWrapper>

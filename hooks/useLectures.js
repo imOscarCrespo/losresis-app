@@ -5,6 +5,7 @@ import {
   updateCourse,
   deleteCourse,
 } from "../services/lectureService";
+import { getCurrentUser } from "../services/authService";
 
 /**
  * Hook para gestionar cursos y formaciones
@@ -17,12 +18,29 @@ export const useLectures = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
+  const [showMyCourses, setShowMyCourses] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   // Filters
   const [filters, setFiltersState] = useState({
     hospital_id: "",
     speciality_id: "",
   });
+
+  // Cargar usuario actual (para \"Mis cursos\")
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const { success, user } = await getCurrentUser();
+        if (success && user) {
+          setCurrentUserId(user.id);
+        }
+      } catch (err) {
+        console.error("Error loading current user:", err);
+      }
+    };
+    loadUser();
+  }, []);
 
   // Clear error after some time
   useEffect(() => {
@@ -44,6 +62,8 @@ export const useLectures = () => {
         const result = await getCourses({
           hospitalId: filters.hospital_id || null,
           specialityId: filters.speciality_id || null,
+          createdById:
+            showMyCourses && currentUserId ? currentUserId : null,
           page,
         });
 
@@ -64,7 +84,7 @@ export const useLectures = () => {
         setLoading(false);
       }
     },
-    [filters, currentPage]
+    [filters, currentPage, showMyCourses, currentUserId]
   );
 
   // Load more courses (pagination)
@@ -162,10 +182,10 @@ export const useLectures = () => {
     }
   }, []);
 
-  // Initial load when filters change
+  // Initial load when filters or \"Mis cursos\" cambian
   useEffect(() => {
     fetchCourses(true);
-  }, [filters]);
+  }, [filters, showMyCourses, currentUserId]);
 
   return {
     // Data
@@ -187,6 +207,9 @@ export const useLectures = () => {
     updateCourse: updateExistingCourse,
     deleteCourse: deleteExistingCourse,
     refreshCourses,
+    showMyCourses,
+    setShowMyCourses,
+    currentUserId,
   };
 };
 

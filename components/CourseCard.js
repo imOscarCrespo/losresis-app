@@ -3,15 +3,13 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
 import { formatShortDate } from "../utils/dateUtils";
-import { isCourseUpcoming, openURL } from "../utils/courseUtils";
+import { openURL } from "../utils/courseUtils";
 
 /**
  * Componente de tarjeta de curso
  * Memoizado para optimizar el rendimiento
  */
-export const CourseCard = memo(({ course, onPress }) => {
-  const isUpcoming = isCourseUpcoming(course.event_dates);
-
+export const CourseCard = memo(({ course, onPress, isMine = false }) => {
   const handleRegister = (e) => {
     e.stopPropagation();
     openURL(course.registration_url);
@@ -27,11 +25,7 @@ export const CourseCard = memo(({ course, onPress }) => {
   };
 
   return (
-    <TouchableOpacity
-      style={[styles.card, isUpcoming && styles.cardUpcoming]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
       {/* Course Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -49,11 +43,6 @@ export const CourseCard = memo(({ course, onPress }) => {
             )}
           </View>
         </View>
-        {isUpcoming && (
-          <View style={styles.upcomingBadge}>
-            <Text style={styles.upcomingBadgeText}>Próximo</Text>
-          </View>
-        )}
       </View>
 
       {/* Course Details */}
@@ -118,7 +107,9 @@ export const CourseCard = memo(({ course, onPress }) => {
           {course.price_text && (
             <View style={styles.priceContainer}>
               <Ionicons name="cash" size={16} color={COLORS.SUCCESS} />
-              <Text style={styles.priceText}>{course.price_text}</Text>
+              <Text style={styles.priceText} numberOfLines={1}>
+                {course.price_text}
+              </Text>
             </View>
           )}
 
@@ -133,7 +124,7 @@ export const CourseCard = memo(({ course, onPress }) => {
           )}
         </View>
 
-        {/* Registration Link */}
+        {/* Registration Link - siempre visible, no se empuja fuera */}
         {course.registration_url && (
           <TouchableOpacity
             onPress={handleRegister}
@@ -203,6 +194,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.GRAY,
   },
+  mineBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: COLORS.PRIMARY + "10",
+  },
+  mineBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: COLORS.PRIMARY,
+  },
   upcomingBadge: {
     backgroundColor: COLORS.ORANGE,
     paddingHorizontal: 8,
@@ -247,18 +252,24 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.BORDER,
   },
   footerLeft: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     gap: 12,
+    alignItems: "center",
   },
   priceContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    flexShrink: 1,
+    minWidth: 0,
   },
   priceText: {
     fontSize: 14,
     fontWeight: "600",
     color: COLORS.SUCCESS,
+    flexShrink: 1,
   },
   seatsContainer: {
     flexDirection: "row",
@@ -273,6 +284,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    flexShrink: 0,
   },
   registrationButtonText: {
     fontSize: 14,
