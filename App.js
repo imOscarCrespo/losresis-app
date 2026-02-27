@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Platform } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Application from "expo-application";
 import WelcomeScreen from "./screens/WelcomeScreen";
@@ -310,32 +311,28 @@ export default function App() {
     return null;
   }
 
-  // Si está autenticado pero necesita onboarding, mostrar ProfileScreen en modo onboarding
-  if (isAuthenticated && needsOnboarding) {
-    return (
-      <ProfileScreen
+  return (
+    <SafeAreaProvider>
+      {/* Si está autenticado pero necesita onboarding, mostrar ProfileScreen en modo onboarding */}
+      {isAuthenticated && needsOnboarding ? (
+        <ProfileScreen
         isOnboarding={true}
         onProfileComplete={handleProfileComplete}
         onSignOut={handleSignOut}
-        onHospitalPress={() => {}}
-        onStudentPress={() => {}}
-        onReviewsPress={() => {}}
-      />
-    );
-  }
-
-  // Si está autenticado y tiene perfil completo, mostrar Dashboard
-  if (isAuthenticated) {
-    return (
-      <DashboardScreen
-        onSignOut={handleSignOut}
-        residentHasReview={residentHasReview}
-        onReviewCreated={handleReviewCreated}
-        onReviewDeleted={handleReviewDeleted}
-      />
-    );
-  }
-
-  // Si no está autenticado, mostrar WelcomeScreen
-  return <WelcomeScreen onAuthSuccess={handleAuthSuccess} />;
+          onHospitalPress={() => {}}
+          onStudentPress={() => {}}
+          onReviewsPress={() => {}}
+        />
+      ) : isAuthenticated ? (
+        <DashboardScreen
+          onSignOut={handleSignOut}
+          residentHasReview={residentHasReview}
+          onReviewCreated={handleReviewCreated}
+          onReviewDeleted={handleReviewDeleted}
+        />
+      ) : (
+        <WelcomeScreen onAuthSuccess={handleAuthSuccess} />
+      )}
+    </SafeAreaProvider>
+  );
 }
