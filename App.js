@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Application from "expo-application";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import DashboardScreen from "./screens/DashboardScreen";
 import ProfileScreen from "./screens/ProfileScreen";
@@ -21,8 +24,51 @@ export default function App() {
   useEffect(() => {
     // Inicializar PostHog al iniciar la aplicación
     posthogLogger.initialize();
+    trackAppOpenAndSession();
     checkAuth();
   }, []);
+
+  const trackAppOpenAndSession = async () => {
+    try {
+      const appVersion =
+        Application.nativeApplicationVersion ||
+        Application.applicationVersion ||
+        "unknown";
+      const os = Platform.OS;
+      const deviceType = Platform.isPad ? "tablet" : "phone";
+
+      // Evento de apertura de app
+      posthogLogger.capture("App Opened", {
+        app_version: appVersion,
+        os,
+        device_type: deviceType,
+      });
+
+      // Inicio de sesión de uso (session en sentido de uso, no auth)
+      posthogLogger.capture("Session Started", {
+        app_version: appVersion,
+        os,
+        device_type: deviceType,
+      });
+
+      // Evento Daily Active (una vez al día por dispositivo)
+      const LAST_ACTIVE_KEY = "@losresis:lastActiveDate";
+      const todayKey = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+      const lastActiveDate = await AsyncStorage.getItem(LAST_ACTIVE_KEY);
+
+      if (lastActiveDate !== todayKey) {
+        posthogLogger.capture("Daily Active", {
+          app_version: appVersion,
+          os,
+          device_type: deviceType,
+          day_of_week: new Date().getDay(),
+        });
+        await AsyncStorage.setItem(LAST_ACTIVE_KEY, todayKey);
+      }
+    } catch (error) {
+      console.warn("Error tracking app/session analytics:", error);
+    }
+  };
 
   const checkAuth = async () => {
     try {
@@ -186,6 +232,10 @@ export default function App() {
   };
 
   const handleProfileComplete = async () => {
+    // Onboarding completado
+    posthogLogger.capture("Onboarding Completed", {
+      completed_at: new Date().toISOString(),
+    });
     // Recargar verificación de auth para actualizar el estado
     await checkAuth();
   };

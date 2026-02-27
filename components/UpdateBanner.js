@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { APP_STORE_URL_IOS, PLAY_STORE_URL_ANDROID } from "../config/versionConfig";
+import posthogLogger from "../services/posthogService";
 
 const APP_NAME = "LosResis";
 
@@ -25,6 +26,13 @@ export const UpdateBanner = ({ updateUrl }) => {
     try {
       // Usar URL de la base de datos si está disponible, sino usar fallback
       const url = updateUrl || (Platform.OS === 'ios' ? APP_STORE_URL_IOS : PLAY_STORE_URL_ANDROID);
+
+      // Tracking del clic en el botón de actualización
+      posthogLogger.capture("App Update Clicked", {
+        platform: Platform.OS,
+        has_custom_update_url: !!updateUrl,
+        target_url: url || null,
+      });
       
       if (!url) {
         console.error("No hay URL de actualización disponible");

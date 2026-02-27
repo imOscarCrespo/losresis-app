@@ -233,7 +233,7 @@ export const SelectFilter = ({
                 }
                 style={styles.optionsList}
                 contentContainerStyle={styles.optionsListContent}
-                keyboardShouldPersistTaps="handled"
+                keyboardShouldPersistTaps="always"
                 nestedScrollEnabled={true}
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>

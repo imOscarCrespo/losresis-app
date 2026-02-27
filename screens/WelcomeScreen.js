@@ -574,12 +574,23 @@ export default function WelcomeScreen({ onAuthSuccess }) {
         redirectUrl = "losresis://auth/callback";
       }
 
+      // Tracking de inicio de autenticación
+      posthogLogger.capture("Auth Started", {
+        provider,
+        platform: Platform.OS,
+      });
+
       // Ejecutar el sign in correspondiente según el provider
       const signInFunction =
         provider === "google" ? signInWithGoogle : signInWithApple;
       const result = await signInFunction(redirectUrl);
 
       if (result.success) {
+        // Autenticación completada correctamente (signup/login)
+        posthogLogger.capture("Auth Completed", {
+          provider,
+          platform: Platform.OS,
+        });
         // Si handleAuthCallback ya está procesando, no hacer nada aquí
         // El callback manejará el flujo completo
         if (isProcessingAuth) {

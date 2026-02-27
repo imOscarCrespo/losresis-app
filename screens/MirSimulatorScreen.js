@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   FlatList,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SelectFilter } from "../components/SelectFilter";
@@ -55,6 +56,7 @@ export default function MirSimulatorScreen({ onBack }) {
   const handleCalculate = async () => {
     if (!canCalculate) return;
 
+    Keyboard.dismiss();
     setLoading(true);
     try {
       const score =
@@ -220,7 +222,11 @@ export default function MirSimulatorScreen({ onBack }) {
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Header con botón de volver */}
       <View style={styles.header}>
         <TouchableOpacity
