@@ -15,6 +15,10 @@ import { Filters } from "../components/Filters";
 import { CourseCard } from "../components/CourseCard";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { filterCoursesBySearch } from "../utils/courseUtils";
+import {
+  prepareHospitalOptions,
+  prepareSpecialtyOptions,
+} from "../utils/profileOptions";
 import posthogLogger from "../services/posthogService";
 
 /**
@@ -77,21 +81,8 @@ export const LecturesScreen = ({ userProfile, navigation }) => {
 
   // Configurar filtros para el componente genérico
   const filtersConfig = useMemo(() => {
-    const hospitalOptions = hospitals
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((hospital) => ({
-        id: hospital.id,
-        name: hospital.name,
-      }));
-
-    const specialtyOptions = specialties
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((specialty) => ({
-        id: specialty.id,
-        name: specialty.name,
-      }));
+    const hospitalOptions = prepareHospitalOptions(hospitals);
+    const specialtyOptions = prepareSpecialtyOptions(specialties);
 
     return [
       {

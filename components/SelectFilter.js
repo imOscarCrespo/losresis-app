@@ -291,13 +291,13 @@ const styles = StyleSheet.create({
   selectTextPlaceholder: {
     color: "#999",
   },
+  keyboardAvoidingView: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  keyboardAvoidingView: {
-    flex: 1,
     justifyContent: "flex-end",
   },
   modalContent: {

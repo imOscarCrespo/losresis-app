@@ -22,6 +22,10 @@ import {
 } from "../components/KeyboardDismissAccessory";
 import { useHospitals } from "../hooks/useHospitals";
 import {
+  prepareHospitalOptions,
+  prepareSpecialtyOptions,
+} from "../utils/profileOptions";
+import {
   getCourseById,
   createCourse,
   updateCourse,
@@ -290,15 +294,9 @@ export default function CreateCourseScreen({
     }
   }, [formData, isEditMode, courseId, validate, onSuccess, onBack]);
 
-  const hospitalOptions = hospitals
-    .slice()
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((h) => ({ id: h.id, name: h.name }));
+  const hospitalOptions = prepareHospitalOptions(hospitals);
 
-  const specialtyOptions = specialties
-    .slice()
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((s) => ({ id: s.id, name: s.name }));
+  const specialtyOptions = prepareSpecialtyOptions(specialties);
 
   return (
     <KeyboardAvoidingView
