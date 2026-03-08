@@ -8,7 +8,7 @@ import { getFooterConfig } from "../constants/footerConfig";
 // ============================================================================
 
 const COLORS = {
-  ACTIVE: "#000000",
+  ACTIVE: "#670CF5",
   INACTIVE: "#8E8E93",
 };
 
@@ -20,12 +20,9 @@ const TEXT_SIZE = 10;
 // ============================================================================
 
 /**
- * Item individual del footer
- * Memoizado para evitar re-renders innecesarios
+ * Item individual del footer (v2: icono + texto + punto activo en púrpura)
  */
 const FooterItem = memo(({ item, isActive, onPress }) => {
-  const isMenuText = item.icon === null;
-
   return (
     <TouchableOpacity
       style={styles.footerItem}
@@ -35,28 +32,18 @@ const FooterItem = memo(({ item, isActive, onPress }) => {
       accessibilityRole="button"
       accessibilityState={{ selected: isActive }}
     >
-      {isMenuText ? (
-        <View style={styles.menuTextContainer}>
-          <Text style={[styles.menuText, isActive && styles.menuTextActive]}>
-            {item.label}
-          </Text>
-          {isActive && <View style={styles.menuUnderline} />}
-        </View>
-      ) : (
-        <>
-          <Ionicons
-            name={item.icon}
-            size={ICON_SIZE}
-            color={isActive ? COLORS.ACTIVE : COLORS.INACTIVE}
-          />
-          <Text
-            style={[styles.footerLabel, isActive && styles.footerLabelActive]}
-            numberOfLines={1}
-          >
-            {item.label}
-          </Text>
-        </>
-      )}
+      <Ionicons
+        name={item.icon}
+        size={ICON_SIZE}
+        color={isActive ? COLORS.ACTIVE : COLORS.INACTIVE}
+      />
+      <Text
+        style={[styles.footerLabel, isActive && styles.footerLabelActive]}
+        numberOfLines={1}
+      >
+        {item.label}
+      </Text>
+      {isActive && <View style={styles.activeDot} />}
     </TouchableOpacity>
   );
 });
@@ -68,9 +55,9 @@ FooterItem.displayName = "FooterItem";
 // ============================================================================
 
 /**
- * Componente Footer estilo Zara con 5 elementos
- * - Para estudiantes: Hospitales, Simulador MIR, MENU, Preferencias, Perfil
- * - Para residentes: Comunidad, Mi Reseña, MENU, Libro, Perfil
+ * Componente Footer v2
+ * Mismo menú para todos: Inicio, Especialidades, MIR, Vivienda, Perfil
+ * Activo: icono y texto en púrpura + punto debajo
  *
  * @param {object} props
  * @param {object} props.userProfile - Perfil del usuario
@@ -144,30 +131,18 @@ const styles = StyleSheet.create({
     fontSize: TEXT_SIZE,
     color: COLORS.INACTIVE,
     marginTop: 4,
-    fontWeight: "400",
+    fontWeight: "500",
     textAlign: "center",
   },
   footerLabelActive: {
     color: COLORS.ACTIVE,
-    fontWeight: "500",
+    fontWeight: "700",
   },
-  menuTextContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  menuText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: COLORS.INACTIVE,
-    letterSpacing: 0.5,
-  },
-  menuTextActive: {
-    color: COLORS.ACTIVE,
-  },
-  menuUnderline: {
-    width: 20,
-    height: 2,
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: COLORS.ACTIVE,
-    marginTop: 2,
+    marginTop: 4,
   },
 });

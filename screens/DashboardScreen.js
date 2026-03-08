@@ -17,6 +17,7 @@ import ReviewDetailScreen from "./ReviewDetailScreen";
 import ArticlesScreen from "./ArticlesScreen";
 import ArticleDetailScreen from "./ArticleDetailScreen";
 import CourseDetailScreen from "./CourseDetailScreen";
+import HomeDashboardScreen from "./HomeDashboardScreen";
 import HousingScreen from "./HousingScreen";
 import HousingAdDetailScreen from "./HousingAdDetailScreen";
 import CreateHousingAdScreen from "./CreateHousingAdScreen";
@@ -56,11 +57,11 @@ export default function DashboardScreen({
   const [leisureForumType, setLeisureForumType] = useState(null); // Tipo de foro: "Fiesta" o "Deporte"
   const [selectedThreadId, setSelectedThreadId] = useState(null); // ID del thread seleccionado
 
-  // Determinar sección inicial según el tipo de usuario
+  // Determinar sección inicial según el tipo de usuario (primera pestaña = Inicio)
   const getInitialSection = (profile) => {
-    if (!profile) return "hospitales";
+    if (!profile) return "inicio";
     const footerConfig = getFooterConfig(profile);
-    return footerConfig[0]?.screen || "hospitales";
+    return footerConfig[0]?.screen || "inicio";
   };
 
   const [currentSection, setCurrentSection] = useState(() =>
@@ -200,7 +201,7 @@ export default function DashboardScreen({
   // Obtener la primera sección del footer según el tipo de usuario
   const getDefaultSection = () => {
     const footerConfig = getFooterConfig(userProfile);
-    return footerConfig[0]?.screen || "hospitales";
+    return footerConfig[0]?.screen || "inicio";
   };
 
   const handleBackFromDetail = () => {
@@ -496,7 +497,15 @@ export default function DashboardScreen({
   // Renderizar según la sección activa
   const renderSection = () => {
     switch (currentSection) {
-      // Secciones existentes
+      case "inicio":
+        return (
+          <HomeDashboardScreen
+            userProfile={userProfile}
+            onHospitalSelect={handleHospitalSelect}
+            onSectionChange={handleSectionChange}
+          />
+        );
+
       case "hospitals":
       case "hospitales":
         return (
