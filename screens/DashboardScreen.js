@@ -29,6 +29,8 @@ import LeisureScreen from "./LeisureScreen";
 import LeisureForumScreen from "./LeisureForumScreen";
 import SportsSelectionScreen from "./SportsSelectionScreen";
 import ThreadDetailScreen from "./ThreadDetailScreen";
+import NotificationSettingsScreen from "../src/screens/settings/NotificationSettingsScreen";
+import NotificationsScreen from "../src/screens/notifications/NotificationsScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
@@ -520,6 +522,29 @@ export default function DashboardScreen({
             onSignOut={onSignOut}
             onSectionChange={handleSectionChange}
             currentSection={currentSection}
+          />
+        );
+
+      case "notificationSettings":
+        return (
+          <NotificationSettingsScreen
+            userId={userProfile?.id}
+            onBack={() => handleSectionChange("usuario")}
+          />
+        );
+
+      case "notifications":
+        return (
+          <NotificationsScreen
+            userId={userProfile?.id}
+            onBack={() => handleSectionChange("usuario")}
+            onNavigateToEntity={(screenId, entityId) => {
+              if (screenId === "reviewDetail") {
+                handleSectionChange("reviewDetail", { reviewId: entityId });
+              } else if (screenId === "threadDetail") {
+                handleSectionChange("threadDetail", { threadId: entityId });
+              }
+            }}
           />
         );
 

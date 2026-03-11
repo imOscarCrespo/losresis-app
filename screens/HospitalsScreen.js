@@ -10,6 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Filters } from "../components/Filters";
 import { ScreenHeader } from "../components/ScreenHeader";
+import { useUnreadNotificationsCount } from "../src/hooks/useUnreadNotificationsCount";
 import { useHospitals } from "../hooks/useHospitals";
 import posthogLogger from "../services/posthogService";
 
@@ -19,6 +20,9 @@ export default function HospitalsScreen({
   currentSection,
   userProfile,
 }) {
+  const { count: notificationCount } = useUnreadNotificationsCount(
+    userProfile?.id
+  );
   const {
     filteredHospitals,
     specialties,
@@ -161,10 +165,8 @@ export default function HospitalsScreen({
       <ScreenHeader
         title="Hospitales"
         subtitle={`Mostrando ${filteredHospitals.length} hospitales`}
-        notificationCount={0}
-        onNotificationPress={() => {
-          // TODO: Implementar navegación a notificaciones
-        }}
+        notificationCount={notificationCount}
+        onNotificationPress={() => onSectionChange("notifications")}
       />
 
       {/* Filtros genéricos */}

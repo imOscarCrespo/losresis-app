@@ -2,7 +2,7 @@
   "expo": {
     "name": "LosResis",
     "slug": "losresis-react-app",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.losresis.app",
-      "buildNumber": "22",
+      "buildNumber": "23",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -33,9 +33,10 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "googleServicesFile": "./android/app/google-services.json",
       "edgeToEdgeEnabled": true,
       "package": "com.losresis.app",
-      "versionCode": 22,
+      "versionCode": 23,
       "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
       "intentFilters": [
         {
@@ -75,6 +76,6 @@
         "projectId": "5dedd807-d5dc-4234-9cc0-37212b09f70e"
       }
     },
-    "plugins": ["expo-localization"]
+    "plugins": ["expo-localization", "expo-notifications"]
   }
 }

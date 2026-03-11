@@ -14,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { StarRating } from "../components/StarRating";
 import { ScreenHeader } from "../components/ScreenHeader";
+import { useUnreadNotificationsCount } from "../src/hooks/useUnreadNotificationsCount";
 import { useMyReview } from "../hooks/useMyReview";
 import { useHospitals } from "../hooks/useHospitals";
 import { formatShortDate } from "../utils/dateUtils";
@@ -42,6 +43,10 @@ export default function MyReviewScreen({
   const hospital = hospitals.find((h) => h.id === userProfile?.hospital_id);
   const specialty = specialties.find(
     (s) => s.id === userProfile?.speciality_id
+  );
+
+  const { count: notificationCount } = useUnreadNotificationsCount(
+    userProfile?.id
   );
 
   // Hook de reseña
@@ -264,10 +269,8 @@ export default function MyReviewScreen({
             ? "Gestiona tu reseña del hospital"
             : "Comparte tu experiencia como residente"
         }
-        notificationCount={0}
-        onNotificationPress={() => {
-          // TODO: Implementar navegación a notificaciones
-        }}
+        notificationCount={notificationCount}
+        onNotificationPress={() => navigation?.navigate("notifications")}
       />
 
       <ScrollView

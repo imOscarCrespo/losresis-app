@@ -16,6 +16,7 @@ import {
   useExternalRotationReview,
   useExternalRotationReviewsList,
 } from "../hooks/useExternalRotationReviews";
+import { useUnreadNotificationsCount } from "../src/hooks/useUnreadNotificationsCount";
 import {
   ScreenHeader,
   Filters,
@@ -40,6 +41,7 @@ import posthogLogger from "../services/posthogService";
 export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
   const userId = userProfile?.id;
   const isResident = userProfile?.is_resident;
+  const { count: notificationCount } = useUnreadNotificationsCount(userId);
 
   // Tab state
   const [activeTab, setActiveTab] = useState("map");
@@ -824,8 +826,8 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
         <ScreenHeader
           title="Rotaciones Externas"
           subtitle="Funcionalidad para residentes"
-          notificationCount={0}
-          onNotificationPress={() => {}}
+          notificationCount={notificationCount}
+          onNotificationPress={() => navigation?.navigate("notifications")}
         />
         <View style={styles.messageCard}>
           <View style={styles.iconCircle}>
@@ -865,8 +867,8 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
         subtitle={
           activeTab === "map" ? "Encuentra compañeros en tu destino" : "Reseñas"
         }
-        notificationCount={0}
-        onNotificationPress={() => {}}
+        notificationCount={notificationCount}
+        onNotificationPress={() => navigation?.navigate("notifications")}
       />
 
       {/* Tabs */}
