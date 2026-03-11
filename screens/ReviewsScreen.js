@@ -12,6 +12,7 @@ import { useReviews } from "../hooks/useReviews";
 import { useHospitals } from "../hooks/useHospitals";
 import { Filters } from "../components/Filters";
 import { ScreenHeader } from "../components/ScreenHeader";
+import { useUnreadNotificationsCount } from "../src/hooks/useUnreadNotificationsCount";
 import { prepareHospitalOptions } from "../utils/profileOptions";
 import { formatShortDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
@@ -77,6 +78,9 @@ export default function ReviewsScreen({
   currentSection,
   userProfile,
 }) {
+  const { count: notificationCount } = useUnreadNotificationsCount(
+    userProfile?.id
+  );
   const {
     reviewSummaries,
     loading,
@@ -172,10 +176,8 @@ export default function ReviewsScreen({
       <ScreenHeader
         title="Reseñas"
         subtitle={`Mostrando ${reviewSummaries.length} reseñas`}
-        notificationCount={0}
-        onNotificationPress={() => {
-          // TODO: Implementar navegación a notificaciones
-        }}
+        notificationCount={notificationCount}
+        onNotificationPress={() => onSectionChange("notifications")}
       />
 
       {/* Filtros genéricos */}

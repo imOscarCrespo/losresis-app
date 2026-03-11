@@ -1080,6 +1080,46 @@ export default function ProfileScreen({
                   )}
                 </TouchableOpacity>
               </View>
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => onSectionChange("notificationSettings")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingsRowContent}>
+                  <Ionicons
+                    name="notifications-outline"
+                    size={24}
+                    color={COLORS.PRIMARY}
+                    style={styles.securityIcon}
+                  />
+                  <Text style={styles.settingsRowTitle}>Notificaciones</Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={COLORS.TEXT_LIGHT}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.settingsRow, styles.settingsRowSecond]}
+                onPress={() => onSectionChange("notifications")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingsRowContent}>
+                  <Ionicons
+                    name="list-outline"
+                    size={24}
+                    color={COLORS.PRIMARY}
+                    style={styles.securityIcon}
+                  />
+                  <Text style={styles.settingsRowTitle}>Ver notificaciones</Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={COLORS.TEXT_LIGHT}
+                />
+              </TouchableOpacity>
             </View>
           )}
 
@@ -1297,6 +1337,30 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E5E5EA",
+  },
+  settingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+    marginTop: 12,
+  },
+  settingsRowSecond: {
+    marginTop: 12,
+  },
+  settingsRowContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  settingsRowTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1a1a1a",
   },
   securityOptionContent: {
     flexDirection: "row",

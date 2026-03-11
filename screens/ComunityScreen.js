@@ -14,6 +14,7 @@ import { Filters } from "../components/Filters";
 import { useCommunityUsers } from "../hooks/useCommunityUsers";
 import { useCities } from "../hooks/useCities";
 import { useResidentReviewCheck } from "../hooks/useResidentReviewCheck";
+import { useUnreadNotificationsCount } from "../src/hooks/useUnreadNotificationsCount";
 import posthogLogger from "../services/posthogService";
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -56,6 +57,9 @@ try {
  * Pantalla de Comunidad - Mapa interactivo de residentes
  */
 export default function ComunityScreen({ userProfile, navigation }) {
+  const { count: notificationCount } = useUnreadNotificationsCount(
+    userProfile?.id
+  );
   const mapRef = useRef(null);
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
@@ -262,15 +266,20 @@ export default function ComunityScreen({ userProfile, navigation }) {
             {/* Botón de notificaciones */}
             <TouchableOpacity
               style={styles.notificationButton}
-              onPress={() => {
-                // TODO: Implementar navegación a notificaciones
-              }}
+              onPress={() => navigation?.navigate("notifications")}
             >
               <Ionicons
                 name="notifications-outline"
                 size={28}
                 color="#1a1a1a"
               />
+              {notificationCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {notificationCount > 99 ? "99+" : notificationCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -514,6 +523,24 @@ const styles = StyleSheet.create({
   },
   notificationButton: {
     padding: 8,
+    position: "relative",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: "#EF4444",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "bold",
   },
   viewToggleButton: {
     flexDirection: "row",
