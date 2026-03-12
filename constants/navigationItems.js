@@ -61,6 +61,15 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#CFFAFE",
   },
   {
+    id: "specialityQuiz",
+    name: "Test de especialidad",
+    icon: "help-buoy",
+    description: "Descubre qué especialidad encaja contigo",
+    studentOnly: true,
+    color: "#A855F7", // Purple fun
+    lightColor: "#F3E8FF",
+  },
+  {
     id: "libro-residente",
     name: "Libro de residente",
     icon: "book",
@@ -164,6 +173,7 @@ export const NAVIGATION_ITEMS = [
 export const IMPLEMENTED_SECTIONS = [
   "hospitales",
   "nota-mir",
+  "specialityQuiz",
   "usuario",
   "mi-resena",
   "myPreferences",

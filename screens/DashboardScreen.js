@@ -31,6 +31,7 @@ import SportsSelectionScreen from "./SportsSelectionScreen";
 import ThreadDetailScreen from "./ThreadDetailScreen";
 import NotificationSettingsScreen from "../src/screens/settings/NotificationSettingsScreen";
 import NotificationsScreen from "../src/screens/notifications/NotificationsScreen";
+import SpecialityQuizScreen from "./SpecialityQuizScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
@@ -513,6 +514,14 @@ export default function DashboardScreen({
       case "mirSimulator":
       case "nota-mir":
         return <MirSimulatorScreen onBack={handleBackFromMirSimulator} />;
+
+      case "specialityQuiz":
+        return (
+          <SpecialityQuizScreen
+            userProfile={userProfile}
+            onSectionChange={handleSectionChange}
+          />
+        );
 
       case "profile":
       case "usuario":
