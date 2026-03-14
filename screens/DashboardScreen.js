@@ -33,9 +33,39 @@ import ThreadDetailScreen from "./ThreadDetailScreen";
 import NotificationSettingsScreen from "../src/screens/settings/NotificationSettingsScreen";
 import NotificationsScreen from "../src/screens/notifications/NotificationsScreen";
 import SpecialityQuizScreen from "./SpecialityQuizScreen";
+import GroupsScreen from "./GroupsScreen";
+import GroupChatScreen from "./GroupChatScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
+import { DEV_USER_TYPE } from "../config/devConfig";
+
+/**
+ * Aplica el override de tipo de usuario definido en devConfig.js.
+ * Solo actúa si DEV_USER_TYPE tiene un valor distinto de null.
+ */
+const applyDevUserType = (profile) => {
+  if (!DEV_USER_TYPE || !profile) return profile;
+
+  const overrides = {
+    is_resident: false,
+    is_student: false,
+    is_doctor: false,
+    is_super_admin: false,
+  };
+
+  if (DEV_USER_TYPE === "resident") {
+    overrides.is_resident = true;
+  } else if (DEV_USER_TYPE === "student") {
+    overrides.is_student = true;
+  } else if (DEV_USER_TYPE === "admin") {
+    overrides.is_resident = true;
+    overrides.is_super_admin = true;
+  }
+
+  console.log(`🛠️ [DEV] Simulando usuario tipo: "${DEV_USER_TYPE}"`);
+  return { ...profile, ...overrides };
+};
 
 export default function DashboardScreen({
   onSignOut,
@@ -59,6 +89,8 @@ export default function DashboardScreen({
   const [previousSection, setPreviousSection] = useState(null); // Para volver a la sección correcta
   const [leisureForumType, setLeisureForumType] = useState(null); // Tipo de foro: "Fiesta" o "Deporte"
   const [selectedThreadId, setSelectedThreadId] = useState(null); // ID del thread seleccionado
+  const [selectedGroupId, setSelectedGroupId] = useState(null); // ID del grupo de chat
+  const [selectedGroupName, setSelectedGroupName] = useState(null); // Nombre del grupo de chat
 
   // Determinar sección inicial según el tipo de usuario (primera pestaña = Inicio)
   const getInitialSection = (profile) => {
@@ -107,7 +139,7 @@ export default function DashboardScreen({
           user.id
         );
         if (profileSuccess && profile) {
-          setUserProfile(profile);
+          setUserProfile(applyDevUserType(profile));
         }
       }
     } catch (error) {
@@ -129,7 +161,8 @@ export default function DashboardScreen({
       sectionId !== "createHousingAd" &&
       sectionId !== "editHousingAd" &&
       sectionId !== "createCourse" &&
-      sectionId !== "editCourse"
+      sectionId !== "editCourse" &&
+      sectionId !== "groupChat"
     ) {
       setSelectedHospital(null);
       setSelectedSpecialtyId(null);
@@ -191,6 +224,16 @@ export default function DashboardScreen({
     if (sectionId === "leisureForum") {
       setSelectedThreadId(null);
     }
+    // Si es groupChat, guardar groupId y nombre
+    if (sectionId === "groupChat" && params.groupId) {
+      setSelectedGroupId(params.groupId);
+      setSelectedGroupName(params.groupName || "Grupo");
+    }
+    // Si volvemos desde groupChat, limpiar
+    if (sectionId === "grupos") {
+      setSelectedGroupId(null);
+      setSelectedGroupName(null);
+    }
   };
 
   const handleHospitalSelect = (hospital, specialtyId, fromSection = null) => {
@@ -227,6 +270,33 @@ export default function DashboardScreen({
     setSelectedThreadId(null);
     setCurrentSection("leisureForum");
   };
+
+  const handleBackFromGroupChat = () => {
+    setSelectedGroupId(null);
+    setSelectedGroupName(null);
+    setCurrentSection("grupos");
+  };
+
+  // Si estamos en el chat de un grupo
+  if (selectedGroupId) {
+    return (
+      <ScreenLayout
+        userProfile={userProfile}
+        activeSection="grupos"
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <SwipeBackWrapper onSwipeBack={handleBackFromGroupChat}>
+          <GroupChatScreen
+            groupId={selectedGroupId}
+            groupName={selectedGroupName}
+            userProfile={userProfile}
+            onBack={handleBackFromGroupChat}
+          />
+        </SwipeBackWrapper>
+      </ScreenLayout>
+    );
+  }
 
   // Si estamos en la pantalla de detalle del thread
   if (selectedThreadId) {
@@ -690,6 +760,14 @@ export default function DashboardScreen({
           <LecturesScreen
             userProfile={userProfile}
             navigation={{ navigate: handleSectionChange }}
+          />
+        );
+
+      case "grupos":
+        return (
+          <GroupsScreen
+            onSectionChange={handleSectionChange}
+            userProfile={userProfile}
           />
         );
 

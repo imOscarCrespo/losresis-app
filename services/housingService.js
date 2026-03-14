@@ -45,6 +45,9 @@ export const getHousingAds = async (
     if (filters.user_id) {
       countQuery = countQuery.eq("user_id", filters.user_id);
     }
+    if (filters.maxPrice) {
+      countQuery = countQuery.lte("price_eur", filters.maxPrice);
+    }
 
     const { count, error: countError } = await countQuery;
 
@@ -77,6 +80,9 @@ export const getHousingAds = async (
     }
     if (filters.user_id) {
       query = query.eq("user_id", filters.user_id);
+    }
+    if (filters.maxPrice) {
+      query = query.lte("price_eur", filters.maxPrice);
     }
 
     // Aplicar paginación

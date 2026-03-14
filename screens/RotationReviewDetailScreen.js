@@ -10,13 +10,27 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { getRotationReviewWithAnswers } from "../services/externalRotationReviewService";
 import { formatLongDate, formatShortDate } from "../utils/dateUtils";
-import { COLORS } from "../constants/colors";
 import { StarRating } from "../components/StarRating";
 import posthogLogger from "../services/posthogService";
 
-/**
- * Pantalla de detalle de reseña de rotación externa
- */
+// ============================================================================
+// COLORS
+// ============================================================================
+
+const PRIMARY = "#670CF5";
+const SECONDARY = "#00BD7C";
+const ACCENT = "#1B0977";
+const BG_LIGHT = "#F8F9FE";
+const WHITE = "#FFFFFF";
+const TEXT_MEDIUM = "#64748B";
+const TEXT_LIGHT = "#94A3B8";
+const BORDER = "#F1F5F9";
+const ERROR = "#EF4444";
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 export default function RotationReviewDetailScreen({
   reviewId,
   onBack,
@@ -26,38 +40,31 @@ export default function RotationReviewDetailScreen({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Tracking de pantalla con PostHog
   useEffect(() => {
     posthogLogger.logScreen("RotationReviewDetailScreen", { reviewId });
   }, [reviewId]);
 
-  // Cargar detalle de la reseña
   useEffect(() => {
     const fetchReviewDetail = async () => {
       if (!reviewId) {
-        console.warn("RotationReviewDetailScreen: reviewId is required");
         setError("ID de reseña requerido");
         setLoading(false);
         return;
       }
-
       try {
         setLoading(true);
         setError(null);
         const data = await getRotationReviewWithAnswers(reviewId);
         setReview(data);
       } catch (err) {
-        console.error("Error fetching rotation review detail:", err);
         setError(err.message || "Error al cargar la reseña");
       } finally {
         setLoading(false);
       }
     };
-
     fetchReviewDetail();
   }, [reviewId]);
 
-  // Separar respuestas por tipo
   const { ratingAnswers, textAnswers } = useMemo(() => {
     if (
       !review?.external_rotation_review_answer ||
@@ -65,35 +72,33 @@ export default function RotationReviewDetailScreen({
     ) {
       return { ratingAnswers: [], textAnswers: [] };
     }
-
     return {
       ratingAnswers: review.external_rotation_review_answer.filter(
-        (answer) => answer.external_rotation_question?.type === "rating"
+        (a) => a.external_rotation_question?.type === "rating"
       ),
       textAnswers: review.external_rotation_review_answer.filter(
-        (answer) => answer.external_rotation_question?.type === "text"
+        (a) => a.external_rotation_question?.type === "text"
       ),
     };
   }, [review?.external_rotation_review_answer]);
 
+  // ── Back header ──
+  const BackHeader = () => (
+    <View style={styles.backHeader}>
+      <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
+        <Ionicons name="chevron-back" size={22} color={ACCENT} />
+        <Text style={styles.backBtnText}>Rotaciones</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
-            <Text style={styles.backButtonText}>Volver al listado</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-          <Text style={styles.loadingText}>
-            Cargando detalle de la reseña...
-          </Text>
+        <BackHeader />
+        <View style={styles.stateContainer}>
+          <ActivityIndicator size="large" color={PRIMARY} />
+          <Text style={styles.loadingText}>Cargando reseña...</Text>
         </View>
       </View>
     );
@@ -102,18 +107,11 @@ export default function RotationReviewDetailScreen({
   if (error || !review) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
-            <Text style={styles.backButtonText}>Volver al listado</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={64} color={COLORS.ERROR} />
+        <BackHeader />
+        <View style={styles.stateContainer}>
+          <View style={styles.stateIconWrap}>
+            <Ionicons name="alert-circle-outline" size={36} color={ERROR} />
+          </View>
           <Text style={styles.errorTitle}>Error al cargar la reseña</Text>
           <Text style={styles.errorText}>
             {error || "No se pudo encontrar la reseña solicitada."}
@@ -124,88 +122,94 @@ export default function RotationReviewDetailScreen({
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={onBack}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
-          <Text style={styles.backButtonText}>Volver al listado</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={styles.container}>
+      <BackHeader />
 
-      {/* Content */}
-      <View style={styles.content}>
-        {/* Hospital Info Card */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Hospital info card */}
         <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.hospitalInfo}>
-              <Ionicons name="business" size={24} color={COLORS.PRIMARY} />
-              <Text style={styles.hospitalName}>
-                {review.external_hospital_name}
-              </Text>
+          {/* Hospital name */}
+          <View style={styles.hospitalRow}>
+            <View style={styles.hospitalIconWrap}>
+              <Ionicons name="business" size={20} color={PRIMARY} />
             </View>
+            <Text style={styles.hospitalName} numberOfLines={2}>
+              {review.external_hospital_name}
+            </Text>
           </View>
 
+          <View style={styles.divider} />
+
+          {/* Location */}
           <View style={styles.infoRow}>
-            <Ionicons name="location" size={18} color={COLORS.GRAY} />
+            <View style={styles.infoIconWrap}>
+              <Ionicons name="location-outline" size={17} color={TEXT_MEDIUM} />
+            </View>
             <Text style={styles.infoText}>
               {review.city}, {review.country}
             </Text>
           </View>
 
+          {/* Rotation dates */}
           {review.external_rotation && (
             <View style={styles.infoRow}>
-              <Ionicons name="calendar" size={18} color={COLORS.GRAY} />
+              <View style={styles.infoIconWrap}>
+                <Ionicons name="calendar-outline" size={17} color={TEXT_MEDIUM} />
+              </View>
               <Text style={styles.infoText}>
                 {formatShortDate(review.external_rotation.start_date)}
                 {review.external_rotation.end_date &&
-                  ` - ${formatShortDate(review.external_rotation.end_date)}`}
+                  ` — ${formatShortDate(review.external_rotation.end_date)}`}
               </Text>
             </View>
           )}
 
+          {/* Published date */}
           <View style={styles.infoRow}>
-            <Ionicons name="time" size={18} color={COLORS.GRAY} />
+            <View style={styles.infoIconWrap}>
+              <Ionicons name="time-outline" size={17} color={TEXT_MEDIUM} />
+            </View>
             <Text style={styles.infoText}>
               {formatLongDate(review.created_at)}
             </Text>
           </View>
         </View>
 
-        {/* Answers Card */}
+        {/* Answers card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Respuestas</Text>
 
           {review.external_rotation_review_answer &&
           review.external_rotation_review_answer.length > 0 ? (
             <View>
-              {/* Rating Questions */}
+              {/* Rating questions */}
               {ratingAnswers.length > 0 && (
                 <View style={styles.answersSection}>
-                  <Text style={styles.answersSectionTitle}>
-                    Preguntas de Rating
-                  </Text>
+                  <View style={styles.sectionLabelRow}>
+                    <View style={styles.sectionBar} />
+                    <Text style={styles.sectionLabelText}>Valoraciones</Text>
+                  </View>
                   <View style={styles.ratingList}>
                     {ratingAnswers.map((answer) => (
                       <View
                         key={`${answer.review_id}-${answer.question_id}`}
-                        style={styles.ratingCard}
+                        style={styles.ratingItem}
                       >
                         <Text style={styles.questionText}>
                           {answer.external_rotation_question?.text}
                         </Text>
                         {answer.rating_value && (
-                          <View style={styles.ratingContainer}>
+                          <View style={styles.ratingRow}>
                             <StarRating
                               rating={answer.rating_value}
-                              size={20}
+                              size={18}
                               disabled
                             />
-                            <Text style={styles.ratingText}>
+                            <Text style={styles.ratingLabel}>
                               ({answer.rating_value}/5)
                             </Text>
                           </View>
@@ -216,23 +220,24 @@ export default function RotationReviewDetailScreen({
                 </View>
               )}
 
-              {/* Text Questions */}
+              {/* Text questions */}
               {textAnswers.length > 0 && (
                 <View style={styles.answersSection}>
-                  <Text style={styles.answersSectionTitle}>
-                    Preguntas de Texto
-                  </Text>
+                  <View style={styles.sectionLabelRow}>
+                    <View style={[styles.sectionBar, { backgroundColor: SECONDARY }]} />
+                    <Text style={styles.sectionLabelText}>Comentarios</Text>
+                  </View>
                   <View style={styles.textAnswersList}>
                     {textAnswers.map((answer) => (
                       <View
                         key={`${answer.review_id}-${answer.question_id}`}
-                        style={styles.textAnswerCard}
+                        style={styles.textAnswerItem}
                       >
                         <Text style={styles.questionText}>
                           {answer.external_rotation_question?.text}
                         </Text>
                         {answer.text_value && (
-                          <View style={styles.textAnswerContent}>
+                          <View style={styles.textAnswerBox}>
                             <Text style={styles.textAnswerText}>
                               {answer.text_value}
                             </Text>
@@ -245,30 +250,34 @@ export default function RotationReviewDetailScreen({
               )}
             </View>
           ) : (
-            <View style={styles.emptyAnswersContainer}>
-              <Ionicons
-                name="document-text-outline"
-                size={48}
-                color={COLORS.GRAY}
-              />
-              <Text style={styles.emptyAnswersText}>
+            <View style={styles.emptyInCard}>
+              <Ionicons name="document-text-outline" size={40} color={TEXT_LIGHT} />
+              <Text style={styles.emptyInCardText}>
                 No hay respuestas disponibles
               </Text>
             </View>
           )}
         </View>
 
-        {/* Free Comment Card */}
+        {/* Free comment card */}
         {review.free_comment && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Comentario adicional</Text>
-            <View style={styles.commentContent}>
+            <View style={styles.commentBox}>
+              <Ionicons
+                name="chatbubble-outline"
+                size={16}
+                color={PRIMARY}
+                style={{ marginTop: 2 }}
+              />
               <Text style={styles.commentText}>{review.free_comment}</Text>
             </View>
           </View>
         )}
-      </View>
-    </ScrollView>
+
+        <View style={{ height: 24 }} />
+      </ScrollView>
+    </View>
   );
 }
 
@@ -279,183 +288,243 @@ export default function RotationReviewDetailScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: BG_LIGHT,
   },
-  header: {
-    backgroundColor: "#FFFFFF",
-    padding: 16,
+
+  // ── Back header ──
+  backHeader: {
+    backgroundColor: WHITE,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    borderBottomColor: BORDER,
   },
-  backButton: {
+  backBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    alignSelf: "flex-start",
+    borderRadius: 10,
   },
-  backButtonText: {
+  backBtnText: {
     fontSize: 16,
-    color: COLORS.PRIMARY,
     fontWeight: "600",
+    color: ACCENT,
   },
-  loadingContainer: {
+
+  // ── Scroll ──
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingTop: 12,
+  },
+
+  // ── States ──
+  stateContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 60,
+    padding: 32,
+    gap: 12,
+  },
+  stateIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: `${ERROR}10`,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: COLORS.GRAY,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 60,
-    paddingHorizontal: 32,
+    fontSize: 15,
+    color: TEXT_MEDIUM,
   },
   errorTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
+    textAlign: "center",
   },
   errorText: {
     fontSize: 14,
-    color: COLORS.GRAY,
+    color: TEXT_MEDIUM,
     textAlign: "center",
+    lineHeight: 20,
   },
-  content: {
-    padding: 16,
-  },
+
+  // ── Card ──
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: WHITE,
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 3,
   },
-  cardHeader: {
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: ACCENT,
     marginBottom: 16,
+    letterSpacing: -0.1,
   },
-  hospitalInfo: {
+
+  // ── Hospital card content ──
+  hospitalRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    marginBottom: 14,
+  },
+  hospitalIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: `${PRIMARY}10`,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   hospitalName: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: COLORS.GRAY_DARK,
     flex: 1,
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
+    lineHeight: 24,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: BORDER,
+    marginBottom: 14,
   },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
+  infoIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: BG_LIGHT,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: TEXT_MEDIUM,
+    lineHeight: 18,
+  },
+
+  // ── Answers ──
+  answersSection: {
+    marginBottom: 20,
+  },
+  sectionLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginBottom: 12,
   },
-  infoText: {
+  sectionBar: {
+    width: 4,
+    height: 18,
+    borderRadius: 2,
+    backgroundColor: PRIMARY,
+  },
+  sectionLabelText: {
     fontSize: 14,
-    color: COLORS.GRAY,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 16,
-  },
-  answersSection: {
-    marginBottom: 24,
-  },
-  answersSectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 16,
+    fontWeight: "700",
+    color: ACCENT,
   },
   ratingList: {
-    gap: 12,
+    gap: 10,
   },
-  ratingCard: {
-    width: "100%",
-    backgroundColor: "#FFFFFF",
+  ratingItem: {
+    backgroundColor: BG_LIGHT,
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: "#E5E5EA",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderColor: BORDER,
   },
   questionText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 12,
-    lineHeight: 20,
+    color: ACCENT,
+    marginBottom: 10,
+    lineHeight: 19,
   },
-  ratingContainer: {
+  ratingRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  ratingText: {
-    fontSize: 14,
-    color: COLORS.GRAY,
+  ratingLabel: {
+    fontSize: 13,
+    color: TEXT_MEDIUM,
     fontWeight: "600",
   },
   textAnswersList: {
-    gap: 16,
+    gap: 12,
   },
-  textAnswerCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.PRIMARY,
-    paddingLeft: 16,
-    marginBottom: 4,
+  textAnswerItem: {
+    borderLeftWidth: 3,
+    borderLeftColor: PRIMARY,
+    paddingLeft: 14,
   },
-  textAnswerContent: {
-    backgroundColor: COLORS.GRAY_LIGHT,
+  textAnswerBox: {
+    backgroundColor: BG_LIGHT,
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     marginTop: 8,
+    borderWidth: 1,
+    borderColor: BORDER,
   },
   textAnswerText: {
-    fontSize: 14,
-    color: COLORS.GRAY_DARK,
-    lineHeight: 20,
+    fontSize: 13,
+    color: TEXT_MEDIUM,
+    lineHeight: 19,
   },
-  emptyAnswersContainer: {
+
+  // ── Empty in card ──
+  emptyInCard: {
     alignItems: "center",
-    paddingVertical: 32,
+    paddingVertical: 28,
+    gap: 10,
   },
-  emptyAnswersText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: COLORS.GRAY,
+  emptyInCardText: {
+    fontSize: 13,
+    color: TEXT_LIGHT,
+    textAlign: "center",
   },
-  commentContent: {
-    backgroundColor: COLORS.GRAY_LIGHT,
-    padding: 16,
+
+  // ── Comment ──
+  commentBox: {
+    flexDirection: "row",
+    gap: 10,
+    backgroundColor: `${PRIMARY}08`,
+    padding: 14,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}18`,
   },
   commentText: {
+    flex: 1,
     fontSize: 14,
-    color: COLORS.GRAY_DARK,
-    lineHeight: 20,
+    color: ACCENT,
+    lineHeight: 21,
   },
 });

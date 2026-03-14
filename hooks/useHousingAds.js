@@ -26,6 +26,7 @@ export const useHousingAds = () => {
   const [city, setCity] = useState("");
   const [kind, setKind] = useState("");
   const [hospitalId, setHospitalId] = useState("");
+  const [maxPrice, setMaxPrice] = useState(null);
   const [showMyAds, setShowMyAds] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
 
@@ -57,6 +58,7 @@ export const useHousingAds = () => {
           city: city || undefined,
           kind: kind || undefined,
           hospital_id: hospitalId || undefined,
+          maxPrice: maxPrice || undefined,
           user_id: showMyAds && currentUserId ? currentUserId : undefined,
         };
 
@@ -87,7 +89,7 @@ export const useHousingAds = () => {
         setLoading(false);
       }
     },
-    [currentPage, city, kind, hospitalId, showMyAds, currentUserId]
+    [currentPage, city, kind, hospitalId, maxPrice, showMyAds, currentUserId]
   );
 
   // Cargar más anuncios
@@ -106,6 +108,7 @@ export const useHousingAds = () => {
     setCity("");
     setKind("");
     setHospitalId("");
+    setMaxPrice(null);
     setShowMyAds(false);
   }, []);
 
@@ -237,7 +240,7 @@ export const useHousingAds = () => {
   useEffect(() => {
     fetchHousingAds(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, kind, hospitalId, showMyAds]);
+  }, [city, kind, hospitalId, maxPrice, showMyAds]);
 
   return {
     // Data
@@ -254,6 +257,8 @@ export const useHousingAds = () => {
     setKind,
     hospitalId,
     setHospitalId,
+    maxPrice,
+    setMaxPrice,
     showMyAds,
     setShowMyAds,
     clearFilters,

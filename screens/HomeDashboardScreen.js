@@ -11,6 +11,9 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHospitals } from "../hooks/useHospitals";
+import { getHospitalRatings } from "../services/reviewsService";
+import { getMirSimulatorStats } from "../services/mirSimulatorService";
+import { getLastQuizSessionForUser } from "../services/specialityQuizService";
 
 const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
@@ -31,6 +34,9 @@ export default function HomeDashboardScreen({
 }) {
   const insets = useSafeAreaInsets();
   const [searchInput, setSearchInput] = useState("");
+  const [hospitalRatings, setHospitalRatings] = useState({});
+  const [mirStats, setMirStats] = useState({ count: 0, lastGrade: null });
+  const [lastQuizTop, setLastQuizTop] = useState(null);
 
   const {
     filteredHospitals,
@@ -38,6 +44,24 @@ export default function HomeDashboardScreen({
     setSearchTerm,
     loadingHospitals,
   } = useHospitals();
+
+  useEffect(() => {
+    getHospitalRatings().then(({ success, ratings }) => {
+      if (success) setHospitalRatings(ratings);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!userProfile?.id || !userProfile?.is_student) return;
+    getMirSimulatorStats(userProfile.id).then((res) => {
+      if (res.success) setMirStats({ count: res.count, lastGrade: res.lastGrade });
+    });
+    getLastQuizSessionForUser(userProfile.id).then(({ success, data }) => {
+      if (success && data?.top_results?.length) {
+        setLastQuizTop(data.top_results[0].name);
+      }
+    });
+  }, [userProfile?.id]);
 
   const displayName = useMemo(() => {
     const name = userProfile?.name || "";
@@ -49,8 +73,15 @@ export default function HomeDashboardScreen({
   const lastName = userProfile?.surname || displayName.split(" ").slice(1).join(" ") || "";
 
   const bestMatchHospitals = useMemo(
-    () => filteredHospitals.slice(0, 3),
-    [filteredHospitals]
+    () =>
+      [...filteredHospitals]
+        .sort((a, b) => {
+          const rA = hospitalRatings[a.id]?.avgRating ?? 0;
+          const rB = hospitalRatings[b.id]?.avgRating ?? 0;
+          return rB - rA;
+        })
+        .slice(0, 3),
+    [filteredHospitals, hospitalRatings]
   );
   const alsoInterestedHospitals = useMemo(
     () => filteredHospitals.slice(3, 7),
@@ -93,52 +124,136 @@ export default function HomeDashboardScreen({
           </TouchableOpacity>
         </View>
 
-        {/* Card puntuación MIR */}
-        <View style={styles.mirCard}>
-          <View>
-            <Text style={styles.mirScore}>6.842</Text>
-            <View style={styles.mirRow}>
-              <View style={styles.mirDot} />
-              <Text style={styles.mirText}>Top 12% · ~Posición 1.800</Text>
+        {/* Card puntuación MIR (residentes) / CTA prep MIR (estudiantes) */}
+        {userProfile?.is_student ? (
+          <View style={styles.studentPrepCard}>
+            <Text style={styles.studentPrepLabel}>TU ACTIVIDAD</Text>
+            {/* Fila superior: métricas numéricas */}
+            <View style={styles.studentStatsRow}>
+              <TouchableOpacity
+                style={styles.studentStatItem}
+                onPress={() => onSectionChange?.("nota-mir")}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.studentStatValue}>
+                  {mirStats.lastGrade
+                    ? mirStats.lastGrade.toLocaleString("es-ES")
+                    : "—"}
+                </Text>
+                <Text style={styles.studentStatLabel}>Última posición</Text>
+              </TouchableOpacity>
+
+              <View style={styles.studentStatDivider} />
+
+              <TouchableOpacity
+                style={styles.studentStatItem}
+                onPress={() => onSectionChange?.("nota-mir")}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.studentStatValue}>
+                  {mirStats.count > 0 ? mirStats.count : "—"}
+                </Text>
+                <Text style={styles.studentStatLabel}>Simulaciones</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Separador horizontal */}
+            <View style={styles.studentStatRowDivider} />
+
+            {/* Fila inferior: top especialidad */}
+            <TouchableOpacity
+              style={styles.studentStatRowFull}
+              onPress={() => onSectionChange?.("specialityQuiz")}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.studentStatLabel}>Top especialidad</Text>
+              <Text style={styles.studentStatValueMd} numberOfLines={1}>
+                {lastQuizTop ?? "—"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.mirCard}>
+            <View>
+              <Text style={styles.mirScore}>6.842</Text>
+              <View style={styles.mirRow}>
+                <View style={styles.mirDot} />
+                <Text style={styles.mirText}>Top 12% · ~Posición 1.800</Text>
+              </View>
+            </View>
+            <View style={styles.mirRight}>
+              <Text style={styles.mirLabel}>PUNTUACIÓN MIR</Text>
+              <Text style={styles.mirYear}>Convocatoria 2024</Text>
             </View>
           </View>
-          <View style={styles.mirRight}>
-            <Text style={styles.mirLabel}>PUNTUACIÓN MIR</Text>
-            <Text style={styles.mirYear}>Convocatoria 2024</Text>
-          </View>
-        </View>
+        )}
       </View>
 
-      {/* Quick actions */}
-      <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.quickActionBtn}
-          onPress={() => onSectionChange?.("nota-mir")}
-        >
-          <View style={[styles.quickActionIcon, { backgroundColor: `${PRIMARY}20` }]}>
-            <Ionicons name="bar-chart" size={22} color={PRIMARY} />
-          </View>
-          <Text style={styles.quickActionLabel}>Simulador MIR</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.quickActionBtn}
-          onPress={() => onSectionChange?.("hospitales")}
-        >
-          <View style={[styles.quickActionIcon, { backgroundColor: `${SECONDARY}20` }]}>
-            <Ionicons name="medkit" size={22} color={SECONDARY} />
-          </View>
-          <Text style={styles.quickActionLabel}>Especialidades</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.quickActionBtn}
-          onPress={() => onSectionChange?.("myPreferences")}
-        >
-          <View style={[styles.quickActionIcon, { backgroundColor: `${ACCENT}20` }]}>
-            <Ionicons name="heart-outline" size={22} color={ACCENT} />
-          </View>
-          <Text style={styles.quickActionLabel}>Preferencias</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Quick actions para estudiantes */}
+      {userProfile?.is_student && (
+        <View style={styles.quickActions}>
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => onSectionChange?.("grupos")}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: "#6D28D920" }]}>
+              <Ionicons name="people" size={22} color="#6D28D9" />
+            </View>
+            <Text style={styles.quickActionLabel}>Grupos</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => onSectionChange?.("reseñas")}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: `${SECONDARY}20` }]}>
+              <Ionicons name="star-outline" size={22} color={SECONDARY} />
+            </View>
+            <Text style={styles.quickActionLabel}>Reseñas</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => onSectionChange?.("myPreferences")}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: `${ACCENT}20` }]}>
+              <Ionicons name="heart-outline" size={22} color={ACCENT} />
+            </View>
+            <Text style={styles.quickActionLabel}>Preferencias</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Quick actions para residentes */}
+      {userProfile?.is_resident && (
+        <View style={styles.quickActions}>
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => onSectionChange?.("comunity")}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: `${PRIMARY}20` }]}>
+              <Ionicons name="people" size={22} color={PRIMARY} />
+            </View>
+            <Text style={styles.quickActionLabel}>Comunidad</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => onSectionChange?.("residenceLibrary")}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: `${SECONDARY}20` }]}>
+              <Ionicons name="book" size={22} color={SECONDARY} />
+            </View>
+            <Text style={styles.quickActionLabel}>Mi libro</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => onSectionChange?.("cursos")}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: `${ACCENT}20` }]}>
+              <Ionicons name="school" size={22} color={ACCENT} />
+            </View>
+            <Text style={styles.quickActionLabel}>Cursos</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Búsqueda */}
       <View style={styles.searchWrap}>
@@ -201,39 +316,48 @@ export default function HomeDashboardScreen({
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.horizontalCards}
           >
-            {bestMatchHospitals.map((hospital, idx) => (
-              <TouchableOpacity
-                key={hospital.id}
-                style={[
-                  styles.hospitalCard,
-                  idx % 2 === 1 && styles.hospitalCardPurple,
-                ]}
-                onPress={() => onHospitalSelect?.(hospital, null, "inicio")}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.hospitalCardName} numberOfLines={2}>
-                  {hospital.name}
-                </Text>
-                <View style={styles.hospitalCardRow}>
-                  <Ionicons name="location" size={12} color="#6B7280" />
-                  <Text style={styles.hospitalCardMeta}>
-                    {hospital.city}, {hospital.region}
+            {bestMatchHospitals.map((hospital, idx) => {
+              const rating = hospitalRatings[hospital.id];
+              return (
+                <TouchableOpacity
+                  key={hospital.id}
+                  style={[
+                    styles.hospitalCard,
+                    idx % 2 === 1 && styles.hospitalCardPurple,
+                  ]}
+                  onPress={() => onHospitalSelect?.(hospital, null, "inicio")}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.hospitalCardName} numberOfLines={2}>
+                    {hospital.name}
                   </Text>
-                </View>
-                <View style={styles.hospitalCardRow}>
-                  <Ionicons name="school" size={12} color={SECONDARY} />
-                  <Text style={styles.hospitalCardSpecialty}>
-                    {hospital.specialtyCount ?? 0} especialidades MIR
-                  </Text>
-                </View>
-                <View style={styles.hospitalCardDivider} />
-                <View style={styles.hospitalCardRow}>
-                  <Ionicons name="star" size={14} color="#FBBF24" />
-                  <Text style={styles.hospitalCardRating}>4.8</Text>
-                  <Text style={styles.hospitalCardReviews}>· 214 reseñas</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+                  <View style={styles.hospitalCardRow}>
+                    <Ionicons name="location" size={12} color="#6B7280" />
+                    <Text style={styles.hospitalCardMeta}>
+                      {hospital.city}, {hospital.region}
+                    </Text>
+                  </View>
+                  <View style={styles.hospitalCardRow}>
+                    <Ionicons name="school" size={12} color={SECONDARY} />
+                    <Text style={styles.hospitalCardSpecialty}>
+                      {hospital.specialtyCount ?? 0} especialidades MIR
+                    </Text>
+                  </View>
+                  <View style={styles.hospitalCardDivider} />
+                  <View style={styles.hospitalCardRow}>
+                    <Ionicons name="star" size={14} color="#FBBF24" />
+                    <Text style={styles.hospitalCardRating}>
+                      {rating ? rating.avgRating.toFixed(1) : "–"}
+                    </Text>
+                    <Text style={styles.hospitalCardReviews}>
+                      {rating
+                        ? `· ${rating.reviewCount} reseña${rating.reviewCount !== 1 ? "s" : ""}`
+                        : "· Sin reseñas"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         )}
       </View>
@@ -717,5 +841,66 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: SECONDARY,
+  },
+
+  // Student activity analytics card
+  studentPrepCard: {
+    backgroundColor: "rgba(27,9,119,0.4)",
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  studentPrepLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+    color: "rgba(255,255,255,0.6)",
+    marginBottom: 16,
+  },
+  studentStatsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  studentStatItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: 6,
+  },
+  studentStatValue: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#FFF",
+    textAlign: "center",
+  },
+  studentStatLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.55)",
+    textAlign: "center",
+    letterSpacing: 0.3,
+  },
+  studentStatDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: "rgba(255,255,255,0.15)",
+  },
+  studentStatRowDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    marginVertical: 14,
+  },
+  studentStatRowFull: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  studentStatValueMd: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: SECONDARY,
+    flexShrink: 1,
+    textAlign: "right",
   },
 });

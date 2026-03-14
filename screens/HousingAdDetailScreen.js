@@ -15,20 +15,31 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useHousingAds } from "../hooks/useHousingAds";
 import { formatDateOnly } from "../utils/dateUtils";
-import { COLORS } from "../constants/colors";
 import { getCurrentUser } from "../services/authService";
 import posthogLogger from "../services/posthogService";
 
+// ============================================================================
+// COLORS — same palette as CreateHousingAdScreen
+// ============================================================================
+
+const PRIMARY = "#670CF5";
+const SECONDARY = "#00BD7C";
+const ACCENT = "#1B0977";
+const BG_LIGHT = "#F7F5FB";
+const WHITE = "#FFFFFF";
+const TEXT_DARK = "#1E293B";
+const TEXT_MEDIUM = "#64748B";
+const TEXT_LIGHT = "#94A3B8";
+const BORDER = "#E8E0F5";
+const ERROR = "#EF4444";
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const IMAGE_SIZE = (SCREEN_WIDTH - 64) / 3; // 3 columnas con padding
+const THUMB_SIZE = (SCREEN_WIDTH - 16 * 2 - 32 - 10 * 2) / 3; // 3-col grid
 
 // ============================================================================
 // UTILITIES
 // ============================================================================
 
-/**
- * Formatea el precio en euros
- */
 const formatPrice = (price) => {
   if (!price) return null;
   return new Intl.NumberFormat("es-ES", {
@@ -38,41 +49,47 @@ const formatPrice = (price) => {
   }).format(price);
 };
 
-/**
- * Obtiene el nombre de visualización del tipo de anuncio
- */
-const getKindDisplayName = (kind) => {
-  if (kind === "offer") return "Oferta";
-  if (kind === "seek") return "Búsqueda";
-  return kind || "Desconocido";
-};
-
-/**
- * Obtiene la URL de la imagen desde Supabase Storage
- */
 const getImageUrl = (imagePath) => {
   if (!imagePath) return "";
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl) {
-    console.warn("EXPO_PUBLIC_SUPABASE_URL is not defined");
-    return "";
-  }
-  // El path en la base de datos es algo como "userId/filename.jpg"
-  // Necesitamos construir la URL completa del bucket housing_ad
+  if (!supabaseUrl) return "";
   return `${supabaseUrl}/storage/v1/object/public/housing_ad/${imagePath}`;
 };
+
+// ============================================================================
+// SUB-COMPONENTS
+// ============================================================================
+
+/** Encabezado de bloque — igual al de CreateHousingAdScreen */
+const SectionHeader = ({ icon, title }) => (
+  <View style={styles.sectionHeader}>
+    <View style={styles.sectionIconWrap}>
+      <Ionicons name={icon} size={16} color={PRIMARY} />
+    </View>
+    <Text style={styles.sectionTitle}>{title}</Text>
+  </View>
+);
+
+/** Fila de información con icono + etiqueta + valor */
+const InfoRow = ({ icon, iconColor = PRIMARY, label, value }) => (
+  <View style={styles.infoRow}>
+    <View style={[styles.infoIconCircle, { backgroundColor: iconColor + "15" }]}>
+      <Ionicons name={icon} size={15} color={iconColor} />
+    </View>
+    <View style={styles.infoTextGroup}>
+      {label ? <Text style={styles.infoLabel}>{label}</Text> : null}
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  </View>
+);
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-/**
- * Pantalla de detalle de anuncio de vivienda
- */
 export default function HousingAdDetailScreen({
   adId,
   onBack,
-  userProfile,
   onEdit,
   onDelete,
 }) {
@@ -83,27 +100,22 @@ export default function HousingAdDetailScreen({
   const [selectedImage, setSelectedImage] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
 
-  // Tracking de pantalla con PostHog
   useEffect(() => {
     posthogLogger.logScreen("HousingAdDetailScreen", { adId });
   }, [adId]);
 
-  // Cargar usuario actual
   useEffect(() => {
     const loadCurrentUser = async () => {
       try {
         const { success, user } = await getCurrentUser();
-        if (success && user) {
-          setCurrentUserId(user.id);
-        }
+        if (success && user) setCurrentUserId(user.id);
       } catch (err) {
-        console.error("Error loading current user:", err);
+        // silent
       }
     };
     loadCurrentUser();
   }, []);
 
-  // Cargar anuncio
   useEffect(() => {
     const loadAd = async () => {
       if (!adId) {
@@ -111,7 +123,6 @@ export default function HousingAdDetailScreen({
         setLoading(false);
         return;
       }
-
       try {
         setLoading(true);
         setError(null);
@@ -127,35 +138,25 @@ export default function HousingAdDetailScreen({
         setLoading(false);
       }
     };
-
     loadAd();
   }, [adId, fetchHousingAdById]);
 
-  // Verificar si es mi anuncio
-  const isMyAd = useMemo(() => {
-    return currentUserId && ad && ad.user_id === currentUserId;
-  }, [currentUserId, ad]);
+  const isMyAd = useMemo(
+    () => !!(currentUserId && ad && ad.user_id === currentUserId),
+    [currentUserId, ad]
+  );
 
-  // Manejar contacto
   const handleContact = useCallback((type, value) => {
-    if (type === "email" && value) {
-      Linking.openURL(`mailto:${value}`);
-    } else if (type === "phone" && value) {
-      Linking.openURL(`tel:${value}`);
-    }
+    if (type === "email" && value) Linking.openURL(`mailto:${value}`);
+    else if (type === "phone" && value) Linking.openURL(`tel:${value}`);
   }, []);
 
-  // Manejar editar
   const handleEdit = useCallback(() => {
-    if (onEdit && adId) {
-      onEdit(adId);
-    }
+    if (onEdit && adId) onEdit(adId);
   }, [onEdit, adId]);
 
-  // Manejar eliminar
   const handleDelete = useCallback(() => {
     if (!adId) return;
-
     Alert.alert(
       "Eliminar anuncio",
       "¿Estás seguro de que quieres eliminar este anuncio? Esta acción no se puede deshacer.",
@@ -167,12 +168,9 @@ export default function HousingAdDetailScreen({
           onPress: async () => {
             try {
               const success = await deleteHousingAd(adId);
-              if (success && onDelete) {
-                onDelete(adId);
-              } else if (success && onBack) {
-                onBack();
-              }
-            } catch (err) {
+              if (success && onDelete) onDelete(adId);
+              else if (success && onBack) onBack();
+            } catch {
               Alert.alert("Error", "No se pudo eliminar el anuncio");
             }
           },
@@ -181,260 +179,291 @@ export default function HousingAdDetailScreen({
     );
   }, [adId, deleteHousingAd, onDelete, onBack]);
 
-  // Manejar cierre del modal de imagen
-  const handleCloseImageModal = useCallback(() => {
-    setSelectedImage(null);
-  }, []);
-
-  // Manejar press en imagen
   const handleImagePress = useCallback((imagePath) => {
-    const imageUrl = getImageUrl(imagePath);
-    if (imageUrl) {
-      setSelectedImage(imageUrl);
-    }
+    const url = getImageUrl(imagePath);
+    if (url) setSelectedImage(url);
   }, []);
 
+  // ── Loading state ──
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
-            <Text style={styles.backButtonText}>Volver</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-          <Text style={styles.loadingText}>Cargando anuncio...</Text>
+        <SharedHeader onBack={onBack} />
+        <View style={styles.stateContainer}>
+          <ActivityIndicator size="large" color={PRIMARY} />
+          <Text style={styles.stateText}>Cargando anuncio...</Text>
         </View>
       </View>
     );
   }
 
+  // ── Error state ──
   if (error || !ad) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
-            <Text style={styles.backButtonText}>Volver</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={64} color={COLORS.ERROR} />
-          <Text style={styles.errorTitle}>
-            {error || "Anuncio no encontrado"}
-          </Text>
-          <Text style={styles.errorText}>
+        <SharedHeader onBack={onBack} />
+        <View style={styles.stateContainer}>
+          <View style={styles.errorIconWrap}>
+            <Ionicons name="alert-circle-outline" size={36} color={ERROR} />
+          </View>
+          <Text style={styles.errorTitle}>{error || "Anuncio no encontrado"}</Text>
+          <Text style={styles.errorSubtitle}>
             El anuncio que buscas no existe o ha sido eliminado.
           </Text>
-          <TouchableOpacity
-            style={styles.backButtonError}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.backButtonErrorText}>Volver a Vivienda</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={onBack} activeOpacity={0.8}>
+            <Text style={styles.retryBtnText}>Volver a Vivienda</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  const kindColor = ad.kind === "offer" ? COLORS.SUCCESS : COLORS.PRIMARY;
+  const kindIsOffer = ad.kind === "offer";
+  const heroImageUrl =
+    ad.images && ad.images.length > 0
+      ? getImageUrl(ad.images[0].object_path)
+      : null;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header con botón de volver */}
+    <View style={styles.container}>
+      {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.backButton}
+          style={styles.backBtn}
           onPress={onBack}
           activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
-          <Text style={styles.backButtonText}>Volver a Vivienda</Text>
+          <Ionicons name="arrow-back" size={22} color={PRIMARY} />
         </TouchableOpacity>
-        {isMyAd && (
-          <View style={styles.actionsContainer}>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          Detalle del anuncio
+        </Text>
+        {isMyAd ? (
+          <View style={styles.headerActions}>
             <TouchableOpacity
-              style={styles.actionButton}
+              style={styles.headerIconBtn}
               onPress={handleEdit}
               activeOpacity={0.7}
             >
-              <Ionicons name="pencil" size={20} color={COLORS.PRIMARY} />
+              <Ionicons name="pencil-outline" size={18} color={PRIMARY} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.actionButton}
+              style={[styles.headerIconBtn, { backgroundColor: ERROR + "10" }]}
               onPress={handleDelete}
               activeOpacity={0.7}
             >
-              <Ionicons name="trash" size={20} color={COLORS.ERROR} />
+              <Ionicons name="trash-outline" size={18} color={ERROR} />
             </TouchableOpacity>
           </View>
+        ) : (
+          <View style={styles.headerRight} />
         )}
       </View>
 
-      {/* Card principal */}
-      <View style={styles.card}>
-        {/* Badges */}
-        <View style={styles.badgesContainer}>
-          <View
-            style={[
-              styles.kindBadge,
-              {
-                backgroundColor:
-                  kindColor === COLORS.SUCCESS
-                    ? COLORS.SUCCESS_LIGHT
-                    : COLORS.BADGE_BLUE_BG,
-              },
-            ]}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Hero image ── */}
+        {heroImageUrl ? (
+          <TouchableOpacity
+            activeOpacity={0.92}
+            onPress={() => handleImagePress(ad.images[0].object_path)}
           >
-            <Text
+            <Image
+              source={{ uri: heroImageUrl }}
+              style={styles.heroImage}
+              resizeMode="cover"
+            />
+            {/* Kind + inactive badges over hero */}
+            <View style={styles.heroBadges}>
+              <View
+                style={[
+                  styles.kindBadge,
+                  { backgroundColor: kindIsOffer ? SECONDARY : PRIMARY },
+                ]}
+              >
+                <Text style={styles.kindBadgeText}>
+                  {kindIsOffer ? "Oferta" : "Búsqueda"}
+                </Text>
+              </View>
+              {!ad.is_active && (
+                <View style={styles.inactiveBadge}>
+                  <Ionicons name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
+                  <Text style={styles.inactiveBadgeText}>Inactivo</Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        ) : (
+          /* No image — show badges inline */
+          <View style={styles.noimgBadges}>
+            <View
               style={[
-                styles.kindBadgeText,
-                {
-                  color:
-                    kindColor === COLORS.SUCCESS
-                      ? COLORS.SUCCESS
-                      : COLORS.BADGE_BLUE_TEXT,
-                },
+                styles.kindBadge,
+                { backgroundColor: kindIsOffer ? SECONDARY : PRIMARY },
               ]}
             >
-              {getKindDisplayName(ad.kind)}
-            </Text>
-          </View>
-          {!ad.is_active && (
-            <View style={styles.inactiveBadge}>
-              <Ionicons name="eye-off-outline" size={14} color={COLORS.GRAY} />
-              <Text style={styles.inactiveBadgeText}>Inactivo</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Título */}
-        <Text style={styles.title}>{ad.title}</Text>
-
-        {/* Ciudad y precio */}
-        <View style={styles.locationPriceContainer}>
-          <View style={styles.locationContainer}>
-            <Ionicons name="location" size={18} color={COLORS.PRIMARY} />
-            <Text style={styles.locationText}>{ad.city}</Text>
-          </View>
-          {ad.price_eur && (
-            <View style={styles.priceContainer}>
-              <Ionicons name="cash" size={18} color={COLORS.SUCCESS} />
-              <Text style={styles.priceText}>
-                {formatPrice(ad.price_eur)}/mes
+              <Text style={styles.kindBadgeText}>
+                {kindIsOffer ? "Oferta" : "Búsqueda"}
               </Text>
             </View>
-          )}
-        </View>
-
-        {/* Información del usuario */}
-        {ad.user && (
-          <View style={styles.userContainer}>
-            <Ionicons name="person-circle" size={18} color={COLORS.GRAY} />
-            <Text style={styles.userText}>
-              Por: {ad.user.name} {ad.user.surname}
-            </Text>
-          </View>
-        )}
-
-        {/* Fechas disponibles */}
-        {(ad.available_from || ad.available_to) && (
-          <View style={styles.dateContainer}>
-            <Ionicons name="calendar" size={18} color={COLORS.GRAY} />
-            <Text style={styles.dateText}>
-              {ad.available_from &&
-                `Disponible desde: ${formatDateOnly(ad.available_from)}`}
-              {ad.available_from && ad.available_to && "\n"}
-              {ad.available_to &&
-                `Disponible hasta: ${formatDateOnly(ad.available_to)}`}
-            </Text>
-          </View>
-        )}
-
-        {/* Hospital más cercano */}
-        {ad.hospital && (
-          <View style={styles.hospitalContainer}>
-            <Ionicons name="medical" size={18} color={COLORS.PURPLE} />
-            <Text style={styles.hospitalText}>
-              Hospital más cercano: {ad.hospital.name}
-              {ad.hospital.city && ` (${ad.hospital.city})`}
-            </Text>
-          </View>
-        )}
-
-        {/* Descripción */}
-        <View style={styles.descriptionContainer}>
-          <Text style={styles.descriptionTitle}>Descripción</Text>
-          <Text style={styles.descriptionText}>{ad.description}</Text>
-        </View>
-
-        {/* Información de contacto (solo si no es mi anuncio) */}
-        {!isMyAd && (ad.contact_email || ad.contact_phone) && (
-          <View style={styles.contactContainer}>
-            <Text style={styles.contactTitle}>Contacto</Text>
-            <View style={styles.contactItems}>
-              {ad.contact_email && (
-                <TouchableOpacity
-                  style={styles.contactItem}
-                  onPress={() => handleContact("email", ad.contact_email)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="mail" size={20} color={COLORS.PRIMARY} />
-                  <Text style={styles.contactText}>{ad.contact_email}</Text>
-                </TouchableOpacity>
-              )}
-              {ad.contact_phone && (
-                <TouchableOpacity
-                  style={styles.contactItem}
-                  onPress={() => handleContact("phone", ad.contact_phone)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="call" size={20} color={COLORS.SUCCESS} />
-                  <Text style={styles.contactText}>{ad.contact_phone}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            {ad.preferred_contact && (
-              <Text style={styles.preferredContactText}>
-                Preferido:{" "}
-                {ad.preferred_contact === "email" ? "Email" : "Teléfono"}
-              </Text>
+            {!ad.is_active && (
+              <View style={styles.inactiveBadge}>
+                <Ionicons name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
+                <Text style={styles.inactiveBadgeText}>Inactivo</Text>
+              </View>
             )}
           </View>
         )}
 
-        {/* Imágenes */}
-        {ad.images && ad.images.length > 0 && (
-          <View style={styles.imagesContainer}>
-            <Text style={styles.imagesTitle}>
-              Imágenes ({ad.images.length})
-            </Text>
-            <View style={styles.imagesGrid}>
-              {ad.images.map((image, index) => {
-                const imageUrl = getImageUrl(image.object_path);
-                if (!imageUrl) return null;
+        {/* ── Title + Price block ── */}
+        <View style={styles.block}>
+          <Text style={styles.adTitle}>{ad.title}</Text>
+          {ad.price_eur ? (
+            <View style={styles.priceRow}>
+              <Ionicons name="cash-outline" size={18} color={SECONDARY} />
+              <Text style={styles.priceText}>{formatPrice(ad.price_eur)}/mes</Text>
+            </View>
+          ) : null}
+        </View>
 
+        {/* ── Ubicación ── */}
+        <View style={styles.block}>
+          <SectionHeader icon="location-outline" title="Ubicación" />
+          {ad.city ? (
+            <InfoRow
+              icon="map-outline"
+              iconColor={PRIMARY}
+              label="Ciudad"
+              value={ad.city}
+            />
+          ) : null}
+          {ad.hospital ? (
+            <InfoRow
+              icon="medical-outline"
+              iconColor={SECONDARY}
+              label="Hospital más cercano"
+              value={
+                ad.hospital.name +
+                (ad.hospital.city ? ` · ${ad.hospital.city}` : "")
+              }
+            />
+          ) : null}
+        </View>
+
+        {/* ── Disponibilidad ── */}
+        {(ad.available_from || ad.available_to) ? (
+          <View style={styles.block}>
+            <SectionHeader icon="calendar-outline" title="Disponibilidad" />
+            {ad.available_from ? (
+              <InfoRow
+                icon="arrow-forward-outline"
+                iconColor={PRIMARY}
+                label="Disponible desde"
+                value={formatDateOnly(ad.available_from)}
+              />
+            ) : null}
+            {ad.available_to ? (
+              <InfoRow
+                icon="arrow-back-outline"
+                iconColor={TEXT_MEDIUM}
+                label="Disponible hasta"
+                value={formatDateOnly(ad.available_to)}
+              />
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* ── Descripción ── */}
+        <View style={styles.block}>
+          <SectionHeader icon="document-text-outline" title="Descripción" />
+          <Text style={styles.descriptionText}>{ad.description}</Text>
+        </View>
+
+        {/* ── Publicado por ── */}
+        {ad.user ? (
+          <View style={styles.block}>
+            <SectionHeader icon="person-outline" title="Publicado por" />
+            <View style={styles.authorRow}>
+              <View style={styles.authorAvatar}>
+                <Text style={styles.authorAvatarText}>
+                  {(ad.user.name?.[0] || "").toUpperCase()}
+                  {(ad.user.surname?.[0] || "").toUpperCase()}
+                </Text>
+              </View>
+              <View>
+                <Text style={styles.authorName}>
+                  {ad.user.name} {ad.user.surname}
+                </Text>
+                {isMyAd && (
+                  <Text style={styles.authorSubline}>Tu anuncio</Text>
+                )}
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {/* ── Contactar ── */}
+        {!isMyAd && (ad.contact_email || ad.contact_phone) ? (
+          <View style={styles.block}>
+            <SectionHeader icon="call-outline" title="Contactar" />
+            {ad.preferred_contact ? (
+              <Text style={styles.preferredLabel}>
+                Método preferido:{" "}
+                <Text style={styles.preferredValue}>
+                  {ad.preferred_contact === "email" ? "Email" : "Teléfono"}
+                </Text>
+              </Text>
+            ) : null}
+            <View style={styles.contactBtns}>
+              {ad.contact_email ? (
+                <TouchableOpacity
+                  style={styles.contactBtnPrimary}
+                  onPress={() => handleContact("email", ad.contact_email)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="mail-outline" size={18} color={WHITE} />
+                  <Text style={styles.contactBtnText}>{ad.contact_email}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {ad.contact_phone ? (
+                <TouchableOpacity
+                  style={styles.contactBtnSecondary}
+                  onPress={() => handleContact("phone", ad.contact_phone)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="call-outline" size={18} color={WHITE} />
+                  <Text style={styles.contactBtnText}>{ad.contact_phone}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
+        {/* ── Fotos ── */}
+        {ad.images && ad.images.length > 1 ? (
+          <View style={styles.block}>
+            <SectionHeader
+              icon="images-outline"
+              title={`Fotos (${ad.images.length})`}
+            />
+            <View style={styles.thumbGrid}>
+              {ad.images.map((image, index) => {
+                const url = getImageUrl(image.object_path);
+                if (!url) return null;
                 return (
                   <TouchableOpacity
                     key={image.id || index}
-                    style={styles.imageItem}
+                    style={styles.thumbCell}
                     onPress={() => handleImagePress(image.object_path)}
-                    activeOpacity={0.7}
+                    activeOpacity={0.8}
                   >
                     <Image
-                      source={{ uri: imageUrl }}
-                      style={styles.image}
+                      source={{ uri: url }}
+                      style={styles.thumbImage}
                       resizeMode="cover"
                     />
                   </TouchableOpacity>
@@ -442,41 +471,58 @@ export default function HousingAdDetailScreen({
               })}
             </View>
           </View>
-        )}
+        ) : null}
 
-        {/* Fecha de creación */}
-        <View style={styles.footerContainer}>
-          <Text style={styles.createdDateText}>
-            Publicado el {formatDateOnly(ad.created_at)}
-          </Text>
-        </View>
-      </View>
+        {/* ── Footer ── */}
+        <Text style={styles.footerDate}>
+          Publicado el {formatDateOnly(ad.created_at)}
+        </Text>
 
-      {/* Modal de imagen */}
+        <View style={{ height: 32 }} />
+      </ScrollView>
+
+      {/* ── Image lightbox ── */}
       <Modal
         visible={selectedImage !== null}
         transparent
         animationType="fade"
-        onRequestClose={handleCloseImageModal}
+        onRequestClose={() => setSelectedImage(null)}
       >
-        <View style={styles.imageModalOverlay}>
+        <View style={styles.lightboxOverlay}>
           <TouchableOpacity
-            style={styles.imageModalCloseButton}
-            onPress={handleCloseImageModal}
+            style={styles.lightboxCloseBtn}
+            onPress={() => setSelectedImage(null)}
             activeOpacity={0.7}
           >
-            <Ionicons name="close" size={28} color={COLORS.WHITE} />
+            <Ionicons name="close" size={26} color={WHITE} />
           </TouchableOpacity>
-          {selectedImage && (
+          {selectedImage ? (
             <Image
               source={{ uri: selectedImage }}
-              style={styles.imageModalImage}
+              style={styles.lightboxImage}
               resizeMode="contain"
             />
-          )}
+          ) : null}
         </View>
       </Modal>
-    </ScrollView>
+    </View>
+  );
+}
+
+// Minimal shared header for loading/error states
+function SharedHeader({ onBack }) {
+  return (
+    <View style={styles.header}>
+      <TouchableOpacity
+        style={styles.backBtn}
+        onPress={onBack}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="arrow-back" size={22} color={PRIMARY} />
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>Detalle del anuncio</Text>
+      <View style={styles.headerRight} />
+    </View>
   );
 }
 
@@ -487,298 +533,382 @@ export default function HousingAdDetailScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND_LIGHT,
+    backgroundColor: BG_LIGHT,
   },
+
+  // ── Header ──
   header: {
-    backgroundColor: COLORS.WHITE,
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center",
+    backgroundColor: WHITE,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
   },
-  backButton: {
-    flexDirection: "row",
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: PRIMARY + "10",
     alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 17,
+    fontWeight: "700",
+    color: ACCENT,
+    letterSpacing: -0.2,
+    marginHorizontal: 8,
+  },
+  headerRight: {
+    width: 36,
+  },
+  headerActions: {
+    flexDirection: "row",
     gap: 8,
   },
-  backButtonText: {
-    fontSize: 16,
-    color: COLORS.PRIMARY,
-    fontWeight: "500",
-  },
-  actionsContainer: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  actionButton: {
-    padding: 8,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
+  headerIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: PRIMARY + "10",
     alignItems: "center",
-    backgroundColor: COLORS.WHITE,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: COLORS.TEXT_MEDIUM,
-  },
-  errorContainer: {
-    flex: 1,
     justifyContent: "center",
+  },
+
+  // ── Scroll ──
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 16,
+  },
+
+  // ── Loading / Error states ──
+  stateContainer: {
+    flex: 1,
     alignItems: "center",
-    backgroundColor: COLORS.WHITE,
-    padding: 20,
+    justifyContent: "center",
+    padding: 32,
+  },
+  stateText: {
+    marginTop: 14,
+    fontSize: 15,
+    color: TEXT_MEDIUM,
+  },
+  errorIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: ERROR + "10",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
   },
   errorTitle: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: "700",
-    color: COLORS.TEXT_DARK,
-    marginTop: 16,
-    marginBottom: 8,
+    color: ACCENT,
     textAlign: "center",
+    marginBottom: 8,
   },
-  errorText: {
-    fontSize: 16,
-    color: COLORS.TEXT_MEDIUM,
+  errorSubtitle: {
+    fontSize: 14,
+    color: TEXT_MEDIUM,
     textAlign: "center",
     marginBottom: 24,
+    lineHeight: 20,
   },
-  backButtonError: {
-    backgroundColor: COLORS.PRIMARY,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 10,
+  retryBtn: {
+    backgroundColor: PRIMARY,
+    paddingVertical: 13,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  backButtonErrorText: {
-    color: COLORS.WHITE,
-    fontSize: 16,
-    fontWeight: "600",
+  retryBtnText: {
+    color: WHITE,
+    fontSize: 15,
+    fontWeight: "700",
   },
-  card: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 16,
-    padding: 20,
-    margin: 16,
-    marginTop: 0,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+
+  // ── Hero image ──
+  heroImage: {
+    width: "100%",
+    height: 240,
+    backgroundColor: "#F1F5F9",
   },
-  badgesContainer: {
+  heroBadges: {
+    position: "absolute",
+    bottom: 12,
+    left: 12,
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 8,
-    marginBottom: 16,
+  },
+  noimgBadges: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 4,
   },
   kindBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   kindBadgeText: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "700",
+    color: WHITE,
+    letterSpacing: 0.2,
   },
   inactiveBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: COLORS.GRAY_LIGHT,
-    paddingHorizontal: 12,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   inactiveBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "500",
-    color: COLORS.GRAY,
+    color: TEXT_MEDIUM,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: COLORS.TEXT_DARK,
-    marginBottom: 16,
-    lineHeight: 36,
+
+  // ── Block ──
+  block: {
+    backgroundColor: WHITE,
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  locationPriceContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 20,
-    marginBottom: 16,
-    flexWrap: "wrap",
-  },
-  locationContainer: {
+
+  // ── Section header (same as CreateHousingAdScreen) ──
+  sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    marginBottom: 14,
   },
-  locationText: {
-    fontSize: 16,
-    color: COLORS.TEXT_DARK,
-    fontWeight: "500",
+  sectionIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: PRIMARY + "12",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  priceContainer: {
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: ACCENT,
+  },
+
+  // ── Title + price block ──
+  adTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: ACCENT,
+    lineHeight: 30,
+    marginBottom: 10,
+  },
+  priceRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
   priceText: {
-    fontSize: 18,
-    color: COLORS.SUCCESS,
+    fontSize: 20,
     fontWeight: "700",
+    color: SECONDARY,
   },
-  userContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  userText: {
-    fontSize: 14,
-    color: COLORS.TEXT_MEDIUM,
-  },
-  dateContainer: {
+
+  // ── Info rows ──
+  infoRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 8,
+    gap: 12,
     marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
   },
-  dateText: {
-    fontSize: 14,
-    color: COLORS.TEXT_MEDIUM,
+  infoIconCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  infoTextGroup: {
     flex: 1,
+  },
+  infoLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: TEXT_LIGHT,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 14,
+    color: TEXT_DARK,
+    fontWeight: "500",
     lineHeight: 20,
   },
-  hospitalContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  hospitalText: {
-    fontSize: 14,
-    color: COLORS.TEXT_MEDIUM,
-  },
-  descriptionContainer: {
-    marginBottom: 20,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  descriptionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.TEXT_DARK,
-    marginBottom: 12,
-  },
+
+  // ── Description ──
   descriptionText: {
-    fontSize: 16,
-    color: COLORS.TEXT_DARK,
+    fontSize: 15,
+    color: TEXT_DARK,
     lineHeight: 24,
   },
-  contactContainer: {
-    marginBottom: 20,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  contactTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.TEXT_DARK,
-    marginBottom: 12,
-  },
-  contactItems: {
-    gap: 12,
-  },
-  contactItem: {
+
+  // ── Author ──
+  authorRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: COLORS.BACKGROUND_LIGHT,
-    padding: 12,
-    borderRadius: 12,
   },
-  contactText: {
-    fontSize: 16,
-    color: COLORS.TEXT_DARK,
-    flex: 1,
+  authorAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: SECONDARY + "20",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  preferredContactText: {
-    fontSize: 12,
-    color: COLORS.TEXT_LIGHT,
-    marginTop: 8,
+  authorAvatarText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: SECONDARY,
   },
-  imagesContainer: {
-    marginBottom: 20,
-  },
-  imagesTitle: {
-    fontSize: 18,
+  authorName: {
+    fontSize: 15,
     fontWeight: "600",
-    color: COLORS.TEXT_DARK,
+    color: TEXT_DARK,
+  },
+  authorSubline: {
+    fontSize: 12,
+    color: PRIMARY,
+    fontWeight: "500",
+    marginTop: 2,
+  },
+
+  // ── Contact ──
+  preferredLabel: {
+    fontSize: 13,
+    color: TEXT_MEDIUM,
     marginBottom: 12,
   },
-  imagesGrid: {
+  preferredValue: {
+    fontWeight: "600",
+    color: PRIMARY,
+  },
+  contactBtns: {
+    gap: 10,
+  },
+  contactBtnPrimary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: PRIMARY,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  contactBtnSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: SECONDARY,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    shadowColor: SECONDARY,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  contactBtnText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: WHITE,
+  },
+
+  // ── Photo thumbnails ──
+  thumbGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 10,
   },
-  imageItem: {
-    width: IMAGE_SIZE,
-    height: IMAGE_SIZE,
+  thumbCell: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
     borderRadius: 12,
     overflow: "hidden",
-    backgroundColor: COLORS.GRAY_LIGHT,
+    backgroundColor: "#F1F5F9",
   },
-  image: {
+  thumbImage: {
     width: "100%",
     height: "100%",
   },
-  footerContainer: {
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
-  },
-  createdDateText: {
-    fontSize: 12,
-    color: COLORS.TEXT_LIGHT,
+
+  // ── Footer date ──
+  footerDate: {
     textAlign: "center",
+    fontSize: 12,
+    color: TEXT_LIGHT,
+    marginTop: 20,
   },
-  imageModalOverlay: {
+
+  // ── Lightbox ──
+  lightboxOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.9)",
+    backgroundColor: "rgba(0,0,0,0.92)",
     justifyContent: "center",
     alignItems: "center",
   },
-  imageModalCloseButton: {
+  lightboxCloseBtn: {
     position: "absolute",
-    top: 50,
+    top: 52,
     right: 20,
-    zIndex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    zIndex: 10,
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    padding: 10,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  imageModalImage: {
-    width: SCREEN_WIDTH - 40,
-    height: SCREEN_WIDTH - 40,
+  lightboxImage: {
+    width: SCREEN_WIDTH - 32,
+    height: SCREEN_WIDTH - 32,
   },
 });

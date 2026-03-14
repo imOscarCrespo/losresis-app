@@ -88,6 +88,15 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#CCFBF1",
   },
   {
+    id: "grupos",
+    name: "Grupos",
+    icon: "people",
+    description:
+      "Chatea con residentes y estudiantes de tu especialidad y ciudad",
+    color: "#6D28D9", // Violet
+    lightColor: "#EDE9FE",
+  },
+  {
     id: "reseñas",
     name: "Reseñas",
     icon: "document-text",
@@ -187,6 +196,8 @@ export const IMPLEMENTED_SECTIONS = [
   "vivienda",
   "ocio",
   "leisureForum",
+  "grupos",
+  "groupChat",
 ];
 
 /**

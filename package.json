@@ -5,10 +5,11 @@
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
-    "ios": "expo start --ios",
+    "ios": "xcrun simctl shutdown all 2>/dev/null; xcrun simctl boot \"iPhone 16\"; open -a Simulator; expo start --ios",
     "ios-ipad": "expo start --ios --device",
     "ios-ipad-13": "xcrun simctl boot \"iPad Pro 13-inch (M4)\" 2>/dev/null; open -a Simulator; expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:web": "expo export --platform web"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -35,13 +36,15 @@
     "posthog-react-native": "^4.36.1",
     "posthog-react-native-session-replay": "1.3.0",
     "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-calendars": "^1.1313.0",
     "react-native-gesture-handler": "^2.30.0",
     "react-native-maps": "1.20.1",
     "react-native-safe-area-context": "^5.6.2",
     "react-native-screens": "~4.16.0",
-    "react-native-svg": "15.12.1"
+    "react-native-svg": "15.12.1",
+    "react-native-web": "^0.21.0"
   },
   "private": true,
   "devDependencies": {

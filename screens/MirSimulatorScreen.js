@@ -95,6 +95,40 @@ export default function MirSimulatorScreen({ onBack }) {
     }
   };
 
+  const getGradeTrend = (grades) => {
+    const validGrades = grades
+      .filter(
+        (g) =>
+          g.grade !== null &&
+          g.grade !== undefined &&
+          typeof g.grade === "number"
+      )
+      .sort((a, b) => parseInt(a.year) - parseInt(b.year));
+
+    if (validGrades.length < 2) return null;
+
+    const n = validGrades.length;
+    const years = validGrades.map((g) => parseInt(g.year));
+    const values = validGrades.map((g) => g.grade);
+    const minYear = years[0];
+    const xNorm = years.map((y) => y - minYear);
+
+    const sumX = xNorm.reduce((a, b) => a + b, 0);
+    const sumY = values.reduce((a, b) => a + b, 0);
+    const sumXY = xNorm.reduce((sum, x, i) => sum + x * values[i], 0);
+    const sumX2 = xNorm.reduce((sum, x) => sum + x * x, 0);
+    const denom = n * sumX2 - sumX * sumX;
+    if (denom === 0) return "stable";
+
+    const slope = (n * sumXY - sumX * sumY) / denom;
+    const avgValue = sumY / n;
+    const relativeSlope = avgValue !== 0 ? slope / avgValue : 0;
+
+    if (relativeSlope > 0.02) return "up";
+    if (relativeSlope < -0.02) return "down";
+    return "stable";
+  };
+
   const getProbabilityColor = (probability) => {
     if (probability === "NA") return "#9CA3AF";
     const prob = parseInt(probability.replace("%", ""), 10);
@@ -121,24 +155,65 @@ export default function MirSimulatorScreen({ onBack }) {
       return year !== currentYear;
     });
 
+    const trend = getGradeTrend(filteredGrades);
+    const trendConfig = {
+      up: {
+        icon: "trending-up",
+        label: "Alcista",
+        color: "#059669",
+        bg: "#D1FAE5",
+        border: "#A7F3D0",
+      },
+      down: {
+        icon: "trending-down",
+        label: "Bajista",
+        color: "#DC2626",
+        bg: "#FEE2E2",
+        border: "#FECACA",
+      },
+      stable: {
+        icon: "remove",
+        label: "Estable",
+        color: "#64748B",
+        bg: "#F1F5F9",
+        border: "#E2E8F0",
+      },
+    };
+    const tc = trend ? trendConfig[trend] : null;
+
     return (
       <View style={styles.resultCard}>
         <View style={styles.resultHeader}>
           <Text style={styles.resultHospitalName}>{item.hospital.name}</Text>
-          <View
-            style={[
-              styles.probabilityBadge,
-              { backgroundColor: getProbabilityBgColor(item.probability) },
-            ]}
-          >
-            <Text
+          <View style={styles.resultBadges}>
+            {tc && (
+              <View
+                style={[
+                  styles.trendBadge,
+                  { backgroundColor: tc.bg, borderColor: tc.border },
+                ]}
+              >
+                <Ionicons name={tc.icon} size={13} color={tc.color} />
+                <Text style={[styles.trendText, { color: tc.color }]}>
+                  {tc.label}
+                </Text>
+              </View>
+            )}
+            <View
               style={[
-                styles.probabilityText,
-                { color: getProbabilityColor(item.probability) },
+                styles.probabilityBadge,
+                { backgroundColor: getProbabilityBgColor(item.probability) },
               ]}
             >
-              {item.probability === "NA" ? "Sin datos" : item.probability}
-            </Text>
+              <Text
+                style={[
+                  styles.probabilityText,
+                  { color: getProbabilityColor(item.probability) },
+                ]}
+              >
+                {item.probability === "NA" ? "Sin datos" : item.probability}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -232,23 +307,6 @@ export default function MirSimulatorScreen({ onBack }) {
           },
         ]}
       >
-        <View style={styles.headerRow}>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={onBack}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="menu" size={24} color="#FFF" />
-          </TouchableOpacity>
-          <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.headerIconButton}>
-              <Ionicons name="notifications-outline" size={20} color="#FFF" />
-            </TouchableOpacity>
-            <View style={styles.avatarPlaceholder}>
-              <Ionicons name="person" size={20} color="rgba(255,255,255,0.9)" />
-            </View>
-          </View>
-        </View>
         <Text style={styles.headerTitle}>Simulador MIR</Text>
         <Text style={styles.headerSubtitle}>
           Calcula tus probabilidades de obtener plaza
@@ -375,34 +433,6 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  headerIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  avatarPlaceholder: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
   headerTitle: {
     fontSize: 24,
     fontWeight: "700",
@@ -528,6 +558,25 @@ const styles = StyleSheet.create({
     color: INDIGO,
     flex: 1,
     marginRight: 8,
+  },
+  resultBadges: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  trendBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  trendText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   probabilityBadge: {
     borderRadius: 12,
