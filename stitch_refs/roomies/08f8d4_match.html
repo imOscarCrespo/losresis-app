@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#00c27b",
+                        "background-light": "#f5f8f7",
+                        "background-dark": "#0f231c",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Roomies MIR - Vivienda</title>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased">
+<!-- Header / Top Bar -->
+<header class="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-primary/10">
+<div class="flex items-center justify-between p-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-3xl">home_work</span>
+<h1 class="text-xl font-bold tracking-tight">Roomies <span class="text-primary">MIR</span></h1>
+</div>
+<div class="flex gap-3">
+<button class="p-2 rounded-full hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 rounded-full hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined">tune</span>
+</button>
+</div>
+</div>
+<!-- Quick Filters -->
+<div class="flex gap-2 px-4 pb-4 overflow-x-auto no-scrollbar">
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-primary px-4 text-background-dark text-sm font-semibold">
+<span>Madrid</span>
+<span class="material-symbols-outlined text-sm">expand_more</span>
+</button>
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-primary/10 border border-primary/20 px-4 text-sm font-medium">
+<span>Retiro</span>
+<span class="material-symbols-outlined text-sm text-primary">expand_more</span>
+</button>
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-primary/10 border border-primary/20 px-4 text-sm font-medium">
+<span>Precio</span>
+<span class="material-symbols-outlined text-sm text-primary">expand_more</span>
+</button>
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-primary/10 border border-primary/20 px-4 text-sm font-medium">
+<span>Mayo 2024</span>
+<span class="material-symbols-outlined text-sm text-primary">expand_more</span>
+</button>
+</div>
+</header>
+<!-- Feed Content -->
+<main class="flex-1 pb-32 px-4 pt-4 max-w-2xl mx-auto space-y-6">
+<!-- Card 1 -->
+<div class="overflow-hidden rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="relative aspect-[16/10] w-full bg-slate-200 dark:bg-slate-800">
+<img class="h-full w-full object-cover" data-alt="Modern bright living room in Madrid apartment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAPtXcLC2yNk3daYTQHNz8rEUfAEoCuiKSrHwnBqF78Q_dwVALI1qJZb_tmMMaNo0bTYZUEJ2IxiXUFlqV4T6ig5T1uBYKPbZJD63vUwbeaMukejWjTCSujJEBaaKRj9NtSqdFywH1E4vPW8q028xQl7NqeFMc9Nqzmg4BbyzYmXnyVuZoexWdtjRXhrv2_JR0ZnaGPn09pNhe4CU-eXKDfMPP27n923UxHtyvJxH-mFgMPsXxtFrFmQc4zmfUgXcFU9tdNB5F3U1M"/>
+<div class="absolute top-4 right-4 flex gap-2">
+<button class="p-2 rounded-full bg-background-dark/50 backdrop-blur-sm text-white">
+<span class="material-symbols-outlined fill-0 text-xl">favorite</span>
+</button>
+</div>
+<div class="absolute bottom-4 left-4">
+<span class="bg-primary text-background-dark font-bold px-3 py-1 rounded-lg text-sm">
+                        550€/mes
+                    </span>
+</div>
+</div>
+<div class="p-5 space-y-3">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="text-lg font-bold">Piso compartido Retiro</h3>
+<p class="text-slate-500 dark:text-slate-400 text-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">location_on</span> Madrid, Barrio Retiro
+                        </p>
+</div>
+<div class="text-right">
+<p class="text-primary font-semibold text-sm">Mayo 2024</p>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 pt-1">
+<span class="bg-primary/10 text-primary text-xs font-semibold px-2.5 py-1 rounded-full border border-primary/20">Luminoso</span>
+<span class="bg-primary/10 text-primary text-xs font-semibold px-2.5 py-1 rounded-full border border-primary/20">No fumadores</span>
+<span class="bg-primary/10 text-primary text-xs font-semibold px-2.5 py-1 rounded-full border border-primary/20">Wifi Fibra</span>
+</div>
+<div class="pt-4 flex items-center justify-between">
+<div class="flex -space-x-2">
+<img class="inline-block h-8 w-8 rounded-full ring-2 ring-slate-800" data-alt="Profile picture of potential roommate" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAubFz936DLHRe2kOWqUItNN2Ss0kb-kxgKhXc0VWJiXwd7rYfxExyWk15Dq31dlr7SDryKvz8QBB6i-HiVra31qpCmZLyjkfnD8ALKt1zc1TC2j6OGg8gVN9AEBx3vOCMr-Cg9030XxbDS6telKCg2_aYbMDPDID3lb2nT5iVuT-m-NVeKuv6JAxh4xbURlgVqj1uQpmFALmbyTuXnQiRV-V6peDvggtLNpNY8xdPhixzJho-5eZFDlDlnd_xB92-fk4TtaaKPSFw"/>
+<img class="inline-block h-8 w-8 rounded-full ring-2 ring-slate-800" data-alt="Profile picture of potential roommate" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZpM3XuEPWGhMQ6Tcz0pn6D7BdpbKeUxMaKdNUcztHaKPzYoxV4jVpTjtHPjywS-y__FncSN22xvQvlwIQonSfEuR9LrY3qcnrNvvTIa2gMe7Vm7N9pb4b9yDosSu_Xkf0fkZGBt9QdsmZF3fNER-xzX_2--kgNHe73EmlDIwyLLlaWbOwQ7xsORYnxGpKpw6_9P3aN-fmRYl5ng9Io-DPzPSi8jWtB_uuT8vfsgfMdZLwyB6UcR5BLNiMbFRCWeXdO3UKPrEEBrM"/>
+<div class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 text-[10px] font-bold ring-2 ring-slate-800">+1</div>
+</div>
+<button class="bg-primary hover:bg-primary/90 text-background-dark font-bold py-2 px-6 rounded-lg transition-colors text-sm">
+                        Ver detalles
+                    </button>
+</div>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="overflow-hidden rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="relative aspect-[16/10] w-full bg-slate-200 dark:bg-slate-800">
+<img class="h-full w-full object-cover" data-alt="Cozy bedroom with wooden floors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBbRb2cxl_fqxqIHaC0wqT7ZzKtCex6ab4KwuorTppGiI7PwypFhBNKtob6jTEWiuSkjofNOyM7YJW2hjN9S1QavHDCb8sH_R6ziVSTjQsjezdqVsFbYMgt4frsuVENcvZwstlj4EdG7Sh4nxOsulshGCvPdX15TR4gySpH4cu-WOc2LljN6YvIbTNK51PbMsE7MJppV0D6jwiOlf9l-ygQYl-O1E9DuEO_9lX1HjBtBVCSniR5SyXj8UUJC6DBygHCaYbHVYzeUGk"/>
+<div class="absolute top-4 right-4 flex gap-2">
+<button class="p-2 rounded-full bg-background-dark/50 backdrop-blur-sm text-primary">
+<span class="material-symbols-outlined fill-1 text-xl">favorite</span>
+</button>
+</div>
+<div class="absolute bottom-4 left-4">
+<span class="bg-primary text-background-dark font-bold px-3 py-1 rounded-lg text-sm">
+                        600€/mes
+                    </span>
+</div>
+</div>
+<div class="p-5 space-y-3">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="text-lg font-bold">Habitación exterior Premium</h3>
+<p class="text-slate-500 dark:text-slate-400 text-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">location_on</span> Madrid, Barrio Salamanca
+                        </p>
+</div>
+<div class="text-right">
+<p class="text-primary font-semibold text-sm">Junio 2024</p>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 pt-1">
+<span class="bg-primary/10 text-primary text-xs font-semibold px-2.5 py-1 rounded-full border border-primary/20">Baño privado</span>
+<span class="bg-primary/10 text-primary text-xs font-semibold px-2.5 py-1 rounded-full border border-primary/20">Aire acond.</span>
+<span class="bg-primary/10 text-primary text-xs font-semibold px-2.5 py-1 rounded-full border border-primary/20">Luminoso</span>
+</div>
+<div class="pt-4 flex items-center justify-between">
+<div class="flex -space-x-2">
+<img class="inline-block h-8 w-8 rounded-full ring-2 ring-slate-800" data-alt="Profile picture of potential roommate" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBNwQhBM7mMw3p11x756mYEZEj5YwUaNXDVNqSbg5LuoPzW-vHc7QevoPErKnOXyFPFJAnYM0ihg1PhZVz2RuvVmiT5rHZI4LnULQonG-nz1yWFUFgylDKlMBnb01pdASXssW240y863B3vV4k5yZphDsq48WZjUz5ILceOqe9HUSII7ymeW1WlLXqYob5rVB4EiBYTqEMr5wwEYQmmCQrf6k-Rr6w5DezljHwgCIRfvAYQIXZ46dt1eK3T-I-7n9CCWFRyX6OVL-Q"/>
+<div class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 text-[10px] font-bold ring-2 ring-slate-800">1p</div>
+</div>
+<button class="bg-primary hover:bg-primary/90 text-background-dark font-bold py-2 px-6 rounded-lg transition-colors text-sm">
+                        Ver detalles
+                    </button>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button -->
+<div class="fixed bottom-24 right-6 z-40">
+<button class="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-background-dark shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-3xl font-bold">add</span>
+</button>
+</div>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 right-0 z-50 bg-slate-50 dark:bg-background-dark border-t border-slate-200 dark:border-primary/10 px-6 py-3 pb-8 md:pb-3">
+<div class="flex justify-between items-center max-w-lg mx-auto">
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined fill-1">home</span>
+<span class="text-[10px] font-bold">Vivienda</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500" href="#">
+<span class="material-symbols-outlined">search</span>
+<span class="text-[10px] font-medium">Buscar</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 relative" href="#">
+<span class="material-symbols-outlined">chat_bubble</span>
+<span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-background-dark">3</span>
+<span class="text-[10px] font-medium">Mensajes</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-medium">Perfil</span>
+</a>
+</div>
+</nav>
+<style>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .fill-1 {
+            font-variation-settings: 'FILL' 1;
+        }
+        .fill-0 {
+            font-variation-settings: 'FILL' 0;
+        }
+    </style>
+</body></html>

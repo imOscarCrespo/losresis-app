@@ -665,10 +665,12 @@ export default function WelcomeScreen({ onAuthSuccess }) {
         <View style={styles.heroContainer}>
           <ImageBackground
             source={{
-              uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuCGmkCG4zfZwWRsZpVyAYn59bZ8kvt821XcpEumHLGyvn-adGC3JFFkyJgQwOUAU2SGjeZU8-hkDCkivh3s6ooloFbl2ioioFL2ol3Bwt2uTrlACzTBRveWFfUBEORqnl1jF-yPq4oNK_AP3S6ttpdVaY_XARrTkSKlvmic532bUNHtnPv0wCx55zdJAxBWqfRwT0c3Xoj84rPKbT-DdP97Al5QN61ksodi4mBiGuu0ZKcRqXEtyIqCxWrbuqgzCsEC2mC1BcWGIT0",
+              uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuAN2ZQrWQHhKMf3XXkD0upVsZsRwLEN_aRgeKcpgkaVXPq6JzmO_DQ_bAPTI3-3uOV-1inQlcfSeLFGpmomhX4gynnDlq26xCup1lfrDj1EhdmnIkjop5ci7PGRSSzutvJponn9Pvjbz_ANmfEbfOF6X5ySesI701-LI0ulSPWpWQukniZSl18PXUMlBbcT0FZLQ62RHTd6dQ-65yf_2gRPR4kcoSg2W41c3vlLndS0dr4dOIDoKKVeeDKQdZFOz9uouoA0a5oU-d-B",
             }}
             style={styles.heroBackground}
+            imageStyle={styles.heroBackgroundImage}
             resizeMode="cover"
+            blurRadius={2}
           >
             <View style={styles.heroOverlay} />
             <View
@@ -681,9 +683,6 @@ export default function WelcomeScreen({ onAuthSuccess }) {
                 <View style={styles.heroLogoRow}>
                   <LosResisLogo width={160} height={160} color="#FFFFFF" />
                 </View>
-                <Text style={styles.heroSubtitle}>
-                  Siempre acompañando a los mejores
-                </Text>
               </View>
             </View>
           </ImageBackground>
@@ -878,9 +877,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  heroBackgroundImage: {
+    transform: [{ scale: 1.05 }],
+  },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(103, 12, 245, 0.65)",
+    backgroundColor: "rgba(100, 10, 245, 0.68)",
   },
   heroContent: {
     flex: 1,

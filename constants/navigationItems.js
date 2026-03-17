@@ -42,10 +42,10 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#FCE7F3",
   },
   {
-    id: "guardias",
-    name: "Guardias",
-    icon: "time",
-    description: "Revisa tus próximas guardias programadas",
+    id: "agenda",
+    name: "Agenda",
+    icon: "calendar",
+    description: "Gestiona guardias, estudio, cursos y eventos en un solo calendario",
     doctorOnly: true,
     color: "#8B5CF6", // Purple
     lightColor: "#F3E8FF",
@@ -132,6 +132,14 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#ECFCCB",
   },
   {
+    id: "roomies",
+    name: "Roomies",
+    icon: "heart",
+    description: "Haz match con futuros compañeros de piso según convivencia",
+    color: "#670CF5",
+    lightColor: "#F3E8FF",
+  },
+  {
     id: "ocio",
     name: "Ocio",
     icon: "wine",
@@ -194,10 +202,12 @@ export const IMPLEMENTED_SECTIONS = [
   "reviewDetail",
   "articulos",
   "vivienda",
+  "roomies",
   "ocio",
   "leisureForum",
   "grupos",
   "groupChat",
+  "agenda",
 ];
 
 /**

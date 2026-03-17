@@ -23,7 +23,7 @@ import HousingAdDetailScreen from "./HousingAdDetailScreen";
 import CreateHousingAdScreen from "./CreateHousingAdScreen";
 import CreateCourseScreen from "./CreateCourseScreen";
 import ContactScreen from "./ContactScreen";
-import ShiftsScreen from "./ShiftsScreen";
+import AgendaScreen from "./AgendaScreen";
 import { ExternalRotationsScreen } from "./ExternalRotationsScreen";
 import { LecturesScreen } from "./LecturesScreen";
 import LeisureScreen from "./LeisureScreen";
@@ -32,9 +32,11 @@ import SportsSelectionScreen from "./SportsSelectionScreen";
 import ThreadDetailScreen from "./ThreadDetailScreen";
 import NotificationSettingsScreen from "../src/screens/settings/NotificationSettingsScreen";
 import NotificationsScreen from "../src/screens/notifications/NotificationsScreen";
+import { setNotificationNavigationHandler } from "../src/services/push/notificationRouter";
 import SpecialityQuizScreen from "./SpecialityQuizScreen";
 import GroupsScreen from "./GroupsScreen";
 import GroupChatScreen from "./GroupChatScreen";
+import RoommateScreen from "./RoommateScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
@@ -91,6 +93,8 @@ export default function DashboardScreen({
   const [selectedThreadId, setSelectedThreadId] = useState(null); // ID del thread seleccionado
   const [selectedGroupId, setSelectedGroupId] = useState(null); // ID del grupo de chat
   const [selectedGroupName, setSelectedGroupName] = useState(null); // Nombre del grupo de chat
+  const [roommateInitialTab, setRoommateInitialTab] = useState("discover");
+  const [selectedRoommateMatchId, setSelectedRoommateMatchId] = useState(null);
 
   // Determinar sección inicial según el tipo de usuario (primera pestaña = Inicio)
   const getInitialSection = (profile) => {
@@ -129,6 +133,37 @@ export default function DashboardScreen({
       });
     }
   }, [currentSection]);
+
+  useEffect(() => {
+    const cleanup = setNotificationNavigationHandler((data) => {
+      if (data?.destination_section === "groupChat" && data?.group_id) {
+        handleSectionChange("groupChat", {
+          groupId: data.group_id,
+          groupName: data.group_name || "Grupo",
+        });
+        return;
+      }
+
+      if (data?.entity_type === "review" && data?.entity_id) {
+        handleSectionChange("reviewDetail", { reviewId: data.entity_id });
+        return;
+      }
+
+      if (data?.entity_type === "comment" && data?.entity_id) {
+        handleSectionChange("threadDetail", { threadId: data.entity_id });
+        return;
+      }
+
+      if (data?.entity_type === "roommate_match" && data?.entity_id) {
+        handleSectionChange("roomies", {
+          initialTab: "matches",
+          matchId: data.entity_id,
+        });
+      }
+    });
+
+    return cleanup;
+  }, []);
 
   const loadUserProfile = async () => {
     try {
@@ -234,6 +269,13 @@ export default function DashboardScreen({
       setSelectedGroupId(null);
       setSelectedGroupName(null);
     }
+    if (sectionId === "roomies") {
+      setRoommateInitialTab(params.initialTab || "discover");
+      setSelectedRoommateMatchId(params.matchId || null);
+    } else {
+      setRoommateInitialTab("discover");
+      setSelectedRoommateMatchId(null);
+    }
   };
 
   const handleHospitalSelect = (hospital, specialtyId, fromSection = null) => {
@@ -285,6 +327,7 @@ export default function DashboardScreen({
         activeSection="grupos"
         isProfileIncomplete={isProfileIncomplete}
         onSectionChange={handleSectionChange}
+        hideFooter
       >
         <SwipeBackWrapper onSwipeBack={handleBackFromGroupChat}>
           <GroupChatScreen
@@ -631,6 +674,16 @@ export default function DashboardScreen({
                 handleSectionChange("reviewDetail", { reviewId: entityId });
               } else if (screenId === "threadDetail") {
                 handleSectionChange("threadDetail", { threadId: entityId });
+              } else if (screenId === "roomies") {
+                handleSectionChange("roomies", {
+                  initialTab: "matches",
+                  matchId: entityId,
+                });
+              } else if (screenId === "groupChat") {
+                handleSectionChange("groupChat", {
+                  groupId: entityId.groupId,
+                  groupName: entityId.groupName,
+                });
               }
             }}
           />
@@ -703,6 +756,15 @@ export default function DashboardScreen({
           />
         );
 
+      case "roomies":
+        return (
+          <RoommateScreen
+            userProfile={userProfile}
+            initialTab={roommateInitialTab}
+            initialMatchId={selectedRoommateMatchId}
+          />
+        );
+
       // Pantalla de ocio
       case "ocio":
         return (
@@ -733,12 +795,18 @@ export default function DashboardScreen({
 
       // Pantalla de contacto
       case "contacto":
-        return <ContactScreen userProfile={userProfile} />;
+        return (
+          <ContactScreen
+            userProfile={userProfile}
+            onBack={() => handleSectionChange("usuario")}
+          />
+        );
 
-      // Pantalla de guardias
+      // Pantalla de agenda
+      case "agenda":
       case "guardias":
         return (
-          <ShiftsScreen
+          <AgendaScreen
             userProfile={userProfile}
             navigation={{ navigate: handleSectionChange }}
             onNavigateToSection={handleSectionChange}
@@ -810,7 +878,7 @@ export default function DashboardScreen({
   return (
     <ScreenLayout
       userProfile={userProfile}
-      activeSection={currentSection}
+      activeSection={currentSection === "roomies" ? "vivienda" : currentSection}
       isProfileIncomplete={isProfileIncomplete}
       onSectionChange={handleSectionChange}
     >

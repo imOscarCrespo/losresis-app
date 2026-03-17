@@ -47,6 +47,72 @@ export type Database = {
         }
         Relationships: []
       }
+      agenda_events: {
+        Row: {
+          all_day: boolean
+          created_at: string | null
+          end_date: string | null
+          end_time: string | null
+          event_date: string | null
+          event_type: string
+          id: string
+          metadata: Json
+          notes: string | null
+          source_shift_id: string | null
+          start_time: string | null
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          all_day?: boolean
+          created_at?: string | null
+          end_date?: string | null
+          end_time?: string | null
+          event_date?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          source_shift_id?: string | null
+          start_time?: string | null
+          title: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          all_day?: boolean
+          created_at?: string | null
+          end_date?: string | null
+          end_time?: string | null
+          event_date?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          source_shift_id?: string | null
+          start_time?: string | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_events_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agenda_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       article: {
         Row: {
           body: Json
@@ -387,7 +453,7 @@ export type Database = {
       external_rotation_review: {
         Row: {
           approved_at: string | null
-          city: string
+          city: string | null
           country: string
           created_at: string
           end_date: string | null
@@ -403,7 +469,7 @@ export type Database = {
         }
         Insert: {
           approved_at?: string | null
-          city: string
+          city?: string | null
           country: string
           created_at?: string
           end_date?: string | null
@@ -419,7 +485,7 @@ export type Database = {
         }
         Update: {
           approved_at?: string | null
-          city?: string
+          city?: string | null
           country?: string
           created_at?: string
           end_date?: string | null
@@ -661,39 +727,49 @@ export type Database = {
       }
       groups: {
         Row: {
-          city: string
+          city: string | null
           created_at: string | null
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean | null
           member_count: number | null
           name: string
-          speciality_id: string
+          speciality_id: string | null
           user_type: string
         }
         Insert: {
-          city: string
+          city?: string | null
           created_at?: string | null
           description?: string | null
+          hospital_id?: string | null
           id?: string
           is_active?: boolean | null
           member_count?: number | null
           name: string
-          speciality_id: string
+          speciality_id?: string | null
           user_type: string
         }
         Update: {
-          city?: string
+          city?: string | null
           created_at?: string | null
           description?: string | null
+          hospital_id?: string | null
           id?: string
           is_active?: boolean | null
           member_count?: number | null
           name?: string
-          speciality_id?: string
+          speciality_id?: string | null
           user_type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "groups_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "groups_speciality_id_fkey"
             columns: ["speciality_id"]

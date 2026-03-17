@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Simulador MIR - MIR Platform</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#670CF5",
+                        secondary: "#00BD7C",
+                        indigo: "#1B0977",
+                        "background-light": "#F8FAFC",
+                        "background-dark": "#0F172A",
+                    },
+                    fontFamily: {
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "1.25rem",
+                    },
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+        :root {
+            --primary-color: #670CF5;
+            --indigo-text: #1B0977;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            min-height: 100dvh;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .ios-blur {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-color) !important;
+            box-shadow: 0 0 0 2px rgba(103, 12, 245, 0.1);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-indigo dark:text-slate-100 pb-24">
+<header class="bg-primary pt-14 pb-12 px-6 rounded-b-[2.5rem] shadow-lg shadow-primary/20">
+<div class="flex justify-between items-center mb-6">
+<div class="bg-white/20 p-2 rounded-full cursor-pointer">
+<span class="material-symbols-outlined text-white">menu</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-[20px]">notifications</span>
+</div>
+<div class="w-8 h-8 rounded-full border-2 border-white/50 overflow-hidden">
+<img alt="User avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDwDIUG0oW1IYQGZySEjhZSNnuO7tkRgCRib4yRKBzYtT-H_kctdPOsDEyNPknN0lcIjwmbdDX9OVV98mTe9hvfHpOb4izyPOXQKi5d7CXg6MJhW4dkm7WvNAd_AXyb1IMk9m8dO000ouldCFiWQtQPJzz566pvk9tuPQk_9a6T5SyTsTEN37JO0MRl4BDFsfo9zjomUirkNmABWvaC45L09F2_aXJmvA5z2hvgp1QOou_YY_rNUTZgBsQFBtbz51NZl0_gn2C1ook"/>
+</div>
+</div>
+</div>
+<h1 class="text-white text-2xl font-bold mb-1">Simulador MIR</h1>
+<p class="text-white/80 text-sm">Calcula tus probabilidades de obtener plaza</p>
+</header>
+<main class="px-6 -mt-6">
+<div class="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl shadow-indigo/5 border border-slate-100 dark:border-slate-700 space-y-6">
+<div class="space-y-2">
+<label class="block text-sm font-semibold text-indigo dark:text-white">Tu posición en el MIR *</label>
+<input class="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 text-indigo dark:text-white placeholder:text-slate-400 focus:ring-0 transition-all" placeholder="Ej: 1950" type="number"/>
+</div>
+<div class="space-y-2">
+<label class="block text-sm font-semibold text-indigo dark:text-white">Filtrar por especialidad *</label>
+<div class="relative">
+<select class="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 text-indigo dark:text-white appearance-none focus:ring-0 transition-all">
+<option disabled="" selected="" value="">Selecciona una especialidad</option>
+<option>Cardiología</option>
+<option>Dermatología</option>
+<option>Pediatría</option>
+<option>Neurología</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="space-y-2">
+<label class="block text-sm font-semibold text-indigo dark:text-white">Filtrar por comunidad autónoma</label>
+<div class="relative">
+<select class="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 dark:bg-slate-700 text-indigo dark:text-white appearance-none focus:ring-0 transition-all">
+<option value="">Todas las comunidades autónomas</option>
+<option>Madrid</option>
+<option>Cataluña</option>
+<option>Andalucía</option>
+<option>Valencia</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+</div>
+</div>
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 transition-all active:scale-[0.98]">
+                Calcular probabilidades
+            </button>
+</div>
+<div class="mt-6 bg-[#EBF1FF] dark:bg-indigo/20 p-5 rounded-2xl border border-blue-100 dark:border-indigo/30">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary text-[20px]">school</span>
+<h4 class="font-bold text-indigo dark:text-blue-300 text-sm">¿Cómo se calcula la probabilidad?</h4>
+</div>
+<p class="text-xs text-indigo/70 dark:text-blue-200/70 leading-relaxed">
+                La probabilidad se basa en los años disponibles de notas de corte (2019-2025). Solo se incluyen en el cálculo los años que tienen datos válidos. En el MIR, los números más bajos representan mejores posiciones. Si tu posición es igual o mejor (menor) que la nota de corte histórica, tu probabilidad aumenta significativamente.
+            </p>
+</div>
+</main>
+<nav class="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-900/80 ios-blur border-t border-slate-200 dark:border-slate-800 px-6 py-3 flex justify-between items-center z-50">
+<button class="flex flex-col items-center gap-1 group">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">home</span>
+<span class="text-[10px] font-medium text-slate-400 group-hover:text-primary">Inicio</span>
+</button>
+<button class="flex flex-col items-center gap-1 group">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">medical_services</span>
+<span class="text-[10px] font-medium text-slate-400 group-hover:text-primary">Especialidades</span>
+</button>
+<button class="flex flex-col items-center gap-1">
+<div class="relative flex flex-col items-center gap-1">
+<span class="material-symbols-outlined text-primary">bar_chart</span>
+<span class="text-[10px] font-bold text-primary">MIR</span>
+<div class="absolute -bottom-1 w-1 h-1 bg-primary rounded-full"></div>
+</div>
+</button>
+<button class="flex flex-col items-center gap-1 group">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">apartment</span>
+<span class="text-[10px] font-medium text-slate-400 group-hover:text-primary">Vivienda</span>
+</button>
+<button class="flex flex-col items-center gap-1 group">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">account_circle</span>
+<span class="text-[10px] font-medium text-slate-400 group-hover:text-primary">Perfil</span>
+</button>
+</nav>
+
+</body></html>

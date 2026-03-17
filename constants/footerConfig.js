@@ -1,12 +1,10 @@
 /**
  * Configuración del Footer v2
- * Mismo menú para estudiantes y residentes: Inicio, Especialidades, MIR, Vivienda, Perfil
+ * Estudiantes: Inicio, Especialidades, MIR, Vivienda, Perfil
+ * Residentes: Inicio, Agenda, Chats, Reseñas, Perfil
  */
 
-const PRIMARY = "#670CF5";
-
-// Menú único para todos los usuarios (v2)
-export const FOOTER_ITEMS = [
+export const STUDENT_FOOTER_ITEMS = [
   {
     id: "inicio",
     icon: "home",
@@ -39,13 +37,46 @@ export const FOOTER_ITEMS = [
   },
 ];
 
+export const RESIDENT_FOOTER_ITEMS = [
+  {
+    id: "inicio",
+    icon: "home",
+    label: "Inicio",
+    screen: "inicio",
+  },
+  {
+    id: "agenda",
+    icon: "calendar",
+    label: "Agenda",
+    screen: "agenda",
+  },
+  {
+    id: "grupos",
+    icon: "chatbubbles",
+    label: "Chats",
+    screen: "grupos",
+  },
+  {
+    id: "reseñas",
+    icon: "document-text",
+    label: "Reseñas",
+    screen: "reseñas",
+  },
+  {
+    id: "usuario",
+    icon: "person",
+    label: "Perfil",
+    screen: "usuario",
+  },
+];
+
 /**
- * Obtiene la configuración del footer (mismo para estudiantes y residentes)
+ * Obtiene la configuración del footer según el tipo de usuario
  */
 export const getFooterConfig = (userProfile) => {
-  return FOOTER_ITEMS;
-};
+  if (userProfile?.is_resident || userProfile?.is_doctor) {
+    return RESIDENT_FOOTER_ITEMS;
+  }
 
-// Compatibilidad: exportar con nombres antiguos por si se usan en otros archivos
-export const STUDENT_FOOTER_ITEMS = FOOTER_ITEMS;
-export const RESIDENT_FOOTER_ITEMS = FOOTER_ITEMS;
+  return STUDENT_FOOTER_ITEMS;
+};

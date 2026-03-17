@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Los Resis - Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#640af5",
+                        "background-light": "#f7f5f8",
+                        "background-dark": "#171022",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "3xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased">
+<!-- Main Container (Mobile focused) -->
+<div class="relative flex min-h-screen w-full flex-col overflow-x-hidden pb-24">
+<!-- Header Section with Purple Gradient -->
+<header class="bg-gradient-to-br from-primary to-[#8b46ff] pt-8 pb-12 px-6 rounded-b-[2rem] shadow-lg">
+<div class="flex justify-between items-start mb-6">
+<div class="flex flex-col">
+<span class="text-white/80 text-xs font-semibold uppercase tracking-wider">Ginecología · R1</span>
+<h1 class="text-white text-2xl font-extrabold mt-1">Buenas tardes, Oscar</h1>
+<p class="text-white/90 text-sm font-medium">Hospital La Paz</p>
+</div>
+<button class="bg-white/20 p-2 rounded-full text-white backdrop-blur-sm">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</div>
+<!-- Header Status Card (Guardia) -->
+<div class="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 mt-2">
+<div class="flex justify-between items-center mb-1">
+<span class="text-xs font-bold text-white/70 tracking-widest uppercase">HOY</span>
+<span class="bg-red-500 text-[10px] font-bold text-white px-2 py-0.5 rounded-full uppercase">En curso</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="bg-white/20 p-2 rounded-xl">
+<span class="material-symbols-outlined text-white">medical_services</span>
+</div>
+<div class="flex-1">
+<h2 class="text-white font-bold text-lg leading-tight">Guardia en Urgencias</h2>
+<p class="text-white/80 text-sm">Viernes 17 · 24h</p>
+</div>
+<button class="bg-white text-primary text-xs font-bold px-4 py-2 rounded-xl shadow-sm">
+                        Ver calendario
+                    </button>
+</div>
+<p class="text-white/60 text-[10px] mt-3 italic">Tu residencia, organizada y conectada</p>
+</div>
+</header>
+<!-- Quick Action Cards -->
+<div class="px-6 -mt-6">
+<div class="grid grid-cols-1 gap-3"><div class="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 mb-3">
+<div class="flex justify-between items-center mb-4">
+<h4 class="font-bold text-slate-800 dark:text-white">Semana actual</h4>
+<button class="text-primary text-xs font-bold">Ver agenda</button>
+</div>
+<div class="flex justify-between items-center">
+<a class="flex flex-col items-center gap-2" href="#">
+<span class="text-[10px] font-bold text-slate-400">L</span>
+<div class="flex gap-0.5">
+<div class="size-1.5 rounded-full bg-blue-500"></div>
+<div class="size-1.5 rounded-full bg-emerald-500"></div>
+</div>
+</a>
+<a class="flex flex-col items-center gap-2" href="#">
+<span class="text-[10px] font-bold text-slate-400">M</span>
+<div class="flex gap-0.5">
+<div class="size-1.5 rounded-full bg-orange-500"></div>
+</div>
+</a>
+<a class="flex flex-col items-center gap-2" href="#">
+<span class="text-[10px] font-bold text-slate-400">X</span>
+<div class="flex gap-0.5">
+<div class="size-1.5 rounded-full bg-slate-200"></div>
+</div>
+</a>
+<a class="flex flex-col items-center gap-2" href="#">
+<span class="text-[10px] font-bold text-slate-400">J</span>
+<div class="flex gap-0.5">
+<div class="size-1.5 rounded-full bg-purple-400"></div>
+</div>
+</a>
+<a class="flex flex-col items-center gap-2 bg-primary/10 rounded-full px-2 py-1" href="#">
+<span class="text-[10px] font-bold text-primary">V</span>
+<div class="flex gap-0.5">
+<div class="size-1.5 rounded-full bg-primary"></div>
+</div>
+</a>
+<a class="flex flex-col items-center gap-2" href="#">
+<span class="text-[10px] font-bold text-slate-400">S</span>
+<div class="flex gap-0.5">
+<div class="size-1.5 rounded-full bg-red-500"></div>
+</div>
+</a>
+<a class="flex flex-col items-center gap-2" href="#">
+<span class="text-[10px] font-bold text-slate-400">D</span>
+<div class="flex gap-0.5">
+<div class="size-1.5 rounded-full bg-red-500"></div>
+</div>
+</a>
+</div>
+</div><div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mb-6 px-2">
+<div class="flex items-center gap-1.5">
+<div class="size-1.5 rounded-full bg-primary"></div>
+<span class="text-[10px] text-slate-500 font-medium">Guardia</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="size-1.5 rounded-full bg-blue-500"></div>
+<span class="text-[10px] text-slate-500 font-medium">Curso</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="size-1.5 rounded-full bg-orange-500"></div>
+<span class="text-[10px] text-slate-500 font-medium">Congreso</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="size-1.5 rounded-full bg-purple-400"></div>
+<span class="text-[10px] text-slate-500 font-medium">Estudio</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="size-1.5 rounded-full bg-emerald-500"></div>
+<span class="text-[10px] text-slate-500 font-medium">Investigación</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="size-1.5 rounded-full bg-red-500"></div>
+<span class="text-[10px] text-slate-500 font-medium">Día libre</span>
+</div>
+</div><div class="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6">
+<div class="grid grid-cols-3 gap-y-6 gap-x-2">
+<div class="flex flex-col items-center gap-2 text-center">
+<div class="size-12 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+<span class="material-symbols-outlined">menu_book</span>
+</div>
+<span class="text-[10px] font-bold text-slate-700 dark:text-slate-300 leading-tight">Libro de residentes</span>
+</div>
+<div class="flex flex-col items-center gap-2 text-center">
+<div class="size-12 rounded-2xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-500">
+<span class="material-symbols-outlined">school</span>
+</div>
+<span class="text-[10px] font-bold text-slate-700 dark:text-slate-300 leading-tight">Cursos / Congresos</span>
+</div>
+<div class="flex flex-col items-center gap-2 text-center">
+<div class="size-12 rounded-2xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600">
+<span class="material-symbols-outlined">map</span>
+</div>
+<span class="text-[10px] font-bold text-slate-700 dark:text-slate-300 leading-tight">Mapa MIR</span>
+</div>
+<div class="flex flex-col items-center gap-2 text-center">
+<div class="size-12 rounded-2xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600">
+<span class="material-symbols-outlined">star</span>
+</div>
+<span class="text-[10px] font-bold text-slate-700 dark:text-slate-300 leading-tight">Mi reseña</span>
+</div>
+<div class="flex flex-col items-center gap-2 text-center">
+<div class="size-12 rounded-2xl bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-teal-600">
+<span class="material-symbols-outlined">flight_takeoff</span>
+</div>
+<span class="text-[10px] font-bold text-slate-700 dark:text-slate-300 leading-tight">Rotaciones externas</span>
+</div>
+<div class="flex flex-col items-center gap-2 text-center">
+<div class="size-12 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300">
+<span class="material-symbols-outlined">home</span>
+</div>
+<span class="text-[10px] font-bold text-slate-700 dark:text-slate-300 leading-tight">Vivienda</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+<div class="text-2xl">🔥</div>
+<div class="flex flex-col">
+<span class="font-bold text-slate-800 dark:text-white">Actividad seguida</span>
+<span class="text-xs text-slate-500">5 días registrando actividad</span>
+</div>
+<span class="material-symbols-outlined ml-auto text-slate-300">chevron_right</span>
+</div><div class="mt-6">
+<h4 class="text-sm font-bold text-slate-800 dark:text-white mb-3">Próximos cursos y congresos</h4>
+<div class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+<div class="min-w-[200px] flex-shrink-0 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
+<p class="text-[10px] font-bold text-blue-600 mb-1 uppercase">Curso</p>
+<p class="text-xs font-bold text-slate-800 dark:text-white leading-snug">Curso laparoscopia avanzada</p>
+<p class="text-[10px] text-slate-500 mt-1">Martes 21 · Hospital Clínic</p>
+</div>
+<div class="min-w-[200px] flex-shrink-0 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
+<p class="text-[10px] font-bold text-orange-500 mb-1 uppercase">Congreso</p>
+<p class="text-xs font-bold text-slate-800 dark:text-white leading-snug">Congreso SEGO 2026</p>
+<p class="text-[10px] text-slate-500 mt-1">Madrid · Junio</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Search Bar -->
+<!-- Clinical Activity Section -->
+<!-- Secondary Info Card -->
+<!-- Discovery Section -->
+<section class="px-6 mt-8 mb-8">
+<h3 class="text-lg font-bold text-slate-800 dark:text-white mb-4">Novedades para vosotros</h3>
+<div class="bg-white dark:bg-slate-800 rounded-3xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700">
+<div class="h-32 bg-slate-200 relative overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-tr from-primary/40 to-indigo-500/20" data-alt="Abstract medical science background with DNA and cells"></div>
+<span class="absolute top-4 left-4 bg-primary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase">PROMOCIÓN</span>
+</div>
+<div class="p-5">
+<h5 class="text-lg font-extrabold text-slate-800 dark:text-white leading-tight mb-2">Máster en Ginecología Oncológica</h5>
+<p class="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mb-4">Inscripciones abiertas para la nueva convocatoria 2026. Especialízate con los mejores profesionales.</p>
+<div class="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-700">
+<div class="flex gap-4">
+<button class="flex items-center gap-1 text-xs font-bold text-slate-500"><span class="material-symbols-outlined text-lg">thumb_up</span> 850</button>
+<button class="flex items-center gap-1 text-xs font-bold text-slate-500"><span class="material-symbols-outlined text-lg">chat_bubble</span> 12</button>
+</div>
+<button class="flex items-center gap-1 text-xs font-bold text-primary">
+<span class="material-symbols-outlined text-lg">bookmark</span> Guardar
+                        </button>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Floating Action Button -->
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 pb-6 pt-3 flex justify-between items-center z-40"><a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1">home</span>
+<span class="text-[10px] font-bold">Inicio</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">event_note</span>
+<span class="text-[10px] font-medium">Agenda</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">chat</span>
+<span class="text-[10px] font-medium">Chats</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">star</span>
+<span class="text-[10px] font-medium">Mi reseña</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-medium">Mi perfil</span>
+</a></nav>
+</body></html>

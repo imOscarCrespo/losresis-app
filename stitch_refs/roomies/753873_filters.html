@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Hospital Details - Medical Residency App</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#670CF5", // Vibrant Purple
+                        "secondary": "#00BD7C", // Emerald Green
+                        "accent": "#1B0977", // Deep Indigo
+                        "bg-white": "#FFFFFF",
+                        "bg-light": "#F9FAFB",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "2xl": "1.75rem",
+                        "full": "9999px"
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(27, 9, 119, 0.05)',
+                        'card': '0 2px 12px -1px rgba(103, 12, 245, 0.08)',
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            background-color: #FFFFFF;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .ios-blur {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="text-slate-900 min-h-screen flex flex-col font-display bg-white">
+<header class="sticky top-0 z-50 flex items-center justify-between px-4 py-4 bg-white/90 ios-blur border-b border-slate-100">
+<button class="flex items-center justify-center size-10 rounded-full bg-slate-100 text-accent">
+<span class="material-symbols-outlined">arrow_back_ios_new</span>
+</button>
+<h1 class="text-lg font-bold text-accent">Hospital Details</h1>
+<button class="flex items-center justify-center size-10 rounded-full bg-slate-100 text-accent">
+<span class="material-symbols-outlined">share</span>
+</button>
+</header>
+<main class="flex-1 overflow-y-auto custom-scrollbar pb-32">
+<div class="relative w-full h-80">
+<div class="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent z-10"></div>
+<img alt="Hospital Exterior" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBF35Io66HlNrD0b_u4FT_PLbAT863-dA7DZZb3EH2IW4J3fWXYk4EBbzMr8FGk_JIrD3H4tj485oh13QbKJvJLA5oZUxQD1KsWETEkIPMUtLm3NxATGQo6pjywQ0YtsUh3xGMIRwZRD3FV6vhZC9ZYUbJf0haHWuu8DKemgNaXB2GpK_KR1FC5O8-dM4zx0xy-2tWPCXXpTfmBOD2eXyazgTLcmYv355Z4wi9m-45OELvfnXsF-56hHnGrI1xuRM0rDHckdAK13f8"/>
+<div class="absolute bottom-6 left-4 right-4 z-20">
+<div class="flex items-center gap-2 mb-3">
+<span class="px-3 py-1 bg-secondary text-white text-[10px] font-bold rounded-full uppercase tracking-widest shadow-sm">Open</span>
+<div class="flex items-center gap-1 bg-white/90 backdrop-blur-md px-2 py-1 rounded-lg border border-slate-200/50 shadow-sm">
+<span class="material-symbols-outlined text-yellow-500 text-sm fill-1">star</span>
+<span class="text-accent text-sm font-bold">4.9</span>
+<span class="text-slate-400 text-xs">(1.2k)</span>
+</div>
+</div>
+<h2 class="text-3xl font-extrabold text-accent leading-tight tracking-tight">St. Mary's University Medical Center</h2>
+<p class="text-slate-500 text-sm font-medium flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-primary text-base">location_on</span>
+                Madrid, Spain
+            </p>
+</div>
+</div>
+<div class="flex gap-3 px-4 py-6">
+<button class="flex-1 bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/25 flex items-center justify-center gap-2 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[20px]">send</span>
+            Apply Now
+        </button>
+<button class="size-14 bg-white border border-slate-200 text-accent rounded-2xl flex items-center justify-center shadow-soft active:bg-slate-50">
+<span class="material-symbols-outlined">bookmark</span>
+</button>
+</div>
+<div class="px-4 grid grid-cols-2 gap-4">
+<div class="col-span-2 bg-white border border-slate-100 shadow-card rounded-2xl p-5">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-primary font-bold text-lg">Available Specialties</h3>
+<span class="text-secondary font-bold text-sm bg-secondary/10 px-3 py-1 rounded-full">32 Spots</span>
+</div>
+<div class="flex flex-wrap gap-2">
+<span class="bg-slate-50 border border-slate-100 px-3 py-2 rounded-xl text-sm font-medium text-slate-700">Cardiology</span>
+<span class="bg-slate-50 border border-slate-100 px-3 py-2 rounded-xl text-sm font-medium text-slate-700">Neurology</span>
+<span class="bg-slate-50 border border-slate-100 px-3 py-2 rounded-xl text-sm font-medium text-slate-700">Pediatrics</span>
+<span class="bg-slate-50 border border-slate-100 px-3 py-2 rounded-xl text-sm font-medium text-slate-700">Surgery</span>
+<span class="bg-primary/5 border border-primary/10 px-3 py-2 rounded-xl text-sm font-bold text-primary">+12 more</span>
+</div>
+</div>
+<div class="bg-white border border-slate-100 shadow-card rounded-2xl p-5 flex flex-col justify-between aspect-[1.1/1]">
+<div class="size-10 bg-primary/10 rounded-xl flex items-center justify-center mb-2">
+<span class="material-symbols-outlined text-primary">leaderboard</span>
+</div>
+<div>
+<p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">MIR Rank</p>
+<p class="text-xl font-extrabold text-accent">Top 500</p>
+</div>
+</div>
+<div class="bg-white border border-slate-100 shadow-card rounded-2xl p-5 flex flex-col justify-between aspect-[1.1/1]">
+<div class="size-10 bg-secondary/10 rounded-xl flex items-center justify-center mb-2">
+<span class="material-symbols-outlined text-secondary">home_work</span>
+</div>
+<div>
+<p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Housing</p>
+<p class="text-xl font-extrabold text-accent">Subsidized</p>
+</div>
+</div>
+</div>
+<div class="mt-10 px-4">
+<h3 class="text-xl font-bold mb-6 flex items-center gap-2 text-accent">
+<span class="material-symbols-outlined text-primary">reviews</span>
+            Resident Reviews
+        </h3>
+<div class="bg-white border border-slate-100 shadow-card rounded-2xl p-6 flex flex-wrap gap-x-8 gap-y-6">
+<div class="flex flex-col gap-1">
+<p class="text-5xl font-black leading-tight text-accent">4.9</p>
+<div class="flex gap-0.5 text-primary">
+<span class="material-symbols-outlined fill-1">star</span>
+<span class="material-symbols-outlined fill-1">star</span>
+<span class="material-symbols-outlined fill-1">star</span>
+<span class="material-symbols-outlined fill-1">star</span>
+<span class="material-symbols-outlined fill-1">star</span>
+</div>
+<p class="text-slate-400 text-xs mt-1 font-medium">1,248 residents</p>
+</div>
+<div class="grid min-w-[140px] flex-1 grid-cols-[20px_1fr_40px] items-center gap-y-3">
+<p class="text-slate-400 text-xs font-bold">5</p>
+<div class="flex h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+<div class="rounded-full bg-primary" style="width: 85%;"></div>
+</div>
+<p class="text-slate-400 text-[10px] font-bold text-right">85%</p>
+<p class="text-slate-400 text-xs font-bold">4</p>
+<div class="flex h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+<div class="rounded-full bg-primary" style="width: 10%;"></div>
+</div>
+<p class="text-slate-400 text-[10px] font-bold text-right">10%</p>
+<p class="text-slate-400 text-xs font-bold">3</p>
+<div class="flex h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+<div class="rounded-full bg-primary" style="width: 3%;"></div>
+</div>
+<p class="text-slate-400 text-[10px] font-bold text-right">3%</p>
+</div>
+</div>
+</div>
+<div class="mt-10 px-4 mb-8">
+<h3 class="text-xl font-bold mb-4 text-accent">Overview</h3>
+<div class="bg-slate-50/50 rounded-2xl p-5 border border-slate-100">
+<p class="text-slate-600 leading-relaxed text-sm">
+                Established in 1954, St. Mary's is the leading teaching hospital in the region, offering residents unparalleled access to complex cases and cutting-edge medical technology. The program emphasizes work-life balance while maintaining high academic standards.
+            </p>
+</div>
+</div>
+</main>
+<nav class="fixed bottom-0 left-0 right-0 bg-white/95 ios-blur border-t border-slate-100 px-6 pb-8 pt-3 z-50">
+<div class="flex items-center justify-between">
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined fill-1">explore</span>
+<span class="text-[10px] font-bold">Explore</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">favorite</span>
+<span class="text-[10px] font-bold">Matches</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="text-[10px] font-bold">Applied</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="text-[10px] font-bold">Profile</span>
+</a>
+</div>
+</nav>
+
+</body></html>

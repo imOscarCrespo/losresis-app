@@ -1,18 +1,7 @@
-import React, { useState, useMemo } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Pressable,
-  StyleSheet,
-  Modal,
-  FlatList,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  Keyboard,
-} from "react-native";
+import React, { useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { SelectorModal } from "./SelectorModal";
 
 /**
  * Componente de filtro de selección (dropdown)
@@ -43,8 +32,6 @@ export const SelectFilter = ({
   // Usar onChange si está disponible, sino onSelect
   const handleChange = onChange || onSelect;
   const [modalVisible, setModalVisible] = useState(false);
-  const [searchText, setSearchText] = useState("");
-  const searchInputRef = React.useRef(null);
 
   const selectedOption = options.find(
     (opt) => (opt.id || opt.value) === value || opt === value
@@ -59,84 +46,22 @@ export const SelectFilter = ({
         String(selectedOption.value || selectedOption.id || "")
     : placeholder;
 
-  // Filtrar opciones basándose en el texto de búsqueda
-  const filteredOptions = useMemo(() => {
-    if (!searchText.trim()) {
-      return options;
+  const normalizedOptions = options.map((option) => {
+    if (typeof option === "string") {
+      return { id: option, name: option };
     }
-    const searchLower = searchText.toLowerCase().trim();
-    return options.filter((option) => {
-      // Asegurar que optionName sea siempre un string
-      const optionName =
-        typeof option === "string"
-          ? option
-          : option.label ||
-            option.name ||
-            String(option.value || option.id || "");
-      return optionName.toLowerCase().includes(searchLower);
-    });
-  }, [options, searchText]);
 
-  const handleSelect = (option) => {
-    // Procesar la selección: usar ?? para no pasar el objeto cuando value/id son ""
-    const optionValue =
-      option?.value ?? option?.id ?? (typeof option === "string" ? option : "");
-    const isObject = typeof optionValue === "object" && optionValue !== null;
-    const valueToSend = isObject ? "" : optionValue === value ? "" : optionValue;
-    handleChange(valueToSend);
+    return {
+      ...option,
+      id: option.id ?? option.value ?? "",
+      name: option.name ?? option.label ?? String(option.id ?? option.value ?? ""),
+    };
+  });
+
+  const handleSelect = (nextValue) => {
+    handleChange(nextValue === value && !required ? "" : nextValue);
     setModalVisible(false);
-    setSearchText(""); // Limpiar búsqueda al seleccionar
-    // Cerrar teclado después de procesar la selección
-    if (searchInputRef.current) {
-      searchInputRef.current.blur();
-    }
-    Keyboard.dismiss();
   };
-
-  const handleModalClose = () => {
-    setModalVisible(false);
-    setSearchText(""); // Limpiar búsqueda al cerrar el modal
-  };
-
-  const renderOption = ({ item }) => {
-    const optionValue = item.value || item.id || item;
-    // Asegurar que optionName sea siempre un string
-    const optionName =
-      typeof item === "string"
-        ? item
-        : item.label || item.name || String(item.value || item.id || "");
-    const isSelected = optionValue === value;
-
-    return (
-      <Pressable
-        style={({ pressed }) => [
-          styles.optionItem,
-          isSelected && styles.optionItemSelected,
-          pressed && styles.optionItemPressed,
-        ]}
-        onPress={() => handleSelect(item)}
-      >
-        <Text
-          style={[styles.optionText, isSelected && styles.optionTextSelected]}
-        >
-          {optionName}
-        </Text>
-        {isSelected && <Ionicons name="checkmark" size={20} color="#007AFF" />}
-      </Pressable>
-    );
-  };
-
-  // Preparar datos para la lista (incluir opción de limpiar si hay selección)
-  const listData = useMemo(() => {
-    const data = [];
-    // Agregar opción de limpiar selección solo si hay una selección activa
-    if (value && !required) {
-      data.push({ id: "", name: placeholder, value: "", label: placeholder });
-    }
-    // Agregar opciones filtradas
-    data.push(...filteredOptions);
-    return data;
-  }, [filteredOptions, value, placeholder, required]);
 
   return (
     <View style={[styles.container, !label && styles.containerNoLabel, style]}>
@@ -161,92 +86,23 @@ export const SelectFilter = ({
         >
           {displayText}
         </Text>
-        <Ionicons name="chevron-down" size={20} color="#666" />
+        <Ionicons name="chevron-down" size={18} color="#1B0977" />
       </TouchableOpacity>
 
-      <Modal
+      <SelectorModal
         visible={modalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleModalClose}
-      >
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity
-            style={StyleSheet.absoluteFill}
-            activeOpacity={1}
-            onPress={handleModalClose}
-          >
-            <View style={{ flex: 1 }} />
-          </TouchableOpacity>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.keyboardAvoidingView}
-            keyboardVerticalOffset={0}
-          >
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{label || placeholder}</Text>
-                <TouchableOpacity
-                  onPress={handleModalClose}
-                  style={styles.closeButton}
-                >
-                  <Ionicons name="close" size={24} color="#666" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Campo de búsqueda */}
-              {enableSearch && (
-                <View style={styles.searchContainer}>
-                  <Ionicons
-                    name="search"
-                    size={20}
-                    color="#999"
-                    style={styles.searchIcon}
-                  />
-                  <TextInput
-                    ref={searchInputRef}
-                    style={styles.searchInput}
-                    placeholder="Buscar..."
-                    placeholderTextColor="#999"
-                    value={searchText}
-                    onChangeText={setSearchText}
-                    autoFocus={false}
-                    blurOnSubmit={false}
-                    returnKeyType="done"
-                  />
-                  {searchText.length > 0 && (
-                    <TouchableOpacity
-                      onPress={() => setSearchText("")}
-                      style={styles.clearSearchButton}
-                    >
-                      <Ionicons name="close-circle" size={20} color="#999" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-
-              <FlatList
-                data={listData}
-                renderItem={renderOption}
-                keyExtractor={(item, index) =>
-                  (item.id || item).toString() + index
-                }
-                style={styles.optionsList}
-                contentContainerStyle={styles.optionsListContent}
-                keyboardShouldPersistTaps="always"
-                nestedScrollEnabled={true}
-                ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>
-                      No se encontraron resultados
-                    </Text>
-                  </View>
-                }
-              />
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+        onClose={() => setModalVisible(false)}
+        title={label || placeholder}
+        options={normalizedOptions}
+        value={value}
+        onSelect={handleSelect}
+        placeholder={placeholder}
+        allowClear={!required}
+        enableSearch={enableSearch}
+        emptyText={
+          enableSearch ? "No se encontraron resultados" : "No hay opciones"
+        }
+      />
     </View>
   );
 };
@@ -260,8 +116,8 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#1a1a1a",
+    fontWeight: "700",
+    color: "#1B0977",
     marginBottom: 8,
   },
   required: {
@@ -271,120 +127,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-    paddingHorizontal: 12,
+    minHeight: 52,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    paddingHorizontal: 16,
     paddingVertical: 12,
   },
   selectButtonDisabled: {
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#EEF2F7",
     opacity: 0.6,
   },
   selectText: {
     flex: 1,
-    fontSize: 16,
-    color: "#1a1a1a",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#0F172A",
     marginRight: 8,
   },
   selectTextPlaceholder: {
-    color: "#999",
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "#ffffff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    height: "70%",
-    maxHeight: "70%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1a1a1a",
-  },
-  closeButton: {
-    padding: 4,
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-    paddingHorizontal: 12,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    marginTop: 8,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: "#1a1a1a",
-  },
-  clearSearchButton: {
-    padding: 4,
-    marginLeft: 4,
-  },
-  optionsList: {
-    flex: 1,
-  },
-  optionsListContent: {
-    paddingBottom: 20,
-  },
-  emptyContainer: {
-    padding: 32,
-    alignItems: "center",
-  },
-  emptyText: {
-    fontSize: 16,
-    color: "#999",
-    textAlign: "center",
-  },
-  optionItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5",
-  },
-  optionItemSelected: {
-    backgroundColor: "#F0F8FF",
-  },
-  optionItemPressed: {
-    opacity: 0.7,
-  },
-  optionText: {
-    fontSize: 16,
-    color: "#1a1a1a",
-    flex: 1,
-  },
-  optionTextSelected: {
-    color: "#007AFF",
-    fontWeight: "600",
+    color: "#94A3B8",
   },
 });

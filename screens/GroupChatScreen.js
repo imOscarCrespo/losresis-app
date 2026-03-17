@@ -14,9 +14,9 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
+  Dimensions,
   Keyboard,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,7 +26,12 @@ import {
   subscribeToGroupMessages,
   unsubscribeFromGroupMessages,
 } from "../services/groupMessagesService";
-import { leaveGroup } from "../services/groupService";
+import {
+  getGroupMembership,
+  leaveGroup,
+  markGroupAsRead,
+  setGroupNotificationsMuted,
+} from "../services/groupService";
 import { getCurrentUser } from "../services/authService";
 import posthogLogger from "../services/posthogService";
 
@@ -38,9 +43,12 @@ const BG = "#F5F3FF";
 const WHITE = "#FFFFFF";
 const TEXT_MEDIUM = "#64748B";
 const TEXT_LIGHT = "#94A3B8";
+const TEXT_DARK = "#0F172A";
 const ERROR = "#EF4444";
 const MY_BUBBLE = "#6D28D9";
 const OTHER_BUBBLE = "#FFFFFF";
+const SURFACE = "#F8FAFC";
+const BORDER = "#E2E8F0";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 const formatTime = (dateStr) => {
@@ -92,7 +100,11 @@ const injectDateDividers = (messages) => {
 };
 
 // ── MessageBubble ─────────────────────────────────────────────────────
-function MessageBubble({ message, isOwn, showSenderName }) {
+const MessageBubble = React.memo(function MessageBubble({
+  message,
+  isOwn,
+  showSenderName,
+}) {
   const initials = getInitials(message.user?.name, message.user?.surname);
   const senderName = message.user
     ? `${message.user.name || ""} ${message.user.surname || ""}`.trim()
@@ -100,7 +112,7 @@ function MessageBubble({ message, isOwn, showSenderName }) {
 
   const avatarEl = (
     <View style={styles.avatarWrap}>
-      <View style={[styles.avatar, isOwn && styles.avatarOwn]}>
+      <View style={styles.avatar}>
         <Text style={[styles.avatarText, isOwn && styles.avatarTextOwn]}>
           {initials}
         </Text>
@@ -135,19 +147,27 @@ function MessageBubble({ message, isOwn, showSenderName }) {
           <Text style={[styles.messageText, isOwn && styles.messageTextOwn]}>
             {message.content}
           </Text>
-          <Text style={[styles.messageTime, isOwn && styles.messageTimeOwn]}>
-            {formatTime(message.created_at)}
-          </Text>
+          <View style={styles.messageMetaRow}>
+            <Text style={[styles.messageTime, isOwn && styles.messageTimeOwn]}>
+              {formatTime(message.created_at)}
+            </Text>
+            {isOwn ? (
+              <Ionicons
+                name="checkmark-done"
+                size={12}
+                color={WHITE + "B8"}
+                style={styles.messageStatusIcon}
+              />
+            ) : null}
+          </View>
         </View>
       </View>
-
-      {isOwn && avatarEl}
     </View>
   );
-}
+});
 
 // ── DateDivider ───────────────────────────────────────────────────────
-function DateDivider({ dateStr }) {
+const DateDivider = React.memo(function DateDivider({ dateStr }) {
   return (
     <View style={styles.dateDivider}>
       <View style={styles.dateDividerLine} />
@@ -155,7 +175,65 @@ function DateDivider({ dateStr }) {
       <View style={styles.dateDividerLine} />
     </View>
   );
-}
+});
+
+const ChatComposer = React.memo(function ChatComposer({
+  inputText,
+  onChangeText,
+  onFocus,
+  onBlur,
+  onSend,
+  sending,
+  bottomInset,
+}) {
+  return (
+    <View
+      style={[
+        styles.inputBar,
+        { paddingBottom: bottomInset },
+      ]}
+    >
+      <View style={styles.inputShell}>
+        <Ionicons
+          name="chatbox-ellipses-outline"
+          size={18}
+          color={TEXT_LIGHT}
+          style={styles.inputIcon}
+        />
+        <TextInput
+          style={styles.input}
+          value={inputText}
+          onChangeText={onChangeText}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onContentSizeChange={onFocus}
+          placeholder="Escribe un mensaje..."
+          placeholderTextColor={TEXT_LIGHT}
+          multiline
+          maxLength={2000}
+          returnKeyType="default"
+          scrollEnabled
+          textAlignVertical="top"
+        />
+      </View>
+      <TouchableOpacity
+        style={[
+          styles.sendBtn,
+          (!inputText.trim() || sending) && styles.sendBtnDisabled,
+        ]}
+        onPress={onSend}
+        disabled={!inputText.trim() || sending}
+        activeOpacity={0.8}
+      >
+        {sending ? (
+          <ActivityIndicator size="small" color={WHITE} />
+        ) : (
+          <Ionicons name="send" size={18} color={WHITE} />
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+});
 
 // ── GroupChatScreen ───────────────────────────────────────────────────
 export default function GroupChatScreen({
@@ -174,10 +252,26 @@ export default function GroupChatScreen({
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [muteLoading, setMuteLoading] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [composerHeight, setComposerHeight] = useState(72);
+  const [isComposerFocused, setIsComposerFocused] = useState(false);
 
   const flatListRef = useRef(null);
   const channelRef = useRef(null);
-  const inputRef = useRef(null);
+  const chatTouchStartRef = useRef(null);
+
+  const scrollToBottom = useCallback((animated = true) => {
+    requestAnimationFrame(() => {
+      flatListRef.current?.scrollToEnd({ animated });
+    });
+  }, []);
+
+  const syncReadState = useCallback(async () => {
+    if (!groupId || !currentUserId) return;
+    await markGroupAsRead(groupId, currentUserId);
+  }, [groupId, currentUserId]);
 
   useEffect(() => {
     posthogLogger.logScreen("GroupChatScreen", { groupId });
@@ -191,6 +285,55 @@ export default function GroupChatScreen({
     };
     loadUser();
   }, []);
+
+  useEffect(() => {
+    const loadMembership = async () => {
+      if (!groupId || !currentUserId) return;
+
+      const result = await getGroupMembership(groupId, currentUserId);
+      if (result.success && result.membership) {
+        setIsMuted(!!result.membership.notifications_muted);
+      }
+    };
+
+    loadMembership();
+  }, [groupId, currentUserId]);
+
+  useEffect(() => {
+    const windowHeight = Dimensions.get("window").height;
+
+    const getKeyboardHeight = (event) => {
+      if (!event?.endCoordinates) return 0;
+
+      if (Platform.OS === "ios") {
+        const keyboardTop = event.endCoordinates.screenY ?? windowHeight;
+        return Math.max(windowHeight - keyboardTop - insets.bottom, 0);
+      }
+
+      return Math.max(event.endCoordinates.height ?? 0, 0);
+    };
+
+    const handleKeyboardShow = (event) => {
+      setKeyboardHeight(getKeyboardHeight(event));
+    };
+
+    const handleKeyboardHide = () => {
+      setKeyboardHeight(0);
+    };
+
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillChangeFrame" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSubscription = Keyboard.addListener(showEvent, handleKeyboardShow);
+    const hideSubscription = Keyboard.addListener(hideEvent, handleKeyboardHide);
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [insets.bottom]);
 
   // Cargar mensajes iniciales
   const loadInitialMessages = useCallback(async () => {
@@ -206,9 +349,10 @@ export default function GroupChatScreen({
       setMessages(result.messages || []);
       setHasMore(result.hasMore);
       setPage(0);
+      await syncReadState();
     }
     setLoading(false);
-  }, [groupId]);
+  }, [groupId, syncReadState]);
 
   useEffect(() => {
     loadInitialMessages();
@@ -226,8 +370,9 @@ export default function GroupChatScreen({
       });
       // Scroll al nuevo mensaje si no es propio (si es propio ya scrolleamos al enviar)
       if (newMessage.user_id !== currentUserId) {
+        syncReadState();
         setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
+          scrollToBottom();
         }, 100);
       }
     });
@@ -237,16 +382,26 @@ export default function GroupChatScreen({
     return () => {
       unsubscribeFromGroupMessages(channelRef.current);
     };
-  }, [groupId, currentUserId]);
+  }, [groupId, currentUserId, scrollToBottom, syncReadState]);
 
   // Scroll al fondo al cargar mensajes iniciales
   useEffect(() => {
     if (!loading && messages.length > 0) {
       setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: false });
+        scrollToBottom(false);
       }, 100);
     }
-  }, [loading]);
+  }, [loading, messages.length, scrollToBottom]);
+
+  useEffect(() => {
+    if (keyboardHeight > 0 && messages.length > 0 && isComposerFocused) {
+      const timeoutId = setTimeout(() => {
+        scrollToBottom(false);
+      }, 50);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [keyboardHeight, composerHeight, isComposerFocused, messages.length, scrollToBottom]);
 
   const handleLoadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
@@ -282,12 +437,12 @@ export default function GroupChatScreen({
         return [...prev, result.message];
       });
       setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
+        scrollToBottom();
       }, 50);
     }
 
     setSending(false);
-  }, [inputText, currentUserId, sending, groupId]);
+  }, [currentUserId, groupId, inputText, scrollToBottom, sending]);
 
   const handleLeaveGroup = useCallback(() => {
     Alert.alert(
@@ -313,6 +468,50 @@ export default function GroupChatScreen({
       ]
     );
   }, [groupId, currentUserId, onBack]);
+
+  const handleToggleMute = useCallback(async () => {
+    if (!groupId || !currentUserId || muteLoading) return;
+
+    const nextMuted = !isMuted;
+    setMuteLoading(true);
+
+    const result = await setGroupNotificationsMuted(
+      groupId,
+      currentUserId,
+      nextMuted
+    );
+
+    if (result.success) {
+      setIsMuted(nextMuted);
+    } else {
+      Alert.alert(
+        "Error",
+        result.error || "No se pudo actualizar la configuracion del grupo"
+      );
+    }
+
+    setMuteLoading(false);
+  }, [groupId, currentUserId, isMuted, muteLoading]);
+
+  const handleComposerFocus = useCallback(() => {
+    setIsComposerFocused(true);
+    scrollToBottom();
+  }, [scrollToBottom]);
+
+  const handleComposerBlur = useCallback(() => {
+    setIsComposerFocused(false);
+  }, []);
+
+  const handleInputChange = useCallback((text) => {
+    setInputText(text);
+
+    if (keyboardHeight > 0) {
+      scrollToBottom(false);
+    }
+  }, [keyboardHeight, scrollToBottom]);
+
+  const composerBottomInset = 0;
+  const TAP_SLOP = 8;
 
   const displayData = useMemo(
     () => injectDateDividers(messages),
@@ -346,142 +545,211 @@ export default function GroupChatScreen({
   );
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={0}
-    >
+    <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={onBack}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={24} color={WHITE} />
-        </TouchableOpacity>
-
-        <View style={styles.headerInfo}>
-          <View style={styles.headerAvatar}>
-            <Ionicons name="people" size={18} color={WHITE} />
-          </View>
-          <View style={styles.headerText}>
-            <Text style={styles.headerName} numberOfLines={1}>
-              {groupName || "Grupo"}
-            </Text>
-            <Text style={styles.headerStatus}>Chat del grupo</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.leaveBtn}
-          onPress={handleLeaveGroup}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="exit-outline" size={22} color={WHITE + "CC"} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Contenido del chat */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PRIMARY} />
-          <Text style={styles.loadingText}>Cargando mensajes...</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={ERROR} />
-          <Text style={styles.errorText}>{error}</Text>
+      <View style={styles.headerWrap}>
+        <View style={styles.header}>
           <TouchableOpacity
-            style={styles.retryButton}
-            onPress={loadInitialMessages}
-            activeOpacity={0.85}
+            style={styles.backBtn}
+            onPress={onBack}
+            activeOpacity={0.7}
           >
-            <Text style={styles.retryButtonText}>Reintentar</Text>
+            <Ionicons name="arrow-back" size={22} color={ACCENT} />
           </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          ref={flatListRef}
-          data={displayData}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={[
-            styles.messagesList,
-            displayData.length === 0 && styles.messagesListEmpty,
-          ]}
-          showsVerticalScrollIndicator={false}
-          onScrollToIndexFailed={() => {}}
-          ListHeaderComponent={
-            loadingMore ? (
-              <View style={styles.loadingMoreWrap}>
-                <ActivityIndicator size="small" color={PRIMARY} />
-              </View>
-            ) : hasMore ? (
-              <TouchableOpacity
-                style={styles.loadOlderBtn}
-                onPress={handleLoadMore}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.loadOlderBtnText}>
-                  Cargar mensajes anteriores
-                </Text>
-              </TouchableOpacity>
-            ) : null
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyChat}>
-              <Ionicons
-                name="chatbubbles-outline"
-                size={56}
-                color={PRIMARY + "40"}
-              />
-              <Text style={styles.emptyChatTitle}>
-                ¡Sé el primero en escribir!
-              </Text>
-              <Text style={styles.emptyChatSubtitle}>
-                Empieza la conversación con tus compañeros
-              </Text>
-            </View>
-          }
-        />
-      )}
 
-      {/* Input bar */}
-      <View
-        style={[
-          styles.inputBar,
-          { paddingBottom: Math.max(insets.bottom, 12) },
-        ]}
-      >
-        <TextInput
-          ref={inputRef}
-          style={styles.input}
-          value={inputText}
-          onChangeText={setInputText}
-          placeholder="Escribe un mensaje..."
-          placeholderTextColor={TEXT_LIGHT}
-          multiline
-          maxLength={2000}
-          returnKeyType="default"
-        />
-        <TouchableOpacity
-          style={[
-            styles.sendBtn,
-            (!inputText.trim() || sending) && styles.sendBtnDisabled,
-          ]}
-          onPress={handleSend}
-          disabled={!inputText.trim() || sending}
-          activeOpacity={0.8}
-        >
-          {sending ? (
-            <ActivityIndicator size="small" color={WHITE} />
-          ) : (
-            <Ionicons name="send" size={18} color={WHITE} />
-          )}
-        </TouchableOpacity>
+          <View style={styles.headerInfo}>
+            <View style={styles.headerAvatar}>
+              <Ionicons name="people" size={18} color={WHITE} />
+            </View>
+            <View style={styles.headerText}>
+              <Text style={styles.headerEyebrow}>Grupo</Text>
+              <Text style={styles.headerName} numberOfLines={1}>
+                {groupName || "Grupo"}
+              </Text>
+              <View style={styles.headerStatusRow}>
+                <View
+                  style={[
+                    styles.statusDot,
+                    isMuted && styles.statusDotMuted,
+                  ]}
+                />
+                <Text style={styles.headerStatus}>
+                  {isMuted ? "Notificaciones silenciadas" : "Notificaciones activas"}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerIconBtn}
+              onPress={handleToggleMute}
+              activeOpacity={0.7}
+              disabled={muteLoading}
+            >
+              {muteLoading ? (
+                <ActivityIndicator size="small" color={PRIMARY} />
+              ) : (
+                <Ionicons
+                  name={
+                    isMuted
+                      ? "notifications-off-outline"
+                      : "notifications-outline"
+                  }
+                  size={18}
+                  color={PRIMARY}
+                />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.headerIconBtn, styles.leaveBtn]}
+              onPress={handleLeaveGroup}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="exit-outline" size={18} color={ERROR} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
-    </KeyboardAvoidingView>
+
+      <View style={styles.chatArea}>
+        <View
+          style={[
+            styles.chatContent,
+            { paddingBottom: keyboardHeight },
+          ]}
+        >
+          <View style={styles.chatStage}>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={PRIMARY} />
+                <Text style={styles.loadingText}>Cargando mensajes...</Text>
+              </View>
+            ) : error ? (
+              <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle" size={48} color={ERROR} />
+                <Text style={styles.errorText}>{error}</Text>
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={loadInitialMessages}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.retryButtonText}>Reintentar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <FlatList
+                ref={flatListRef}
+                data={displayData}
+                keyExtractor={(item) => item.id}
+                renderItem={renderItem}
+                keyboardShouldPersistTaps="always"
+                keyboardDismissMode="none"
+                style={styles.messagesList}
+                contentContainerStyle={[
+                  styles.messagesListContent,
+                  displayData.length === 0 && styles.messagesListContentEmpty,
+                ]}
+                showsVerticalScrollIndicator={false}
+                onTouchStart={(event) => {
+                  const { pageX, pageY } = event.nativeEvent;
+                  chatTouchStartRef.current = { pageX, pageY };
+                }}
+                onTouchEnd={(event) => {
+                  if (keyboardHeight <= 0 || !chatTouchStartRef.current) {
+                    chatTouchStartRef.current = null;
+                    return;
+                  }
+
+                  const { pageX, pageY } = event.nativeEvent;
+                  const deltaX = Math.abs(pageX - chatTouchStartRef.current.pageX);
+                  const deltaY = Math.abs(pageY - chatTouchStartRef.current.pageY);
+
+                  if (deltaX <= TAP_SLOP && deltaY <= TAP_SLOP) {
+                    Keyboard.dismiss();
+                  }
+
+                  chatTouchStartRef.current = null;
+                }}
+                onTouchCancel={() => {
+                  chatTouchStartRef.current = null;
+                }}
+                onScrollBeginDrag={() => {
+                  chatTouchStartRef.current = null;
+                }}
+                onScrollToIndexFailed={() => {}}
+                ListHeaderComponent={
+                  loadingMore ? (
+                    <View style={styles.loadingMoreWrap}>
+                      <ActivityIndicator size="small" color={PRIMARY} />
+                    </View>
+                  ) : hasMore ? (
+                    <TouchableOpacity
+                      style={styles.loadOlderBtn}
+                      onPress={handleLoadMore}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.loadOlderBtnText}>
+                        Cargar mensajes anteriores
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null
+                }
+                ListEmptyComponent={
+                  <View style={styles.emptyChat}>
+                    <View style={styles.emptyChatIconWrap}>
+                      <Ionicons
+                        name="chatbubbles-outline"
+                        size={34}
+                        color={PRIMARY}
+                      />
+                    </View>
+                    <Text style={styles.emptyChatTitle}>
+                      Empieza la conversación
+                    </Text>
+                    <Text style={styles.emptyChatSubtitle}>
+                      Este grupo todavía no tiene mensajes. Rompe el hielo con una
+                      primera pregunta o comparte algo util.
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
+
+          <View
+            style={styles.composerWrap}
+            onTouchStart={() => {
+              if (messages.length > 0) {
+                scrollToBottom(false);
+              }
+            }}
+            onLayout={(event) => {
+              const nextHeight = Math.ceil(event.nativeEvent.layout.height);
+              if (nextHeight > 0 && nextHeight !== composerHeight) {
+                setComposerHeight(nextHeight);
+                if (isComposerFocused && messages.length > 0) {
+                  requestAnimationFrame(() => {
+                    scrollToBottom(false);
+                  });
+                }
+              }
+            }}
+          >
+            <ChatComposer
+              inputText={inputText}
+              onChangeText={handleInputChange}
+              onFocus={handleComposerFocus}
+              onBlur={handleComposerBlur}
+              onSend={handleSend}
+              sending={sending}
+              bottomInset={composerBottomInset}
+            />
+          </View>
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -491,27 +759,43 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BG,
   },
+  chatArea: {
+    flex: 1,
+    position: "relative",
+  },
+  chatContent: {
+    flex: 1,
+  },
 
   // Header
+  headerWrap: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    backgroundColor: BG,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: PRIMARY,
-    paddingHorizontal: 8,
-    paddingBottom: 12,
-    gap: 4,
-    shadowColor: ACCENT,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    backgroundColor: WHITE,
+    borderRadius: 24,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: BORDER,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 3,
   },
   backBtn: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 22,
+    borderRadius: 20,
+    backgroundColor: PRIMARY + "12",
   },
   headerInfo: {
     flex: 1,
@@ -521,10 +805,10 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   headerAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: WHITE + "20",
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: PRIMARY,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -532,34 +816,79 @@ const styles = StyleSheet.create({
   headerText: {
     flex: 1,
   },
-  headerName: {
-    fontSize: 17,
+  headerEyebrow: {
+    fontSize: 11,
     fontWeight: "700",
-    color: WHITE,
+    color: PRIMARY,
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+    marginBottom: 2,
+  },
+  headerName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: TEXT_DARK,
     letterSpacing: -0.2,
+  },
+  headerStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 3,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: GREEN,
+  },
+  statusDotMuted: {
+    backgroundColor: TEXT_LIGHT,
   },
   headerStatus: {
     fontSize: 12,
-    color: WHITE + "AA",
-    marginTop: 1,
+    color: TEXT_MEDIUM,
   },
-  leaveBtn: {
-    width: 44,
-    height: 44,
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerIconBtn: {
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 22,
+    borderRadius: 20,
+    backgroundColor: PRIMARY + "10",
+  },
+  leaveBtn: {
+    backgroundColor: ERROR + "10",
   },
 
   // Chat list
-  messagesList: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    gap: 2,
-  },
-  messagesListEmpty: {
+  chatStage: {
     flex: 1,
+    marginHorizontal: 12,
+    backgroundColor: SURFACE,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: BORDER,
+    overflow: "hidden",
+  },
+  messagesList: {
+    flex: 1,
+  },
+  messagesListContent: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 12,
+    gap: 4,
+    flexGrow: 1,
+  },
+  messagesListContentEmpty: {
     justifyContent: "center",
+    paddingVertical: 32,
   },
   loadingContainer: {
     flex: 1,
@@ -615,8 +944,22 @@ const styles = StyleSheet.create({
   // Empty state
   emptyChat: {
     alignItems: "center",
-    paddingVertical: 40,
+    marginHorizontal: 20,
+    paddingVertical: 36,
+    paddingHorizontal: 24,
     gap: 10,
+    backgroundColor: WHITE,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  emptyChatIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: PRIMARY + "12",
+    alignItems: "center",
+    justifyContent: "center",
   },
   emptyChatTitle: {
     fontSize: 17,
@@ -632,7 +975,7 @@ const styles = StyleSheet.create({
   // Message row
   messageRow: {
     flexDirection: "row",
-    marginVertical: 3,
+    marginVertical: 5,
     alignItems: "flex-end",
     gap: 8,
   },
@@ -648,14 +991,17 @@ const styles = StyleSheet.create({
     width: 32,
     flexShrink: 0,
     alignSelf: "flex-end",
+    marginBottom: 2,
   },
   avatar: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: PRIMARY + "20",
+    borderRadius: 12,
+    backgroundColor: PRIMARY + "14",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: PRIMARY + "18",
   },
   avatarOwn: {
     backgroundColor: WHITE,
@@ -673,7 +1019,7 @@ const styles = StyleSheet.create({
 
   // Bubble
   bubbleWrap: {
-    maxWidth: "72%",
+    maxWidth: "78%",
   },
   bubbleWrapOwn: {
     alignItems: "flex-end",
@@ -682,48 +1028,59 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   senderName: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
     color: PRIMARY,
-    marginBottom: 3,
-    marginLeft: 4,
+    marginBottom: 5,
+    marginLeft: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   bubble: {
-    borderRadius: 18,
+    borderRadius: 22,
     paddingHorizontal: 14,
-    paddingVertical: 9,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    paddingTop: 11,
+    paddingBottom: 8,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 1,
+    shadowRadius: 12,
+    elevation: 2,
   },
   bubbleOwn: {
     backgroundColor: MY_BUBBLE,
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: 8,
   },
   bubbleOther: {
     backgroundColor: OTHER_BUBBLE,
-    borderBottomLeftRadius: 4,
+    borderBottomLeftRadius: 8,
     borderWidth: 1,
-    borderColor: "#EDE9FE",
+    borderColor: "#E9E2FF",
   },
   messageText: {
     fontSize: 15,
-    color: ACCENT,
-    lineHeight: 21,
+    color: TEXT_DARK,
+    lineHeight: 22,
   },
   messageTextOwn: {
     color: WHITE,
   },
+  messageMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+    marginTop: 6,
+  },
   messageTime: {
     fontSize: 11,
     color: TEXT_LIGHT,
-    marginTop: 4,
-    alignSelf: "flex-end",
   },
   messageTimeOwn: {
     color: WHITE + "99",
+  },
+  messageStatusIcon: {
+    marginTop: 1,
   },
 
   // Date divider
@@ -736,14 +1093,17 @@ const styles = StyleSheet.create({
   dateDividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#D8E1EE",
   },
   dateDividerText: {
     fontSize: 12,
     fontWeight: "600",
     color: TEXT_MEDIUM,
-    backgroundColor: BG,
-    paddingHorizontal: 8,
+    backgroundColor: WHITE,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    overflow: "hidden",
   },
 
   // Input bar
@@ -752,38 +1112,58 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     gap: 10,
     paddingHorizontal: 12,
-    paddingTop: 10,
+    paddingTop: 8,
+    backgroundColor: "transparent",
+  },
+  composerWrap: {
+    backgroundColor: "transparent",
+  },
+  inputShell: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    minHeight: 52,
+    maxHeight: 132,
     backgroundColor: WHITE,
-    borderTopWidth: 1,
-    borderTopColor: "#EDE9FE",
+    borderRadius: 26,
+    paddingLeft: 14,
+    paddingRight: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: BORDER,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    elevation: 2,
+  },
+  inputIcon: {
+    marginBottom: 10,
+    marginRight: 8,
   },
   input: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 40,
     maxHeight: 120,
-    backgroundColor: BG,
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
     fontSize: 15,
-    color: ACCENT,
-    borderWidth: 1,
-    borderColor: "#EDE9FE",
-    lineHeight: 20,
+    color: TEXT_DARK,
+    lineHeight: 21,
+    paddingTop: 9,
+    paddingBottom: 9,
   },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: PRIMARY,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
     shadowColor: PRIMARY,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 4,
   },
   sendBtnDisabled: {
     backgroundColor: TEXT_LIGHT,

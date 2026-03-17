@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#6366f1",
+                        "background-light": "#f8f7ff",
+                        "background-dark": "#0f172a",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Public Sans', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .filled-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="max-w-md mx-auto min-h-screen flex flex-col relative pb-24">
+<!-- Header -->
+<header class="sticky top-0 z-10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md px-4 pt-6 pb-4">
+<div class="flex items-center justify-between">
+<button class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-200/50 dark:bg-slate-800/50">
+<span class="material-symbols-outlined text-slate-700 dark:text-slate-300">arrow_back_ios_new</span>
+</button>
+<h1 class="text-xl font-bold font-display">Añadir Curso</h1>
+<div class="w-10"></div> <!-- Spacer for centering -->
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-1 px-4 space-y-6 mt-2">
+<!-- Progress / Info Card -->
+<div class="bg-primary/10 dark:bg-primary/20 p-4 rounded-xl border border-primary/20">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-primary rounded-lg text-white">
+<span class="material-symbols-outlined">school</span>
+</div>
+<div>
+<p class="text-sm font-semibold text-primary">Nuevo Registro</p>
+<p class="text-xs text-slate-600 dark:text-slate-400">Completa la información del curso realizado.</p>
+</div>
+</div>
+</div>
+<!-- Form Fields -->
+<div class="space-y-4">
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold px-1 text-slate-700 dark:text-slate-300">Nombre del Curso
+<input class="w-full h-14 px-4 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-primary focus:border-primary text-base" placeholder="Ej. Soporte Vital Avanzado" type="text"/>
+</label></div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold px-1 text-slate-700 dark:text-slate-300">Institución
+<input class="w-full h-14 px-4 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-primary focus:border-primary text-base" placeholder="Ej. Hospital Universitario" type="text"/>
+</label></div>
+<div class="grid grid-cols-2 gap-4">
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold px-1 text-slate-700 dark:text-slate-300">Fecha
+<div class="relative">
+<input class="w-full h-14 pl-4 pr-10 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-primary focus:border-primary text-base" placeholder="DD/MM/AAAA" type="text"/>
+<span class="material-symbols-outlined absolute right-3 top-4 text-slate-400">calendar_today</span>
+</div>
+</label></div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold px-1 text-slate-700 dark:text-slate-300">Duración (hs)
+<div class="relative">
+<input class="w-full h-14 pl-4 pr-10 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-primary focus:border-primary text-base" placeholder="Ej. 40" type="number"/>
+<span class="material-symbols-outlined absolute right-3 top-4 text-slate-400">schedule</span>
+</div>
+</label></div>
+</div>
+<!-- Certificate Upload Section -->
+<div class="flex flex-col gap-2 mt-4">
+<label class="text-sm font-semibold px-1 text-slate-700 dark:text-slate-300">Certificado
+<div class="grid grid-cols-2 gap-4">
+<button class="flex flex-col items-center justify-center gap-2 p-6 bg-white dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-primary text-3xl">photo_camera</span>
+<span class="text-xs font-medium text-slate-600 dark:text-slate-400">Tomar Foto</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-6 bg-white dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-primary text-3xl">upload_file</span>
+<span class="text-xs font-medium text-slate-600 dark:text-slate-400">Subir PDF</span>
+</button>
+</div>
+</label></div>
+</div>
+<!-- Submit Button -->
+<div class="pt-4">
+<button class="w-full h-14 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 active:scale-[0.98] transition-transform">
+                    Guardar Curso
+                </button>
+</div>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 py-3 flex justify-between items-center z-20">
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="text-[10px] font-medium">Inicio</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined filled-icon">school</span>
+<span class="text-[10px] font-medium">Cursos</span>
+</a>
+<div class="relative -top-6">
+<button class="bg-primary text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center border-4 border-background-light dark:border-background-dark">
+<span class="material-symbols-outlined text-3xl">add</span>
+</button>
+</div>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">calendar_month</span>
+<span class="text-[10px] font-medium">Turnos</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-medium">Perfil</span>
+</a>
+</nav>
+</div>
+</body></html>

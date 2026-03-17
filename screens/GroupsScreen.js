@@ -3,7 +3,6 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
-  useRef,
 } from "react";
 import {
   View,
@@ -20,17 +19,20 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getGroups,
   getUserMemberships,
+  getGroupMemberCounts,
+  getGroupUnreadCounts,
   joinGroup,
   getGroupCities,
-  getGroupSpecialities,
 } from "../services/groupService";
 import { getCurrentUser } from "../services/authService";
 import posthogLogger from "../services/posthogService";
+import { FloatingActionButton } from "../components/FloatingActionButton";
 
 // ── Paleta ───────────────────────────────────────────────────────────
 const PRIMARY = "#6D28D9";
@@ -42,11 +44,71 @@ const TEXT_MEDIUM = "#64748B";
 const TEXT_LIGHT = "#94A3B8";
 const BORDER = "#EDE9FE";
 const ERROR = "#EF4444";
+const DEFAULT_RESIDENT_GROUPS_KEY_PREFIX = "@losresis:resident-default-groups:";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 const getUserType = (userProfile) => {
+  if (userProfile?.is_resident) return "resident";
   if (userProfile?.is_student) return "student";
   return "resident";
+};
+
+const getResidentDefaultGroupsStorageKey = (userId) =>
+  `${DEFAULT_RESIDENT_GROUPS_KEY_PREFIX}${userId}`;
+
+const getResidentDefaultMatchFlags = (group, residentContext) => {
+  const isGeneralCityGroup = !group.speciality_id && !group.hospital_id;
+  const isGeneralHospitalGroup = !group.speciality_id && !!group.hospital_id;
+  const isGeneralSpecialityGroup =
+    !!group.speciality_id && !group.city && !group.hospital_id;
+  const isHospitalSpecialityGroup =
+    !!group.speciality_id && !!group.hospital_id && !group.city;
+  const isCitySpecialityGroup =
+    !!group.speciality_id && !!group.city && !group.hospital_id;
+  const matchesCity =
+    isGeneralCityGroup &&
+    !!residentContext.city &&
+    group.city?.trim()?.toLowerCase() === residentContext.city;
+  const matchesHospital =
+    isGeneralHospitalGroup &&
+    !!residentContext.hospitalId &&
+    group.hospital_id === residentContext.hospitalId;
+  const matchesSpeciality =
+    isGeneralSpecialityGroup &&
+    !!residentContext.specialityId &&
+    group.speciality_id === residentContext.specialityId;
+  const matchesHospitalSpeciality =
+    isHospitalSpecialityGroup &&
+    !!residentContext.hospitalId &&
+    !!residentContext.specialityId &&
+    group.hospital_id === residentContext.hospitalId &&
+    group.speciality_id === residentContext.specialityId;
+  const matchesCitySpeciality =
+    isCitySpecialityGroup &&
+    !!residentContext.city &&
+    !!residentContext.specialityId &&
+    group.city?.trim()?.toLowerCase() === residentContext.city &&
+    group.speciality_id === residentContext.specialityId;
+
+  return {
+    matchesCity,
+    matchesHospital,
+    matchesSpeciality,
+    matchesHospitalSpeciality,
+    matchesCitySpeciality,
+  };
+};
+
+const isResidentDefaultGroup = (group, residentContext) => {
+  const flags = getResidentDefaultMatchFlags(group, residentContext);
+
+  return (
+    flags.matchesCity ||
+    flags.matchesHospital ||
+    flags.matchesSpeciality ||
+    flags.matchesHospitalSpeciality ||
+    flags.matchesCitySpeciality
+  );
 };
 
 // ── RadioDot ─────────────────────────────────────────────────────────
@@ -192,6 +254,9 @@ function FilterModal({ visible, onClose, title, options, value, onSelect, placeh
 // ── GroupCard ─────────────────────────────────────────────────────────
 function GroupCard({ group, isMember, joiningId, onPress }) {
   const isJoining = joiningId === group.id;
+  const locationLabel = group.hospital?.name || group.city || "Sin ubicación";
+  const specialityLabel = group.speciality?.name || "Grupo general";
+  const unreadCount = Number(group.unread_count || 0);
 
   return (
     <TouchableOpacity
@@ -213,20 +278,32 @@ function GroupCard({ group, isMember, joiningId, onPress }) {
       </View>
 
       <View style={styles.cardBody}>
-        <Text style={styles.cardName} numberOfLines={2}>
-          {group.name}
-        </Text>
+        <View style={styles.cardTitleRow}>
+          <Text style={styles.cardName} numberOfLines={2}>
+            {group.name}
+          </Text>
+
+          {isMember && unreadCount > 0 ? (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadBadgeText}>
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </Text>
+            </View>
+          ) : null}
+        </View>
 
         <View style={styles.cardMeta}>
           <View style={styles.metaItem}>
             <Ionicons name="medical-outline" size={12} color={TEXT_MEDIUM} />
             <Text style={styles.metaText} numberOfLines={1}>
-              {group.speciality?.name || "—"}
+              {specialityLabel}
             </Text>
           </View>
           <View style={styles.metaItem}>
             <Ionicons name="location-outline" size={12} color={TEXT_MEDIUM} />
-            <Text style={styles.metaText}>{group.city}</Text>
+            <Text style={styles.metaText} numberOfLines={1}>
+              {locationLabel}
+            </Text>
           </View>
         </View>
 
@@ -290,22 +367,49 @@ function FilterChip({ label, active, icon, onPress }) {
 
 // ── GroupsScreen ──────────────────────────────────────────────────────
 export default function GroupsScreen({ onSectionChange, userProfile }) {
+  const insets = useSafeAreaInsets();
   const [groups, setGroups] = useState([]);
   const [memberGroupIds, setMemberGroupIds] = useState(new Set());
+  const [persistedResidentGroupIds, setPersistedResidentGroupIds] = useState(
+    new Set()
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [joiningId, setJoiningId] = useState(null);
   const [showMyGroups, setShowMyGroups] = useState(false);
+  const [relatedGroupCounts, setRelatedGroupCounts] = useState({});
+  const [unreadByGroupId, setUnreadByGroupId] = useState({});
 
   const [cityFilter, setCityFilter] = useState(null);
-  const [specialityFilter, setSpecialityFilter] = useState(null);
   const [availableCities, setAvailableCities] = useState([]);
-  const [availableSpecialities, setAvailableSpecialities] = useState([]);
-  const [openModal, setOpenModal] = useState(null); // 'city' | 'speciality' | null
+  const [openModal, setOpenModal] = useState(null); // 'city' | null
+  const [isExploringAll, setIsExploringAll] = useState(false);
 
   const userType = getUserType(userProfile);
+  const isResidentUser = !!userProfile?.is_resident;
+  const isStudentUser = !!userProfile?.is_student;
+  const studentCity = userProfile?.city?.trim()?.toLowerCase() || null;
+  const residentCity = userProfile?.city?.trim()?.toLowerCase() || null;
+  const residentHospitalId = userProfile?.hospital_id || null;
+  const residentSpecialityId = userProfile?.speciality_id || null;
+  const residentContext = useMemo(
+    () => ({
+      city: residentCity,
+      hospitalId: residentHospitalId,
+      specialityId: residentSpecialityId,
+    }),
+    [residentCity, residentHospitalId, residentSpecialityId]
+  );
+  const shouldShowExploreFilters = !isResidentUser || isExploringAll;
+  const activeQueryFilters = useMemo(() => {
+    if (!shouldShowExploreFilters) return {};
+
+    return {
+      city: cityFilter || undefined,
+    };
+  }, [shouldShowExploreFilters, cityFilter]);
 
   useEffect(() => {
     posthogLogger.logScreen("GroupsScreen", { userType });
@@ -324,18 +428,15 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
       setError(null);
 
       const uid = userId ?? currentUserId;
+      let nextPersistedResidentGroupIds = new Set();
 
-      const [groupsResult, membershipsResult, citiesResult, specialitiesResult] =
+      const [groupsResult, membershipsResult, citiesResult] =
         await Promise.all([
-          getGroups(userType, {
-            city: cityFilter || undefined,
-            specialityId: specialityFilter || undefined,
-          }),
+          getGroups(userType, activeQueryFilters),
           uid
             ? getUserMemberships(uid)
             : Promise.resolve({ success: true, memberships: [] }),
           getGroupCities(userType),
-          getGroupSpecialities(userType),
         ]);
 
       if (!groupsResult.success) {
@@ -345,16 +446,84 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
       }
 
       if (membershipsResult.success) {
-        setMemberGroupIds(
-          new Set((membershipsResult.memberships || []).map((m) => m.group_id))
+        const nextMemberGroupIds = new Set(
+          (membershipsResult.memberships || []).map((m) => m.group_id)
         );
+        setMemberGroupIds(nextMemberGroupIds);
+
+        const unreadResult = await getGroupUnreadCounts(
+          Array.from(nextMemberGroupIds)
+        );
+        if (unreadResult.success) {
+          setUnreadByGroupId(unreadResult.unreadByGroupId);
+        } else {
+          setUnreadByGroupId({});
+        }
+
+        if (uid && isResidentUser) {
+          try {
+            const persistedGroupIdsRaw = await AsyncStorage.getItem(
+              getResidentDefaultGroupsStorageKey(uid)
+            );
+            const persistedGroupIds = persistedGroupIdsRaw
+              ? JSON.parse(persistedGroupIdsRaw)
+              : [];
+            nextPersistedResidentGroupIds = new Set(persistedGroupIds);
+            setPersistedResidentGroupIds(nextPersistedResidentGroupIds);
+          } catch (storageError) {
+            console.error(
+              "Error loading persisted resident groups:",
+              storageError
+            );
+            nextPersistedResidentGroupIds = new Set();
+            setPersistedResidentGroupIds(new Set());
+          }
+        } else {
+          nextPersistedResidentGroupIds = new Set();
+          setPersistedResidentGroupIds(new Set());
+        }
+
+        if (groupsResult.success) {
+          const sourceGroups = groupsResult.groups || [];
+          const relatedGroupIds = isResidentUser && !isExploringAll
+            ? sourceGroups
+                .filter((group) => {
+                  const isMember = nextMemberGroupIds.has(group.id);
+                  const isPersistedResidentGroup =
+                    nextPersistedResidentGroupIds.has(group.id);
+
+                  return (
+                    isMember ||
+                    isPersistedResidentGroup ||
+                    isResidentDefaultGroup(group, residentContext)
+                  );
+                })
+                .map((group) => group.id)
+            : [];
+
+          const countsResult = await getGroupMemberCounts(relatedGroupIds);
+          if (countsResult.success) {
+            setRelatedGroupCounts(countsResult.countsByGroupId);
+          } else {
+            setRelatedGroupCounts({});
+          }
+        }
+      } else {
+        setPersistedResidentGroupIds(new Set());
+        setRelatedGroupCounts({});
+        setUnreadByGroupId({});
       }
 
       if (citiesResult.success) setAvailableCities(citiesResult.cities);
-      if (specialitiesResult.success)
-        setAvailableSpecialities(specialitiesResult.specialities);
     },
-    [userType, cityFilter, specialityFilter, currentUserId]
+    [
+      userType,
+      currentUserId,
+      activeQueryFilters,
+      isResidentUser,
+      isExploringAll,
+      residentContext,
+    ]
   );
 
   // Cargar usuario y después datos
@@ -375,13 +544,26 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cityFilter, specialityFilter, userType]);
+  }, [userType, isExploringAll, cityFilter]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
   }, [loadData]);
+
+  const handleToggleExploreAll = useCallback(() => {
+    setIsExploringAll((prev) => {
+      const nextValue = !prev;
+
+      if (nextValue) {
+        setShowMyGroups(false);
+        setCityFilter(null);
+      }
+
+      return nextValue;
+    });
+  }, []);
 
   const handleGroupPress = useCallback(
     async (group) => {
@@ -390,6 +572,13 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
       const isMember = memberGroupIds.has(group.id);
 
       if (isMember) {
+        setUnreadByGroupId((prev) => ({
+          ...prev,
+          [group.id]: {
+            ...(prev[group.id] || {}),
+            unreadCount: 0,
+          },
+        }));
         onSectionChange?.("groupChat", {
           groupId: group.id,
           groupName: group.name,
@@ -406,7 +595,34 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
         );
 
         if (success) {
+          if (
+            isResidentUser &&
+            !isExploringAll &&
+            isResidentDefaultGroup(group, residentContext)
+          ) {
+            const nextPersistedGroupIds = new Set([
+              ...persistedResidentGroupIds,
+              group.id,
+            ]);
+            setPersistedResidentGroupIds(nextPersistedGroupIds);
+            try {
+              await AsyncStorage.setItem(
+                getResidentDefaultGroupsStorageKey(currentUserId),
+                JSON.stringify([...nextPersistedGroupIds])
+              );
+            } catch (storageError) {
+              console.error(
+                "Error persisting resident default group:",
+                storageError
+              );
+            }
+          }
+
           setMemberGroupIds((prev) => new Set([...prev, group.id]));
+          setUnreadByGroupId((prev) => ({
+            ...prev,
+            [group.id]: { unreadCount: 0, lastMessageAt: null },
+          }));
           setGroups((prev) =>
             prev.map((g) =>
               g.id === group.id
@@ -425,35 +641,92 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
         setJoiningId(null);
       }
     },
-    [currentUserId, memberGroupIds, onSectionChange]
+    [
+      currentUserId,
+      memberGroupIds,
+      onSectionChange,
+      isResidentUser,
+      isExploringAll,
+      residentContext,
+      persistedResidentGroupIds,
+    ]
   );
 
-  const filteredGroups = useMemo(() => {
-    if (showMyGroups) {
-      return groups.filter((g) => memberGroupIds.has(g.id));
-    }
-    return groups;
-  }, [groups, showMyGroups, memberGroupIds]);
-
-  const hasFilters = !!(cityFilter || specialityFilter);
+  const hasFilters = !!cityFilter;
   const userTypeLabel = userType === "student" ? "Estudiantes" : "Residentes";
+  const showResidentScopeNote = isResidentUser && !isExploringAll;
+  const showStudentScopeNote = isStudentUser && !isExploringAll;
+
+  const filteredGroups = useMemo(() => {
+    let nextGroups = groups;
+
+    if (isResidentUser && !isExploringAll) {
+      nextGroups = groups.filter((group) => {
+        const isMember = memberGroupIds.has(group.id);
+        const isPersistedResidentGroup = persistedResidentGroupIds.has(group.id);
+
+        return (
+          isMember ||
+          isPersistedResidentGroup ||
+          isResidentDefaultGroup(group, residentContext)
+        );
+      });
+    }
+
+    if (isStudentUser && !isExploringAll) {
+      nextGroups = groups.filter((group) => {
+        const isMember = memberGroupIds.has(group.id);
+        const matchesStudentCity =
+          !!studentCity &&
+          !group.speciality_id &&
+          !group.hospital_id &&
+          group.city?.trim()?.toLowerCase() === studentCity;
+
+        return isMember || matchesStudentCity;
+      });
+    }
+
+    if (shouldShowExploreFilters && !showMyGroups) {
+      nextGroups = nextGroups.filter(
+        (group) => !group.speciality_id && !group.hospital_id
+      );
+    }
+
+    if (showMyGroups) {
+      nextGroups = nextGroups.filter((group) => memberGroupIds.has(group.id));
+    }
+
+    return nextGroups;
+  }, [
+    groups,
+    showMyGroups,
+    memberGroupIds,
+    persistedResidentGroupIds,
+    isResidentUser,
+    isStudentUser,
+    isExploringAll,
+    shouldShowExploreFilters,
+    studentCity,
+    residentContext,
+  ]);
+
+  const displayGroups = useMemo(
+    () =>
+      filteredGroups.map((group) => ({
+        ...group,
+        member_count:
+          showResidentScopeNote && relatedGroupCounts[group.id] != null
+            ? relatedGroupCounts[group.id]
+            : group.member_count,
+        unread_count: unreadByGroupId[group.id]?.unreadCount || 0,
+      })),
+    [filteredGroups, showResidentScopeNote, relatedGroupCounts, unreadByGroupId]
+  );
 
   const cityOptions = useMemo(
     () => availableCities.map((c) => ({ id: c, name: c })),
     [availableCities]
   );
-  const specialityOptions = useMemo(
-    () => availableSpecialities.map((s) => ({ id: s.id, name: s.name })),
-    [availableSpecialities]
-  );
-
-  const specialityLabel = useMemo(() => {
-    if (!specialityFilter) return "Especialidad";
-    return (
-      availableSpecialities.find((s) => s.id === specialityFilter)?.name ||
-      "Especialidad"
-    );
-  }, [specialityFilter, availableSpecialities]);
 
   const ListHeader = (
     <View style={styles.listHeader}>
@@ -461,7 +734,13 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
       <View style={styles.titleRow}>
         <View>
           <Text style={styles.screenTitle}>Grupos</Text>
-          <Text style={styles.screenSubtitle}>{userTypeLabel}</Text>
+          <Text style={styles.screenSubtitle}>
+            {showResidentScopeNote
+              ? "Tus grupos y tu entorno"
+              : showStudentScopeNote
+              ? "Tu ciudad"
+              : userTypeLabel}
+          </Text>
         </View>
         <TouchableOpacity
           style={[styles.myGroupsChip, showMyGroups && styles.myGroupsChipActive]}
@@ -484,48 +763,61 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
         </TouchableOpacity>
       </View>
 
-      {/* Filter chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filtersScroll}
-        contentContainerStyle={styles.filtersRow}
-      >
-        <FilterChip
-          label={cityFilter || "Ciudad"}
-          active={!!cityFilter}
-          icon="business-outline"
-          onPress={() => setOpenModal("city")}
-        />
-        <FilterChip
-          label={specialityLabel}
-          active={!!specialityFilter}
-          icon="medical-outline"
-          onPress={() => setOpenModal("speciality")}
-        />
-        {hasFilters && (
-          <TouchableOpacity
-            style={styles.chipClear}
-            onPress={() => {
-              setCityFilter(null);
-              setSpecialityFilter(null);
-            }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="close-circle" size={14} color={ERROR} />
-            <Text style={styles.chipClearText}>Limpiar</Text>
-          </TouchableOpacity>
-        )}
-      </ScrollView>
+      {showResidentScopeNote ? (
+        <View style={styles.scopeBanner}>
+          <Ionicons name="information-circle-outline" size={16} color={PRIMARY} />
+          <Text style={styles.scopeBannerText}>
+            Mostramos los grupos a los que ya te has unido, los de tu ciudad y
+            los de tu hospital. Usa el botón flotante para buscar más grupos.
+          </Text>
+        </View>
+      ) : showStudentScopeNote ? (
+        <View style={styles.scopeBanner}>
+          <Ionicons name="information-circle-outline" size={16} color={PRIMARY} />
+          <Text style={styles.scopeBannerText}>
+            Mostramos el grupo de la ciudad vinculada a tu perfil. Usa el botón
+            flotante para explorar más grupos de ciudad.
+          </Text>
+        </View>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filtersScroll}
+          contentContainerStyle={styles.filtersRow}
+        >
+          <FilterChip
+            label={cityFilter || "Ciudad"}
+            active={!!cityFilter}
+            icon="business-outline"
+            onPress={() => setOpenModal("city")}
+          />
+          {hasFilters && (
+            <TouchableOpacity
+              style={styles.chipClear}
+              onPress={() => {
+                setCityFilter(null);
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close-circle" size={14} color={ERROR} />
+              <Text style={styles.chipClearText}>Limpiar</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+      )}
 
       {/* Contador */}
       <View style={styles.sectionRow}>
         <Text style={styles.sectionLabel}>
-          {showMyGroups ? "Mis grupos" : "Grupos disponibles"}
+          {showMyGroups
+            ? "Mis grupos"
+            : showResidentScopeNote || showStudentScopeNote
+            ? "Grupos para ti"
+            : "Grupos disponibles"}
         </Text>
         <Text style={styles.sectionCount}>
-          {filteredGroups.length}{" "}
-          {filteredGroups.length === 1 ? "grupo" : "grupos"}
+          {displayGroups.length} {displayGroups.length === 1 ? "grupo" : "grupos"}
         </Text>
       </View>
     </View>
@@ -544,8 +836,10 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
       <Text style={styles.emptySubtitle}>
         {showMyGroups
           ? "Únete a un grupo para chatear con otros compañeros"
-          : hasFilters
+          : shouldShowExploreFilters && hasFilters
           ? "Prueba con otros filtros"
+          : showResidentScopeNote || showStudentScopeNote
+          ? "Usa el botón flotante para explorar todos los grupos disponibles"
           : "Próximamente habrá más grupos disponibles"}
       </Text>
     </View>
@@ -579,7 +873,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
   return (
     <View style={styles.container}>
       <FlatList
-        data={filteredGroups}
+        data={displayGroups}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <GroupCard
@@ -604,24 +898,24 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
         }
       />
 
+      {isResidentUser ? (
+        <FloatingActionButton
+          onPress={handleToggleExploreAll}
+          icon={isExploringAll ? "close" : "search"}
+          backgroundColor={isExploringAll ? ACCENT : PRIMARY}
+          bottom={24 + insets.bottom}
+          right={20}
+        />
+      ) : null}
+
       <FilterModal
-        visible={openModal === "city"}
+        visible={shouldShowExploreFilters && openModal === "city"}
         onClose={() => setOpenModal(null)}
         title="Filtrar por ciudad"
         options={cityOptions}
         value={cityFilter || ""}
         onSelect={(v) => setCityFilter(v || null)}
         placeholder="Todas las ciudades"
-      />
-
-      <FilterModal
-        visible={openModal === "speciality"}
-        onClose={() => setOpenModal(null)}
-        title="Filtrar por especialidad"
-        options={specialityOptions}
-        value={specialityFilter || ""}
-        onSelect={(v) => setSpecialityFilter(v || null)}
-        placeholder="Todas las especialidades"
       />
     </View>
   );
@@ -696,6 +990,25 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingBottom: 12,
     paddingRight: 24,
+  },
+  scopeBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  scopeBannerText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: TEXT_MEDIUM,
+    fontWeight: "500",
   },
   chip: {
     flexDirection: "row",
@@ -793,11 +1106,32 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 6,
   },
+  cardTitleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
   cardName: {
+    flex: 1,
     fontSize: 16,
     fontWeight: "700",
     color: ACCENT,
     lineHeight: 22,
+  },
+  unreadBadge: {
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: 7,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: ERROR,
+    alignSelf: "flex-start",
+  },
+  unreadBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: WHITE,
   },
   cardMeta: {
     flexDirection: "row",

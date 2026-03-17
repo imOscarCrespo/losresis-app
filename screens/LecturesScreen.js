@@ -1,299 +1,686 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
+  FlatList,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS } from "../constants/colors";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FloatingActionButton } from "../components/FloatingActionButton";
 import { useLectures } from "../hooks/useLectures";
 import { useHospitals } from "../hooks/useHospitals";
-import { Filters } from "../components/Filters";
-import { CourseCard } from "../components/CourseCard";
-import { FloatingActionButton } from "../components/FloatingActionButton";
-import { filterCoursesBySearch } from "../utils/courseUtils";
-import {
-  prepareHospitalOptions,
-  prepareSpecialtyOptions,
-} from "../utils/profileOptions";
+import { formatShortDate } from "../utils/dateUtils";
+import { filterCoursesBySearch, openURL } from "../utils/courseUtils";
 import posthogLogger from "../services/posthogService";
 
-/**
- * Pantalla de Cursos y Formaciones
- */
+const PRIMARY = "#670CF5";
+const SECONDARY = "#00BD7C";
+const ACCENT = "#1B0977";
+const BG_LIGHT = "#F8F9FE";
+const CARD_BORDER = "#F1F5F9";
+const MUTED = "#64748B";
+const MUTED_LIGHT = "#94A3B8";
+const DANGER = "#EF4444";
+
+function RadioDot({ selected }) {
+  return (
+    <View
+      style={[
+        modal.radioDot,
+        selected ? modal.radioDotSelected : modal.radioDotUnselected,
+      ]}
+    >
+      {selected ? <View style={modal.radioDotInner} /> : null}
+    </View>
+  );
+}
+
+function FilterModal({
+  visible,
+  onClose,
+  title,
+  options,
+  value,
+  onSelect,
+  placeholder,
+}) {
+  const insets = useSafeAreaInsets();
+  const [search, setSearch] = useState("");
+  const [tempValue, setTempValue] = useState(value);
+
+  useEffect(() => {
+    if (visible) {
+      setTempValue(value);
+    }
+  }, [value, visible]);
+
+  const filteredOptions = useMemo(() => {
+    if (!search.trim()) return options;
+    const lower = search.toLowerCase();
+    return options.filter((option) => option.name.toLowerCase().includes(lower));
+  }, [options, search]);
+
+  const listData = useMemo(() => {
+    const data = [];
+    if (value) {
+      data.push({ id: "", name: placeholder });
+    }
+    data.push(...filteredOptions);
+    return data;
+  }, [filteredOptions, placeholder, value]);
+
+  const handleClose = useCallback(() => {
+    setSearch("");
+    onClose();
+  }, [onClose]);
+
+  const handleConfirm = useCallback(() => {
+    onSelect(tempValue);
+    setSearch("");
+    onClose();
+  }, [onClose, onSelect, tempValue]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={false}
+      animationType="slide"
+      onRequestClose={handleClose}
+    >
+      <View style={modal.container}>
+        <View style={[modal.header, { paddingTop: Math.max(insets.top, 16) }]}>
+          <TouchableOpacity style={modal.backBtn} onPress={handleClose}>
+            <Ionicons name="arrow-back" size={24} color={ACCENT} />
+          </TouchableOpacity>
+          <Text style={modal.title}>{title}</Text>
+          <View style={modal.backBtn} />
+        </View>
+
+        <View style={modal.searchWrap}>
+          <View style={modal.searchInner}>
+            <Ionicons name="search" size={20} color={MUTED_LIGHT} />
+            <TextInput
+              style={modal.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Buscar..."
+              placeholderTextColor={MUTED_LIGHT}
+              returnKeyType="done"
+            />
+            {search.length > 0 ? (
+              <TouchableOpacity onPress={() => setSearch("")}>
+                <Ionicons name="close-circle" size={18} color={MUTED_LIGHT} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+
+        <FlatList
+          data={listData}
+          keyExtractor={(item, index) => `${String(item.id ?? "")}-${index}`}
+          keyboardShouldPersistTaps="always"
+          contentContainerStyle={modal.listContent}
+          renderItem={({ item }) => {
+            const isClear = item.id === "";
+            const isSelected = !isClear && item.id === tempValue;
+
+            return (
+              <Pressable
+                style={({ pressed }) => [
+                  modal.option,
+                  isSelected && modal.optionSelected,
+                  isClear && modal.optionClear,
+                  pressed && { opacity: 0.78 },
+                ]}
+                onPress={() => setTempValue(isClear ? "" : item.id)}
+              >
+                <Text
+                  style={[
+                    modal.optionName,
+                    isSelected && modal.optionNameSelected,
+                    isClear && modal.optionNameClear,
+                  ]}
+                >
+                  {item.name}
+                </Text>
+                {isClear ? null : <RadioDot selected={isSelected} />}
+              </Pressable>
+            );
+          }}
+          ListEmptyComponent={
+            <View style={modal.empty}>
+              <Text style={modal.emptyText}>Sin resultados</Text>
+            </View>
+          }
+        />
+
+        <View
+          style={[modal.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}
+        >
+          <TouchableOpacity
+            style={modal.confirmBtn}
+            onPress={handleConfirm}
+            activeOpacity={0.88}
+          >
+            <Text style={modal.confirmText}>Confirmar selección</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function CourseListCard({ course, isMine, onPress }) {
+  const dateLabel = useMemo(() => {
+    const dates = Array.isArray(course.event_dates)
+      ? [...course.event_dates].sort()
+      : [];
+    if (dates.length === 0) return "Sin fecha";
+    if (dates.length === 1) return formatShortDate(dates[0]);
+    return `${formatShortDate(dates[0])} - ${formatShortDate(
+      dates[dates.length - 1]
+    )}`;
+  }, [course.event_dates]);
+
+  const metaBadges = [
+    course.speciality?.name
+      ? {
+          key: "speciality",
+          icon: "medkit-outline",
+          text: course.speciality.name,
+          tone: "purple",
+        }
+      : null,
+    course.price_text
+      ? {
+          key: "price",
+          icon: "cash-outline",
+          text: course.price_text,
+          tone: "green",
+        }
+      : null,
+    course.seats_available
+      ? {
+          key: "seats",
+          icon: "people-outline",
+          text: `${course.seats_available} plazas`,
+          tone: "blue",
+        }
+      : null,
+  ].filter(Boolean);
+
+  return (
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.88}
+      onPress={() => onPress(course)}
+    >
+      <View style={styles.cardTopRow}>
+        <View style={styles.cardIcon}>
+          <Ionicons name="school-outline" size={22} color={PRIMARY} />
+        </View>
+
+        <View style={styles.cardHeading}>
+          <View style={styles.cardTitleRow}>
+            <Text style={styles.cardTitle} numberOfLines={2}>
+              {course.title}
+            </Text>
+            {isMine ? (
+              <View style={styles.mineBadge}>
+                <Text style={styles.mineBadgeText}>Mío</Text>
+              </View>
+            ) : null}
+          </View>
+          {course.organization ? (
+            <Text style={styles.cardOrg} numberOfLines={1}>
+              {course.organization}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+
+      <View style={styles.cardInfoList}>
+        <View style={styles.cardInfoRow}>
+          <Ionicons name="calendar-outline" size={16} color={MUTED_LIGHT} />
+          <Text style={styles.cardInfoText}>
+            {dateLabel}
+            {course.event_dates?.length > 1 ? ` · ${course.event_dates.length} días` : ""}
+          </Text>
+        </View>
+
+        {course.teaching_hours ? (
+          <View style={styles.cardInfoRow}>
+            <Ionicons name="time-outline" size={16} color={MUTED_LIGHT} />
+            <Text style={styles.cardInfoText}>{course.teaching_hours}</Text>
+          </View>
+        ) : null}
+
+        {course.venue_name ? (
+          <View style={styles.cardInfoRow}>
+            <Ionicons name="location-outline" size={16} color={MUTED_LIGHT} />
+            <Text style={styles.cardInfoText} numberOfLines={1}>
+              {course.venue_name}
+            </Text>
+          </View>
+        ) : null}
+
+        {course.hospital ? (
+          <View style={styles.cardInfoRow}>
+            <Ionicons name="business-outline" size={16} color={MUTED_LIGHT} />
+            <Text style={styles.cardInfoText} numberOfLines={1}>
+              {course.hospital.name}
+              {course.hospital.city ? ` · ${course.hospital.city}` : ""}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      {metaBadges.length > 0 ? (
+        <View style={styles.cardBadgesRow}>
+          {metaBadges.map((badge) => (
+            <View
+              key={badge.key}
+              style={[
+                styles.metaBadge,
+                badge.tone === "purple" && styles.metaBadgePurple,
+                badge.tone === "green" && styles.metaBadgeGreen,
+                badge.tone === "blue" && styles.metaBadgeBlue,
+              ]}
+            >
+              <Ionicons
+                name={badge.icon}
+                size={14}
+                color={
+                  badge.tone === "purple"
+                    ? PRIMARY
+                    : badge.tone === "green"
+                      ? SECONDARY
+                      : "#2563EB"
+                }
+              />
+              <Text
+                style={[
+                  styles.metaBadgeText,
+                  badge.tone === "purple" && styles.metaBadgeTextPurple,
+                  badge.tone === "green" && styles.metaBadgeTextGreen,
+                  badge.tone === "blue" && styles.metaBadgeTextBlue,
+                ]}
+                numberOfLines={1}
+              >
+                {badge.text}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.cardFooter}>
+        {course.course_code ? (
+          <Text style={styles.courseCode}>Código {course.course_code}</Text>
+        ) : (
+          <View />
+        )}
+
+        {course.registration_url ? (
+          <TouchableOpacity
+            style={styles.registerInline}
+            onPress={(event) => {
+              event.stopPropagation();
+              openURL(course.registration_url);
+            }}
+          >
+            <Text style={styles.registerInlineText}>Inscribirse</Text>
+            <Ionicons name="arrow-forward" size={16} color={PRIMARY} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.registerInlineGhost}>
+            <Text style={styles.registerInlineGhostText}>Ver detalle</Text>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 export const LecturesScreen = ({ userProfile, navigation }) => {
+  const insets = useSafeAreaInsets();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedHospital, setSelectedHospital] = useState("");
-  const [selectedSpecialty, setSelectedSpecialty] = useState("");
-  const [showAllCourses, setShowAllCourses] = useState(false);
+  const defaultSpecialtyId = userProfile?.speciality_id || "";
+  const [selectedSpecialty, setSelectedSpecialty] = useState(defaultSpecialtyId);
+  const [openModal, setOpenModal] = useState(null);
 
   const {
     courses,
     loading,
     error,
     hasMore,
-    totalCount,
     setFilters,
-    clearFilters,
     loadMoreCourses,
+    refreshCourses,
     showMyCourses,
     setShowMyCourses,
     currentUserId,
   } = useLectures();
-
   const { hospitals, specialties } = useHospitals();
 
-  // Tracking de pantalla con PostHog
-  React.useEffect(() => {
+  useEffect(() => {
     posthogLogger.logScreen("LecturesScreen");
   }, []);
 
-  // Update filters when selections change
-  React.useEffect(() => {
+  useEffect(() => {
+    if (defaultSpecialtyId && !selectedSpecialty) {
+      setSelectedSpecialty(defaultSpecialtyId);
+    }
+  }, [defaultSpecialtyId, selectedSpecialty]);
+
+  useEffect(() => {
     setFilters({
       hospital_id: selectedHospital,
       speciality_id: selectedSpecialty,
     });
   }, [selectedHospital, selectedSpecialty, setFilters]);
 
-  // Filter courses by search term
   const filteredCourses = useMemo(
     () => filterCoursesBySearch(courses, searchTerm),
     [courses, searchTerm]
   );
 
-  // Displayed courses (with "show more" logic)
-  const displayedCourses = useMemo(
-    () => (showAllCourses ? filteredCourses : filteredCourses.slice(0, 20)),
-    [showAllCourses, filteredCourses]
+  const hospitalOptions = useMemo(
+    () =>
+      hospitals
+        .filter((hospital) => hospital?.id && hospital?.name)
+        .map((hospital) => ({
+          id: hospital.id,
+          name: hospital.name,
+        })),
+    [hospitals]
+  );
+  const specialtyOptions = useMemo(
+    () =>
+      specialties
+        .filter((specialty) => specialty?.id && specialty?.name)
+        .map((specialty) => ({
+          id: specialty.id,
+          name: specialty.name,
+        })),
+    [specialties]
   );
 
-  // Clear all filters
+  const selectedHospitalName = useMemo(
+    () => hospitalOptions.find((item) => item.id === selectedHospital)?.name,
+    [hospitalOptions, selectedHospital]
+  );
+  const selectedSpecialtyName = useMemo(
+    () => specialtyOptions.find((item) => item.id === selectedSpecialty)?.name,
+    [selectedSpecialty, specialtyOptions]
+  );
+
+  const hasActiveFilters = Boolean(
+    searchTerm ||
+      selectedHospital ||
+      showMyCourses ||
+      (selectedSpecialty && selectedSpecialty !== defaultSpecialtyId)
+  );
+
   const handleClearFilters = useCallback(() => {
     setSearchTerm("");
     setSelectedHospital("");
-    setSelectedSpecialty("");
-    clearFilters();
-  }, [clearFilters]);
+    setSelectedSpecialty(defaultSpecialtyId);
+    setShowMyCourses(false);
+    setFilters({
+      hospital_id: "",
+      speciality_id: defaultSpecialtyId,
+    });
+  }, [defaultSpecialtyId, setFilters, setShowMyCourses]);
 
-  // Configurar filtros para el componente genérico
-  const filtersConfig = useMemo(() => {
-    const hospitalOptions = prepareHospitalOptions(hospitals);
-    const specialtyOptions = prepareSpecialtyOptions(specialties);
-
-    return [
-      {
-        id: "search",
-        type: "search",
-        label: "Buscar por título o contenido",
-        value: searchTerm,
-        onChange: setSearchTerm,
-        placeholder: "Curso de radiología...",
-      },
-      {
-        id: "hospital",
-        type: "select",
-        label: "Filtrar por hospital",
-        value: selectedHospital,
-        onSelect: setSelectedHospital,
-        options: hospitalOptions,
-        placeholder: "Todos los hospitales",
-      },
-      {
-        id: "specialty",
-        type: "select",
-        label: "Filtrar por especialidad",
-        value: selectedSpecialty,
-        onSelect: setSelectedSpecialty,
-        options: specialtyOptions,
-        placeholder: "Todas las especialidades",
-      },
-    ];
-  }, [searchTerm, selectedHospital, selectedSpecialty, hospitals, specialties]);
-
-  const hasActiveFilters = useMemo(() => {
-    return !!(searchTerm || selectedHospital || selectedSpecialty);
-  }, [searchTerm, selectedHospital, selectedSpecialty]);
-
-  // Handle course card press (navigate to detail)
   const handleCoursePress = useCallback(
     (course) => {
-      if (navigation?.navigate) {
-        navigation.navigate("courseDetail", { courseId: course.id });
-      }
+      navigation?.navigate?.("courseDetail", { courseId: course.id });
     },
     [navigation]
   );
 
-  if (loading && courses.length === 0) {
-    return (
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.title}>Cursos</Text>
-              <Text style={styles.resultsText}>Cargando...</Text>
-            </View>
-          </View>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-          <Text style={styles.loadingText}>Cargando cursos...</Text>
-        </View>
-      </View>
-    );
-  }
+  const isInitialLoading = loading && courses.length === 0;
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.title}>Cursos</Text>
-            <Text style={styles.resultsText}>
-              Mostrando{" "}
-              <Text style={styles.resultsNumber}>{filteredCourses.length}</Text>{" "}
-              cursos disponibles
-            </Text>
-          </View>
-          {/* Toggle Mis Cursos */}
-          <TouchableOpacity
-            style={[
-              styles.myCoursesToggle,
-              showMyCourses && styles.myCoursesToggleActive,
-            ]}
-            onPress={() => setShowMyCourses(!showMyCourses)}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={showMyCourses ? "person" : "person-outline"}
-              size={18}
-              color={showMyCourses ? COLORS.WHITE : COLORS.PRIMARY}
-            />
-            <Text
-              style={[
-                styles.myCoursesToggleText,
-                showMyCourses && styles.myCoursesToggleTextActive,
-              ]}
-            >
-              Mis cursos
-            </Text>
-          </TouchableOpacity>
+      <View style={[styles.titleRow, { paddingTop: Math.max(insets.top + 8, 16) }]}>
+        <View>
+          <Text style={styles.screenTitle}>Cursos</Text>
+          <Text style={styles.screenSubtitle}>
+            Formación, talleres y sesiones activas para tu residencia.
+          </Text>
+        </View>
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>
+            {filteredCourses.length} {filteredCourses.length === 1 ? "CURSO" : "CURSOS"}
+          </Text>
         </View>
       </View>
 
-      {/* Filtros genéricos */}
-      <Filters
-        filters={filtersConfig}
-        onClearFilters={handleClearFilters}
-        hasActiveFilters={hasActiveFilters}
-      />
+      <View style={styles.searchWrap}>
+        <Ionicons
+          name="search"
+          size={20}
+          color={MUTED_LIGHT}
+          style={styles.searchIcon}
+        />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Buscar por título, entidad o sede"
+          placeholderTextColor={MUTED_LIGHT}
+          value={searchTerm}
+          onChangeText={setSearchTerm}
+          returnKeyType="search"
+        />
+        {searchTerm.length > 0 ? (
+          <TouchableOpacity onPress={() => setSearchTerm("")}>
+            <Ionicons name="close-circle" size={18} color={MUTED_LIGHT} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
 
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filtersScroll}
+        contentContainerStyle={styles.filtersRow}
       >
-        {/* Error Message */}
-        {error && (
-          <View style={styles.errorCard}>
-            <Ionicons name="alert-circle" size={20} color={COLORS.ERROR} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
+        <TouchableOpacity
+          style={[styles.chip, showMyCourses && styles.chipActive]}
+          onPress={() => setShowMyCourses((value) => !value)}
+        >
+          <Ionicons
+            name={showMyCourses ? "person" : "person-outline"}
+            size={16}
+            color={showMyCourses ? PRIMARY : ACCENT}
+          />
+          <Text style={[styles.chipText, showMyCourses && styles.chipTextActive]}>
+            Mis cursos
+          </Text>
+        </TouchableOpacity>
 
-        {/* Courses Grid */}
-        {filteredCourses.length > 0 ? (
-          <>
-            <View style={styles.coursesGrid}>
-              {displayedCourses.map((course) => (
-                <CourseCard
-                  key={course.id}
-                  course={course}
-                  isMine={
-                    !!currentUserId && course.created_by_id === currentUserId
-                  }
-                  onPress={() => handleCoursePress(course)}
-                />
-              ))}
-            </View>
+        <TouchableOpacity
+          style={[styles.chip, selectedHospital && styles.chipActive]}
+          onPress={() => setOpenModal("hospital")}
+        >
+          <Ionicons
+            name="business-outline"
+            size={16}
+            color={selectedHospital ? PRIMARY : ACCENT}
+          />
+          <Text
+            style={[styles.chipText, selectedHospital && styles.chipTextActive]}
+            numberOfLines={1}
+          >
+            {selectedHospitalName || "Hospital"}
+          </Text>
+          <Ionicons
+            name="chevron-down"
+            size={16}
+            color={selectedHospital ? PRIMARY : ACCENT}
+          />
+        </TouchableOpacity>
 
-            {/* Show More Button */}
-            {!showAllCourses &&
-              filteredCourses.length > displayedCourses.length && (
-                <View style={styles.showMoreContainer}>
-                  <TouchableOpacity
-                    onPress={() => setShowAllCourses(true)}
-                    style={styles.showMoreButton}
-                  >
-                    <Text style={styles.showMoreButtonText}>
-                      Mostrar todos los cursos (
-                      {filteredCourses.length - displayedCourses.length} más)
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={styles.showMoreSubtext}>
-                    Mostrando {displayedCourses.length} de{" "}
-                    {filteredCourses.length} cursos
-                  </Text>
-                </View>
-              )}
+        <TouchableOpacity
+          style={[styles.chip, selectedSpecialty && styles.chipActive]}
+          onPress={() => setOpenModal("specialty")}
+        >
+          <Ionicons
+            name="medkit-outline"
+            size={16}
+            color={selectedSpecialty ? PRIMARY : ACCENT}
+          />
+          <Text
+            style={[styles.chipText, selectedSpecialty && styles.chipTextActive]}
+            numberOfLines={1}
+          >
+            {selectedSpecialtyName || "Especialidad"}
+          </Text>
+          <Ionicons
+            name="chevron-down"
+            size={16}
+            color={selectedSpecialty ? PRIMARY : ACCENT}
+          />
+        </TouchableOpacity>
 
-            {/* Load More from API */}
-            {hasMore && showAllCourses && (
-              <View style={styles.loadMoreContainer}>
-                <TouchableOpacity
-                  onPress={loadMoreCourses}
-                  disabled={loading}
-                  style={styles.loadMoreButton}
-                >
-                  <Text style={styles.loadMoreButtonText}>
-                    {loading ? "Cargando..." : "Cargar más cursos"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </>
-        ) : (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyStateIcon}>
-              <Ionicons name="school-outline" size={64} color={COLORS.GRAY} />
-            </View>
-            <Text style={styles.emptyStateTitle}>No se encontraron cursos</Text>
-            <Text style={styles.emptyStateText}>
-              Intenta ajustar los filtros para encontrar más resultados
-            </Text>
-            {hasActiveFilters && (
-              <TouchableOpacity
-                onPress={handleClearFilters}
-                style={styles.emptyStateClearButton}
-              >
-                <Text style={styles.emptyStateClearButtonText}>
-                  Limpiar filtros
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+        {hasActiveFilters ? (
+          <TouchableOpacity style={styles.chipClear} onPress={handleClearFilters}>
+            <Ionicons name="close-circle" size={16} color={DANGER} />
+            <Text style={styles.chipClearText}>Limpiar</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
 
-      {/* Floating Action Button - Crear curso */}
-      <FloatingActionButton
-        onPress={() => {
-          if (navigation?.navigate) {
-            navigation.navigate("createCourse");
+      {isInitialLoading ? (
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={PRIMARY} />
+          <Text style={styles.loadingText}>Cargando cursos...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredCourses}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={({ item }) => (
+            <CourseListCard
+              course={item}
+              isMine={Boolean(currentUserId && item.created_by_id === currentUserId)}
+              onPress={handleCoursePress}
+            />
+          )}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading && courses.length > 0}
+              onRefresh={refreshCourses}
+              tintColor={PRIMARY}
+            />
           }
-        }}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: 96 + insets.bottom },
+          ]}
+          ListHeaderComponent={
+            <>
+              {error ? (
+                <View style={styles.errorCard}>
+                  <Ionicons name="alert-circle" size={20} color={DANGER} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              <View style={styles.sectionRow}>
+                <Text style={styles.sectionLabel}>
+                  {hasActiveFilters ? "Resultados" : "Próximos cursos"}
+                </Text>
+                <Text style={styles.sectionCount}>
+                  {filteredCourses.length} visibles
+                </Text>
+              </View>
+            </>
+          }
+          ListFooterComponent={
+            filteredCourses.length > 0 ? (
+              <View style={styles.footerBlock}>
+                {hasMore ? (
+                  <TouchableOpacity
+                    style={[styles.loadMoreButton, loading && styles.buttonDisabled]}
+                    onPress={loadMoreCourses}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Text style={styles.loadMoreText}>Cargar más cursos</Text>
+                        <Ionicons name="arrow-down" size={16} color="#FFFFFF" />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.footerHint}>
+                    No hay más cursos activos por cargar.
+                  </Text>
+                )}
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconWrap}>
+                <Ionicons name="school-outline" size={36} color={PRIMARY} />
+              </View>
+              <Text style={styles.emptyTitle}>No se encontraron cursos</Text>
+              <Text style={styles.emptyText}>
+                Ajusta la búsqueda o cambia los filtros para ver más formaciones.
+              </Text>
+              {hasActiveFilters ? (
+                <TouchableOpacity
+                  style={styles.emptyButton}
+                  onPress={handleClearFilters}
+                >
+                  <Text style={styles.emptyButtonText}>Quitar filtros</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          }
+        />
+      )}
+
+      <FloatingActionButton
+        onPress={() => navigation?.navigate?.("createCourse")}
         icon="add"
-        backgroundColor={COLORS.PRIMARY}
-        bottom={20}
+        backgroundColor={PRIMARY}
+        bottom={24 + insets.bottom}
         right={20}
       />
 
+      <FilterModal
+        visible={openModal === "hospital"}
+        onClose={() => setOpenModal(null)}
+        title="Filtrar por hospital"
+        options={hospitalOptions}
+        value={selectedHospital}
+        onSelect={setSelectedHospital}
+        placeholder="Todos los hospitales"
+      />
+      <FilterModal
+        visible={openModal === "specialty"}
+        onClose={() => setOpenModal(null)}
+        title="Filtrar por especialidad"
+        options={specialtyOptions}
+        value={selectedSpecialty}
+        onSelect={setSelectedSpecialty}
+        placeholder="Todas las especialidades"
+      />
     </View>
   );
 };
@@ -301,171 +688,513 @@ export const LecturesScreen = ({ userProfile, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: BG_LIGHT,
   },
-  header: {
-    backgroundColor: COLORS.WHITE,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-  },
-  headerTop: {
+  titleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: COLORS.GRAY_DARK,
+  screenTitle: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: ACCENT,
+    letterSpacing: -0.3,
+  },
+  screenSubtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    color: MUTED,
+    maxWidth: 240,
+    lineHeight: 20,
+  },
+  countBadge: {
+    backgroundColor: `${PRIMARY}12`,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}25`,
+  },
+  countText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: PRIMARY,
+    letterSpacing: 0.8,
+  },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    marginHorizontal: 16,
+    paddingVertical: 12,
+    paddingLeft: 44,
+    paddingRight: 16,
+    position: "relative",
     marginBottom: 4,
   },
-  resultsText: {
+  searchIcon: {
+    position: "absolute",
+    left: 16,
+  },
+  searchInput: {
+    flex: 1,
     fontSize: 14,
-    color: COLORS.GRAY,
+    color: ACCENT,
+    padding: 0,
   },
-  resultsNumber: {
-    color: COLORS.PRIMARY,
-    fontWeight: "600",
+  filtersScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+    marginTop: 8,
+    marginBottom: 4,
   },
-  myCoursesToggle: {
+  filtersRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingRight: 24,
+  },
+  chip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.WHITE,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
-  myCoursesToggleActive: {
-    backgroundColor: COLORS.PRIMARY,
-    borderColor: COLORS.PRIMARY,
+  chipActive: {
+    backgroundColor: `${PRIMARY}12`,
+    borderColor: `${PRIMARY}30`,
   },
-  myCoursesToggleText: {
+  chipText: {
     fontSize: 13,
     fontWeight: "600",
-    color: COLORS.PRIMARY,
+    color: ACCENT,
+    flexShrink: 1,
+    maxWidth: 132,
   },
-  myCoursesToggleTextActive: {
-    color: COLORS.WHITE,
+  chipTextActive: {
+    color: PRIMARY,
   },
-  scrollView: {
-    flex: 1,
+  chipClear: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
   },
-  scrollContent: {
-    padding: 16,
+  chipClearText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: DANGER,
   },
-  loadingContainer: {
+  loading: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 60,
+    paddingVertical: 72,
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
-    color: COLORS.GRAY,
+    fontSize: 15,
+    color: MUTED,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
   },
   errorCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    backgroundColor: `${COLORS.ERROR}15`,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    gap: 10,
+    backgroundColor: "#FEF2F2",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: `${COLORS.ERROR}30`,
+    borderColor: "#FECACA",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 14,
   },
   errorText: {
     flex: 1,
+    color: DANGER,
     fontSize: 14,
-    color: COLORS.ERROR,
+    lineHeight: 20,
   },
-  coursesGrid: {
-    gap: 16,
+  sectionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingVertical: 8,
+    paddingBottom: 10,
   },
-  showMoreContainer: {
-    alignItems: "center",
-    marginTop: 16,
+  sectionLabel: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
   },
-  showMoreButton: {
-    backgroundColor: COLORS.PRIMARY,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
+  sectionCount: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: PRIMARY,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  showMoreButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.WHITE,
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
   },
-  showMoreSubtext: {
+  cardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: `${PRIMARY}12`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardHeading: {
+    flex: 1,
+    minWidth: 0,
+  },
+  cardTitleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  cardTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: "700",
+    color: ACCENT,
+    lineHeight: 23,
+  },
+  mineBadge: {
+    backgroundColor: `${SECONDARY}16`,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  mineBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: SECONDARY,
+  },
+  cardOrg: {
+    marginTop: 4,
     fontSize: 14,
-    color: COLORS.GRAY,
-    marginTop: 8,
+    color: MUTED,
   },
-  loadMoreContainer: {
+  cardInfoList: {
+    gap: 10,
+    marginTop: 16,
+  },
+  cardInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  cardInfoText: {
+    flex: 1,
+    fontSize: 14,
+    color: MUTED,
+    lineHeight: 20,
+  },
+  cardBadgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 14,
+  },
+  metaBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  metaBadgePurple: {
+    backgroundColor: `${PRIMARY}10`,
+  },
+  metaBadgeGreen: {
+    backgroundColor: `${SECONDARY}12`,
+  },
+  metaBadgeBlue: {
+    backgroundColor: "#DBEAFE",
+  },
+  metaBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    maxWidth: 190,
+  },
+  metaBadgeTextPurple: {
+    color: PRIMARY,
+  },
+  metaBadgeTextGreen: {
+    color: SECONDARY,
+  },
+  metaBadgeTextBlue: {
+    color: "#2563EB",
+  },
+  cardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: CARD_BORDER,
+    gap: 12,
+  },
+  courseCode: {
+    flex: 1,
+    fontSize: 12,
+    color: MUTED_LIGHT,
+    fontWeight: "600",
+  },
+  registerInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  registerInlineText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: PRIMARY,
+  },
+  registerInlineGhost: {
+    paddingHorizontal: 2,
+  },
+  registerInlineGhostText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: ACCENT,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    paddingVertical: 56,
+    paddingHorizontal: 24,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: `${PRIMARY}12`,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: ACCENT,
+    textAlign: "center",
+  },
+  emptyText: {
+    marginTop: 8,
+    fontSize: 15,
+    color: MUTED,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  emptyButton: {
+    marginTop: 18,
+    backgroundColor: PRIMARY,
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  emptyButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  footerBlock: {
+    alignItems: "center",
+    paddingTop: 8,
+    paddingBottom: 12,
   },
   loadMoreButton: {
-    backgroundColor: COLORS.BACKGROUND,
+    minWidth: 200,
+    backgroundColor: PRIMARY,
+    borderRadius: 16,
+    paddingHorizontal: 18,
     paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.BORDER,
-  },
-  loadMoreButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-  },
-  emptyState: {
     alignItems: "center",
-    paddingVertical: 60,
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
   },
-  emptyStateIcon: {
-    marginBottom: 16,
+  loadMoreText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
   },
-  emptyStateTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 8,
+  buttonDisabled: {
+    opacity: 0.7,
   },
-  emptyStateText: {
-    fontSize: 16,
-    color: COLORS.GRAY,
-    textAlign: "center",
-    marginBottom: 24,
+  footerHint: {
+    fontSize: 13,
+    color: MUTED_LIGHT,
   },
-  emptyStateClearButton: {
-    backgroundColor: COLORS.PRIMARY,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+});
+
+const modal = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: CARD_BORDER,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  emptyStateClearButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.WHITE,
+  title: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
   },
-  errorText: {
+  searchWrap: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  searchInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  searchInput: {
     flex: 1,
     fontSize: 14,
-    color: COLORS.ERROR,
+    color: ACCENT,
+    padding: 0,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  option: {
+    minHeight: 58,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  optionSelected: {
+    borderColor: `${PRIMARY}40`,
+    backgroundColor: `${PRIMARY}10`,
+  },
+  optionClear: {
+    backgroundColor: "#F8FAFC",
+  },
+  optionName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: ACCENT,
+  },
+  optionNameSelected: {
+    color: PRIMARY,
+  },
+  optionNameClear: {
+    color: MUTED,
+  },
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: CARD_BORDER,
+  },
+  confirmBtn: {
+    backgroundColor: PRIMARY,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 15,
+  },
+  confirmText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  empty: {
+    paddingVertical: 32,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: MUTED_LIGHT,
+    fontSize: 14,
+  },
+  radioDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+  },
+  radioDotSelected: {
+    borderColor: PRIMARY,
+  },
+  radioDotUnselected: {
+    borderColor: "#CBD5E1",
+  },
+  radioDotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: PRIMARY,
   },
 });
 

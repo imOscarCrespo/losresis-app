@@ -48,6 +48,21 @@ const NOTIFICATION_OPTIONS: Array<{
     title: "Mensajes privados",
     description: "Cuando recibas un nuevo mensaje.",
   },
+  {
+    notification_type: "group_message",
+    title: "Mensajes de grupos",
+    description: "Cuando haya mensajes nuevos en grupos que no hayas silenciado.",
+  },
+  {
+    notification_type: "roommate_match",
+    title: "Matches de roomies",
+    description: "Cuando hagas match mutuo con un posible compañero de piso.",
+  },
+  {
+    notification_type: "agenda_event_reminder",
+    title: "Recordatorios de agenda",
+    description: "Cuando se acerque un evento con recordatorio configurado.",
+  },
 ];
 
 export default function NotificationSettingsScreen({
@@ -210,170 +225,281 @@ export default function NotificationSettingsScreen({
   };
 
   const isDisabled = loading || savingType !== null;
+  const enabledCount = NOTIFICATION_OPTIONS.filter((option) =>
+    getEnabled(option.notification_type)
+  ).length;
+
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <TouchableOpacity
+        onPress={onBack}
+        style={styles.backBtn}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="arrow-back" size={22} color="#670CF5" />
+      </TouchableOpacity>
+      <Text style={styles.title} numberOfLines={1}>
+        Notificaciones
+      </Text>
+      <View style={styles.headerRight}>
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>
+            {enabledCount}/{NOTIFICATION_OPTIONS.length}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton} hitSlop={12}>
-            <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Notificaciones</Text>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Cargando...</Text>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.headerShell}>{renderHeader()}</View>
+        <View style={styles.contentSurface}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#670CF5" />
+            <Text style={styles.loadingText}>Cargando...</Text>
+          </View>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Notificaciones</Text>
-      </View>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.sectionTitle}>Notificaciones</Text>
-
-        {permissionGranted === false && (
-          <View style={styles.warningBox}>
-            <Text style={styles.warningText}>
-              Las notificaciones están desactivadas en el sistema. Puedes
-              activarlas desde los ajustes del dispositivo.
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <View style={styles.rowText}>
-              <Text style={styles.optionTitle}>Recibir notificaciones push</Text>
-              <Text style={styles.optionDescription}>
-                Activa las notificaciones push para recibir avisos en el
-                dispositivo.
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.headerShell}>{renderHeader()}</View>
+      <View style={styles.contentSurface}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.contentInner}>
+            <View style={styles.heroCard}>
+              <Text style={styles.heroTitle}>Decide que quieres recibir</Text>
+              <Text style={styles.heroText}>
+                Activa solo los avisos que aportan valor y evita ruido innecesario.
               </Text>
             </View>
-            <Switch
-              value={getEnabled("system")}
-              onValueChange={handleSystemSwitchChange}
-              disabled={isDisabled}
-              trackColor={{ false: "#C7C7CC", true: "#34C759" }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
 
-          {NOTIFICATION_OPTIONS.map((option) => (
-            <View key={option.notification_type}>
-              <View style={styles.divider} />
-              <View style={styles.row}>
+            {permissionGranted === false && (
+              <View style={styles.warningBox}>
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={18}
+                  color="#B45309"
+                  style={styles.warningIcon}
+                />
+                <Text style={styles.warningText}>
+                  Las notificaciones están desactivadas en el sistema. Puedes
+                  activarlas desde los ajustes del dispositivo.
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.card}>
+              <View style={[styles.row, styles.rowFirst]}>
                 <View style={styles.rowText}>
-                  <Text style={styles.optionTitle}>{option.title}</Text>
+                  <Text style={styles.optionEyebrow}>Sistema</Text>
+                  <Text style={styles.optionTitle}>Recibir notificaciones push</Text>
                   <Text style={styles.optionDescription}>
-                    {option.description}
+                    Activa las notificaciones push para recibir avisos en el
+                    dispositivo.
                   </Text>
                 </View>
                 <Switch
-                  value={getEnabled(option.notification_type)}
-                  onValueChange={(value) =>
-                    handleOptionSwitchChange(option.notification_type, value)
-                  }
+                  value={getEnabled("system")}
+                  onValueChange={handleSystemSwitchChange}
                   disabled={isDisabled}
-                  trackColor={{ false: "#C7C7CC", true: "#34C759" }}
+                  trackColor={{ false: "#CBD5E1", true: "#CDB7FF" }}
                   thumbColor="#FFFFFF"
+                  ios_backgroundColor="#CBD5E1"
                 />
               </View>
+
+              {NOTIFICATION_OPTIONS.map((option) => (
+                <View key={option.notification_type}>
+                  <View style={styles.divider} />
+                  <View style={styles.row}>
+                    <View style={styles.rowText}>
+                      <Text style={styles.optionEyebrow}>
+                        {getEnabled(option.notification_type) ? "Activo" : "Pausado"}
+                      </Text>
+                      <Text style={styles.optionTitle}>{option.title}</Text>
+                      <Text style={styles.optionDescription}>
+                        {option.description}
+                      </Text>
+                    </View>
+                    <Switch
+                      value={getEnabled(option.notification_type)}
+                      onValueChange={(value) =>
+                        handleOptionSwitchChange(option.notification_type, value)
+                      }
+                      disabled={isDisabled}
+                      trackColor={{ false: "#CBD5E1", true: "#CDB7FF" }}
+                      thumbColor="#FFFFFF"
+                      ios_backgroundColor="#CBD5E1"
+                    />
+                  </View>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#FFFFFF",
+  },
+  contentSurface: {
+    flex: 1,
+    backgroundColor: "#F8F9FE",
+  },
+  headerShell: {
+    backgroundColor: "#FFFFFF",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
     backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
   },
-  backButton: {
-    marginRight: 12,
-    padding: 4,
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(103,12,245,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerRight: {
+    width: 36,
+    alignItems: "flex-end",
   },
   title: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1a1a1a",
+    flex: 1,
+    textAlign: "center",
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1B0977",
+    letterSpacing: -0.2,
+    marginHorizontal: 8,
+  },
+  countBadge: {
+    backgroundColor: "rgba(103,12,245,0.07)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.15)",
+  },
+  countText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#670CF5",
+    letterSpacing: 0.3,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
     paddingBottom: 32,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1a1a1a",
-    marginBottom: 16,
+  contentInner: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    gap: 16,
+  },
+  heroCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
+  },
+  heroTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1B0977",
+    marginBottom: 6,
+  },
+  heroText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#64748B",
   },
   warningBox: {
-    backgroundColor: "#FFF3CD",
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
+    backgroundColor: "#FFF7ED",
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#FCD9BD",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  warningIcon: {
+    marginTop: 1,
   },
   warningText: {
     fontSize: 14,
-    color: "#856404",
+    color: "#9A3412",
     lineHeight: 20,
+    flex: 1,
   },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 24,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+  },
+  rowFirst: {
+    paddingTop: 20,
   },
   rowText: {
     flex: 1,
     marginRight: 16,
   },
+  optionEyebrow: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#670CF5",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+    marginBottom: 6,
+  },
   optionTitle: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#1a1a1a",
+    fontWeight: "800",
+    color: "#1B0977",
     marginBottom: 4,
   },
   optionDescription: {
     fontSize: 14,
-    color: "#3C3C43",
+    color: "#64748B",
     lineHeight: 20,
   },
   divider: {
-    height: 1,
-    backgroundColor: "#E5E5EA",
-    marginLeft: 16,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#E2E8F0",
+    marginLeft: 18,
   },
   loadingContainer: {
     flex: 1,
@@ -382,7 +508,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
-    color: "#666",
+    fontSize: 15,
+    color: "#64748B",
+    fontWeight: "600",
   },
 });

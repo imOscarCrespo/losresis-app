@@ -13,4 +13,22 @@
  * ⚠️ No commitear este archivo con un valor distinto de null en producción.
  */
 
-export const DEV_USER_TYPE = "student";
+export const DEV_USER_TYPE = "resident";
+
+/*
+
+usuario resident hospital/especialitat/ciutat
+
+grups a crear
+
+
+hospital
+especialitat - any MIR
+hospital-especialitat
+ciutat
+
+
+
+
+
+*/

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getHousingAds,
   getHousingAdById,
@@ -10,6 +10,21 @@ import {
 import { getCurrentUser } from "../services/authService";
 
 const ITEMS_PER_PAGE = 20;
+
+const mergeUniqueAds = (existingAds = [], incomingAds = []) => {
+  const adsById = new Map();
+
+  existingAds.forEach((ad) => {
+    if (ad?.id) adsById.set(ad.id, ad);
+  });
+
+  incomingAds.forEach((ad) => {
+    if (!ad?.id) return;
+    adsById.set(ad.id, ad);
+  });
+
+  return Array.from(adsById.values());
+};
 
 /**
  * Hook personalizado para manejar los anuncios de vivienda
@@ -29,6 +44,7 @@ export const useHousingAds = () => {
   const [maxPrice, setMaxPrice] = useState(null);
   const [showMyAds, setShowMyAds] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const inFlightRequestRef = useRef(null);
 
   // Cargar usuario actual
   useEffect(() => {
@@ -48,19 +64,25 @@ export const useHousingAds = () => {
   // Cargar anuncios con paginación y filtros
   const fetchHousingAds = useCallback(
     async (reset = false) => {
+      const page = reset ? 0 : currentPage;
+      const filters = {
+        city: city || undefined,
+        kind: kind || undefined,
+        hospital_id: hospitalId || undefined,
+        maxPrice: maxPrice || undefined,
+        user_id: showMyAds && currentUserId ? currentUserId : undefined,
+      };
+      const requestKey = JSON.stringify({ page, reset, filters });
+
+      if (inFlightRequestRef.current === requestKey) {
+        return;
+      }
+
+      inFlightRequestRef.current = requestKey;
+
       try {
         setLoading(true);
         setError(null);
-
-        const page = reset ? 0 : currentPage;
-
-        const filters = {
-          city: city || undefined,
-          kind: kind || undefined,
-          hospital_id: hospitalId || undefined,
-          maxPrice: maxPrice || undefined,
-          user_id: showMyAds && currentUserId ? currentUserId : undefined,
-        };
 
         const {
           success,
@@ -72,10 +94,10 @@ export const useHousingAds = () => {
 
         if (success) {
           if (reset) {
-            setHousingAds(ads || []);
+            setHousingAds(mergeUniqueAds([], ads || []));
             setCurrentPage(1);
           } else {
-            setHousingAds((prev) => [...prev, ...(ads || [])]);
+            setHousingAds((prev) => mergeUniqueAds(prev, ads || []));
             setCurrentPage((prev) => prev + 1);
           }
           setTotalCount(total || 0);
@@ -86,6 +108,9 @@ export const useHousingAds = () => {
       } catch (err) {
         setError(err.message || "Error inesperado al cargar los anuncios");
       } finally {
+        if (inFlightRequestRef.current === requestKey) {
+          inFlightRequestRef.current = null;
+        }
         setLoading(false);
       }
     },

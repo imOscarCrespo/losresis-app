@@ -1,77 +1,215 @@
-import React, { useMemo, useRef, useEffect, useState } from "react";
+import React, { useMemo, useRef, useEffect, useState, useCallback } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
   ActivityIndicator,
-  TouchableOpacity,
-  Dimensions,
   FlatList,
-  Platform,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Filters } from "../components/Filters";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityUsers } from "../hooks/useCommunityUsers";
 import { useCities } from "../hooks/useCities";
 import { useResidentReviewCheck } from "../hooks/useResidentReviewCheck";
 import { useUnreadNotificationsCount } from "../src/hooks/useUnreadNotificationsCount";
 import posthogLogger from "../services/posthogService";
 
-const SCREEN_HEIGHT = Dimensions.get("window").height;
+const PRIMARY = "#670CF5";
+const SECONDARY = "#00BD7C";
+const ACCENT = "#1B0977";
+const BG_LIGHT = "#F8F9FE";
+const CARD_BORDER = "#F1F5F9";
+const MUTED = "#64748B";
+const MUTED_LIGHT = "#94A3B8";
+const DANGER = "#EF4444";
+const INFO = "#2563EB";
 
-// Importar MapView con clustering
 let MapView = null;
 let Marker = null;
 let Callout = null;
 let PROVIDER_DEFAULT = null;
 let MAP_AVAILABLE = false;
+let CLUSTERING_AVAILABLE = false;
 
 try {
-  // Intentar primero con clustering
   try {
     const ClusteredMapView = require("react-native-map-clustering").default;
     MapView = ClusteredMapView;
-    console.log("✅ MapView con clustering disponible");
+    CLUSTERING_AVAILABLE = true;
   } catch (clusterError) {
-    // Si no hay clustering, usar MapView normal
     const MapModule = require("react-native-maps");
     MapView = MapModule.default;
-    console.log("✅ MapView sin clustering disponible");
   }
 
-  // Importar componentes de react-native-maps
   const MapModule = require("react-native-maps");
   Marker = MapModule.Marker;
   Callout = MapModule.Callout;
   PROVIDER_DEFAULT = MapModule.PROVIDER_DEFAULT;
   MAP_AVAILABLE = true;
 } catch (error) {
-  console.log(
-    "⚠️ MapView no disponible - usando vista de lista. Error:",
-    error.message
-  );
+  console.log("⚠️ MapView no disponible - usando vista de lista.", error.message);
   MAP_AVAILABLE = false;
 }
 
-/**
- * Pantalla de Comunidad - Mapa interactivo de residentes
- */
-export default function ComunityScreen({ userProfile, navigation }) {
-  const { count: notificationCount } = useUnreadNotificationsCount(
-    userProfile?.id
+function RadioDot({ selected }) {
+  return (
+    <View
+      style={[
+        modal.radioDot,
+        selected ? modal.radioDotSelected : modal.radioDotUnselected,
+      ]}
+    >
+      {selected ? <View style={modal.radioDotInner} /> : null}
+    </View>
   );
+}
+
+function FilterModal({
+  visible,
+  onClose,
+  title,
+  options,
+  value,
+  onSelect,
+  placeholder,
+}) {
+  const insets = useSafeAreaInsets();
+  const [tempValue, setTempValue] = useState(value);
+
+  useEffect(() => {
+    if (visible) {
+      setTempValue(value);
+    }
+  }, [value, visible]);
+
+  const listData = useMemo(() => {
+    const data = [];
+    if (value) {
+      data.push({ id: "", name: placeholder });
+    }
+    data.push(...options);
+    return data;
+  }, [options, placeholder, value]);
+
+  const handleConfirm = useCallback(() => {
+    onSelect(tempValue);
+    onClose();
+  }, [onClose, onSelect, tempValue]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={false}
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={modal.container}>
+        <View style={[modal.header, { paddingTop: Math.max(insets.top, 16) }]}>
+          <TouchableOpacity style={modal.backBtn} onPress={onClose}>
+            <Ionicons name="arrow-back" size={24} color={ACCENT} />
+          </TouchableOpacity>
+          <Text style={modal.title}>{title}</Text>
+          <View style={modal.backBtn} />
+        </View>
+
+        <ScrollView contentContainerStyle={modal.listContent}>
+          {listData.map((item, index) => {
+            const isClear = item.id === "";
+            const isSelected = !isClear && item.id === tempValue;
+
+            return (
+              <Pressable
+                key={`${String(item.id ?? "")}-${index}`}
+                style={({ pressed }) => [
+                  modal.option,
+                  isSelected && modal.optionSelected,
+                  isClear && modal.optionClear,
+                  pressed && { opacity: 0.78 },
+                ]}
+                onPress={() => setTempValue(isClear ? "" : item.id)}
+              >
+                <Text
+                  style={[
+                    modal.optionName,
+                    isSelected && modal.optionNameSelected,
+                    isClear && modal.optionNameClear,
+                  ]}
+                >
+                  {item.name}
+                </Text>
+                {isClear ? null : <RadioDot selected={isSelected} />}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <View style={[modal.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <TouchableOpacity style={modal.confirmBtn} onPress={handleConfirm}>
+            <Text style={modal.confirmText}>Confirmar selección</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ResidentCard({ user }) {
+  return (
+    <View style={styles.userCard}>
+      <View style={styles.userAvatar}>
+        <Ionicons name="person-outline" size={22} color={PRIMARY} />
+      </View>
+      <View style={styles.userCardBody}>
+        <Text style={styles.userName}>
+          {user.name} {user.surname}
+        </Text>
+
+        <View style={styles.userMetaList}>
+          {user.specialty_name ? (
+            <View style={styles.userMetaRow}>
+              <Ionicons name="medkit-outline" size={15} color={PRIMARY} />
+              <Text style={styles.userMetaText}>{user.specialty_name}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.userMetaRow}>
+            <Ionicons name="location-outline" size={15} color={MUTED_LIGHT} />
+            <Text style={styles.userMetaText}>{user.city}</Text>
+          </View>
+
+          {user.work_email ? (
+            <View style={styles.userMetaRow}>
+              <Ionicons name="mail-outline" size={15} color={INFO} />
+              <Text style={styles.userMetaText}>{user.work_email}</Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export default function ComunityScreen({ userProfile, navigation }) {
+  const insets = useSafeAreaInsets();
   const mapRef = useRef(null);
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
-  const [selectedMarker, setSelectedMarker] = useState(null);
-  const [viewMode, setViewMode] = useState(MAP_AVAILABLE ? "map" : "list"); // "map" o "list"
+  const [openModal, setOpenModal] = useState(null);
+  const [viewMode, setViewMode] = useState(MAP_AVAILABLE ? "map" : "list");
 
-  // Hooks personalizados
-  const { cityOptions, loading: citiesLoading } = useCities();
+  const { count: notificationCount } = useUnreadNotificationsCount(
+    userProfile?.id
+  );
+  const { cityOptions } = useCities();
   const {
     users,
     specialties,
     loading: usersLoading,
+    error: usersError,
     mapRegion,
   } = useCommunityUsers(selectedCity, selectedSpecialty);
   const { hasReview, loading: reviewLoading } = useResidentReviewCheck(
@@ -79,413 +217,429 @@ export default function ComunityScreen({ userProfile, navigation }) {
     userProfile
   );
 
-  // Configurar filtros
-  const filtersConfig = useMemo(() => {
-    const specialtyOptions = specialties.map((specialty) => ({
-      id: specialty.id,
-      name: specialty.name,
-    }));
-
-    return [
-      {
-        id: "city",
-        type: "select",
-        label: "Ciudad",
-        value: selectedCity,
-        onSelect: setSelectedCity,
-        options: cityOptions,
-        placeholder: "Todas las ciudades",
-      },
-      {
-        id: "specialty",
-        type: "select",
-        label: "Especialidad",
-        value: selectedSpecialty,
-        onSelect: setSelectedSpecialty,
-        options: specialtyOptions,
-        placeholder: "Todas las especialidades",
-      },
-    ];
-  }, [selectedCity, selectedSpecialty, cityOptions, specialties]);
-
-  // Verificar si hay filtros activos
-  const hasActiveFilters = useMemo(() => {
-    return !!(selectedCity || selectedSpecialty);
-  }, [selectedCity, selectedSpecialty]);
-
-  // Limpiar filtros
-  const clearFilters = () => {
-    setSelectedCity("");
-    setSelectedSpecialty("");
-  };
-
-  // Ajustar el mapa cuando cambien los usuarios o filtros
-  useEffect(() => {
-    if (mapRef.current && users.length > 0) {
-      // Pequeño delay para asegurar que el mapa esté listo
-      setTimeout(() => {
-        mapRef.current?.animateToRegion(mapRegion, 1000);
-      }, 100);
-    }
-  }, [users, mapRegion]);
-
-  // Tracking de pantalla con PostHog
   useEffect(() => {
     posthogLogger.logScreen("ComunityScreen");
   }, []);
 
-  // Determinar si debe mostrar blur/overlay (residente sin reseña)
+  useEffect(() => {
+    if (mapRef.current && users.length > 0 && viewMode === "map") {
+      const timeout = setTimeout(() => {
+        mapRef.current?.animateToRegion?.(mapRegion, 800);
+      }, 120);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [mapRegion, users, viewMode]);
+
   const shouldShowReviewPrompt =
     userProfile?.is_resident &&
     !userProfile?.is_super_admin &&
     !reviewLoading &&
     hasReview === false;
 
-  // Renderizar marcador personalizado (solo si MapView está disponible)
-  const renderMarker = (user) => {
-    if (!MAP_AVAILABLE || !Marker) return null;
-
-    return (
-      <Marker
-        key={user.id}
-        coordinate={{
-          latitude: user.latitude,
-          longitude: user.longitude,
-        }}
-        pinColor="#007AFF"
-      >
-        {Callout && (
-          <Callout tooltip={false}>
-            <View style={styles.calloutContainer}>
-              <Text style={styles.calloutName}>
-                {user.name} {user.surname}
-              </Text>
-              {user.specialty_name && (
-                <View style={styles.calloutRow}>
-                  <Text style={styles.calloutLabel}>Especialidad:</Text>
-                  <Text style={styles.calloutValue}>{user.specialty_name}</Text>
-                </View>
-              )}
-              {user.work_email && (
-                <View style={styles.calloutRow}>
-                  <Text style={styles.calloutLabel}>Email:</Text>
-                  <Text style={styles.calloutValue}>{user.work_email}</Text>
-                </View>
-              )}
-              <View style={styles.calloutRow}>
-                <Text style={styles.calloutLabel}>Ciudad:</Text>
-                <Text style={styles.calloutValue}>{user.city}</Text>
-              </View>
-            </View>
-          </Callout>
-        )}
-      </Marker>
-    );
-  };
-
-  // Renderizar item de usuario en la lista (vista alternativa)
-  const renderUserItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.userCard}
-      activeOpacity={0.7}
-      onPress={() => setSelectedMarker(item)}
-    >
-      <View style={styles.userCardHeader}>
-        <View style={styles.userAvatar}>
-          <Ionicons name="person" size={24} color="#007AFF" />
-        </View>
-        <View style={styles.userInfo}>
-          <Text style={styles.userName}>
-            {item.name} {item.surname}
-          </Text>
-          {item.specialty_name && (
-            <View style={styles.userInfoRow}>
-              <Ionicons
-                name="school"
-                size={14}
-                color="#8B5CF6"
-                style={styles.userInfoIcon}
-              />
-              <Text style={styles.userInfoText}>{item.specialty_name}</Text>
-            </View>
-          )}
-          <View style={styles.userInfoRow}>
-            <Ionicons
-              name="location"
-              size={14}
-              color="#666"
-              style={styles.userInfoIcon}
-            />
-            <Text style={styles.userInfoText}>{item.city}</Text>
-          </View>
-          {item.work_email && (
-            <View style={styles.userInfoRow}>
-              <Ionicons
-                name="mail"
-                size={14}
-                color="#007AFF"
-                style={styles.userInfoIcon}
-              />
-              <Text style={styles.userInfoText}>{item.work_email}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
+  const specialtyOptions = useMemo(
+    () =>
+      specialties.map((specialty) => ({
+        id: specialty.id,
+        name: specialty.name,
+      })),
+    [specialties]
   );
+
+  const selectedCityName = useMemo(
+    () => cityOptions.find((option) => option.id === selectedCity)?.name,
+    [cityOptions, selectedCity]
+  );
+  const selectedSpecialtyName = useMemo(
+    () => specialtyOptions.find((option) => option.id === selectedSpecialty)?.name,
+    [selectedSpecialty, specialtyOptions]
+  );
+
+  const hasActiveFilters = Boolean(selectedCity || selectedSpecialty);
+  const isLoadingAccess =
+    usersLoading ||
+    (userProfile?.is_resident && !userProfile?.is_super_admin && reviewLoading);
+
+  const cityCount = useMemo(() => new Set(users.map((user) => user.city)).size, [users]);
+
+  const clearFilters = useCallback(() => {
+    setSelectedCity("");
+    setSelectedSpecialty("");
+  }, []);
+
+  const renderMarker = useCallback(
+    (user) => {
+      if (!MAP_AVAILABLE || !Marker) return null;
+
+      return (
+        <Marker
+          key={user.id}
+          coordinate={{
+            latitude: user.latitude,
+            longitude: user.longitude,
+          }}
+          pinColor={PRIMARY}
+        >
+          {Callout ? (
+            <Callout tooltip={false}>
+              <View style={styles.calloutContainer}>
+                <Text style={styles.calloutName}>
+                  {user.name} {user.surname}
+                </Text>
+                {user.specialty_name ? (
+                  <View style={styles.calloutRow}>
+                    <Text style={styles.calloutLabel}>Especialidad</Text>
+                    <Text style={styles.calloutValue}>{user.specialty_name}</Text>
+                  </View>
+                ) : null}
+                {user.work_email ? (
+                  <View style={styles.calloutRow}>
+                    <Text style={styles.calloutLabel}>Email</Text>
+                    <Text style={styles.calloutValue}>{user.work_email}</Text>
+                  </View>
+                ) : null}
+                <View style={styles.calloutRow}>
+                  <Text style={styles.calloutLabel}>Ciudad</Text>
+                  <Text style={styles.calloutValue}>{user.city}</Text>
+                </View>
+              </View>
+            </Callout>
+          ) : null}
+        </Marker>
+      );
+    },
+    []
+  );
+
+  const mapProps = CLUSTERING_AVAILABLE
+    ? {
+        clusterColor: PRIMARY,
+        clusterTextColor: "#FFFFFF",
+        clusterFontFamily: "System",
+        radius: 80,
+        maxZoom: 18,
+        minZoom: 3,
+        extent: 512,
+        nodeSize: 64,
+        spiralEnabled: true,
+        superClusterOptions: {
+          radius: 80,
+          maxZoom: 18,
+          minZoom: 3,
+          minPoints: 2,
+        },
+        renderCluster: (cluster) => {
+          const { coordinate, pointCount, clusterId } = cluster;
+
+          return (
+            <Marker
+              key={`cluster-${clusterId}`}
+              coordinate={coordinate}
+              onPress={() => {
+                mapRef.current?.animateToRegion?.(
+                  {
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude,
+                    latitudeDelta: 0.5,
+                    longitudeDelta: 0.5,
+                  },
+                  300
+                );
+              }}
+            >
+              <View style={styles.clusterContainer}>
+                <View
+                  style={[
+                    styles.clusterBubble,
+                    pointCount >= 10 && styles.clusterBubbleLarge,
+                    pointCount >= 20 && styles.clusterBubbleXLarge,
+                  ]}
+                >
+                  <Text style={styles.clusterText}>{pointCount}</Text>
+                </View>
+                <View style={styles.clusterHint}>
+                  <Ionicons name="search" size={10} color={PRIMARY} />
+                  <Text style={styles.clusterHintText}>Haz zoom</Text>
+                </View>
+              </View>
+              {Callout ? (
+                <Callout tooltip={false}>
+                  <View style={styles.clusterCallout}>
+                    <Text style={styles.clusterCalloutTitle}>
+                      {pointCount} residentes en esta zona
+                    </Text>
+                    <Text style={styles.clusterCalloutText}>
+                      Haz zoom para ver cada perfil
+                    </Text>
+                  </View>
+                </Callout>
+              ) : null}
+            </Marker>
+          );
+        },
+      }
+    : {};
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.title}>Comunidad</Text>
-            <Text style={styles.resultsText}>
-              Mostrando <Text style={styles.resultsNumber}>{users.length}</Text>{" "}
-              {users.length === 1 ? "residente" : "residentes"}
+      <View style={[styles.hero, { paddingTop: Math.max(insets.top + 8, 16) }]}>
+        <View style={styles.heroTopRow}>
+          <View style={styles.heroCopy}>
+            <Text style={styles.screenTitle}>Comunidad</Text>
+            <Text style={styles.screenSubtitle}>
+              Mapa de residentes activos para localizar compañeros por ciudad y especialidad.
             </Text>
           </View>
-          <View style={styles.headerRight}>
-            {/* Botón para cambiar vista */}
-            {MAP_AVAILABLE && (
+
+          <View style={styles.heroActions}>
+            {MAP_AVAILABLE ? (
               <TouchableOpacity
-                style={styles.viewToggleButton}
+                style={styles.modeButton}
                 onPress={() => setViewMode(viewMode === "map" ? "list" : "map")}
               >
                 <Ionicons
-                  name={viewMode === "map" ? "list" : "map"}
-                  size={20}
-                  color="#007AFF"
+                  name={viewMode === "map" ? "list-outline" : "map-outline"}
+                  size={18}
+                  color={PRIMARY}
                 />
-                <Text style={styles.viewToggleText}>
+                <Text style={styles.modeButtonText}>
                   {viewMode === "map" ? "Lista" : "Mapa"}
                 </Text>
               </TouchableOpacity>
-            )}
-            {/* Botón de notificaciones */}
+            ) : null}
+
             <TouchableOpacity
               style={styles.notificationButton}
-              onPress={() => navigation?.navigate("notifications")}
+              onPress={() => navigation?.navigate?.("notifications")}
             >
-              <Ionicons
-                name="notifications-outline"
-                size={28}
-                color="#1a1a1a"
-              />
-              {notificationCount > 0 && (
+              <Ionicons name="notifications-outline" size={22} color={ACCENT} />
+              {notificationCount > 0 ? (
                 <View style={styles.notificationBadge}>
                   <Text style={styles.notificationBadgeText}>
                     {notificationCount > 99 ? "99+" : notificationCount}
                   </Text>
                 </View>
-              )}
+              ) : null}
             </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.metricsRow}>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricValue}>{users.length}</Text>
+            <Text style={styles.metricLabel}>residentes visibles</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricValue}>{cityCount}</Text>
+            <Text style={styles.metricLabel}>ciudades activas</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricValue}>
+              {selectedSpecialty ? "1" : specialtyOptions.length}
+            </Text>
+            <Text style={styles.metricLabel}>especialidades</Text>
           </View>
         </View>
       </View>
 
-      {/* Filtros */}
-      <Filters
-        filters={filtersConfig}
-        onClearFilters={clearFilters}
-        hasActiveFilters={hasActiveFilters}
-      />
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filtersScroll}
+        contentContainerStyle={styles.filtersRow}
+      >
+        <TouchableOpacity
+          style={[styles.chip, selectedCity && styles.chipActive]}
+          onPress={() => setOpenModal("city")}
+        >
+          <Ionicons
+            name="location-outline"
+            size={16}
+            color={selectedCity ? PRIMARY : ACCENT}
+          />
+          <Text style={[styles.chipText, selectedCity && styles.chipTextActive]}>
+            {selectedCityName || "Ciudad"}
+          </Text>
+          <Ionicons
+            name="chevron-down"
+            size={16}
+            color={selectedCity ? PRIMARY : ACCENT}
+          />
+        </TouchableOpacity>
 
-      {/* Mapa o Lista */}
-      <View style={styles.mapWrapper}>
-        {MAP_AVAILABLE && MapView && viewMode === "map" ? (
-          // Vista de Mapa con clustering
-          <MapView
-            ref={mapRef}
-            style={[styles.map, shouldShowReviewPrompt && styles.mapBlurred]}
-            provider={PROVIDER_DEFAULT}
-            initialRegion={{
-              latitude: 40.4168,
-              longitude: -3.7038,
-              latitudeDelta: 10,
-              longitudeDelta: 10,
-            }}
-            showsUserLocation={false}
-            showsMyLocationButton={false}
-            zoomEnabled={!shouldShowReviewPrompt}
-            scrollEnabled={!shouldShowReviewPrompt}
-            pitchEnabled={false}
-            rotateEnabled={false}
-            // Configuración de clustering mejorada
-            clusterColor="#007AFF"
-            clusterTextColor="#FFFFFF"
-            clusterFontFamily="System"
-            radius={80} // Radio aumentado para agrupar mejor usuarios cercanos
-            maxZoom={18} // Máximo zoom antes de desagrupar
-            minZoom={3}
-            extent={512}
-            nodeSize={64}
-            // Activar clustering más agresivo
-            spiralEnabled={true}
-            superClusterOptions={{
-              radius: 80,
-              maxZoom: 18,
-              minZoom: 3,
-              minPoints: 2, // Agrupar desde 2 puntos cercanos
-            }}
-            // Personalizar estilo del cluster
-            renderCluster={(cluster) => {
-              const { coordinate, pointCount, clusterId } = cluster;
-              return (
-                <Marker
-                  key={`cluster-${clusterId}`}
-                  coordinate={coordinate}
-                  onPress={() => {
-                    // Hacer zoom en el cluster
-                    if (mapRef.current) {
-                      const region = {
-                        latitude: coordinate.latitude,
-                        longitude: coordinate.longitude,
-                        latitudeDelta: 0.5,
-                        longitudeDelta: 0.5,
-                      };
-                      mapRef.current.animateToRegion(region, 300);
-                    }
-                  }}
-                >
-                  <View style={styles.clusterContainer}>
-                    <View
-                      style={[
-                        styles.clusterBubble,
-                        pointCount >= 10 && styles.clusterBubbleLarge,
-                        pointCount >= 20 && styles.clusterBubbleXLarge,
-                      ]}
-                    >
-                      <Text style={styles.clusterText}>{pointCount}</Text>
-                      <Text style={styles.clusterSubtext}>
-                        {pointCount === 2 ? "residentes" : "residentes"}
-                      </Text>
-                    </View>
-                    {/* Indicador de zoom */}
-                    <View style={styles.clusterHint}>
-                      <Ionicons name="search" size={10} color="#007AFF" />
-                      <Text style={styles.clusterHintText}>Haz zoom</Text>
-                    </View>
-                  </View>
-                  {/* Callout informativo */}
-                  {Callout && (
-                    <Callout tooltip={false}>
-                      <View style={styles.clusterCallout}>
-                        <Text style={styles.clusterCalloutTitle}>
-                          {pointCount} residentes en esta zona
-                        </Text>
-                        <Text style={styles.clusterCalloutText}>
-                          Haz zoom para ver cada uno
-                        </Text>
-                      </View>
-                    </Callout>
-                  )}
-                </Marker>
-              );
-            }}
+        <TouchableOpacity
+          style={[styles.chip, selectedSpecialty && styles.chipActive]}
+          onPress={() => setOpenModal("specialty")}
+        >
+          <Ionicons
+            name="medkit-outline"
+            size={16}
+            color={selectedSpecialty ? PRIMARY : ACCENT}
+          />
+          <Text
+            style={[styles.chipText, selectedSpecialty && styles.chipTextActive]}
+            numberOfLines={1}
           >
-            {!shouldShowReviewPrompt && users.map((user) => renderMarker(user))}
-          </MapView>
-        ) : (
-          // Vista de lista
-          <View style={styles.listContainer}>
-            {!shouldShowReviewPrompt && (
-              <>
-                {!MAP_AVAILABLE && (
-                  <View style={styles.listHeader}>
-                    <Ionicons
-                      name="information-circle"
-                      size={20}
-                      color="#FF9500"
-                    />
-                    <Text style={styles.listHeaderText}>
-                      Mapa no disponible. La API key está configurada en
-                      app.json. Necesitas hacer un nuevo build: "eas build
-                      --platform android --profile preview"
+            {selectedSpecialtyName || "Especialidad"}
+          </Text>
+          <Ionicons
+            name="chevron-down"
+            size={16}
+            color={selectedSpecialty ? PRIMARY : ACCENT}
+          />
+        </TouchableOpacity>
+
+        {hasActiveFilters ? (
+          <TouchableOpacity style={styles.chipClear} onPress={clearFilters}>
+            <Ionicons name="close-circle" size={16} color={DANGER} />
+            <Text style={styles.chipClearText}>Limpiar</Text>
+          </TouchableOpacity>
+        ) : null}
+      </ScrollView>
+
+      {usersError ? (
+        <View style={styles.errorCard}>
+          <Ionicons name="alert-circle" size={20} color={DANGER} />
+          <Text style={styles.errorText}>{usersError}</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.stage}>
+        <View style={styles.stageHeader}>
+          <Text style={styles.stageTitle}>
+            {viewMode === "map" ? "Mapa de residentes" : "Directorio de residentes"}
+          </Text>
+          <Text style={styles.stageSubtitle}>
+            {MAP_AVAILABLE
+              ? viewMode === "map"
+                ? "Explora agrupaciones por zona y haz zoom para ver cada perfil."
+                : "Vista alternativa en formato lista."
+              : "Mapa no disponible en este build. Se muestra la lista como fallback."}
+          </Text>
+        </View>
+
+        <View style={styles.stageBody}>
+          {MAP_AVAILABLE && viewMode === "map" ? (
+            <MapView
+              ref={mapRef}
+              style={[styles.map, shouldShowReviewPrompt && styles.mapBlurred]}
+              provider={PROVIDER_DEFAULT}
+              initialRegion={{
+                latitude: 40.4168,
+                longitude: -3.7038,
+                latitudeDelta: 10,
+                longitudeDelta: 10,
+              }}
+              showsUserLocation={false}
+              showsMyLocationButton={false}
+              zoomEnabled={!shouldShowReviewPrompt}
+              scrollEnabled={!shouldShowReviewPrompt}
+              pitchEnabled={false}
+              rotateEnabled={false}
+              {...mapProps}
+            >
+              {!shouldShowReviewPrompt ? users.map((user) => renderMarker(user)) : null}
+            </MapView>
+          ) : (
+            <FlatList
+              data={shouldShowReviewPrompt ? [] : users}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => <ResidentCard user={item} />}
+              contentContainerStyle={styles.listContent}
+              ListHeaderComponent={
+                !MAP_AVAILABLE ? (
+                  <View style={styles.infoCard}>
+                    <Ionicons name="information-circle-outline" size={18} color={INFO} />
+                    <Text style={styles.infoCardText}>
+                      El mapa requiere un build nativo actualizado. Mientras tanto se muestra el directorio.
                     </Text>
                   </View>
-                )}
-                <FlatList
-                  data={users}
-                  renderItem={renderUserItem}
-                  keyExtractor={(item) => item.id.toString()}
-                  contentContainerStyle={styles.listContent}
-                  ListEmptyComponent={
-                    !usersLoading && (
-                      <View style={styles.emptyContainer}>
-                        <Ionicons
-                          name="people-outline"
-                          size={48}
-                          color="#999"
-                        />
-                        <Text style={styles.emptyText}>
-                          No se encontraron residentes con los filtros
-                          seleccionados
-                        </Text>
-                      </View>
-                    )
-                  }
-                />
-              </>
-            )}
-          </View>
-        )}
-
-        {/* Overlay para residentes sin reseña */}
-        {shouldShowReviewPrompt && (
-          <View style={styles.reviewPromptOverlay}>
-            <View style={styles.reviewPromptContent}>
-              <View style={styles.reviewPromptIcon}>
-                <Ionicons name="map" size={32} color="#FFFFFF" />
-              </View>
-              <Text style={styles.reviewPromptTitle}>
-                ¡Descubre la comunidad!
-              </Text>
-              <Text style={styles.reviewPromptText}>
-                Para acceder al mapa de la comunidad y ver dónde están tus
-                compañeros residentes, primero comparte tu experiencia con una
-                reseña.
-              </Text>
-              <TouchableOpacity
-                style={styles.reviewPromptButton}
-                onPress={() => navigation?.navigate("myReview")}
-              >
-                <Ionicons name="heart" size={20} color="#FFFFFF" />
-                <Text style={styles.reviewPromptButtonText}>
-                  Compartir mi experiencia
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Loading overlay */}
-        {(usersLoading ||
-          (userProfile?.is_resident &&
-            !userProfile?.is_super_admin &&
-            reviewLoading)) && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.loadingText}>
-              {usersLoading ? "Cargando usuarios..." : "Verificando acceso..."}
-            </Text>
-          </View>
-        )}
-
-        {/* Mensaje cuando no hay usuarios (solo para vista de mapa) */}
-        {MAP_AVAILABLE &&
-          !usersLoading &&
-          !shouldShowReviewPrompt &&
-          users.length === 0 && (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="people-outline" size={48} color="#999" />
-              <Text style={styles.emptyText}>
-                No se encontraron residentes con los filtros seleccionados
-              </Text>
-            </View>
+                ) : null
+              }
+              ListEmptyComponent={
+                !isLoadingAccess && !shouldShowReviewPrompt ? (
+                  <View style={styles.emptyContainer}>
+                    <View style={styles.emptyIconWrap}>
+                      <Ionicons name="people-outline" size={34} color={PRIMARY} />
+                    </View>
+                    <Text style={styles.emptyTitle}>No se encontraron residentes</Text>
+                    <Text style={styles.emptyText}>
+                      Ajusta ciudad o especialidad para ampliar los resultados.
+                    </Text>
+                  </View>
+                ) : null
+              }
+            />
           )}
+
+          {MAP_AVAILABLE &&
+          viewMode === "map" &&
+          !isLoadingAccess &&
+          !shouldShowReviewPrompt &&
+          users.length === 0 ? (
+            <View style={styles.emptyMapOverlay}>
+              <View style={styles.emptyMapCard}>
+                <Ionicons name="people-outline" size={28} color={PRIMARY} />
+                <Text style={styles.emptyMapTitle}>Sin resultados en el mapa</Text>
+                <Text style={styles.emptyMapText}>
+                  No hay residentes que coincidan con los filtros actuales.
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
+          {shouldShowReviewPrompt ? (
+            <View style={styles.reviewPromptOverlay}>
+              <View style={styles.reviewPromptCard}>
+                <View style={styles.reviewPromptIcon}>
+                  <Ionicons name="map-outline" size={28} color="#FFFFFF" />
+                </View>
+                <Text style={styles.reviewPromptTitle}>Desbloquea la comunidad</Text>
+                <Text style={styles.reviewPromptText}>
+                  Para ver el mapa y localizar a otros residentes, comparte antes tu experiencia con una reseña.
+                </Text>
+                <TouchableOpacity
+                  style={styles.reviewPromptButton}
+                  onPress={() => navigation?.navigate?.("myReview")}
+                >
+                  <Ionicons name="heart-outline" size={18} color="#FFFFFF" />
+                  <Text style={styles.reviewPromptButtonText}>
+                    Compartir mi experiencia
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+
+          {isLoadingAccess ? (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color={PRIMARY} />
+              <Text style={styles.loadingText}>
+                {usersLoading ? "Cargando residentes..." : "Verificando acceso..."}
+              </Text>
+            </View>
+          ) : null}
+        </View>
       </View>
+
+      <FilterModal
+        visible={openModal === "city"}
+        onClose={() => setOpenModal(null)}
+        title="Filtrar por ciudad"
+        options={cityOptions}
+        value={selectedCity}
+        onSelect={setSelectedCity}
+        placeholder="Todas las ciudades"
+      />
+      <FilterModal
+        visible={openModal === "specialty"}
+        onClose={() => setOpenModal(null)}
+        title="Filtrar por especialidad"
+        options={specialtyOptions}
+        value={selectedSpecialty}
+        onSelect={setSelectedSpecialty}
+        placeholder="Todas las especialidades"
+      />
     </View>
   );
 }
@@ -493,80 +647,207 @@ export default function ComunityScreen({ userProfile, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: BG_LIGHT,
   },
-  header: {
-    backgroundColor: "#ffffff",
-    padding: 16,
-    paddingRight: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+  hero: {
+    paddingHorizontal: 16,
+    paddingBottom: 18,
   },
-  headerTop: {
+  heroTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    gap: 12,
   },
-  headerLeft: {
+  heroCopy: {
     flex: 1,
   },
-  headerRight: {
+  screenTitle: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: ACCENT,
+    letterSpacing: -0.3,
+  },
+  screenSubtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    color: MUTED,
+    lineHeight: 20,
+    maxWidth: 260,
+  },
+  heroActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-    marginBottom: 4,
+  modeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: `${PRIMARY}20`,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  modeButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: PRIMARY,
   },
   notificationButton: {
-    padding: 8,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    alignItems: "center",
+    justifyContent: "center",
     position: "relative",
   },
   notificationBadge: {
     position: "absolute",
-    top: 4,
-    right: 4,
-    backgroundColor: "#EF4444",
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: "center",
+    top: -3,
+    right: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: DANGER,
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 4,
   },
   notificationBadgeText: {
     color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "bold",
+    fontSize: 10,
+    fontWeight: "700",
   },
-  viewToggleButton: {
+  metricsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+  },
+  metricCard: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  metricValue: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: PRIMARY,
+  },
+  metricLabel: {
+    marginTop: 4,
+    fontSize: 12,
+    color: MUTED,
+    lineHeight: 16,
+  },
+  filtersScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+    marginBottom: 8,
+  },
+  filtersRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    paddingRight: 24,
+  },
+  chip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F0F8FF",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
     gap: 6,
-    marginLeft: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
-  viewToggleText: {
-    fontSize: 14,
+  chipActive: {
+    backgroundColor: `${PRIMARY}12`,
+    borderColor: `${PRIMARY}28`,
+  },
+  chipText: {
+    fontSize: 13,
     fontWeight: "600",
-    color: "#007AFF",
+    color: ACCENT,
+    maxWidth: 130,
   },
-  resultsText: {
-    fontSize: 14,
-    color: "#666",
+  chipTextActive: {
+    color: PRIMARY,
   },
-  resultsNumber: {
-    color: "#007AFF",
-    fontWeight: "600",
+  chipClear: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
   },
-  mapWrapper: {
+  chipClearText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: DANGER,
+  },
+  errorCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginBottom: 10,
+  },
+  errorText: {
     flex: 1,
+    color: DANGER,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  stage: {
+    flex: 1,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    minHeight: 0,
+  },
+  stageHeader: {
+    marginBottom: 10,
+  },
+  stageTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
+  },
+  stageSubtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    color: MUTED,
+    lineHeight: 20,
+  },
+  stageBody: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 26,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    backgroundColor: "#FFFFFF",
     position: "relative",
   },
   map: {
@@ -574,28 +855,204 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   mapBlurred: {
-    opacity: 0.3,
+    opacity: 0.28,
   },
-  // Estilos para Callout (popup del marcador)
-  calloutContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
+  listContent: {
+    padding: 14,
+    paddingBottom: 28,
+  },
+  infoCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
     padding: 12,
-    minWidth: 200,
-    maxWidth: 300,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    marginBottom: 12,
+  },
+  infoCardText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#1D4ED8",
+    lineHeight: 19,
+  },
+  userCard: {
+    flexDirection: "row",
+    gap: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    padding: 14,
+    marginBottom: 10,
+  },
+  userAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: `${PRIMARY}12`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  userCardBody: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: ACCENT,
+  },
+  userMetaList: {
+    gap: 8,
+    marginTop: 10,
+  },
+  userMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  userMetaText: {
+    flex: 1,
+    fontSize: 14,
+    color: MUTED,
+    lineHeight: 20,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 56,
+    paddingHorizontal: 24,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    backgroundColor: `${PRIMARY}12`,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: ACCENT,
+    textAlign: "center",
+  },
+  emptyText: {
+    marginTop: 8,
+    fontSize: 15,
+    color: MUTED,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  emptyMapOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  emptyMapCard: {
+    maxWidth: 280,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    padding: 18,
+    alignItems: "center",
+  },
+  emptyMapTitle: {
+    marginTop: 10,
+    fontSize: 17,
+    fontWeight: "700",
+    color: ACCENT,
+    textAlign: "center",
+  },
+  emptyMapText: {
+    marginTop: 6,
+    fontSize: 14,
+    color: MUTED,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.82)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: MUTED,
+  },
+  reviewPromptOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(248,249,254,0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  reviewPromptCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 22,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+  },
+  reviewPromptIcon: {
+    width: 62,
+    height: 62,
+    borderRadius: 20,
+    backgroundColor: PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewPromptTitle: {
+    marginTop: 16,
+    fontSize: 22,
+    fontWeight: "700",
+    color: ACCENT,
+    textAlign: "center",
+  },
+  reviewPromptText: {
+    marginTop: 10,
+    fontSize: 15,
+    color: MUTED,
+    lineHeight: 22,
+    textAlign: "center",
+  },
+  reviewPromptButton: {
+    marginTop: 18,
+    minHeight: 50,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    backgroundColor: PRIMARY,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  reviewPromptButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  calloutContainer: {
+    minWidth: 210,
+    maxWidth: 280,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 12,
   },
   calloutName: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#1a1a1a",
+    fontWeight: "700",
+    color: ACCENT,
     marginBottom: 8,
   },
   calloutRow: {
@@ -603,266 +1060,178 @@ const styles = StyleSheet.create({
   },
   calloutLabel: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#666",
+    fontWeight: "700",
+    color: MUTED_LIGHT,
+    textTransform: "uppercase",
     marginBottom: 2,
   },
   calloutValue: {
     fontSize: 13,
-    color: "#1a1a1a",
+    color: MUTED,
+    lineHeight: 18,
   },
-  // Estilos para clusters
   clusterContainer: {
     alignItems: "center",
-    justifyContent: "center",
   },
   clusterBubble: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#007AFF",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: PRIMARY,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 3,
     borderColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
   },
   clusterBubbleLarge: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#0056B3",
+    width: 52,
+    height: 52,
+    borderRadius: 26,
   },
   clusterBubbleXLarge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#003D82",
+    width: 62,
+    height: 62,
+    borderRadius: 31,
   },
   clusterText: {
     fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: "700",
     color: "#FFFFFF",
-    marginBottom: 2,
-  },
-  clusterSubtext: {
-    fontSize: 9,
-    color: "#FFFFFF",
-    opacity: 0.9,
   },
   clusterHint: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 8,
+    gap: 4,
     marginTop: 4,
-    gap: 3,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   clusterHintText: {
-    fontSize: 9,
-    fontWeight: "600",
-    color: "#007AFF",
+    fontSize: 10,
+    fontWeight: "700",
+    color: PRIMARY,
   },
   clusterCallout: {
+    minWidth: 170,
     padding: 10,
-    minWidth: 150,
   },
   clusterCalloutTitle: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#1a1a1a",
+    fontWeight: "700",
+    color: ACCENT,
     marginBottom: 4,
   },
   clusterCalloutText: {
     fontSize: 12,
-    color: "#666",
+    color: MUTED,
+    lineHeight: 18,
   },
-  reviewPromptOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  reviewPromptContent: {
-    alignItems: "center",
-    maxWidth: 400,
-  },
-  reviewPromptIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#007AFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  reviewPromptTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  reviewPromptText: {
-    fontSize: 16,
-    color: "#666",
-    textAlign: "center",
-    lineHeight: 24,
-    marginBottom: 24,
-  },
-  reviewPromptButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#007AFF",
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    gap: 8,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  reviewPromptButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  loadingOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#666",
-  },
-  emptyContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  emptyText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#999",
-    textAlign: "center",
-  },
-  // Estilos para vista de lista alternativa
-  listContainer: {
+});
+
+const modal = StyleSheet.create({
+  container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#FFFFFF",
   },
-  listHeader: {
+  header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    padding: 12,
-    backgroundColor: "#FFF9E6",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#FFE4A3",
-    gap: 8,
+    borderBottomColor: CARD_BORDER,
   },
-  listHeaderText: {
-    fontSize: 13,
-    color: "#666",
-    fontStyle: "italic",
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingBottom: 24,
   },
-  userCard: {
+  option: {
+    minHeight: 58,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  userCardHeader: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
-  userAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#E3F2FD",
+  optionSelected: {
+    borderColor: `${PRIMARY}40`,
+    backgroundColor: `${PRIMARY}10`,
+  },
+  optionClear: {
+    backgroundColor: "#F8FAFC",
+  },
+  optionName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: ACCENT,
+  },
+  optionNameSelected: {
+    color: PRIMARY,
+  },
+  optionNameClear: {
+    color: MUTED,
+  },
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: CARD_BORDER,
+  },
+  confirmBtn: {
+    backgroundColor: PRIMARY,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    paddingVertical: 15,
   },
-  userInfo: {
-    flex: 1,
+  confirmText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
   },
-  userName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1a1a1a",
-    marginBottom: 6,
-  },
-  userInfoRow: {
-    flexDirection: "row",
+  radioDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: "center",
-    marginTop: 4,
+    justifyContent: "center",
+    borderWidth: 1.5,
   },
-  userInfoIcon: {
-    marginRight: 6,
+  radioDotSelected: {
+    borderColor: PRIMARY,
   },
-  userInfoText: {
-    fontSize: 13,
-    color: "#666",
-    flex: 1,
+  radioDotUnselected: {
+    borderColor: "#CBD5E1",
+  },
+  radioDotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: PRIMARY,
   },
 });

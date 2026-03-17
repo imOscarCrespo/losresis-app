@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Roomies MIR Onboarding - Quiz 3</title>
+<!-- BEGIN: Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- END: Tailwind CSS CDN -->
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brandPurple: '#A100C2',
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-animations">
+    .card-selected {
+      border: 2px solid #A100C2;
+      background-color: rgba(161, 0, 194, 0.05);
+    }
+  </style>
+</head>
+<body class="bg-white text-gray-900 font-sans min-h-screen flex flex-col">
+<!-- BEGIN: Header Section -->
+<header class="p-6 pt-12">
+<!-- Progress Indicator -->
+<div class="w-full bg-gray-200 h-1.5 rounded-full mb-8">
+<div class="bg-brandPurple h-1.5 rounded-full" style="width: 42.85%;"></div>
+</div>
+<div class="text-right text-xs font-medium text-gray-400 mb-4">
+      PASO 3 DE 7
+    </div>
+<!-- Title and Subtitle -->
+<h1 class="text-3xl font-bold mb-2">¿Cómo organizas el baño?</h1>
+<p class="text-lg text-gray-600">El drama eterno del pelo en la ducha</p>
+</header>
+<!-- END: Header Section -->
+<!-- BEGIN: Quiz Options -->
+<main class="flex-grow px-6 pb-32">
+<div class="grid grid-cols-1 gap-4" data-purpose="quiz-options-grid" id="options-container">
+<!-- Card Option 1 -->
+<button class="w-full flex flex-col items-center p-6 border-2 border-gray-100 rounded-2xl transition-all duration-200 hover:border-brandPurple/50 focus:outline-none" data-purpose="option-card" onclick="selectOption(this)">
+<div class="w-32 h-32 mb-4 flex items-center justify-center bg-gray-50 rounded-full" data-purpose="illustration-container">
+<!-- Illustration Placeholder: Private Bathroom -->
+<img alt="Baño privado" class="rounded-lg" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3VbFE_3aGwX71vgwTr7rkKPjsrntpVO73p-rC2JN1AlDqcZwuLmuJcUHZJXxj5FjHXb_BaMKsOA7KukYOPf4dWTav00EGg0dMHvInS8ZmLZxRz1j9VRv73n5953P7aIXKx3EvXdZ6D1W-F54vkgXwLkQKtPe2FZoDnUmfJO0nasvMUeaxN58FIqVL5m5eqiiRvMTmhCkx0HVmyE0kWdbbnIdrN3OJ1hjg2ZIuYCf4MDsVfF--GR0FLiFOyE-3KJdJBcZtaC6StTk"/>
+</div>
+<span class="text-sm font-bold tracking-widest text-gray-800 uppercase">YO LIMPIO</span>
+<p class="text-xs text-gray-400 mt-1">Limpieza individual / Baño propio</p>
+</button>
+<!-- Card Option 2 -->
+<button class="w-full flex flex-col items-center p-6 border-2 border-gray-100 rounded-2xl transition-all duration-200 hover:border-brandPurple/50 focus:outline-none" data-purpose="option-card" onclick="selectOption(this)">
+<div class="w-32 h-32 mb-4 flex items-center justify-center bg-gray-50 rounded-full" data-purpose="illustration-container">
+<!-- Illustration Placeholder: Calendar -->
+<img alt="Turnos de limpieza" class="rounded-lg" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1V3jQGyL6d7ReWTY5-Aft0WOZZo1JyZ2rYrWuIsOfH98YUngEMLtODdLa8nXMLouwecNCIuTDvlnggrfXB9jLFoszh4N5x7vMmcktc77lDSxc61-J1uEqS6CWIPVqEql1XkKLqRZ4t2HZYJBHopMwFqwC8Cr2qpT-4mtm8I88YjfyFAc1qirbKBQcZPBmH0ljUT2oegP2WJZdkDftyrP8moZb8eGvGTarRrt1WCocHsxIlShoVkccVzeyuAX-TQpuZfc7fdB-QTA"/>
+</div>
+<span class="text-sm font-bold tracking-widest text-gray-800 uppercase">TURNOS</span>
+<p class="text-xs text-gray-400 mt-1">Rotación semanal organizada</p>
+</button>
+<!-- Card Option 3 -->
+<button class="w-full flex flex-col items-center p-6 border-2 border-gray-100 rounded-2xl transition-all duration-200 hover:border-brandPurple/50 focus:outline-none" data-purpose="option-card" onclick="selectOption(this)">
+<div class="w-32 h-32 mb-4 flex items-center justify-center bg-gray-50 rounded-full" data-purpose="illustration-container">
+<!-- Illustration Placeholder: Group Cleaning -->
+<img alt="Limpieza grupal" class="rounded-lg" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmSFbRrTyMitVzXF7G6Knmp2xGzH7EGAM6feeTKLn01Wa02DW-GngLcg4DflLIszL1MzWdIijVF2NDXiBCUOCr_dtrFslqRfUkq-MXK56CNxsWg9Ti_rxzU1JYbZUaywOttEhk-9wTcnWz8rg93ChXBAThdre6az5JQ7Nv7Frv_XPQx_3bmulHiIms1fBqX9Iy85C64gf00024D5ATqSnJpbinR2e-0MGXzu2vx8EhfHmARJcEg_4YarT8PzO7dkqOVW9QGn2C-Aw"/>
+</div>
+<span class="text-sm font-bold tracking-widest text-gray-800 uppercase">LIMPIEZA GRUPAL</span>
+<p class="text-xs text-gray-400 mt-1">Zafarrancho general los domingos</p>
+</button>
+</div>
+</main>
+<!-- END: Quiz Options -->
+<!-- BEGIN: Navigation Footer -->
+<footer class="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white to-transparent">
+<button class="w-full bg-brandPurple text-white font-bold py-4 rounded-xl shadow-lg shadow-brandPurple/20 transition-transform active:scale-95" data-purpose="continue-button">
+      CONTINUAR
+    </button>
+</footer>
+<!-- END: Navigation Footer -->
+<!-- BEGIN: Interaction Script -->
+<script data-purpose="selection-logic">
+    function selectOption(element) {
+      // Remove selection from all cards
+      const cards = document.querySelectorAll('[data-purpose="option-card"]');
+      cards.forEach(card => {
+        card.classList.remove('card-selected', 'border-brandPurple');
+        card.classList.add('border-gray-100');
+      });
+      
+      // Add selection to clicked card
+      element.classList.add('card-selected', 'border-brandPurple');
+      element.classList.remove('border-gray-100');
+    }
+  </script>
+<!-- END: Interaction Script -->
+</body></html>

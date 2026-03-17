@@ -23,6 +23,7 @@ export const ScreenLayout = ({
   isProfileIncomplete = false,
   onSectionChange,
   style,
+  hideFooter = false,
 }) => {
   const { needsUpdate, updateUrl, currentVersion, isLoading } =
     useVersionCheck();
@@ -43,19 +44,21 @@ export const ScreenLayout = ({
     <SafeAreaView style={[styles.container, style]}>
       <StatusBar style="auto" />
       <View style={styles.content}>{children}</View>
-      <View style={styles.footerWrapper}>
-        {showUpdateBanner && (
-          <View style={styles.bannerWrapper}>
-            <UpdateBanner updateUrl={updateUrl} />
-          </View>
-        )}
-        <Footer
-          userProfile={userProfile}
-          activeSection={activeSection}
-          isProfileIncomplete={isProfileIncomplete}
-          onSectionChange={onSectionChange}
-        />
-      </View>
+      {!hideFooter ? (
+        <View style={styles.footerWrapper}>
+          {showUpdateBanner && (
+            <View style={styles.bannerWrapper}>
+              <UpdateBanner updateUrl={updateUrl} />
+            </View>
+          )}
+          <Footer
+            userProfile={userProfile}
+            activeSection={activeSection}
+            isProfileIncomplete={isProfileIncomplete}
+            onSectionChange={onSectionChange}
+          />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 };

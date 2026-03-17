@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,51 +7,236 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  PanResponder,
-  Animated,
-  Dimensions,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
 import { useLibroSection } from "../hooks/useLibroSection";
-import { updateNodesPositions } from "../services/libroService";
 import { useResidentReviewCheck } from "../hooks/useResidentReviewCheck";
 import {
-  InfoBanner,
-  LibroNodeItem,
   LibroNodeModal,
   LibroEntryModal,
   ConfirmationModal,
-  FloatingActionButton,
-  ScreenHeader,
 } from "../components";
 import posthogLogger from "../services/posthogService";
 
-/**
- * Pantalla del Libro de Residente
- * Permite al usuario registrar y contar sus actividades diarias como médico
- */
+const INFO_PILLS = [
+  { icon: "add-circle-outline", label: "Cada + suma 1 actividad" },
+  { icon: "document-text-outline", label: "Registrar guarda detalle" },
+  { icon: "trophy-outline", label: "El objetivo es orientativo" },
+];
+
+const OverviewStat = ({ value, label, tone = "purple" }) => (
+  <View style={[styles.overviewStat, styles[`overviewStat${tone}`]]}>
+    <Text style={styles.overviewStatValue}>{value}</Text>
+    <Text style={styles.overviewStatLabel}>{label}</Text>
+  </View>
+);
+
+const InfoPill = ({ icon, label }) => (
+  <View style={styles.infoPill}>
+    <Ionicons name={icon} size={14} color="#670CF5" />
+    <Text style={styles.infoPillText}>{label}</Text>
+  </View>
+);
+
+const ProgressBar = ({ progress }) => (
+  <View style={styles.progressTrack}>
+    <View style={[styles.progressFill, { width: `${Math.min(progress, 100)}%` }]} />
+  </View>
+);
+
+const ProcedureRow = ({
+  node,
+  userResidencyYear,
+  onIncrement,
+  onDecrement,
+  onRegister,
+  onOpenActions,
+}) => {
+  const count = node.total_count || 0;
+  const goal = node.goal || 0;
+  const progress = goal > 0 ? (count / goal) * 100 : 0;
+
+  return (
+    <View style={styles.procedureCard}>
+      <View style={styles.procedureHeader}>
+        <View style={styles.procedureTitleWrap}>
+          <Text style={styles.procedureTitle}>{node.name}</Text>
+          <Text style={styles.procedureMeta}>
+            {count} registradas{goal > 0 ? ` de ${goal}` : ""}
+            {userResidencyYear ? ` · R${userResidencyYear}` : ""}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => onOpenActions(node)}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="ellipsis-horizontal" size={18} color="#64748B" />
+        </TouchableOpacity>
+      </View>
+
+      <ProgressBar progress={progress} />
+
+      <View style={styles.procedureFooter}>
+        <Text style={styles.progressText}>
+          {goal > 0
+            ? `${Math.round(progress)}% del objetivo`
+            : "Sin objetivo definido"}
+        </Text>
+
+        <View style={styles.counterActions}>
+          <TouchableOpacity
+            style={[styles.counterButton, count <= 0 && styles.counterButtonDisabled]}
+            onPress={() => onDecrement(node)}
+            disabled={count <= 0}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="remove" size={16} color={count <= 0 ? "#94A3B8" : "#1B0977"} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.counterButton}
+            onPress={() => onIncrement(node)}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="add" size={16} color="#1B0977" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.registerButton}
+            onPress={() => onRegister(node)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.registerButtonText}>Registrar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+const CategoryCard = ({
+  node,
+  userResidencyYear,
+  onAddChild,
+  onEditParent,
+  onDeleteParent,
+  onIncrement,
+  onDecrement,
+  onRegister,
+  onOpenChildActions,
+}) => {
+  const children = node.children || [];
+  const completedGoals = children.filter(
+    (child) => child.goal && child.total_count >= child.goal
+  ).length;
+  const totalGoal = children.reduce((sum, child) => sum + (child.goal || 0), 0);
+  const totalCount = children.reduce(
+    (sum, child) => sum + (child.total_count || 0),
+    0
+  );
+  const progress = totalGoal > 0 ? (totalCount / totalGoal) * 100 : 0;
+
+  return (
+    <View style={styles.categoryCard}>
+      <View style={styles.categoryHeader}>
+        <View style={styles.categoryHeaderText}>
+          <Text style={styles.categoryTitle}>{node.name}</Text>
+          <Text style={styles.categorySubtitle}>
+            {children.length} procedimiento{children.length === 1 ? "" : "s"} ·{" "}
+            {completedGoals}/{children.length} objetivos completados
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() =>
+            Alert.alert(node.name, "¿Qué quieres hacer?", [
+              { text: "Añadir procedimiento", onPress: () => onAddChild(node) },
+              { text: "Renombrar categoría", onPress: () => onEditParent(node) },
+              {
+                text: "Eliminar categoría",
+                style: "destructive",
+                onPress: () => onDeleteParent(node),
+              },
+              { text: "Cancelar", style: "cancel" },
+            ])
+          }
+          activeOpacity={0.75}
+        >
+          <Ionicons name="ellipsis-horizontal" size={18} color="#64748B" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.categoryStatsRow}>
+        <View style={styles.categoryMetric}>
+          <Text style={styles.categoryMetricValue}>{totalCount}</Text>
+          <Text style={styles.categoryMetricLabel}>registradas</Text>
+        </View>
+        <View style={styles.categoryMetric}>
+          <Text style={styles.categoryMetricValue}>{totalGoal || "-"}</Text>
+          <Text style={styles.categoryMetricLabel}>objetivo total</Text>
+        </View>
+        <View style={styles.categoryMetric}>
+          <Text style={styles.categoryMetricValue}>{Math.round(progress)}%</Text>
+          <Text style={styles.categoryMetricLabel}>avance</Text>
+        </View>
+      </View>
+
+      <ProgressBar progress={progress} />
+
+      <View style={styles.categoryActions}>
+        <TouchableOpacity
+          style={styles.secondaryAction}
+          onPress={() => onAddChild(node)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add-circle-outline" size={16} color="#670CF5" />
+          <Text style={styles.secondaryActionText}>Añadir procedimiento</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.proceduresList}>
+        {children.length > 0 ? (
+          children.map((child) => (
+            <ProcedureRow
+              key={child.id}
+              node={child}
+              userResidencyYear={userResidencyYear}
+              onIncrement={onIncrement}
+              onDecrement={onDecrement}
+              onRegister={onRegister}
+              onOpenActions={onOpenChildActions}
+            />
+          ))
+        ) : (
+          <View style={styles.emptyCategoryState}>
+            <Ionicons name="sparkles-outline" size={18} color="#64748B" />
+            <Text style={styles.emptyCategoryText}>
+              Esta categoría todavía no tiene procedimientos.
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+};
+
 export default function ResidenceLibraryScreen({
   userProfile,
   navigation,
   residentHasReview = true,
 }) {
   const userId = userProfile?.id;
-
-  // Por ahora usamos "clinical_practice" como sección por defecto
-  // Más adelante se puede agregar el selector de secciones
   const section = "clinical_practice";
+  const userResidencyYear = userProfile?.resident_year || null;
 
-  // Hook para verificar si el residente tiene reseña (backup check)
   const { hasReview } = useResidentReviewCheck(userId, userProfile);
 
-  // Determinar si debe mostrar el mensaje de review requerida
   const shouldShowReviewPrompt =
     userProfile?.is_resident &&
     !userProfile?.is_super_admin &&
     !residentHasReview;
 
-  // Hook para gestionar el libro
   const {
     nodeTree,
     loading,
@@ -68,80 +253,110 @@ export default function ResidenceLibraryScreen({
     deleteNode,
     addEntry,
     createTemplate,
-    fetchAllData,
+    statistics,
   } = useLibroSection(userId, section);
 
-  // Estados para modales
   const [showNodeModal, setShowNodeModal] = useState(false);
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-  const [expandedNodes, setExpandedNodes] = useState(new Set());
   const [selectedParentForChild, setSelectedParentForChild] = useState(null);
 
-  // Estado temporal para el orden durante el drag (se guarda en BD al soltar)
-  const [draggingOrder, setDraggingOrder] = useState(null);
-
-  // Obtener el orden actual de los nodos (usar draggingOrder si está en drag, sino nodeTree)
-  const currentOrder = draggingOrder || nodeTree || [];
-
-  // Obtener todos los nodos planos para el selector de padres
-  const allNodes = useMemo(() => {
-    const flattenNodes = (nodes) => {
-      let result = [];
-      nodes.forEach((node) => {
-        result.push(node);
-        if (node.children && node.children.length > 0) {
-          result = result.concat(flattenNodes(node.children));
-        }
-      });
-      return result;
-    };
-    return flattenNodes(nodeTree);
-  }, [nodeTree]);
-
-  // Obtener solo nodos padre (sin hijos) para el selector
-  const parentNodes = useMemo(() => {
-    return allNodes.filter((node) => !node.parent_node_id);
-  }, [allNodes]);
-
-  // Tracking de pantalla con PostHog
   useEffect(() => {
     posthogLogger.logScreen("ResidenceLibraryScreen");
   }, []);
 
-  // Manejar toggle de expansión de nodos
-  const handleToggleExpand = (nodeId) => {
-    setExpandedNodes((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(nodeId)) {
-        newSet.delete(nodeId);
-      } else {
-        newSet.add(nodeId);
-      }
-      return newSet;
-    });
+  const overview = useMemo(() => {
+    const categories = nodeTree.length;
+    const procedures = nodeTree.reduce(
+      (sum, parent) => sum + (parent.children?.length || 0),
+      0
+    );
+    const target = nodeTree.reduce(
+      (sum, parent) =>
+        sum +
+        (parent.children || []).reduce(
+          (childSum, child) => childSum + (child.goal || 0),
+          0
+        ),
+      0
+    );
+    const completed = nodeTree.reduce(
+      (sum, parent) =>
+        sum +
+        (parent.children || []).filter(
+          (child) => child.goal && child.total_count >= child.goal
+        ).length,
+      0
+    );
+    const progress = target > 0 ? (statistics.totalCount / target) * 100 : 0;
+
+    return {
+      categories,
+      procedures,
+      target,
+      completed,
+      progress,
+    };
+  }, [nodeTree, statistics.totalCount]);
+
+  const closeNodeModal = () => {
+    setShowNodeModal(false);
+    setIsAddingNode(false);
+    setEditingNode(null);
+    setSelectedParentForChild(null);
   };
 
-  // Manejar agregar nodo
-  const handleAddNode = async (formData) => {
-    const success = await addNode(formData);
-    if (success) {
-      setShowNodeModal(false);
-      setIsAddingNode(false);
-      setSelectedParentForChild(null);
-    } else {
-      Alert.alert("Error", "No se pudo crear el nodo");
+  const closeEntryModal = () => {
+    setShowEntryModal(false);
+    setIsAddingEntry(false);
+    setSelectedNode(null);
+  };
+
+  const handleCreateTemplate = async () => {
+    const success = await createTemplate();
+    if (!success) {
+      Alert.alert("Error", "No se pudo cargar la plantilla inicial.");
     }
   };
 
-  // Manejar agregar hijo a un padre
-  const handleAddChild = (parentNode) => {
-    setSelectedParentForChild(parentNode);
-    setShowNodeModal(true);
+  const handleAddRootNode = () => {
+    if (shouldShowReviewPrompt || (userProfile?.is_resident && !userProfile?.is_super_admin && !hasReview)) {
+      Alert.alert(
+        "Reseña requerida",
+        "Comparte primero tu experiencia para desbloquear el libro de residente.",
+        [
+          {
+            text: "Ir a mi reseña",
+            onPress: () => navigation?.navigate?.("myReview"),
+          },
+          { text: "Cancelar", style: "cancel" },
+        ]
+      );
+      return;
+    }
+
+    setSelectedParentForChild(null);
+    setEditingNode(null);
     setIsAddingNode(true);
+    setShowNodeModal(true);
   };
 
-  // Manejar editar nodo
+  const handleAddChild = (parentNode) => {
+    setSelectedParentForChild(parentNode);
+    setEditingNode(null);
+    setIsAddingNode(true);
+    setShowNodeModal(true);
+  };
+
+  const handleAddNode = async (formData) => {
+    const success = await addNode(formData);
+    if (!success) {
+      Alert.alert("Error", "No se pudo guardar la categoría o el procedimiento.");
+      return;
+    }
+    closeNodeModal();
+  };
+
   const handleEditNode = async (formData) => {
     if (!editingNode) return;
 
@@ -151,747 +366,721 @@ export default function ResidenceLibraryScreen({
       goal: formData.goal !== undefined ? formData.goal : editingNode.goal,
     });
 
-    if (success) {
-      setShowNodeModal(false);
-      setEditingNode(null);
-    } else {
-      Alert.alert("Error", "No se pudo actualizar el nodo");
+    if (!success) {
+      Alert.alert("Error", "No se pudieron actualizar los cambios.");
+      return;
     }
+
+    closeNodeModal();
   };
 
-  // Manejar eliminar nodo
   const handleDeleteNode = async (nodeId) => {
     const success = await deleteNode(nodeId);
-    if (success) {
-      setShowDeleteConfirm(null);
-      // Si el nodo estaba expandido, removerlo del set
-      setExpandedNodes((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(nodeId);
-        return newSet;
-      });
-    } else {
-      Alert.alert("Error", "No se pudo eliminar el nodo");
+    if (!success) {
+      Alert.alert("Error", "No se pudo eliminar el elemento.");
+      return;
     }
+    setShowDeleteConfirm(null);
   };
 
-  // Manejar incrementar contador
   const handleIncrement = async (node) => {
-    try {
-      // Obtener el año de residencia del perfil o usar 1 por defecto
-      const residencyYear = userProfile?.resident_year || 1;
+    const success = await addEntry(node.id, {
+      count: 1,
+      residency_year: userResidencyYear || 1,
+      notes: "",
+    });
 
-      // Crear entrada directamente con count = 1
-      const success = await addEntry(node.id, {
-        count: 1,
-        residency_year: residencyYear,
-        notes: "",
-      });
-
-      if (!success) {
-        Alert.alert("Error", "No se pudo incrementar el contador");
-      }
-    } catch (error) {
-      console.error("Error incrementing counter:", error);
-      Alert.alert("Error", "Error al incrementar el contador");
+    if (!success) {
+      Alert.alert("Error", "No se pudo registrar la actividad.");
     }
   };
 
-  // Manejar decrementar contador
   const handleDecrement = async (node) => {
-    try {
-      // Verificar que el contador no sea 0
-      const currentCount = node.total_count || 0;
-      if (currentCount <= 0) {
-        return; // No hacer nada si el contador ya es 0
-      }
+    if ((node.total_count || 0) <= 0) return;
 
-      // Obtener el año de residencia del perfil o usar 1 por defecto
-      const residencyYear = userProfile?.resident_year || 1;
+    const success = await addEntry(node.id, {
+      count: -1,
+      residency_year: userResidencyYear || 1,
+      notes: "",
+    });
 
-      // Crear entrada con count = -1 para restar 1 al contador
-      const success = await addEntry(node.id, {
-        count: -1,
-        residency_year: residencyYear,
-        notes: "",
-      });
-
-      if (!success) {
-        Alert.alert("Error", "No se pudo decrementar el contador");
-      }
-    } catch (error) {
-      console.error("Error decrementing counter:", error);
-      Alert.alert("Error", "Error al decrementar el contador");
+    if (!success) {
+      Alert.alert("Error", "No se pudo ajustar el contador.");
     }
   };
 
-  // Manejar agregar entrada
+  const handleOpenEntryModal = (node) => {
+    setSelectedNode(node);
+    setIsAddingEntry(true);
+    setShowEntryModal(true);
+  };
+
   const handleAddEntry = async (formData) => {
     if (!selectedNode) return;
 
     const success = await addEntry(selectedNode.id, formData);
-    if (success) {
-      setShowEntryModal(false);
-      setIsAddingEntry(false);
-      setSelectedNode(null);
-    } else {
-      Alert.alert("Error", "No se pudo agregar la entrada");
-    }
-  };
-
-  // Estados para el drag-and-drop
-  const [draggingIndex, setDraggingIndex] = useState(null);
-  const nodePositions = useRef({});
-  const scrollViewRef = useRef(null);
-  const scrollOffset = useRef(0);
-
-  // Medir posiciones de los nodos
-  const measureNode = (index, y, height) => {
-    const currentOrderArray = draggingOrder || nodeTree;
-    if (index >= 0 && index < currentOrderArray.length) {
-      nodePositions.current[index] = { y, height, centerY: y + height / 2 };
-    }
-  };
-
-  // Manejar el inicio del arrastre
-  const handleDragStartIndex = (index) => {
-    setDraggingIndex(index);
-  };
-
-  // Manejar el movimiento durante el arrastre
-  const handleDragMove = (index, gestureY) => {
-    if (draggingIndex === null) return;
-
-    // Usar el orden actual (draggingOrder o nodeTree)
-    const currentOrderArray = draggingOrder || nodeTree;
-    const currentIndex = draggingIndex;
-    if (currentIndex < 0 || currentIndex >= currentOrderArray.length) return;
-
-    // Obtener la posición inicial del nodo arrastrado
-    const initialPos =
-      nodePositions.current[currentIndex] || nodePositions.current[index];
-    if (!initialPos) return;
-
-    // Calcular la nueva posición Y del centro del nodo arrastrado
-    const draggedCenterY = initialPos.y + gestureY;
-
-    // Encontrar el índice de destino
-    let targetIndex = currentIndex;
-
-    // Buscar hacia arriba
-    for (let i = currentIndex - 1; i >= 0; i--) {
-      const pos = nodePositions.current[i];
-      if (pos && draggedCenterY < pos.centerY) {
-        targetIndex = i;
-      } else {
-        break;
-      }
-    }
-
-    // Buscar hacia abajo
-    for (let i = currentIndex + 1; i < currentOrderArray.length; i++) {
-      const pos = nodePositions.current[i];
-      if (pos && draggedCenterY > pos.centerY) {
-        targetIndex = i;
-      } else {
-        break;
-      }
-    }
-
-    // Reordenar si el índice cambió
-    if (targetIndex !== currentIndex) {
-      const newOrder = [...currentOrderArray];
-      const [removed] = newOrder.splice(currentIndex, 1);
-      newOrder.splice(targetIndex, 0, removed);
-      setDraggingOrder(newOrder);
-      setDraggingIndex(targetIndex);
-    }
-  };
-
-  // Manejar el fin del arrastre
-  const handleDragEnd = async () => {
-    // Limpiar intervalo de auto-scroll
-    if (autoScrollInterval.current) {
-      clearInterval(autoScrollInterval.current);
-      autoScrollInterval.current = null;
-    }
-
-    // Guardar el orden en la base de datos si hay cambios
-    if (draggingOrder && draggingOrder.length > 0 && userId) {
-      try {
-        // Preparar array con id y posición de cada nodo padre
-        const nodesWithPositions = draggingOrder.map((node, index) => ({
-          id: node.id,
-          position: index,
-        }));
-
-        // Actualizar posiciones en la base de datos
-        const success = await updateNodesPositions(nodesWithPositions, userId);
-
-        if (success) {
-          // Refrescar los datos para obtener el orden actualizado desde la BD
-          if (fetchAllData) {
-            await fetchAllData();
-          }
-        } else {
-          Alert.alert("Error", "No se pudo guardar el orden de los nodos");
-        }
-      } catch (error) {
-        console.error("Error saving nodes positions:", error);
-        Alert.alert("Error", "No se pudo guardar el orden de los nodos");
-      }
-    }
-
-    // Limpiar estado temporal de drag
-    setDraggingOrder(null);
-    nodePositions.current = {};
-
-    // Desactivar el drag completamente
-    setDraggingIndex(null);
-  };
-
-  // Auto-scroll cuando se arrastra cerca de los bordes
-  const autoScrollInterval = useRef(null);
-  const handleAutoScroll = (gestureState) => {
-    if (!scrollViewRef.current || draggingIndex === null) return;
-
-    const { pageY } = gestureState;
-    const SCROLL_THRESHOLD = 80; // Distancia desde el borde para activar scroll (en píxeles)
-    const SCROLL_SPEED = 8; // Velocidad de scroll (píxeles por frame)
-
-    // Obtener dimensiones de la ventana
-    const windowHeight = Dimensions.get("window").height;
-
-    // Calcular distancia desde los bordes de la pantalla
-    const distanceFromTop = pageY;
-    const distanceFromBottom = windowHeight - pageY;
-
-    // Limpiar intervalo anterior
-    if (autoScrollInterval.current) {
-      clearInterval(autoScrollInterval.current);
-      autoScrollInterval.current = null;
-    }
-
-    // Scroll hacia arriba (cuando el dedo está cerca del borde superior)
-    if (distanceFromTop < SCROLL_THRESHOLD && distanceFromTop > 0) {
-      const scrollAmount = Math.max(
-        1,
-        ((SCROLL_THRESHOLD - distanceFromTop) / SCROLL_THRESHOLD) * SCROLL_SPEED
-      );
-      autoScrollInterval.current = setInterval(() => {
-        const newOffset = Math.max(0, scrollOffset.current - scrollAmount);
-        scrollOffset.current = newOffset;
-        scrollViewRef.current?.scrollTo({
-          y: newOffset,
-          animated: false,
-        });
-      }, 16); // ~60fps
-    }
-    // Scroll hacia abajo (cuando el dedo está cerca del borde inferior)
-    else if (distanceFromBottom < SCROLL_THRESHOLD && distanceFromBottom > 0) {
-      const scrollAmount = Math.max(
-        1,
-        ((SCROLL_THRESHOLD - distanceFromBottom) / SCROLL_THRESHOLD) *
-          SCROLL_SPEED
-      );
-      autoScrollInterval.current = setInterval(() => {
-        const newOffset = scrollOffset.current + scrollAmount;
-        scrollOffset.current = newOffset;
-        scrollViewRef.current?.scrollTo({
-          y: newOffset,
-          animated: false,
-        });
-      }, 16); // ~60fps
-    }
-  };
-
-  // Limpiar intervalo cuando termina el drag
-  React.useEffect(() => {
-    if (draggingIndex === null && autoScrollInterval.current) {
-      clearInterval(autoScrollInterval.current);
-      autoScrollInterval.current = null;
-    }
-    return () => {
-      if (autoScrollInterval.current) {
-        clearInterval(autoScrollInterval.current);
-      }
-    };
-  }, [draggingIndex]);
-
-  // Renderizar nodos hijos recursivamente (no se reordenan)
-  const renderChildNode = (node, level = 1) => {
-    const isExpanded = expandedNodes.has(node.id);
-
-    return (
-      <View key={node.id}>
-        <LibroNodeItem
-          node={node}
-          isParent={false}
-          isExpanded={isExpanded}
-          onToggleExpand={() => handleToggleExpand(node.id)}
-          onIncrement={() => handleIncrement(node)}
-          onDecrement={() => handleDecrement(node)}
-          onEdit={() => {
-            setEditingNode(node);
-            setShowNodeModal(true);
-          }}
-          onDelete={() => setShowDeleteConfirm(node)}
-          onAddChild={() => handleAddChild(node)}
-          level={level}
-        />
-      </View>
-    );
-  };
-
-  // Componente para nodo padre arrastrable
-  const DraggableParentNode = ({ node, index }) => {
-    const isExpanded = expandedNodes.has(node.id);
-    const isDragging = draggingIndex === index;
-    const translateY = useRef(new Animated.Value(0)).current;
-    const opacity = useRef(new Animated.Value(1)).current;
-    const scale = useRef(new Animated.Value(1)).current;
-    const nodeRef = useRef(null);
-    const startY = useRef(0);
-    const currentY = useRef(0);
-    const isDraggingRef = useRef(false);
-
-    // Actualizar ref cuando isDragging cambia
-    React.useEffect(() => {
-      isDraggingRef.current = isDragging;
-    }, [isDragging]);
-
-    // Función para iniciar el drag (long press de 2 segundos en el nodo)
-    const handleDragStart = () => {
-      if (draggingIndex !== null) return;
-
-      // Inicializar el orden temporal con el orden actual de nodeTree
-      if (!draggingOrder) {
-        setDraggingOrder([...nodeTree]);
-      }
-
-      // Medir la posición del nodo actual
-      nodeRef.current?.measure((x, y, width, height, pageX, pageY) => {
-        measureNode(index, pageY, height);
-      });
-
-      // Iniciar arrastre
-      handleDragStartIndex(index);
-      translateY.setValue(0);
-      translateY.setOffset(0);
-      currentY.current = 0;
-      isDraggingRef.current = true;
-
-      // Animaciones de inicio
-      Animated.parallel([
-        Animated.spring(opacity, {
-          toValue: 0.9,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scale, {
-          toValue: 1.05,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    };
-
-    const panResponder = useRef(
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => isDraggingRef.current,
-        onMoveShouldSetPanResponder: () => isDraggingRef.current,
-        onPanResponderGrant: (_, gestureState) => {
-          if (isDraggingRef.current) {
-            startY.current = gestureState.y0;
-            translateY.setOffset(0);
-            translateY.setValue(0);
-          }
-        },
-        onPanResponderMove: (_, gestureState) => {
-          if (isDraggingRef.current) {
-            const dy = gestureState.dy;
-            translateY.setValue(dy);
-            currentY.current = dy;
-            handleDragMove(index, dy);
-
-            // Auto-scroll cuando se acerca a los bordes
-            handleAutoScroll(gestureState);
-          }
-        },
-        onPanResponderRelease: () => {
-          if (isDraggingRef.current || isDragging) {
-            // Desactivar inmediatamente el ref
-            isDraggingRef.current = false;
-
-            // Desactivar el drag en el estado principal INMEDIATAMENTE
-            // No esperar a que termine la animación
-            handleDragEnd();
-
-            // Animar de vuelta a la posición original
-            translateY.flattenOffset();
-            Animated.parallel([
-              Animated.spring(translateY, {
-                toValue: 0,
-                useNativeDriver: true,
-                tension: 50,
-                friction: 7,
-              }),
-              Animated.spring(opacity, {
-                toValue: 1,
-                useNativeDriver: true,
-              }),
-              Animated.spring(scale, {
-                toValue: 1,
-                useNativeDriver: true,
-              }),
-            ]).start();
-          }
-        },
-        onPanResponderTerminate: () => {
-          if (isDraggingRef.current || isDragging) {
-            // Desactivar inmediatamente el ref
-            isDraggingRef.current = false;
-
-            // Desactivar el drag en el estado principal INMEDIATAMENTE
-            handleDragEnd();
-
-            // Animar de vuelta a la posición original
-            translateY.flattenOffset();
-            Animated.parallel([
-              Animated.spring(translateY, {
-                toValue: 0,
-                useNativeDriver: true,
-              }),
-              Animated.spring(opacity, {
-                toValue: 1,
-                useNativeDriver: true,
-              }),
-              Animated.spring(scale, {
-                toValue: 1,
-                useNativeDriver: true,
-              }),
-            ]).start();
-          }
-        },
-      })
-    ).current;
-
-    return (
-      <Animated.View
-        ref={nodeRef}
-        style={[
-          styles.parentNodeContainer,
-          isDragging && styles.draggingNode,
-          {
-            transform: [{ translateY }, { scale }],
-            opacity,
-            zIndex: isDragging ? 1000 : 1,
-          },
-        ]}
-        {...(isDragging ? panResponder.panHandlers : {})}
-        onLayout={(event) => {
-          const { height } = event.nativeEvent.layout;
-          // Medir posición cuando el layout cambia
-          const currentOrderArray = draggingOrder || nodeTree;
-          const currentIndex = currentOrderArray.findIndex(
-            (n) => n.id === node.id
-          );
-          if (currentIndex !== -1 && !isDragging) {
-            nodeRef.current?.measure((x, y, width, heightPos, pageX, pageY) => {
-              measureNode(currentIndex, pageY, heightPos);
-            });
-          }
-        }}
-      >
-        <TouchableOpacity
-          onLongPress={handleDragStart}
-          delayLongPress={2000}
-          activeOpacity={1}
-          disabled={draggingIndex !== null}
-          style={{ width: "100%" }}
-        >
-          <LibroNodeItem
-            node={node}
-            isParent={true}
-            isExpanded={isExpanded}
-            onToggleExpand={() => handleToggleExpand(node.id)}
-            onIncrement={() => handleIncrement(node)}
-            onDecrement={() => handleDecrement(node)}
-            onEdit={() => {
-              setEditingNode(node);
-              setShowNodeModal(true);
-            }}
-            onDelete={() => setShowDeleteConfirm(node)}
-            onAddChild={() => handleAddChild(node)}
-            level={0}
-            onDragStart={handleDragStart}
-            isDragging={isDragging}
-          />
-        </TouchableOpacity>
-
-        {/* Renderizar hijos si está expandido */}
-        {isExpanded && node.children && node.children.length > 0 && (
-          <View style={styles.childrenContainer}>
-            {node.children.map((child) => renderChildNode(child, 1))}
-          </View>
-        )}
-      </Animated.View>
-    );
-  };
-
-  // Renderizar un nodo padre con sus hijos
-  const renderParentNode = (node, index) => {
-    return <DraggableParentNode key={node.id} node={node} index={index} />;
-  };
-
-  // Abrir modal para agregar nodo raíz o crear plantilla
-  const handleAddRootNode = () => {
-    if (
-      userProfile?.is_resident &&
-      !userProfile?.is_super_admin &&
-      !hasReview
-    ) {
-      Alert.alert(
-        "Reseña requerida",
-        "Debes tener una reseña para usar esta funcionalidad",
-        [
-          {
-            text: "Ir a mi reseña",
-            onPress: () => {
-              // Navegar a la sección de reseña
-              navigation.navigate("Dashboard", { section: "mi-resena" });
-            },
-          },
-          { text: "Cancelar", style: "cancel" },
-        ]
-      );
+    if (!success) {
+      Alert.alert("Error", "No se pudo guardar el registro.");
       return;
     }
 
-    // Si no hay nodos, crear plantilla; si no, abrir modal para crear nodo
-    if (nodeTree.length === 0) {
-      handleCreateTemplate();
-    } else {
-      // Asegurar que no hay padre seleccionado cuando se crea desde el botón flotante
-      setSelectedParentForChild(null);
-      setIsAddingNode(true);
-      setShowNodeModal(true);
-    }
+    closeEntryModal();
   };
 
-  // Manejar creación de plantilla
-  const handleCreateTemplate = async () => {
-    const success = await createTemplate();
-    if (success) {
-      Alert.alert("Éxito", "Plantilla creada correctamente");
-    } else {
-      Alert.alert("Error", "No se pudo crear la plantilla");
-    }
+  const openChildActions = (node) => {
+    Alert.alert(node.name, "Gestiona este procedimiento", [
+      {
+        text: "Registrar actividad",
+        onPress: () => handleOpenEntryModal(node),
+      },
+      {
+        text: "Editar nombre u objetivo",
+        onPress: () => {
+          setEditingNode(node);
+          setShowNodeModal(true);
+        },
+      },
+      {
+        text: "Eliminar procedimiento",
+        style: "destructive",
+        onPress: () => setShowDeleteConfirm(node),
+      },
+      { text: "Cancelar", style: "cancel" },
+    ]);
   };
+
+  const openParentDelete = (node) => {
+    setShowDeleteConfirm(node);
+  };
+
+  if (loading && nodeTree.length === 0) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.headerShell}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Libro de residente</Text>
+            <View style={styles.headerIcon}>
+              <Ionicons name="library-outline" size={18} color="#670CF5" />
+            </View>
+          </View>
+        </View>
+        <View style={styles.contentSurface}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#670CF5" />
+            <Text style={styles.loadingText}>Cargando tu progreso...</Text>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader title="Libro de Residente" />
-
-      <View style={styles.containerContent}>
-        {/* Loading State */}
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-            <Text style={styles.loadingText}>Cargando...</Text>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.headerShell}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Libro de residente</Text>
+          <View style={styles.headerIcon}>
+            <Ionicons name="library-outline" size={18} color="#670CF5" />
           </View>
-        ) : (
-          <>
-            {/* Lista de nodos */}
-            {currentOrder.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Ionicons
-                  name="document-text-outline"
-                  size={64}
-                  color={COLORS.GRAY}
-                />
-                <Text style={styles.emptyTitle}>
-                  ¡Comienza a registrar tus actividades!
-                </Text>
-                <Text style={styles.emptySubtext}>
-                  Presiona el botón + para crear una plantilla con ejemplos
-                </Text>
-              </View>
-            ) : (
-              <ScrollView
-                ref={scrollViewRef}
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                scrollEnabled={draggingIndex === null}
-                nestedScrollEnabled={false}
-                onScroll={(event) => {
-                  scrollOffset.current = event.nativeEvent.contentOffset.y;
-                }}
-                scrollEventThrottle={16}
-              >
-                <View style={styles.nodesContainer}>
-                  {currentOrder.map((node, index) =>
-                    renderParentNode(node, index)
-                  )}
-                </View>
-              </ScrollView>
-            )}
-          </>
-        )}
+        </View>
       </View>
 
-      {/* Floating Action Button - Solo mostrar si tiene review */}
-      {!shouldShowReviewPrompt && (
-        <FloatingActionButton onPress={handleAddRootNode} icon="add" />
-      )}
+      <View style={styles.contentSurface}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.contentInner}>
+            <View style={styles.heroCard}>
+              <Text style={styles.heroEyebrow}>Tu actividad asistencial</Text>
+              <Text style={styles.heroTitle}>Registra lo que haces sin pensar en la base de datos</Text>
+              <Text style={styles.heroText}>
+                El libro guarda actividades por procedimiento. Las categorías solo
+                organizan el contenido para que entiendas mejor tu progreso.
+              </Text>
 
-      {/* Overlay para residentes sin reseña */}
+              <View style={styles.overviewRow}>
+                <OverviewStat value={overview.categories} label="categorías" />
+                <OverviewStat value={overview.procedures} label="procedimientos" />
+                <OverviewStat value={statistics.totalCount} label="registros" />
+              </View>
+
+              <View style={styles.heroFooter}>
+                <View style={styles.heroProgressWrap}>
+                  <Text style={styles.heroProgressLabel}>
+                    Avance global {Math.round(overview.progress)}%
+                  </Text>
+                  <ProgressBar progress={overview.progress} />
+                </View>
+                <Text style={styles.heroSupportText}>
+                  {overview.completed} objetivo{overview.completed === 1 ? "" : "s"} completado
+                  {overview.completed === 1 ? "" : "s"}
+                  {userResidencyYear ? ` · Año R${userResidencyYear}` : ""}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Cómo funciona</Text>
+              <Text style={styles.sectionText}>
+                Hemos simplificado la pantalla para que veas primero tus
+                procedimientos y su avance. Si necesitas detalle, pulsa
+                “Registrar”.
+              </Text>
+              <View style={styles.infoPillsWrap}>
+                {INFO_PILLS.map((item) => (
+                  <InfoPill key={item.label} icon={item.icon} label={item.label} />
+                ))}
+              </View>
+            </View>
+
+            {nodeTree.length === 0 ? (
+              <View style={styles.emptyStateCard}>
+                <View style={styles.emptyStateIcon}>
+                  <Ionicons name="sparkles-outline" size={24} color="#670CF5" />
+                </View>
+                <Text style={styles.emptyStateTitle}>Empieza con una estructura clara</Text>
+                <Text style={styles.emptyStateText}>
+                  Puedes cargar una plantilla con categorías y procedimientos
+                  habituales, o crear tu propia estructura desde cero.
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.primaryAction}
+                  onPress={handleCreateTemplate}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="flash-outline" size={18} color="#FFFFFF" />
+                  <Text style={styles.primaryActionText}>Cargar plantilla recomendada</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.secondaryOutlineAction}
+                  onPress={handleAddRootNode}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="add-circle-outline" size={18} color="#670CF5" />
+                  <Text style={styles.secondaryOutlineActionText}>Crear primera categoría</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <View style={styles.sectionHeaderRow}>
+                  <View>
+                    <Text style={styles.sectionTitle}>Tus categorías</Text>
+                    <Text style={styles.sectionText}>
+                      Cada tarjeta agrupa procedimientos. Dentro puedes sumar,
+                      corregir o registrar con más detalle.
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.addCategoryChip}
+                    onPress={handleAddRootNode}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="add" size={16} color="#670CF5" />
+                    <Text style={styles.addCategoryChipText}>Categoría</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {nodeTree.map((parentNode) => (
+                  <CategoryCard
+                    key={parentNode.id}
+                    node={parentNode}
+                    userResidencyYear={userResidencyYear}
+                    onAddChild={handleAddChild}
+                    onEditParent={(node) => {
+                      setEditingNode(node);
+                      setShowNodeModal(true);
+                    }}
+                    onDeleteParent={openParentDelete}
+                    onIncrement={handleIncrement}
+                    onDecrement={handleDecrement}
+                    onRegister={handleOpenEntryModal}
+                    onOpenChildActions={openChildActions}
+                  />
+                ))}
+              </>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+
       {shouldShowReviewPrompt && (
         <View style={styles.reviewPromptOverlay}>
-          <View style={styles.reviewPromptContent}>
+          <View style={styles.reviewPromptCard}>
             <View style={styles.reviewPromptIcon}>
-              <Ionicons name="document-text" size={32} color="#FFFFFF" />
+              <Ionicons name="document-text-outline" size={28} color="#FFFFFF" />
             </View>
-            <Text style={styles.reviewPromptTitle}>
-              ¡Comienza tu libro de residente!
-            </Text>
+            <Text style={styles.reviewPromptTitle}>Desbloquea tu libro</Text>
             <Text style={styles.reviewPromptText}>
-              Para acceder al libro de residente y registrar tus actividades,
-              primero comparte tu experiencia con una reseña.
+              Antes de registrar actividad, comparte tu experiencia con una
+              reseña. Así mantenemos la comunidad activa y útil.
             </Text>
             <TouchableOpacity
               style={styles.reviewPromptButton}
-              onPress={() => navigation?.navigate("myReview")}
+              onPress={() => navigation?.navigate?.("myReview")}
+              activeOpacity={0.85}
             >
-              <Ionicons name="heart" size={20} color="#FFFFFF" />
-              <Text style={styles.reviewPromptButtonText}>
-                Compartir mi experiencia
-              </Text>
+              <Text style={styles.reviewPromptButtonText}>Ir a mi reseña</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
-      {/* Modal para agregar/editar nodo */}
       <LibroNodeModal
         visible={showNodeModal}
-        onClose={() => {
-          setShowNodeModal(false);
-          setIsAddingNode(false);
-          setEditingNode(null);
-          setSelectedParentForChild(null);
-        }}
+        onClose={closeNodeModal}
         onSubmit={editingNode ? handleEditNode : handleAddNode}
         existingNode={editingNode}
-        parentNodes={parentNodes}
         selectedParent={selectedParentForChild}
         loading={loading}
       />
 
-      {/* Modal para agregar entrada */}
       <LibroEntryModal
         visible={showEntryModal}
-        onClose={() => {
-          setShowEntryModal(false);
-          setIsAddingEntry(false);
-          setSelectedNode(null);
-        }}
+        onClose={closeEntryModal}
         onSubmit={handleAddEntry}
         node={selectedNode}
         loading={loading}
       />
 
-      {/* Modal de confirmación para eliminar */}
       <ConfirmationModal
         visible={!!showDeleteConfirm}
-        title="Eliminar Nodo"
-        message={`¿Estás seguro de que quieres eliminar "${showDeleteConfirm?.name}"? Esta acción eliminará también todos sus hijos y entradas asociadas.`}
+        title="Eliminar elemento"
+        message={`Vas a eliminar "${showDeleteConfirm?.name}". Si es una categoría, también se eliminarán sus procedimientos y registros asociados.`}
         onConfirm={() => handleDeleteNode(showDeleteConfirm?.id)}
         onCancel={() => setShowDeleteConfirm(null)}
         confirmText="Eliminar"
         cancelText="Cancelar"
         confirmColor={COLORS.ERROR}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
+    backgroundColor: "#FFFFFF",
   },
-  containerContent: {
+  headerShell: {
+    backgroundColor: "#FFFFFF",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    backgroundColor: "#FFFFFF",
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1B0977",
+    letterSpacing: -0.2,
+  },
+  headerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(103,12,245,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.12)",
+  },
+  contentSurface: {
     flex: 1,
+    backgroundColor: "#F8F9FE",
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 100,
+    paddingBottom: 32,
   },
-  parentNodeContainer: {
-    marginBottom: 8,
-  },
-  dragHandle: {
-    width: "100%",
-  },
-  draggingNode: {
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  bannerContainer: {
-    marginBottom: 16,
+  contentInner: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    gap: 16,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 40,
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
-    color: COLORS.GRAY,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 18,
+    fontSize: 15,
+    color: "#64748B",
     fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginTop: 16,
   },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginTop: 16,
-    textAlign: "center",
+  heroCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
   },
-  emptySubtext: {
+  heroEyebrow: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#670CF5",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#1B0977",
+    marginBottom: 8,
+  },
+  heroText: {
     fontSize: 14,
-    color: COLORS.GRAY,
-    marginTop: 8,
-    textAlign: "center",
-    paddingHorizontal: 20,
+    lineHeight: 21,
+    color: "#64748B",
   },
-  nodesContainer: {
+  overviewRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+  },
+  overviewStat: {
+    flex: 1,
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+  },
+  overviewStatpurple: {
+    backgroundColor: "#F3E8FF",
+  },
+  overviewStatValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1B0977",
+  },
+  overviewStatLabel: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#670CF5",
+  },
+  heroFooter: {
+    marginTop: 16,
+  },
+  heroProgressWrap: {
+    marginBottom: 10,
+  },
+  heroProgressLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#334155",
+    marginBottom: 8,
+  },
+  heroSupportText: {
+    fontSize: 13,
+    color: "#64748B",
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#E2E8F0",
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: "#670CF5",
+  },
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1B0977",
+    marginBottom: 6,
+  },
+  sectionText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#64748B",
+  },
+  infoPillsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 14,
+  },
+  infoPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "#F3E8FF",
+  },
+  infoPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#670CF5",
+  },
+  emptyStateCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
+    alignItems: "center",
+  },
+  emptyStateIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3E8FF",
+    marginBottom: 14,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1B0977",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 21,
+    marginBottom: 18,
+  },
+  primaryAction: {
+    minHeight: 52,
+    borderRadius: 18,
+    backgroundColor: "#670CF5",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    width: "100%",
+    marginBottom: 10,
+  },
+  primaryActionText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  secondaryOutlineAction: {
+    minHeight: 52,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#D8C7FF",
+    backgroundColor: "#F8F5FF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    width: "100%",
+  },
+  secondaryOutlineActionText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#670CF5",
+  },
+  addCategoryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F3E8FF",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  addCategoryChipText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#670CF5",
+  },
+  categoryCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
+  },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  categoryHeaderText: {
+    flex: 1,
+  },
+  categoryTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1B0977",
+    marginBottom: 4,
+  },
+  categorySubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+    lineHeight: 20,
+  },
+  iconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F8FAFC",
+  },
+  categoryStatsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+    marginBottom: 14,
+  },
+  categoryMetric: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+  },
+  categoryMetricValue: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#1B0977",
+  },
+  categoryMetricLabel: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "700",
+  },
+  categoryActions: {
+    marginTop: 14,
+  },
+  secondaryAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#F8F5FF",
+  },
+  secondaryActionText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#670CF5",
+  },
+  proceduresList: {
+    gap: 12,
+    marginTop: 16,
+  },
+  emptyCategoryState: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 18,
+    padding: 14,
+  },
+  emptyCategoryText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#64748B",
+  },
+  procedureCard: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 18,
+    padding: 14,
+  },
+  procedureHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 12,
+  },
+  procedureTitleWrap: {
+    flex: 1,
+  },
+  procedureTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#1B0977",
+    marginBottom: 4,
+  },
+  procedureMeta: {
+    fontSize: 13,
+    color: "#64748B",
+  },
+  procedureFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 12,
+  },
+  progressText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  counterActions: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
-  childrenContainer: {
-    marginLeft: 20,
-    marginTop: 4,
+  counterButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  counterButtonDisabled: {
+    backgroundColor: "#F8FAFC",
+  },
+  registerButton: {
+    minHeight: 34,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: "#670CF5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  registerButtonText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
   reviewPromptOverlay: {
     position: "absolute",
@@ -899,66 +1088,55 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    backgroundColor: "rgba(248, 249, 254, 0.96)",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
   },
-  reviewPromptContent: {
+  reviewPromptCard: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
     alignItems: "center",
-    maxWidth: 400,
   },
   reviewPromptIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: COLORS.PRIMARY,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#670CF5",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
+    marginBottom: 16,
   },
   reviewPromptTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-    marginBottom: 12,
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#1B0977",
     textAlign: "center",
+    marginBottom: 8,
   },
   reviewPromptText: {
-    fontSize: 16,
-    color: "#666",
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#64748B",
     textAlign: "center",
-    lineHeight: 24,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   reviewPromptButton: {
-    flexDirection: "row",
+    minHeight: 50,
+    borderRadius: 18,
+    backgroundColor: "#670CF5",
+    paddingHorizontal: 18,
     alignItems: "center",
-    backgroundColor: COLORS.PRIMARY,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    gap: 8,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    justifyContent: "center",
   },
   reviewPromptButtonText: {
+    fontSize: 15,
+    fontWeight: "800",
     color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
   },
 });
