@@ -1,113 +1,170 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS } from "../constants/colors";
 import { useLibroSection } from "../hooks/useLibroSection";
 import { useResidentReviewCheck } from "../hooks/useResidentReviewCheck";
 import {
-  LibroNodeModal,
-  LibroEntryModal,
   ConfirmationModal,
+  LibroNodeModal,
+  LibroQuickRegisterModal,
 } from "../components";
+import {
+  CATEGORY_ICON_OPTIONS,
+  COLOR_TOKEN_MAP,
+  TRACKING_MODE_OPTIONS,
+  getColorTokenOptions,
+  getLibroCategorySuggestions,
+} from "../data/libroOnboardingTemplates";
+import { getSpecialtyById } from "../services/hospitalService";
 import posthogLogger from "../services/posthogService";
 
-const INFO_PILLS = [
-  { icon: "add-circle-outline", label: "Cada + suma 1 actividad" },
-  { icon: "document-text-outline", label: "Registrar guarda detalle" },
-  { icon: "trophy-outline", label: "El objetivo es orientativo" },
-];
+const SECTION = "clinical_practice";
+const ONBOARDING_STEPS = ["intro", "categories", "activities", "preview"];
+const TODAY = new Date().toISOString().slice(0, 10);
 
-const OverviewStat = ({ value, label, tone = "purple" }) => (
-  <View style={[styles.overviewStat, styles[`overviewStat${tone}`]]}>
-    <Text style={styles.overviewStatValue}>{value}</Text>
-    <Text style={styles.overviewStatLabel}>{label}</Text>
+const TRACKING_MODE_LABEL = {
+  counter: "Contador",
+  note: "Nota",
+  checklist: "Checklist",
+};
+
+const TRACKING_MODE_ACTION = {
+  counter: "Registrar",
+  note: "Añadir nota",
+  checklist: "Completar",
+};
+
+const buildDraftCategory = (category) => ({
+  id: `${category.name}-${Date.now()}-${Math.random()}`,
+  name: category.name,
+  icon_name: category.icon_name || "folder-outline",
+  color_token: category.color_token || "violet",
+  activities: (category.activities || []).map((activity) => ({
+    id: `${activity.name}-${Date.now()}-${Math.random()}`,
+    name: activity.name,
+    goal: activity.goal || "",
+    tracking_mode: activity.tracking_mode || "counter",
+  })),
+});
+
+const getProgress = (count, goal) => {
+  if (!goal) return 0;
+  return Math.min((count / goal) * 100, 100);
+};
+
+const SectionBadge = ({ icon, label, active = false, onPress }) => (
+  <TouchableOpacity
+    style={[styles.stepBadge, active && styles.stepBadgeActive]}
+    onPress={onPress}
+    activeOpacity={0.85}
+  >
+    <Ionicons name={icon} size={14} color={active ? "#670CF5" : "#64748B"} />
+    <Text style={[styles.stepBadgeText, active && styles.stepBadgeTextActive]}>
+      {label}
+    </Text>
+  </TouchableOpacity>
+);
+
+const CategoryPill = ({ category, active = false, onPress }) => {
+  const color = COLOR_TOKEN_MAP[category.color_token] || COLOR_TOKEN_MAP.violet;
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.categoryPill,
+        active && { borderColor: color, backgroundColor: `${color}12` },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <Ionicons name={category.icon_name || "folder-outline"} size={16} color={color} />
+      <Text style={[styles.categoryPillText, active && { color }]}>{category.name}</Text>
+    </TouchableOpacity>
+  );
+};
+
+const ActivityDraftRow = ({ activity, onDelete }) => (
+  <View style={styles.activityDraftRow}>
+    <View style={styles.activityDraftMeta}>
+      <Text style={styles.activityDraftTitle}>{activity.name}</Text>
+      <Text style={styles.activityDraftSubtitle}>
+        {TRACKING_MODE_LABEL[activity.tracking_mode] || "Contador"}
+        {activity.goal ? ` · Meta ${activity.goal}` : ""}
+      </Text>
+    </View>
+    <TouchableOpacity onPress={onDelete} style={styles.iconActionButton}>
+      <Ionicons name="trash-outline" size={18} color="#EF4444" />
+    </TouchableOpacity>
   </View>
 );
 
-const InfoPill = ({ icon, label }) => (
-  <View style={styles.infoPill}>
-    <Ionicons name={icon} size={14} color="#670CF5" />
-    <Text style={styles.infoPillText}>{label}</Text>
-  </View>
-);
-
-const ProgressBar = ({ progress }) => (
-  <View style={styles.progressTrack}>
-    <View style={[styles.progressFill, { width: `${Math.min(progress, 100)}%` }]} />
-  </View>
-);
-
-const ProcedureRow = ({
-  node,
-  userResidencyYear,
-  onIncrement,
-  onDecrement,
-  onRegister,
-  onOpenActions,
-}) => {
+const ProcedureRow = ({ node, onIncrement, onDecrement, onRegister, onOpenActions }) => {
   const count = node.total_count || 0;
   const goal = node.goal || 0;
-  const progress = goal > 0 ? (count / goal) * 100 : 0;
+  const progress = getProgress(count, goal);
+  const isCounter = (node.tracking_mode || "counter") === "counter";
+  const color = COLOR_TOKEN_MAP[node.color_token] || COLOR_TOKEN_MAP.violet;
 
   return (
     <View style={styles.procedureCard}>
-      <View style={styles.procedureHeader}>
-        <View style={styles.procedureTitleWrap}>
-          <Text style={styles.procedureTitle}>{node.name}</Text>
-          <Text style={styles.procedureMeta}>
-            {count} registradas{goal > 0 ? ` de ${goal}` : ""}
-            {userResidencyYear ? ` · R${userResidencyYear}` : ""}
+      <View style={styles.procedureTopRow}>
+        <View style={styles.procedureMetaBlock}>
+          <View style={styles.procedureTitleRow}>
+            <Text style={styles.procedureTitle}>{node.name}</Text>
+            <View style={[styles.modeTag, { backgroundColor: `${color}12` }]}>
+              <Text style={[styles.modeTagText, { color }]}>
+                {TRACKING_MODE_LABEL[node.tracking_mode] || "Contador"}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.procedureSubtitle}>
+            {count} registradas{goal ? ` · Meta ${goal}` : ""}
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => onOpenActions(node)}
-          activeOpacity={0.75}
-        >
+        <TouchableOpacity onPress={() => onOpenActions(node)} style={styles.iconActionButton}>
           <Ionicons name="ellipsis-horizontal" size={18} color="#64748B" />
         </TouchableOpacity>
       </View>
 
-      <ProgressBar progress={progress} />
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: color }]} />
+      </View>
 
-      <View style={styles.procedureFooter}>
-        <Text style={styles.progressText}>
-          {goal > 0
-            ? `${Math.round(progress)}% del objetivo`
-            : "Sin objetivo definido"}
+      <View style={styles.procedureActionsRow}>
+        <Text style={styles.progressSupportText}>
+          {goal ? `${Math.round(progress)}% del objetivo` : "Sin objetivo definido"}
         </Text>
 
-        <View style={styles.counterActions}>
-          <TouchableOpacity
-            style={[styles.counterButton, count <= 0 && styles.counterButtonDisabled]}
-            onPress={() => onDecrement(node)}
-            disabled={count <= 0}
-            activeOpacity={0.75}
-          >
-            <Ionicons name="remove" size={16} color={count <= 0 ? "#94A3B8" : "#1B0977"} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.counterButton}
-            onPress={() => onIncrement(node)}
-            activeOpacity={0.75}
-          >
-            <Ionicons name="add" size={16} color="#1B0977" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.registerButton}
-            onPress={() => onRegister(node)}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.registerButtonText}>Registrar</Text>
+        <View style={styles.procedureActions}>
+          {isCounter ? (
+            <>
+              <TouchableOpacity
+                style={[styles.counterButton, count <= 0 && styles.counterButtonDisabled]}
+                onPress={() => onDecrement(node)}
+                disabled={count <= 0}
+              >
+                <Ionicons name="remove" size={16} color={count <= 0 ? "#94A3B8" : "#1B0977"} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.counterButton} onPress={() => onIncrement(node)}>
+                <Ionicons name="add" size={16} color="#1B0977" />
+              </TouchableOpacity>
+            </>
+          ) : null}
+
+          <TouchableOpacity style={styles.primarySmallButton} onPress={() => onRegister(node)}>
+            <Text style={styles.primarySmallButtonText}>
+              {TRACKING_MODE_ACTION[node.tracking_mode] || "Registrar"}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -117,7 +174,6 @@ const ProcedureRow = ({
 
 const CategoryCard = ({
   node,
-  userResidencyYear,
   onAddChild,
   onEditParent,
   onDeleteParent,
@@ -126,33 +182,32 @@ const CategoryCard = ({
   onRegister,
   onOpenChildActions,
 }) => {
+  const color = COLOR_TOKEN_MAP[node.color_token] || COLOR_TOKEN_MAP.violet;
   const children = node.children || [];
-  const completedGoals = children.filter(
-    (child) => child.goal && child.total_count >= child.goal
-  ).length;
+  const totalCount = children.reduce((sum, child) => sum + (child.total_count || 0), 0);
   const totalGoal = children.reduce((sum, child) => sum + (child.goal || 0), 0);
-  const totalCount = children.reduce(
-    (sum, child) => sum + (child.total_count || 0),
-    0
-  );
-  const progress = totalGoal > 0 ? (totalCount / totalGoal) * 100 : 0;
+  const progress = getProgress(totalCount, totalGoal);
 
   return (
     <View style={styles.categoryCard}>
       <View style={styles.categoryHeader}>
-        <View style={styles.categoryHeaderText}>
-          <Text style={styles.categoryTitle}>{node.name}</Text>
-          <Text style={styles.categorySubtitle}>
-            {children.length} procedimiento{children.length === 1 ? "" : "s"} ·{" "}
-            {completedGoals}/{children.length} objetivos completados
-          </Text>
+        <View style={styles.categoryHeaderLeft}>
+          <View style={[styles.categoryIconWrap, { backgroundColor: `${color}12` }]}>
+            <Ionicons name={node.icon_name || "folder-outline"} size={18} color={color} />
+          </View>
+          <View style={styles.categoryHeaderCopy}>
+            <Text style={styles.categoryTitle}>{node.name}</Text>
+            <Text style={styles.categorySubtitle}>
+              {children.length} actividades · {totalCount} registros
+            </Text>
+          </View>
         </View>
         <TouchableOpacity
-          style={styles.iconButton}
+          style={styles.iconActionButton}
           onPress={() =>
-            Alert.alert(node.name, "¿Qué quieres hacer?", [
-              { text: "Añadir procedimiento", onPress: () => onAddChild(node) },
-              { text: "Renombrar categoría", onPress: () => onEditParent(node) },
+            Alert.alert(node.name, "Gestiona esta categoría", [
+              { text: "Añadir actividad", onPress: () => onAddChild(node) },
+              { text: "Editar categoría", onPress: () => onEditParent(node) },
               {
                 text: "Eliminar categoría",
                 style: "destructive",
@@ -161,47 +216,41 @@ const CategoryCard = ({
               { text: "Cancelar", style: "cancel" },
             ])
           }
-          activeOpacity={0.75}
         >
           <Ionicons name="ellipsis-horizontal" size={18} color="#64748B" />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.categoryStatsRow}>
-        <View style={styles.categoryMetric}>
-          <Text style={styles.categoryMetricValue}>{totalCount}</Text>
-          <Text style={styles.categoryMetricLabel}>registradas</Text>
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryStat}>
+          <Text style={styles.summaryStatValue}>{totalCount}</Text>
+          <Text style={styles.summaryStatLabel}>registradas</Text>
         </View>
-        <View style={styles.categoryMetric}>
-          <Text style={styles.categoryMetricValue}>{totalGoal || "-"}</Text>
-          <Text style={styles.categoryMetricLabel}>objetivo total</Text>
+        <View style={styles.summaryStat}>
+          <Text style={styles.summaryStatValue}>{totalGoal || "-"}</Text>
+          <Text style={styles.summaryStatLabel}>meta</Text>
         </View>
-        <View style={styles.categoryMetric}>
-          <Text style={styles.categoryMetricValue}>{Math.round(progress)}%</Text>
-          <Text style={styles.categoryMetricLabel}>avance</Text>
+        <View style={styles.summaryStat}>
+          <Text style={styles.summaryStatValue}>{Math.round(progress)}%</Text>
+          <Text style={styles.summaryStatLabel}>avance</Text>
         </View>
       </View>
 
-      <ProgressBar progress={progress} />
-
-      <View style={styles.categoryActions}>
-        <TouchableOpacity
-          style={styles.secondaryAction}
-          onPress={() => onAddChild(node)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add-circle-outline" size={16} color="#670CF5" />
-          <Text style={styles.secondaryActionText}>Añadir procedimiento</Text>
-        </TouchableOpacity>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: color }]} />
       </View>
 
-      <View style={styles.proceduresList}>
-        {children.length > 0 ? (
+      <TouchableOpacity style={styles.secondaryButton} onPress={() => onAddChild(node)}>
+        <Ionicons name="add-circle-outline" size={16} color="#670CF5" />
+        <Text style={styles.secondaryButtonText}>Añadir actividad</Text>
+      </TouchableOpacity>
+
+      <View style={styles.procedureList}>
+        {children.length ? (
           children.map((child) => (
             <ProcedureRow
               key={child.id}
               node={child}
-              userResidencyYear={userResidencyYear}
               onIncrement={onIncrement}
               onDecrement={onDecrement}
               onRegister={onRegister}
@@ -212,7 +261,7 @@ const CategoryCard = ({
           <View style={styles.emptyCategoryState}>
             <Ionicons name="sparkles-outline" size={18} color="#64748B" />
             <Text style={styles.emptyCategoryText}>
-              Esta categoría todavía no tiene procedimientos.
+              Añade la primera actividad dentro de esta categoría.
             </Text>
           </View>
         )}
@@ -227,133 +276,300 @@ export default function ResidenceLibraryScreen({
   residentHasReview = true,
 }) {
   const userId = userProfile?.id;
-  const section = "clinical_practice";
   const userResidencyYear = userProfile?.resident_year || null;
+  const specialityId = userProfile?.speciality_id || null;
+
+  const [specialtyName, setSpecialtyName] = useState("");
+  const [specialtyResolved, setSpecialtyResolved] = useState(!specialityId);
+  const [showNodeModal, setShowNodeModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [showQuickRegister, setShowQuickRegister] = useState(false);
+  const [selectedParentForChild, setSelectedParentForChild] = useState(null);
+  const [quickRegisterNode, setQuickRegisterNode] = useState(null);
+  const [draftCategories, setDraftCategories] = useState([]);
+  const [onboardingStep, setOnboardingStep] = useState("intro");
+  const [selectedDraftCategoryId, setSelectedDraftCategoryId] = useState("");
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryIcon, setNewCategoryIcon] = useState("folder-outline");
+  const [newCategoryColor, setNewCategoryColor] = useState("violet");
+  const [activityName, setActivityName] = useState("");
+  const [activityGoal, setActivityGoal] = useState("");
+  const [activityTrackingMode, setActivityTrackingMode] = useState("counter");
 
   const { hasReview } = useResidentReviewCheck(userId, userProfile);
-
   const shouldShowReviewPrompt =
-    userProfile?.is_resident &&
-    !userProfile?.is_super_admin &&
-    !residentHasReview;
+    userProfile?.is_resident && !userProfile?.is_super_admin && !residentHasReview;
 
   const {
     nodeTree,
+    entries,
     loading,
-    isAddingNode,
-    setIsAddingNode,
+    settings,
+    settingsLoading,
     editingNode,
     setEditingNode,
-    isAddingEntry,
-    setIsAddingEntry,
-    selectedNode,
-    setSelectedNode,
     addNode,
     updateNode,
     deleteNode,
     addEntry,
-    createTemplate,
-    statistics,
-  } = useLibroSection(userId, section);
+    updateLibroSettings,
+    createStructure,
+  } = useLibroSection(userId, SECTION);
 
-  const [showNodeModal, setShowNodeModal] = useState(false);
-  const [showEntryModal, setShowEntryModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-  const [selectedParentForChild, setSelectedParentForChild] = useState(null);
+  const suggestedCategories = useMemo(
+    () => getLibroCategorySuggestions(specialtyName),
+    [specialtyName]
+  );
+
+  const selectedDraftCategory = useMemo(
+    () =>
+      draftCategories.find((category) => category.id === selectedDraftCategoryId) ||
+      draftCategories[0] ||
+      null,
+    [draftCategories, selectedDraftCategoryId]
+  );
+
+  const procedureNodes = useMemo(
+    () => nodeTree.flatMap((category) => category.children || []),
+    [nodeTree]
+  );
+
+  const quickActivityIds = settings?.quick_activity_ids || [];
+  const quickActivityNodes = useMemo(() => {
+    const quickMap = new Map(procedureNodes.map((node) => [node.id, node]));
+    const orderedQuickNodes = quickActivityIds
+      .map((id) => quickMap.get(id))
+      .filter(Boolean);
+
+    if (orderedQuickNodes.length >= 4) {
+      return orderedQuickNodes.slice(0, 4);
+    }
+
+    const fallbackNodes = procedureNodes.filter(
+      (node) => !orderedQuickNodes.some((quickNode) => quickNode.id === node.id)
+    );
+
+    return [...orderedQuickNodes, ...fallbackNodes].slice(0, 4);
+  }, [procedureNodes, quickActivityIds]);
+
+  const overview = useMemo(() => {
+    const categories = nodeTree.length;
+    const procedures = procedureNodes.length;
+    const totalGoal = procedureNodes.reduce((sum, node) => sum + (node.goal || 0), 0);
+    const completed = procedureNodes.filter(
+      (node) => node.goal && node.total_count >= node.goal
+    ).length;
+    const totalCount = procedureNodes.reduce(
+      (sum, node) => sum + (node.total_count || 0),
+      0
+    );
+    const todayEntries = entries.filter(
+      (entry) => (entry.performed_at || entry.created_at?.slice(0, 10)) === TODAY
+    );
+
+    return {
+      categories,
+      procedures,
+      completed,
+      totalCount,
+      progress: totalGoal ? Math.round((totalCount / totalGoal) * 100) : 0,
+      todayCount: todayEntries.reduce((sum, entry) => sum + Math.max(entry.count || 0, 0), 0),
+    };
+  }, [entries, nodeTree, procedureNodes]);
+
+  const hasCompletedOnboarding =
+    !!settings?.onboarding_completed_at || nodeTree.length > 0;
 
   useEffect(() => {
     posthogLogger.logScreen("ResidenceLibraryScreen");
   }, []);
 
-  const overview = useMemo(() => {
-    const categories = nodeTree.length;
-    const procedures = nodeTree.reduce(
-      (sum, parent) => sum + (parent.children?.length || 0),
-      0
-    );
-    const target = nodeTree.reduce(
-      (sum, parent) =>
-        sum +
-        (parent.children || []).reduce(
-          (childSum, child) => childSum + (child.goal || 0),
-          0
-        ),
-      0
-    );
-    const completed = nodeTree.reduce(
-      (sum, parent) =>
-        sum +
-        (parent.children || []).filter(
-          (child) => child.goal && child.total_count >= child.goal
-        ).length,
-      0
-    );
-    const progress = target > 0 ? (statistics.totalCount / target) * 100 : 0;
+  useEffect(() => {
+    let isMounted = true;
 
-    return {
-      categories,
-      procedures,
-      target,
-      completed,
-      progress,
+    const loadSpecialty = async () => {
+      if (!specialityId) {
+        setSpecialtyName("");
+        setSpecialtyResolved(true);
+        return;
+      }
+
+      try {
+        const { success, specialty } = await getSpecialtyById(specialityId);
+        if (isMounted && success) {
+          setSpecialtyName(specialty?.name || "");
+        }
+      } catch (error) {
+        if (isMounted) {
+          setSpecialtyName("");
+        }
+      } finally {
+        if (isMounted) {
+          setSpecialtyResolved(true);
+        }
+      }
     };
-  }, [nodeTree, statistics.totalCount]);
+
+    loadSpecialty();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [specialityId]);
+
+  useEffect(() => {
+    if (
+      specialtyResolved &&
+      !hasCompletedOnboarding &&
+      !draftCategories.length &&
+      suggestedCategories.length
+    ) {
+      const initialDraft = suggestedCategories.slice(0, 3).map(buildDraftCategory);
+      setDraftCategories(initialDraft);
+      setSelectedDraftCategoryId(initialDraft[0]?.id || "");
+    }
+  }, [draftCategories.length, hasCompletedOnboarding, specialtyResolved, suggestedCategories]);
 
   const closeNodeModal = () => {
     setShowNodeModal(false);
-    setIsAddingNode(false);
     setEditingNode(null);
     setSelectedParentForChild(null);
   };
 
-  const closeEntryModal = () => {
-    setShowEntryModal(false);
-    setIsAddingEntry(false);
-    setSelectedNode(null);
+  const openQuickRegister = (node = null) => {
+    setQuickRegisterNode(node);
+    setShowQuickRegister(true);
   };
 
-  const handleCreateTemplate = async () => {
-    const success = await createTemplate();
-    if (!success) {
-      Alert.alert("Error", "No se pudo cargar la plantilla inicial.");
+  const closeQuickRegister = () => {
+    setQuickRegisterNode(null);
+    setShowQuickRegister(false);
+  };
+
+  const handleAddSuggestedCategory = (category) => {
+    const exists = draftCategories.some(
+      (item) => item.name.toLowerCase() === category.name.toLowerCase()
+    );
+    if (exists) return;
+
+    const nextCategory = buildDraftCategory(category);
+    setDraftCategories((prev) => [...prev, nextCategory]);
+    setSelectedDraftCategoryId(nextCategory.id);
+  };
+
+  const handleCreateCategoryDraft = () => {
+    if (!newCategoryName.trim()) return;
+
+    const nextCategory = buildDraftCategory({
+      name: newCategoryName.trim(),
+      icon_name: newCategoryIcon,
+      color_token: newCategoryColor,
+      activities: [],
+    });
+
+    setDraftCategories((prev) => [...prev, nextCategory]);
+    setSelectedDraftCategoryId(nextCategory.id);
+    setNewCategoryName("");
+  };
+
+  const handleDeleteCategoryDraft = (categoryId) => {
+    setDraftCategories((prev) => prev.filter((category) => category.id !== categoryId));
+    if (selectedDraftCategoryId === categoryId) {
+      const nextCategory = draftCategories.find((category) => category.id !== categoryId);
+      setSelectedDraftCategoryId(nextCategory?.id || "");
     }
   };
 
-  const handleAddRootNode = () => {
-    if (shouldShowReviewPrompt || (userProfile?.is_resident && !userProfile?.is_super_admin && !hasReview)) {
-      Alert.alert(
-        "Reseña requerida",
-        "Comparte primero tu experiencia para desbloquear el libro de residente.",
-        [
-          {
-            text: "Ir a mi reseña",
-            onPress: () => navigation?.navigate?.("myReview"),
-          },
-          { text: "Cancelar", style: "cancel" },
-        ]
-      );
+  const handleAddActivityDraft = () => {
+    if (!selectedDraftCategory || !activityName.trim()) return;
+
+    setDraftCategories((prev) =>
+      prev.map((category) =>
+        category.id === selectedDraftCategory.id
+          ? {
+              ...category,
+              activities: [
+                ...category.activities,
+                {
+                  id: `${activityName}-${Date.now()}-${Math.random()}`,
+                  name: activityName.trim(),
+                  goal: activityGoal.trim() || "",
+                  tracking_mode: activityTrackingMode,
+                },
+              ],
+            }
+          : category
+      )
+    );
+
+    setActivityName("");
+    setActivityGoal("");
+    setActivityTrackingMode("counter");
+  };
+
+  const handleDeleteActivityDraft = (activityId) => {
+    if (!selectedDraftCategory) return;
+
+    setDraftCategories((prev) =>
+      prev.map((category) =>
+        category.id === selectedDraftCategory.id
+          ? {
+              ...category,
+              activities: category.activities.filter((activity) => activity.id !== activityId),
+            }
+          : category
+      )
+    );
+  };
+
+  const handleCompleteOnboarding = async () => {
+    const normalizedCategories = draftCategories
+      .filter((category) => category.name.trim())
+      .map((category) => ({
+        name: category.name.trim(),
+        icon_name: category.icon_name,
+        color_token: category.color_token,
+        activities: category.activities
+          .filter((activity) => activity.name.trim())
+          .map((activity) => ({
+            name: activity.name.trim(),
+            goal: activity.goal ? parseInt(activity.goal, 10) : null,
+            tracking_mode: activity.tracking_mode || "counter",
+          })),
+      }))
+      .filter((category) => category.activities.length > 0);
+
+    if (!normalizedCategories.length) {
+      Alert.alert("Falta estructura", "Añade al menos una categoría con una actividad.");
       return;
     }
 
-    setSelectedParentForChild(null);
-    setEditingNode(null);
-    setIsAddingNode(true);
-    setShowNodeModal(true);
-  };
+    const success = await createStructure({
+      specialityId,
+      categories: normalizedCategories,
+    });
 
-  const handleAddChild = (parentNode) => {
-    setSelectedParentForChild(parentNode);
-    setEditingNode(null);
-    setIsAddingNode(true);
-    setShowNodeModal(true);
+    if (!success) {
+      Alert.alert("Error", "No se pudo crear tu libro de residente.");
+      return;
+    }
+
+    setOnboardingStep("intro");
   };
 
   const handleAddNode = async (formData) => {
-    const success = await addNode(formData);
+    const success = await addNode({
+      ...formData,
+      icon_name: selectedParentForChild ? undefined : "folder-outline",
+      color_token: selectedParentForChild ? undefined : "violet",
+      tracking_mode: selectedParentForChild ? "counter" : undefined,
+    });
+
     if (!success) {
-      Alert.alert("Error", "No se pudo guardar la categoría o el procedimiento.");
+      Alert.alert("Error", "No se pudo guardar el elemento.");
       return;
     }
+
     closeNodeModal();
   };
 
@@ -367,7 +583,7 @@ export default function ResidenceLibraryScreen({
     });
 
     if (!success) {
-      Alert.alert("Error", "No se pudieron actualizar los cambios.");
+      Alert.alert("Error", "No se pudieron guardar los cambios.");
       return;
     }
 
@@ -387,12 +603,19 @@ export default function ResidenceLibraryScreen({
     const success = await addEntry(node.id, {
       count: 1,
       residency_year: userResidencyYear || 1,
+      performed_at: TODAY,
       notes: "",
     });
 
     if (!success) {
       Alert.alert("Error", "No se pudo registrar la actividad.");
+      return;
     }
+
+    await updateLibroSettings({
+      last_used_node_id: node.id,
+      quick_activity_ids: [node.id, ...quickActivityIds.filter((id) => id !== node.id)].slice(0, 6),
+    });
   };
 
   const handleDecrement = async (node) => {
@@ -401,6 +624,7 @@ export default function ResidenceLibraryScreen({
     const success = await addEntry(node.id, {
       count: -1,
       residency_year: userResidencyYear || 1,
+      performed_at: TODAY,
       notes: "",
     });
 
@@ -409,29 +633,56 @@ export default function ResidenceLibraryScreen({
     }
   };
 
-  const handleOpenEntryModal = (node) => {
-    setSelectedNode(node);
-    setIsAddingEntry(true);
-    setShowEntryModal(true);
-  };
+  const handleQuickRegisterSubmit = async (formData) => {
+    const success = await addEntry(formData.nodeId, {
+      count: formData.count,
+      residency_year: userResidencyYear || 1,
+      performed_at: formData.performed_at,
+      notes: formData.notes || "",
+      kind: formData.kind,
+      payload: formData.payload,
+    });
 
-  const handleAddEntry = async (formData) => {
-    if (!selectedNode) return;
-
-    const success = await addEntry(selectedNode.id, formData);
     if (!success) {
       Alert.alert("Error", "No se pudo guardar el registro.");
       return;
     }
 
-    closeEntryModal();
+    await updateLibroSettings({
+      last_used_node_id: formData.nodeId,
+      quick_activity_ids: [
+        formData.nodeId,
+        ...quickActivityIds.filter((id) => id !== formData.nodeId),
+      ].slice(0, 6),
+    });
+
+    closeQuickRegister();
+  };
+
+  const handleProtectedAction = (callback) => {
+    if (shouldShowReviewPrompt || (userProfile?.is_resident && !userProfile?.is_super_admin && !hasReview)) {
+      Alert.alert(
+        "Reseña requerida",
+        "Comparte primero tu experiencia para desbloquear el libro de residente.",
+        [
+          {
+            text: "Ir a mi reseña",
+            onPress: () => navigation?.navigate?.("myReview"),
+          },
+          { text: "Cancelar", style: "cancel" },
+        ]
+      );
+      return;
+    }
+
+    callback();
   };
 
   const openChildActions = (node) => {
-    Alert.alert(node.name, "Gestiona este procedimiento", [
+    Alert.alert(node.name, "Gestiona esta actividad", [
       {
-        text: "Registrar actividad",
-        onPress: () => handleOpenEntryModal(node),
+        text: TRACKING_MODE_ACTION[node.tracking_mode] || "Registrar",
+        onPress: () => openQuickRegister(node),
       },
       {
         text: "Editar nombre u objetivo",
@@ -441,7 +692,7 @@ export default function ResidenceLibraryScreen({
         },
       },
       {
-        text: "Eliminar procedimiento",
+        text: "Eliminar actividad",
         style: "destructive",
         onPress: () => setShowDeleteConfirm(node),
       },
@@ -449,165 +700,499 @@ export default function ResidenceLibraryScreen({
     ]);
   };
 
-  const openParentDelete = (node) => {
-    setShowDeleteConfirm(node);
-  };
+  if (
+    (loading || settingsLoading || !specialtyResolved) &&
+    !hasCompletedOnboarding &&
+    !draftCategories.length
+  ) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#670CF5" />
+          <Text style={styles.loadingText}>Preparando tu libro de residente...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-  if (loading && nodeTree.length === 0) {
+  const renderOnboarding = () => {
+    const stepIndex = ONBOARDING_STEPS.indexOf(onboardingStep);
+    const progress = stepIndex <= 0 ? 0 : Math.round((stepIndex / (ONBOARDING_STEPS.length - 1)) * 100);
+    const colorOptions = getColorTokenOptions();
+
     return (
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.headerShell}>
           <View style={styles.header}>
             <Text style={styles.title}>Libro de residente</Text>
             <View style={styles.headerIcon}>
-              <Ionicons name="library-outline" size={18} color="#670CF5" />
+              <Ionicons name="book-outline" size={18} color="#670CF5" />
             </View>
           </View>
         </View>
+
         <View style={styles.contentSurface}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#670CF5" />
-            <Text style={styles.loadingText}>Cargando tu progreso...</Text>
-          </View>
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.contentInner}>
+              <View style={styles.heroCard}>
+                <Text style={styles.heroEyebrow}>
+                  {specialtyName ? `${specialtyName} · configuración inicial` : "Configuración inicial"}
+                </Text>
+                <Text style={styles.heroTitle}>Crea un libro útil desde el primer día</Text>
+                <Text style={styles.heroText}>
+                  Vas a definir las categorías y actividades que quieres seguir durante tu residencia.
+                  Después tendrás un dashboard y un registro rápido alineados con esa estructura.
+                </Text>
+
+                <View style={styles.progressHeader}>
+                  <Text style={styles.progressHeaderLabel}>Progreso</Text>
+                  <Text style={styles.progressHeaderValue}>{progress}%</Text>
+                </View>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${progress}%` }]} />
+                </View>
+              </View>
+
+              <View style={styles.stepBadgeRow}>
+                <SectionBadge
+                  icon="sparkles-outline"
+                  label="Intro"
+                  active={onboardingStep === "intro"}
+                  onPress={() => setOnboardingStep("intro")}
+                />
+                <SectionBadge
+                  icon="folder-open-outline"
+                  label="Categorías"
+                  active={onboardingStep === "categories"}
+                  onPress={() => setOnboardingStep("categories")}
+                />
+                <SectionBadge
+                  icon="list-outline"
+                  label="Actividades"
+                  active={onboardingStep === "activities"}
+                  onPress={() => setOnboardingStep("activities")}
+                />
+                <SectionBadge
+                  icon="eye-outline"
+                  label="Vista previa"
+                  active={onboardingStep === "preview"}
+                  onPress={() => setOnboardingStep("preview")}
+                />
+              </View>
+
+              {onboardingStep === "intro" ? (
+                <View style={styles.card}>
+                  <Text style={styles.sectionTitle}>Qué vas a tener al final</Text>
+                  <View style={styles.featureList}>
+                    <View style={styles.featureRow}>
+                      <Ionicons name="checkmark-circle-outline" size={18} color="#670CF5" />
+                      <Text style={styles.featureText}>
+                        Categorías adaptadas a tu especialidad.
+                      </Text>
+                    </View>
+                    <View style={styles.featureRow}>
+                      <Ionicons name="checkmark-circle-outline" size={18} color="#670CF5" />
+                      <Text style={styles.featureText}>
+                        Registro rápido de actividad con accesos frecuentes.
+                      </Text>
+                    </View>
+                    <View style={styles.featureRow}>
+                      <Ionicons name="checkmark-circle-outline" size={18} color="#670CF5" />
+                      <Text style={styles.featureText}>
+                        Seguimiento visual del avance por actividad.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.primaryAction}
+                    onPress={() => setOnboardingStep("categories")}
+                  >
+                    <Text style={styles.primaryActionText}>Empezar onboarding</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {onboardingStep === "categories" ? (
+                <>
+                  <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>Sugerencias para {specialtyName || "tu residencia"}</Text>
+                    <View style={styles.chipWrap}>
+                      {suggestedCategories.map((category) => (
+                        <TouchableOpacity
+                          key={category.name}
+                          style={styles.suggestionChip}
+                          onPress={() => handleAddSuggestedCategory(category)}
+                        >
+                          <Ionicons
+                            name={category.icon_name || "folder-outline"}
+                            size={14}
+                            color="#670CF5"
+                          />
+                          <Text style={styles.suggestionChipText}>{category.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>Tus categorías</Text>
+                    <View style={styles.categoryDraftList}>
+                      {draftCategories.map((category) => (
+                        <View key={category.id} style={styles.categoryDraftRow}>
+                          <CategoryPill
+                            category={category}
+                            active={selectedDraftCategoryId === category.id}
+                            onPress={() => setSelectedDraftCategoryId(category.id)}
+                          />
+                          <TouchableOpacity
+                            onPress={() => handleDeleteCategoryDraft(category.id)}
+                            style={styles.iconActionButton}
+                          >
+                            <Ionicons name="close" size={16} color="#64748B" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>Añadir categoría</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      value={newCategoryName}
+                      onChangeText={setNewCategoryName}
+                      placeholder="Ej. Quirófano, Técnicas, Guardias"
+                    />
+
+                    <Text style={styles.fieldLabel}>Icono</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.iconSelectorRow}>
+                      {CATEGORY_ICON_OPTIONS.map((option) => {
+                        const isActive = newCategoryIcon === option.id;
+                        return (
+                          <TouchableOpacity
+                            key={option.id}
+                            style={[styles.iconOption, isActive && styles.iconOptionActive]}
+                            onPress={() => setNewCategoryIcon(option.id)}
+                          >
+                            <Ionicons
+                              name={option.id}
+                              size={18}
+                              color={isActive ? "#670CF5" : "#64748B"}
+                            />
+                            <Text style={[styles.iconOptionText, isActive && styles.iconOptionTextActive]}>
+                              {option.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+
+                    <Text style={styles.fieldLabel}>Color</Text>
+                    <View style={styles.colorRow}>
+                      {colorOptions.map((option) => {
+                        const isActive = newCategoryColor === option.id;
+                        return (
+                          <TouchableOpacity
+                            key={option.id}
+                            style={[
+                              styles.colorSwatchWrap,
+                              isActive && styles.colorSwatchWrapActive,
+                            ]}
+                            onPress={() => setNewCategoryColor(option.id)}
+                          >
+                            <View style={[styles.colorSwatch, { backgroundColor: option.hex }]} />
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <TouchableOpacity style={styles.primaryAction} onPress={handleCreateCategoryDraft}>
+                      <Text style={styles.primaryActionText}>Añadir categoría</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.secondaryOutlineAction}
+                      onPress={() => setOnboardingStep("activities")}
+                    >
+                      <Text style={styles.secondaryOutlineActionText}>Continuar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : null}
+
+              {onboardingStep === "activities" ? (
+                <>
+                  <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>Selecciona una categoría</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScrollContent}>
+                      {draftCategories.map((category) => (
+                        <CategoryPill
+                          key={category.id}
+                          category={category}
+                          active={selectedDraftCategory?.id === category.id}
+                          onPress={() => setSelectedDraftCategoryId(category.id)}
+                        />
+                      ))}
+                    </ScrollView>
+                  </View>
+
+                  <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>
+                      Actividades de {selectedDraftCategory?.name || "la categoría"}
+                    </Text>
+
+                    <TextInput
+                      style={styles.formInput}
+                      value={activityName}
+                      onChangeText={setActivityName}
+                      placeholder="Ej. Parto eutócico, sesión clínica, técnica..."
+                    />
+                    <TextInput
+                      style={styles.formInput}
+                      value={activityGoal}
+                      onChangeText={(value) => setActivityGoal(value.replace(/[^0-9]/g, ""))}
+                      placeholder="Meta opcional"
+                      keyboardType="number-pad"
+                    />
+
+                    <View style={styles.modeSelectorRow}>
+                      {TRACKING_MODE_OPTIONS.map((option) => {
+                        const active = activityTrackingMode === option.id;
+                        return (
+                          <TouchableOpacity
+                            key={option.id}
+                            style={[styles.modeSelectorButton, active && styles.modeSelectorButtonActive]}
+                            onPress={() => setActivityTrackingMode(option.id)}
+                          >
+                            <Text
+                              style={[
+                                styles.modeSelectorText,
+                                active && styles.modeSelectorTextActive,
+                              ]}
+                            >
+                              {option.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <TouchableOpacity style={styles.primaryAction} onPress={handleAddActivityDraft}>
+                      <Text style={styles.primaryActionText}>Añadir actividad</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>Vista de la categoría</Text>
+                    {(selectedDraftCategory?.activities || []).length ? (
+                      selectedDraftCategory.activities.map((activity) => (
+                        <ActivityDraftRow
+                          key={activity.id}
+                          activity={activity}
+                          onDelete={() => handleDeleteActivityDraft(activity.id)}
+                        />
+                      ))
+                    ) : (
+                      <Text style={styles.sectionText}>
+                        Esta categoría todavía no tiene actividades.
+                      </Text>
+                    )}
+
+                    <TouchableOpacity
+                      style={styles.secondaryOutlineAction}
+                      onPress={() => setOnboardingStep("preview")}
+                    >
+                      <Text style={styles.secondaryOutlineActionText}>Ir a vista previa</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : null}
+
+              {onboardingStep === "preview" ? (
+                <>
+                  <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>Vista previa del libro</Text>
+                    <Text style={styles.sectionText}>
+                      Revisa la estructura final antes de crearla.
+                    </Text>
+                  </View>
+
+                  {draftCategories.map((category) => (
+                    <View key={category.id} style={styles.categoryPreviewCard}>
+                      <View style={styles.categoryPreviewHeader}>
+                        <CategoryPill category={category} active />
+                        <Text style={styles.categoryPreviewCount}>
+                          {category.activities.length} actividades
+                        </Text>
+                      </View>
+                      {(category.activities || []).map((activity) => (
+                        <View key={activity.id} style={styles.previewActivityRow}>
+                          <View>
+                            <Text style={styles.previewActivityTitle}>{activity.name}</Text>
+                            <Text style={styles.previewActivitySubtitle}>
+                              {TRACKING_MODE_LABEL[activity.tracking_mode] || "Contador"}
+                              {activity.goal ? ` · Meta ${activity.goal}` : ""}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  ))}
+
+                  <TouchableOpacity style={styles.primaryAction} onPress={handleCompleteOnboarding}>
+                    <Text style={styles.primaryActionText}>Crear mi libro</Text>
+                  </TouchableOpacity>
+                </>
+              ) : null}
+            </View>
+          </ScrollView>
         </View>
       </SafeAreaView>
     );
-  }
+  };
 
-  return (
+  const renderDashboard = () => (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.headerShell}>
         <View style={styles.header}>
-          <Text style={styles.title}>Libro de residente</Text>
-          <View style={styles.headerIcon}>
-            <Ionicons name="library-outline" size={18} color="#670CF5" />
+          <View>
+            <Text style={styles.title}>Libro de residente</Text>
+            <Text style={styles.headerMeta}>
+              {[specialtyName, userResidencyYear ? `R${userResidencyYear}` : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </Text>
           </View>
+          <TouchableOpacity style={styles.headerIcon} onPress={() => openQuickRegister()}>
+            <Ionicons name="add" size={18} color="#670CF5" />
+          </TouchableOpacity>
         </View>
       </View>
 
       <View style={styles.contentSurface}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           <View style={styles.contentInner}>
             <View style={styles.heroCard}>
-              <Text style={styles.heroEyebrow}>Tu actividad asistencial</Text>
-              <Text style={styles.heroTitle}>Registra lo que haces sin pensar en la base de datos</Text>
+              <Text style={styles.heroEyebrow}>Dashboard principal</Text>
+              <Text style={styles.heroTitle}>Registra y revisa tu actividad asistencial</Text>
               <Text style={styles.heroText}>
-                El libro guarda actividades por procedimiento. Las categorías solo
-                organizan el contenido para que entiendas mejor tu progreso.
+                Usa el registro rápido para lo frecuente y entra en cada categoría cuando necesites más contexto.
               </Text>
 
               <View style={styles.overviewRow}>
-                <OverviewStat value={overview.categories} label="categorías" />
-                <OverviewStat value={overview.procedures} label="procedimientos" />
-                <OverviewStat value={statistics.totalCount} label="registros" />
+                <View style={styles.overviewStat}>
+                  <Text style={styles.overviewStatValue}>{overview.categories}</Text>
+                  <Text style={styles.overviewStatLabel}>categorías</Text>
+                </View>
+                <View style={styles.overviewStat}>
+                  <Text style={styles.overviewStatValue}>{overview.procedures}</Text>
+                  <Text style={styles.overviewStatLabel}>actividades</Text>
+                </View>
+                <View style={styles.overviewStat}>
+                  <Text style={styles.overviewStatValue}>{overview.totalCount}</Text>
+                  <Text style={styles.overviewStatLabel}>registros</Text>
+                </View>
               </View>
 
               <View style={styles.heroFooter}>
-                <View style={styles.heroProgressWrap}>
-                  <Text style={styles.heroProgressLabel}>
-                    Avance global {Math.round(overview.progress)}%
-                  </Text>
-                  <ProgressBar progress={overview.progress} />
+                <View style={styles.progressHeader}>
+                  <Text style={styles.progressHeaderLabel}>Avance global</Text>
+                  <Text style={styles.progressHeaderValue}>{overview.progress}%</Text>
+                </View>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${overview.progress}%` }]} />
                 </View>
                 <Text style={styles.heroSupportText}>
-                  {overview.completed} objetivo{overview.completed === 1 ? "" : "s"} completado
-                  {overview.completed === 1 ? "" : "s"}
-                  {userResidencyYear ? ` · Año R${userResidencyYear}` : ""}
+                  Hoy llevas {overview.todayCount} registro{overview.todayCount === 1 ? "" : "s"} · {overview.completed} metas completadas
                 </Text>
               </View>
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Cómo funciona</Text>
-              <Text style={styles.sectionText}>
-                Hemos simplificado la pantalla para que veas primero tus
-                procedimientos y su avance. Si necesitas detalle, pulsa
-                “Registrar”.
-              </Text>
-              <View style={styles.infoPillsWrap}>
-                {INFO_PILLS.map((item) => (
-                  <InfoPill key={item.label} icon={item.icon} label={item.label} />
+              <View style={styles.sectionHeaderRow}>
+                <View>
+                  <Text style={styles.sectionTitle}>Registro rápido</Text>
+                  <Text style={styles.sectionText}>
+                    Accesos directos a las actividades que más usas.
+                  </Text>
+                </View>
+                <TouchableOpacity style={styles.secondaryButton} onPress={() => openQuickRegister()}>
+                  <Ionicons name="flash-outline" size={16} color="#670CF5" />
+                  <Text style={styles.secondaryButtonText}>Abrir</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.quickGrid}>
+                {quickActivityNodes.map((node) => (
+                  <TouchableOpacity
+                    key={node.id}
+                    style={styles.quickCard}
+                    onPress={() => openQuickRegister(node)}
+                  >
+                    <Text style={styles.quickCardTitle} numberOfLines={2}>
+                      {node.name}
+                    </Text>
+                    <Text style={styles.quickCardMeta}>
+                      {TRACKING_MODE_ACTION[node.tracking_mode] || "Registrar"}
+                    </Text>
+                  </TouchableOpacity>
                 ))}
               </View>
             </View>
 
-            {nodeTree.length === 0 ? (
-              <View style={styles.emptyStateCard}>
-                <View style={styles.emptyStateIcon}>
-                  <Ionicons name="sparkles-outline" size={24} color="#670CF5" />
+            <View style={styles.card}>
+              <View style={styles.sectionHeaderRow}>
+                <View>
+                  <Text style={styles.sectionTitle}>Tu estructura</Text>
+                  <Text style={styles.sectionText}>
+                    Categorías y actividades definidas en tu onboarding.
+                  </Text>
                 </View>
-                <Text style={styles.emptyStateTitle}>Empieza con una estructura clara</Text>
-                <Text style={styles.emptyStateText}>
-                  Puedes cargar una plantilla con categorías y procedimientos
-                  habituales, o crear tu propia estructura desde cero.
-                </Text>
-
                 <TouchableOpacity
-                  style={styles.primaryAction}
-                  onPress={handleCreateTemplate}
-                  activeOpacity={0.85}
+                  style={styles.addCategoryChip}
+                  onPress={() =>
+                    handleProtectedAction(() => {
+                      setSelectedParentForChild(null);
+                      setShowNodeModal(true);
+                    })
+                  }
                 >
-                  <Ionicons name="flash-outline" size={18} color="#FFFFFF" />
-                  <Text style={styles.primaryActionText}>Cargar plantilla recomendada</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.secondaryOutlineAction}
-                  onPress={handleAddRootNode}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="add-circle-outline" size={18} color="#670CF5" />
-                  <Text style={styles.secondaryOutlineActionText}>Crear primera categoría</Text>
+                  <Ionicons name="add" size={16} color="#670CF5" />
+                  <Text style={styles.addCategoryChipText}>Categoría</Text>
                 </TouchableOpacity>
               </View>
-            ) : (
-              <>
-                <View style={styles.sectionHeaderRow}>
-                  <View>
-                    <Text style={styles.sectionTitle}>Tus categorías</Text>
-                    <Text style={styles.sectionText}>
-                      Cada tarjeta agrupa procedimientos. Dentro puedes sumar,
-                      corregir o registrar con más detalle.
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.addCategoryChip}
-                    onPress={handleAddRootNode}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="add" size={16} color="#670CF5" />
-                    <Text style={styles.addCategoryChipText}>Categoría</Text>
-                  </TouchableOpacity>
-                </View>
+            </View>
 
-                {nodeTree.map((parentNode) => (
-                  <CategoryCard
-                    key={parentNode.id}
-                    node={parentNode}
-                    userResidencyYear={userResidencyYear}
-                    onAddChild={handleAddChild}
-                    onEditParent={(node) => {
-                      setEditingNode(node);
-                      setShowNodeModal(true);
-                    }}
-                    onDeleteParent={openParentDelete}
-                    onIncrement={handleIncrement}
-                    onDecrement={handleDecrement}
-                    onRegister={handleOpenEntryModal}
-                    onOpenChildActions={openChildActions}
-                  />
-                ))}
-              </>
-            )}
+            {nodeTree.map((parentNode) => (
+              <CategoryCard
+                key={parentNode.id}
+                node={parentNode}
+                onAddChild={(parent) =>
+                  handleProtectedAction(() => {
+                    setSelectedParentForChild(parent);
+                    setEditingNode(null);
+                    setShowNodeModal(true);
+                  })
+                }
+                onEditParent={(node) =>
+                  handleProtectedAction(() => {
+                    setEditingNode(node);
+                    setShowNodeModal(true);
+                  })
+                }
+                onDeleteParent={(node) => setShowDeleteConfirm(node)}
+                onIncrement={(node) => handleProtectedAction(() => handleIncrement(node))}
+                onDecrement={handleDecrement}
+                onRegister={(node) => handleProtectedAction(() => openQuickRegister(node))}
+                onOpenChildActions={openChildActions}
+              />
+            ))}
           </View>
         </ScrollView>
       </View>
 
-      {shouldShowReviewPrompt && (
+      {shouldShowReviewPrompt ? (
         <View style={styles.reviewPromptOverlay}>
           <View style={styles.reviewPromptCard}>
             <View style={styles.reviewPromptIcon}>
@@ -615,19 +1200,17 @@ export default function ResidenceLibraryScreen({
             </View>
             <Text style={styles.reviewPromptTitle}>Desbloquea tu libro</Text>
             <Text style={styles.reviewPromptText}>
-              Antes de registrar actividad, comparte tu experiencia con una
-              reseña. Así mantenemos la comunidad activa y útil.
+              Antes de registrar actividad, comparte tu experiencia con una reseña.
             </Text>
             <TouchableOpacity
               style={styles.reviewPromptButton}
               onPress={() => navigation?.navigate?.("myReview")}
-              activeOpacity={0.85}
             >
               <Text style={styles.reviewPromptButtonText}>Ir a mi reseña</Text>
             </TouchableOpacity>
           </View>
         </View>
-      )}
+      ) : null}
 
       <LibroNodeModal
         visible={showNodeModal}
@@ -638,26 +1221,29 @@ export default function ResidenceLibraryScreen({
         loading={loading}
       />
 
-      <LibroEntryModal
-        visible={showEntryModal}
-        onClose={closeEntryModal}
-        onSubmit={handleAddEntry}
-        node={selectedNode}
+      <LibroQuickRegisterModal
+        visible={showQuickRegister}
+        onClose={closeQuickRegister}
+        onSubmit={handleQuickRegisterSubmit}
+        categories={nodeTree}
+        initialNode={quickRegisterNode}
         loading={loading}
       />
 
       <ConfirmationModal
         visible={!!showDeleteConfirm}
         title="Eliminar elemento"
-        message={`Vas a eliminar "${showDeleteConfirm?.name}". Si es una categoría, también se eliminarán sus procedimientos y registros asociados.`}
+        message={`Vas a eliminar "${showDeleteConfirm?.name}". Si es una categoría, también se eliminarán sus actividades y registros asociados.`}
         onConfirm={() => handleDeleteNode(showDeleteConfirm?.id)}
         onCancel={() => setShowDeleteConfirm(null)}
         confirmText="Eliminar"
         cancelText="Cancelar"
-        confirmColor={COLORS.ERROR}
+        confirmColor="#EF4444"
       />
     </SafeAreaView>
   );
+
+  return hasCompletedOnboarding ? renderDashboard() : renderOnboarding();
 }
 
 const styles = StyleSheet.create({
@@ -682,6 +1268,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1B0977",
     letterSpacing: -0.2,
+  },
+  headerMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
   },
   headerIcon: {
     width: 36,
@@ -745,6 +1337,336 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: "#64748B",
   },
+  progressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  progressHeaderLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  progressHeaderValue: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#670CF5",
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#E9D5FF",
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: "#670CF5",
+  },
+  heroFooter: {
+    marginTop: 6,
+  },
+  heroSupportText: {
+    marginTop: 10,
+    fontSize: 13,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  stepBadgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  stepBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  stepBadgeActive: {
+    borderColor: "#D8B4FE",
+    backgroundColor: "#F5F3FF",
+  },
+  stepBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  stepBadgeTextActive: {
+    color: "#670CF5",
+  },
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1B0977",
+  },
+  sectionText: {
+    marginTop: 6,
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#64748B",
+  },
+  featureList: {
+    marginTop: 14,
+    gap: 12,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  featureText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#0F172A",
+    fontWeight: "600",
+  },
+  primaryAction: {
+    marginTop: 16,
+    minHeight: 52,
+    borderRadius: 18,
+    backgroundColor: "#670CF5",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  primaryActionText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  secondaryOutlineAction: {
+    marginTop: 12,
+    minHeight: 52,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#D8B4FE",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  secondaryOutlineActionText: {
+    color: "#670CF5",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  chipWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 14,
+  },
+  suggestionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#F5F3FF",
+  },
+  suggestionChipText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#670CF5",
+  },
+  categoryDraftList: {
+    marginTop: 14,
+    gap: 12,
+  },
+  categoryDraftRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  categoryPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+  },
+  categoryPillText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+  formInput: {
+    minHeight: 52,
+    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: "#0F172A",
+    marginTop: 14,
+  },
+  fieldLabel: {
+    marginTop: 14,
+    marginBottom: 8,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1B0977",
+  },
+  iconSelectorRow: {
+    gap: 10,
+  },
+  iconOption: {
+    minWidth: 90,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    alignItems: "center",
+    gap: 8,
+  },
+  iconOptionActive: {
+    backgroundColor: "#F5F3FF",
+    borderWidth: 1,
+    borderColor: "#D8B4FE",
+  },
+  iconOptionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  iconOptionTextActive: {
+    color: "#670CF5",
+  },
+  colorRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  colorSwatchWrap: {
+    padding: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  colorSwatchWrapActive: {
+    borderColor: "#1B0977",
+  },
+  colorSwatch: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  chipScrollContent: {
+    gap: 10,
+    paddingTop: 14,
+  },
+  modeSelectorRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 14,
+  },
+  modeSelectorButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 14,
+    backgroundColor: "#F8FAFC",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  modeSelectorButtonActive: {
+    backgroundColor: "#F5F3FF",
+    borderWidth: 1,
+    borderColor: "#D8B4FE",
+  },
+  modeSelectorText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  modeSelectorTextActive: {
+    color: "#670CF5",
+  },
+  activityDraftRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF2F7",
+  },
+  activityDraftMeta: {
+    flex: 1,
+  },
+  activityDraftTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  activityDraftSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "#64748B",
+  },
+  iconActionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F8FAFC",
+  },
+  categoryPreviewCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
+  },
+  categoryPreviewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  categoryPreviewCount: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  previewActivityRow: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#EEF2F7",
+  },
+  previewActivityTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  previewActivitySubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "#64748B",
+  },
   overviewRow: {
     flexDirection: "row",
     gap: 10,
@@ -755,8 +1677,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingVertical: 14,
     paddingHorizontal: 12,
-  },
-  overviewStatpurple: {
     backgroundColor: "#F3E8FF",
   },
   overviewStatValue: {
@@ -770,149 +1690,59 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#670CF5",
   },
-  heroFooter: {
-    marginTop: 16,
-  },
-  heroProgressWrap: {
-    marginBottom: 10,
-  },
-  heroProgressLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#334155",
-    marginBottom: 8,
-  },
-  heroSupportText: {
-    fontSize: 13,
-    color: "#64748B",
-  },
-  progressTrack: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: "#E2E8F0",
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: 999,
-    backgroundColor: "#670CF5",
-  },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: "#E8EAF3",
-  },
   sectionHeaderRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
     justifyContent: "space-between",
+    alignItems: "center",
     gap: 12,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#1B0977",
-    marginBottom: 6,
-  },
-  sectionText: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#64748B",
-  },
-  infoPillsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 14,
-  },
-  infoPill: {
+  secondaryButton: {
+    marginTop: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    gap: 8,
+    alignSelf: "flex-start",
+    minHeight: 40,
+    paddingHorizontal: 12,
     borderRadius: 999,
-    backgroundColor: "#F3E8FF",
+    backgroundColor: "#F5F3FF",
   },
-  infoPillText: {
-    fontSize: 12,
+  secondaryButtonText: {
+    fontSize: 13,
     fontWeight: "700",
     color: "#670CF5",
   },
-  emptyStateCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: "#E8EAF3",
-    alignItems: "center",
+  quickGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 14,
   },
-  emptyStateIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F3E8FF",
-    marginBottom: 14,
+  quickCard: {
+    width: "48%",
+    borderRadius: 18,
+    backgroundColor: "#F8FAFC",
+    padding: 14,
   },
-  emptyStateTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#1B0977",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  emptyStateText: {
+  quickCardTitle: {
     fontSize: 14,
-    color: "#64748B",
-    textAlign: "center",
-    lineHeight: 21,
-    marginBottom: 18,
-  },
-  primaryAction: {
-    minHeight: 52,
-    borderRadius: 18,
-    backgroundColor: "#670CF5",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    width: "100%",
-    marginBottom: 10,
-  },
-  primaryActionText: {
-    fontSize: 15,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#0F172A",
   },
-  secondaryOutlineAction: {
-    minHeight: 52,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#D8C7FF",
-    backgroundColor: "#F8F5FF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    width: "100%",
-  },
-  secondaryOutlineActionText: {
-    fontSize: 15,
-    fontWeight: "800",
+  quickCardMeta: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: "700",
     color: "#670CF5",
   },
   addCategoryChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "#F3E8FF",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    backgroundColor: "#F5F3FF",
   },
   addCategoryChipText: {
     fontSize: 12,
@@ -928,130 +1758,130 @@ const styles = StyleSheet.create({
   },
   categoryHeader: {
     flexDirection: "row",
-    alignItems: "flex-start",
     justifyContent: "space-between",
+    alignItems: "center",
     gap: 12,
   },
-  categoryHeaderText: {
+  categoryHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  categoryIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  categoryHeaderCopy: {
     flex: 1,
   },
   categoryTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#1B0977",
-    marginBottom: 4,
-  },
-  categorySubtitle: {
-    fontSize: 13,
-    color: "#64748B",
-    lineHeight: 20,
-  },
-  iconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F8FAFC",
-  },
-  categoryStatsRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 14,
-    marginBottom: 14,
-  },
-  categoryMetric: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-  },
-  categoryMetricValue: {
     fontSize: 17,
     fontWeight: "800",
     color: "#1B0977",
   },
-  categoryMetricLabel: {
+  categorySubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  summaryRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+  },
+  summaryStat: {
+    flex: 1,
+    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+  },
+  summaryStatValue: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  summaryStatLabel: {
     marginTop: 4,
     fontSize: 12,
-    color: "#64748B",
     fontWeight: "700",
+    color: "#64748B",
   },
-  categoryActions: {
+  procedureList: {
     marginTop: 14,
-  },
-  secondaryAction: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: "#F8F5FF",
-  },
-  secondaryActionText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#670CF5",
-  },
-  proceduresList: {
     gap: 12,
-    marginTop: 16,
   },
   emptyCategoryState: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 18,
-    padding: 14,
+    paddingVertical: 12,
   },
   emptyCategoryText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: "#64748B",
+    fontWeight: "600",
   },
   procedureCard: {
-    backgroundColor: "#F8FAFC",
     borderRadius: 18,
+    backgroundColor: "#F8FAFC",
     padding: 14,
   },
-  procedureHeader: {
+  procedureTopRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
     justifyContent: "space-between",
+    alignItems: "flex-start",
     gap: 12,
-    marginBottom: 12,
   },
-  procedureTitleWrap: {
+  procedureMetaBlock: {
     flex: 1,
+  },
+  procedureTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
   },
   procedureTitle: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#1B0977",
-    marginBottom: 4,
+    color: "#0F172A",
   },
-  procedureMeta: {
+  procedureSubtitle: {
+    marginTop: 4,
     fontSize: 13,
+    fontWeight: "600",
     color: "#64748B",
   },
-  procedureFooter: {
+  modeTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  modeTagText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  procedureActionsRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 12,
     marginTop: 12,
   },
-  progressText: {
+  progressSupportText: {
     flex: 1,
     fontSize: 12,
     fontWeight: "700",
     color: "#64748B",
   },
-  counterActions: {
+  procedureActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
@@ -1067,76 +1897,63 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   counterButtonDisabled: {
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F1F5F9",
   },
-  registerButton: {
-    minHeight: 34,
-    paddingHorizontal: 14,
+  primarySmallButton: {
+    minHeight: 36,
+    paddingHorizontal: 12,
     borderRadius: 999,
     backgroundColor: "#670CF5",
     alignItems: "center",
     justifyContent: "center",
   },
-  registerButtonText: {
+  primarySmallButtonText: {
+    color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "800",
-    color: "#FFFFFF",
   },
   reviewPromptOverlay: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(248, 249, 254, 0.96)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
+    right: 16,
+    left: 16,
+    bottom: 24,
   },
   reviewPromptCard: {
-    width: "100%",
-    maxWidth: 420,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 28,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: "#E8EAF3",
-    alignItems: "center",
+    borderRadius: 24,
+    backgroundColor: "#1B0977",
+    padding: 18,
   },
   reviewPromptIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#670CF5",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   reviewPromptTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "800",
-    color: "#1B0977",
-    textAlign: "center",
-    marginBottom: 8,
+    color: "#FFFFFF",
   },
   reviewPromptText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#64748B",
-    textAlign: "center",
-    marginBottom: 20,
+    marginTop: 6,
+    fontSize: 14,
+    lineHeight: 21,
+    color: "rgba(255,255,255,0.82)",
   },
   reviewPromptButton: {
-    minHeight: 50,
-    borderRadius: 18,
-    backgroundColor: "#670CF5",
-    paddingHorizontal: 18,
+    marginTop: 16,
+    minHeight: 48,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
   },
   reviewPromptButtonText: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#1B0977",
   },
 });

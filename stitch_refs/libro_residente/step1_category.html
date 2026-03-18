@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#8b5cf6",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#221610",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }    </script>
+<title>Libro de Residente - Paso 1</title>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased min-h-screen">
+<div class="max-w-md mx-auto min-h-screen flex flex-col shadow-xl bg-background-light dark:bg-background-dark">
+<!-- TopAppBar -->
+<header class="flex items-center p-4 pb-2 justify-between sticky top-0 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md z-10">
+<div class="text-slate-900 dark:text-slate-100 flex size-12 shrink-0 items-center justify-center cursor-pointer hover:bg-primary/10 rounded-full transition-colors">
+<span class="material-symbols-outlined">arrow_back</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-tight flex-1 ml-2">Libro de residente</h2>
+<div class="size-12"></div> <!-- Spacer for symmetry -->
+</header>
+<!-- Progress Bar -->
+<div class="flex flex-col gap-3 p-4">
+<div class="flex gap-6 justify-between items-center">
+<p class="text-slate-700 dark:text-slate-300 text-base font-medium leading-normal">Paso 1 de 3</p>
+<p class="text-primary text-sm font-bold leading-normal">33%</p>
+</div>
+<div class="rounded-full bg-primary/20 h-2 w-full overflow-hidden">
+<div class="h-full rounded-full bg-primary transition-all duration-500" style="width: 33%;"></div>
+</div>
+</div>
+<main class="flex-1 overflow-y-auto">
+<!-- Title Section -->
+<div class="px-4 pt-6 pb-2">
+<h3 class="text-slate-900 dark:text-slate-100 tracking-tight text-2xl font-bold leading-tight">Crea tu primera categoría</h3>
+<p class="text-slate-600 dark:text-slate-400 text-base font-normal leading-normal mt-2">Agrupa lo que haces en bloques de tu residencia.</p>
+</div>
+<!-- Input Section -->
+<div class="px-4 py-6 space-y-6">
+<label class="flex flex-col gap-2">
+<span class="text-slate-800 dark:text-slate-200 text-sm font-semibold uppercase tracking-wider">Nombre de la categoría</span>
+<input class="w-full rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary h-14 px-4 text-base placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-shadow" placeholder="Quirófano, Consultas, Urgencias, Sala de partos..." type="text"/>
+</label>
+<!-- Icon Selector (Extra context for UI richness) -->
+<div class="flex flex-col gap-3">
+<span class="text-slate-800 dark:text-slate-200 text-sm font-semibold uppercase tracking-wider">Selecciona un icono</span>
+<div class="grid grid-cols-5 gap-3">
+<div class="aspect-square flex items-center justify-center bg-primary text-white rounded-xl shadow-lg cursor-pointer">
+<span class="material-symbols-outlined">medical_services</span>
+</div>
+<div class="aspect-square flex items-center justify-center bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
+<span class="material-symbols-outlined">stethoscope</span>
+</div>
+<div class="aspect-square flex items-center justify-center bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
+<span class="material-symbols-outlined">emergency</span>
+</div>
+<div class="aspect-square flex items-center justify-center bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
+<span class="material-symbols-outlined">baby_changing_station</span>
+</div>
+<div class="aspect-square flex items-center justify-center bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
+<span class="material-symbols-outlined">school</span>
+</div>
+</div>
+</div>
+<!-- Chips Section -->
+<div class="flex flex-col gap-3">
+<span class="text-slate-800 dark:text-slate-200 text-sm font-semibold uppercase tracking-wider">Sugerencias populares</span>
+<div class="flex flex-wrap gap-2">
+<button class="px-4 py-2 rounded-full border border-primary/30 bg-primary/5 text-primary text-sm font-medium hover:bg-primary/10 transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">add</span> Quirófano
+                        </button>
+<button class="px-4 py-2 rounded-full border border-primary/30 bg-primary/5 text-primary text-sm font-medium hover:bg-primary/10 transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">add</span> Consultas
+                        </button>
+<button class="px-4 py-2 rounded-full border border-primary/30 bg-primary/5 text-primary text-sm font-medium hover:bg-primary/10 transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">add</span> Urgencias
+                        </button>
+<button class="px-4 py-2 rounded-full border border-primary/30 bg-primary/5 text-primary text-sm font-medium hover:bg-primary/10 transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">add</span> Formación
+                        </button>
+<button class="px-4 py-2 rounded-full border border-primary/30 bg-primary/5 text-primary text-sm font-medium hover:bg-primary/10 transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">add</span> Investigación
+                        </button>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Button -->
+<footer class="p-4 bg-background-light dark:bg-background-dark border-t border-slate-200 dark:border-slate-800">
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                Continuar
+                <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</footer>
+</div>
+</body></html>

@@ -159,21 +159,18 @@ export default function MirSimulatorScreen({ onBack }) {
     const trendConfig = {
       up: {
         icon: "trending-up",
-        label: "Alcista",
         color: "#059669",
         bg: "#D1FAE5",
         border: "#A7F3D0",
       },
       down: {
         icon: "trending-down",
-        label: "Bajista",
         color: "#DC2626",
         bg: "#FEE2E2",
         border: "#FECACA",
       },
       stable: {
         icon: "remove",
-        label: "Estable",
         color: "#64748B",
         bg: "#F1F5F9",
         border: "#E2E8F0",
@@ -194,9 +191,6 @@ export default function MirSimulatorScreen({ onBack }) {
                 ]}
               >
                 <Ionicons name={tc.icon} size={13} color={tc.color} />
-                <Text style={[styles.trendText, { color: tc.color }]}>
-                  {tc.label}
-                </Text>
               </View>
             )}
             <View
@@ -566,17 +560,12 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   trendBadge: {
-    flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    justifyContent: "center",
     borderRadius: 10,
     borderWidth: 1,
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 5,
-  },
-  trendText: {
-    fontSize: 12,
-    fontWeight: "600",
   },
   probabilityBadge: {
     borderRadius: 12,

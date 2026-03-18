@@ -408,11 +408,13 @@ export const saveRoommateSavedFilter = async (userId, filters) => {
   }
 };
 
-const applyCandidateFilters = (query, filters = {}) => {
+const applyCandidateFilters = (query, filters = {}, configuredCity = null) => {
   let nextQuery = query;
+  const effectiveCity =
+    normalizeText(configuredCity) || normalizeText(filters.preferred_city);
 
-  if (filters.preferred_city) {
-    nextQuery = nextQuery.ilike("city", `%${filters.preferred_city.trim()}%`);
+  if (effectiveCity) {
+    nextQuery = nextQuery.ilike("city", effectiveCity);
   }
   if (filters.budget_max_eur) {
     nextQuery = nextQuery.lte("budget_max_eur", Number(filters.budget_max_eur));
@@ -442,7 +444,7 @@ export const getRoommateCandidates = async (userId, filters = {}) => {
       .neq("user_id", userId)
       .order("updated_at", { ascending: false });
 
-    query = applyCandidateFilters(query, filters);
+    query = applyCandidateFilters(query, filters, myBundle?.profile?.city);
 
     if (swipedIds.length) {
       const idsClause = `(${swipedIds.map((id) => `"${id}"`).join(",")})`;

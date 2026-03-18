@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7c3aed",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#1e1b4b",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Libro de Residente</title>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100">
+<div class="relative flex h-auto min-h-screen w-full flex-col overflow-x-hidden">
+<!-- Header Section -->
+<div class="flex items-center bg-background-light dark:bg-background-dark p-4 pb-2 justify-between border-b border-slate-200 dark:border-slate-800">
+<div class="flex size-12 shrink-0 items-center justify-start">
+<span class="material-symbols-outlined text-slate-700 dark:text-slate-300">menu</span>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-tight flex-1 text-center">Libro de residente</h2>
+<div class="flex w-12 items-center justify-end">
+<button class="flex items-center justify-center rounded-xl h-10 w-10 bg-primary/10 text-primary">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</div>
+<!-- Profile / Status Section -->
+<div class="flex p-4 @container">
+<div class="flex w-full flex-col gap-4 items-start">
+<div class="flex gap-4 items-center">
+<div class="flex items-center justify-center rounded-full h-16 w-16 bg-primary/10 text-primary border-2 border-primary">
+<span class="material-symbols-outlined text-3xl">person</span>
+</div>
+<div class="flex flex-col justify-center">
+<p class="text-[20px] font-bold leading-tight tracking-tight">Ginecología · R1</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Hospital General</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Progress Card -->
+<div class="mx-4 p-4 rounded-xl bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800">
+<div class="flex gap-6 justify-between mb-3">
+<p class="font-bold text-base">Tu progreso</p>
+<div class="flex items-center gap-1 text-primary">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<p class="text-sm font-semibold">34 actividades</p>
+</div>
+</div>
+<div class="rounded-full bg-primary/10 h-3 w-full overflow-hidden">
+<div class="h-full rounded-full bg-primary" style="width: 15%;"></div>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-xs mt-2 font-medium">registradas este mes</p>
+</div>
+<!-- Categories & Actions Header -->
+<div class="flex items-center justify-between px-4 pb-3 pt-6">
+<h2 class="text-[22px] font-bold leading-tight tracking-tight">Categorías</h2>
+<button class="text-primary text-sm font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-lg">edit</span>
+                Editar estructura
+            </button>
+</div>
+<!-- List of Categories / Procedures -->
+<div class="flex flex-col gap-4 p-4">
+<!-- Category: Sala de partos -->
+<div class="flex flex-col gap-3">
+<h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Sala de partos</h3>
+<!-- Procedure Item -->
+<div class="flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+<div class="flex flex-col gap-1">
+<p class="font-bold text-slate-800 dark:text-slate-100">Partos eutócicos</p>
+<div class="flex items-center gap-2">
+<div class="w-24 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+<div class="bg-primary h-full" style="width: 15%;"></div>
+</div>
+<p class="text-xs text-slate-500 font-medium">12 / 80</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="h-8 w-8 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800">
+<span class="material-symbols-outlined text-lg">remove</span>
+</button>
+<button class="h-8 w-8 rounded-lg bg-primary text-white flex items-center justify-center shadow-md shadow-primary/20">
+<span class="material-symbols-outlined text-lg">add</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Category: Quirófano -->
+<div class="flex flex-col gap-3 pt-2">
+<h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Quirófano</h3>
+<!-- Procedure Item -->
+<div class="flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+<div class="flex flex-col gap-1">
+<p class="font-bold text-slate-800 dark:text-slate-100">Cesáreas</p>
+<div class="flex items-center gap-2">
+<div class="w-24 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+<div class="bg-primary h-full" style="width: 15%;"></div>
+</div>
+<p class="text-xs text-slate-500 font-medium">8 / 30</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="h-8 w-8 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800">
+<span class="material-symbols-outlined text-lg">remove</span>
+</button>
+<button class="h-8 w-8 rounded-lg bg-primary text-white flex items-center justify-center shadow-md shadow-primary/20">
+<span class="material-symbols-outlined text-lg">add</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Float Action Button Space -->
+<div class="h-32"></div>
+<!-- Fixed Bottom CTA -->
+<div class="fixed bottom-24 left-0 right-0 px-6 z-10">
+<button class="w-full bg-primary text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-[0.98] transition-transform">
+<span class="material-symbols-outlined">add_circle</span>
+                Registrar actividad
+            </button>
+</div>
+<!-- Bottom Navigation -->
+<div class="fixed bottom-0 left-0 right-0 z-20">
+<div class="flex gap-2 border-t border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md px-4 pb-6 pt-2">
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-primary" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined fill-1">home</span>
+</div>
+<p class="text-xs font-bold leading-normal tracking-tight">Inicio</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-400 dark:text-slate-500" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined">checklist</span>
+</div>
+<p class="text-xs font-medium leading-normal tracking-tight">Actividad</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-400 dark:text-slate-500" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined">bar_chart</span>
+</div>
+<p class="text-xs font-medium leading-normal tracking-tight">Estadísticas</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-400 dark:text-slate-500" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined">person</span>
+</div>
+<p class="text-xs font-medium leading-normal tracking-tight">Perfil</p>
+</a>
+</div>
+</div>
+</div>
+</body></html>

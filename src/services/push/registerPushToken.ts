@@ -2,12 +2,13 @@ import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import * as Application from "expo-application";
 import { supabase } from "../../../config/supabase";
 
 /**
  * Registers the device push token with Supabase for the given user.
  * Skips registration on simulators/emulators.
- * Uses upsert to avoid duplicate tokens and updates last_seen_at when token exists.
+ * Uses a dedicated RPC so the same device token can be reassigned across accounts.
  */
 export async function registerPushToken(userId: string): Promise<void> {
   try {
@@ -51,27 +52,26 @@ export async function registerPushToken(userId: string): Promise<void> {
     console.log("[Push] Token generated:", token);
 
     const platform = Platform.OS as "ios" | "android";
-    const now = new Date().toISOString();
+    const appVersion =
+      Application.nativeApplicationVersion ||
+      Application.applicationVersion ||
+      null;
 
-    const row = {
-      user_id: userId,
-      token,
-      provider: "expo",
-      platform,
-      last_seen_at: now,
-    };
-
-    const { error } = await supabase.from("push_tokens").upsert(row, {
-      onConflict: "token",
-      ignoreDuplicates: false,
+    const { error } = await supabase.rpc("register_push_token", {
+      p_token: token,
+      p_provider: "expo",
+      p_platform: platform,
+      p_device_name: Device.deviceName ?? null,
+      p_app_version: appVersion,
     });
 
     if (error) {
-      console.error("[Push] Supabase upsert error:", error.message);
+      console.error("[Push] register_push_token RPC error:", error.message);
       return;
     }
 
     console.log("[Push] Token registered/updated in Supabase successfully");
+    console.log("[Push] Token linked to user:", userId);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[Push] registerPushToken error:", message);

@@ -1,6 +1,6 @@
 /**
  * Configuración del Footer v2
- * Estudiantes: Inicio, Especialidades, MIR, Vivienda, Perfil
+ * Estudiantes: Inicio, Hospitales, MIR, Vivienda, Perfil
  * Residentes: Inicio, Agenda, Chats, Reseñas, Perfil
  */
 
@@ -14,7 +14,7 @@ export const STUDENT_FOOTER_ITEMS = [
   {
     id: "hospitales",
     icon: "medkit",
-    label: "Especialidades",
+    label: "Hospitales",
     screen: "hospitales",
   },
   {

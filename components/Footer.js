@@ -56,7 +56,7 @@ FooterItem.displayName = "FooterItem";
 
 /**
  * Componente Footer v2
- * Mismo menú para todos: Inicio, Especialidades, MIR, Vivienda, Perfil
+ * Mismo menú para todos: Inicio, Hospitales, MIR, Vivienda, Perfil
  * Activo: icono y texto en púrpura + punto debajo
  *
  * @param {object} props

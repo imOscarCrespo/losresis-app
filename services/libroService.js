@@ -1,5 +1,17 @@
 import { supabase } from "../config/supabase";
 
+const DEFAULT_TRACKING_MODE = "counter";
+const DEFAULT_NODE_COLOR = "violet";
+
+const mapNodePayload = (nodeData = {}) => ({
+  name: nodeData.name,
+  parent_node_id: nodeData.parent_node_id || null,
+  goal: nodeData.goal || null,
+  icon_name: nodeData.icon_name || null,
+  color_token: nodeData.color_token || DEFAULT_NODE_COLOR,
+  tracking_mode: nodeData.tracking_mode || DEFAULT_TRACKING_MODE,
+});
+
 /**
  * Servicio para gestionar el Libro de Residente
  * Maneja nodos (padres e hijos), entradas y eventos
@@ -119,38 +131,38 @@ export const createNode = async (nodeData, userId) => {
     // Si es un nodo padre (sin parent_node_id), calcular la posición
     let position = null;
     if (!nodeData.parent_node_id) {
+      if (nodeData.position !== undefined && nodeData.position !== null) {
+        position = nodeData.position;
+      } else {
       // Obtener la posición máxima de los nodos padre en esta sección (ignorando nulls)
-      const { data: maxPositionData, error: maxError } = await supabase
-        .from("libro_node")
-        .select("position")
-        .eq("user_id", userId)
-        .eq("section", nodeData.section)
-        .is("parent_node_id", null)
-        .not("position", "is", null) // Ignorar nodos sin position
-        .order("position", { ascending: false })
-        .limit(1)
-        .single();
+        const { data: maxPositionData, error: maxError } = await supabase
+          .from("libro_node")
+          .select("position")
+          .eq("user_id", userId)
+          .eq("section", nodeData.section)
+          .is("parent_node_id", null)
+          .not("position", "is", null)
+          .order("position", { ascending: false })
+          .limit(1)
+          .single();
 
-      if (maxError && maxError.code !== "PGRST116") {
-        // PGRST116 es "no rows returned", que es normal si no hay nodos o todos tienen null
-        console.error("Error getting max position:", maxError);
+        if (maxError && maxError.code !== "PGRST116") {
+          console.error("Error getting max position:", maxError);
+        }
+
+        position =
+          maxPositionData?.position !== null &&
+          maxPositionData?.position !== undefined
+            ? maxPositionData.position + 1
+            : 0;
       }
-
-      // La nueva posición será la máxima + 1, o 0 si no hay nodos con position
-      position =
-        maxPositionData?.position !== null &&
-        maxPositionData?.position !== undefined
-          ? maxPositionData.position + 1
-          : 0;
     }
 
     const newNode = {
       user_id: userId,
       section: nodeData.section,
-      name: nodeData.name,
-      parent_node_id: nodeData.parent_node_id || null,
-      goal: nodeData.goal || null,
       position: position,
+      ...mapNodePayload(nodeData),
     };
 
     const { data, error } = await supabase
@@ -191,6 +203,15 @@ export const updateNode = async (nodeId, updates, userId) => {
     // Incluir goal si está presente (puede ser null para eliminarlo)
     if (updates.goal !== undefined) {
       updatedData.goal = updates.goal;
+    }
+    if (updates.icon_name !== undefined) {
+      updatedData.icon_name = updates.icon_name;
+    }
+    if (updates.color_token !== undefined) {
+      updatedData.color_token = updates.color_token;
+    }
+    if (updates.tracking_mode !== undefined) {
+      updatedData.tracking_mode = updates.tracking_mode;
     }
 
     const { data, error } = await supabase
@@ -346,6 +367,9 @@ export const createEntry = async (nodeId, entryData, section) => {
       residency_year: entryData.residency_year || null,
       notes: entryData.notes || null,
       section: section,
+      kind: entryData.kind || "counter",
+      performed_at: entryData.performed_at || new Date().toISOString().slice(0, 10),
+      payload: entryData.payload || {},
     };
 
     const { data, error } = await supabase
@@ -375,28 +399,37 @@ export const createEntry = async (nodeId, entryData, section) => {
  */
 export const createEvent = async (eventData, nodeId, section) => {
   try {
-    if (!nodeId || !section) {
-      throw new Error("Node ID and section are required");
+    if (!nodeId || !section || !eventData?.user_id) {
+      throw new Error("Node ID, section and user ID are required");
     }
 
     // Primero crear una entrada para el evento
     const entryData = {
-      node_id: nodeId,
       count: 1,
       residency_year: eventData.residency_year || null,
-      notes: eventData.notes || null,
+      notes: eventData.notes || eventData.description || null,
+      kind: "event",
+      performed_at: eventData.event_date,
+      payload: {
+        title: eventData.title || "",
+        hours: eventData.hours || null,
+        location: eventData.location || null,
+      },
     };
 
-    const entry = await createEntry(nodeId, entryData);
+    const entry = await createEntry(nodeId, entryData, section);
 
     // Luego crear el evento vinculado a la entrada
     const newEvent = {
       entry_id: entry.id,
       node_id: nodeId,
+      user_id: eventData.user_id,
       event_date: eventData.event_date,
-      title: eventData.title || null,
-      description: eventData.description || null,
+      title: eventData.title || "Evento",
+      residency_year: eventData.residency_year || 1,
+      hours: eventData.hours || null,
       location: eventData.location || null,
+      notes: eventData.notes || eventData.description || null,
     };
 
     const { data, error } = await supabase
@@ -431,9 +464,11 @@ export const updateEvent = async (eventId, updates) => {
 
     const updatedData = {
       event_date: updates.event_date,
-      title: updates.title || null,
-      description: updates.description || null,
+      title: updates.title || "Evento",
+      residency_year: updates.residency_year || 1,
+      hours: updates.hours || null,
       location: updates.location || null,
+      notes: updates.notes || updates.description || null,
     };
 
     const { data, error } = await supabase
@@ -558,6 +593,121 @@ export const updateNodesPositions = async (nodesWithPositions, userId) => {
   }
 };
 
+export const getLibroUserSettings = async (userId) => {
+  try {
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+
+    const { data, error } = await supabase
+      .from("libro_user_settings")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error fetching libro settings:", error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Exception in getLibroUserSettings:", error);
+    throw error;
+  }
+};
+
+export const upsertLibroUserSettings = async (userId, settings = {}) => {
+  try {
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+
+    const payload = {
+      user_id: userId,
+      speciality_id: settings.speciality_id || null,
+      onboarding_completed_at: settings.onboarding_completed_at || null,
+      onboarding_version: settings.onboarding_version || 1,
+      last_used_node_id: settings.last_used_node_id || null,
+      quick_activity_ids: settings.quick_activity_ids || [],
+    };
+
+    const { data, error } = await supabase
+      .from("libro_user_settings")
+      .upsert([payload], { onConflict: "user_id" })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error upserting libro settings:", error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Exception in upsertLibroUserSettings:", error);
+    throw error;
+  }
+};
+
+export const createLibroStructure = async ({
+  userId,
+  section,
+  specialityId = null,
+  categories = [],
+}) => {
+  try {
+    if (!userId || !section) {
+      throw new Error("User ID and section are required");
+    }
+
+    const createdParents = [];
+
+    for (const [index, category] of categories.entries()) {
+      const parent = await createNode(
+        {
+          section,
+          name: category.name,
+          icon_name: category.icon_name,
+          color_token: category.color_token,
+          tracking_mode: DEFAULT_TRACKING_MODE,
+          position: index,
+        },
+        userId
+      );
+
+      createdParents.push(parent);
+
+      for (const activity of category.activities || []) {
+        await createNode(
+          {
+            section,
+            name: activity.name,
+            parent_node_id: parent.id,
+            goal: activity.goal || null,
+            tracking_mode: activity.tracking_mode || DEFAULT_TRACKING_MODE,
+            icon_name: activity.icon_name || category.icon_name || null,
+            color_token: activity.color_token || category.color_token || DEFAULT_NODE_COLOR,
+          },
+          userId
+        );
+      }
+    }
+
+    await upsertLibroUserSettings(userId, {
+      speciality_id: specialityId,
+      onboarding_completed_at: new Date().toISOString(),
+      onboarding_version: 1,
+      quick_activity_ids: [],
+    });
+
+    return createdParents;
+  } catch (error) {
+    console.error("Exception in createLibroStructure:", error);
+    throw error;
+  }
+};
+
 export default {
   getAllLibroData,
   createNode,
@@ -568,4 +718,7 @@ export default {
   updateEvent,
   deleteEvent,
   updateNodesPositions,
+  getLibroUserSettings,
+  upsertLibroUserSettings,
+  createLibroStructure,
 };

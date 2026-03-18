@@ -402,7 +402,8 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
     }),
     [residentCity, residentHospitalId, residentSpecialityId]
   );
-  const shouldShowExploreFilters = !isResidentUser || isExploringAll;
+  const canExploreAll = isResidentUser || isStudentUser;
+  const shouldShowExploreFilters = isExploringAll;
   const activeQueryFilters = useMemo(() => {
     if (!shouldShowExploreFilters) return {};
 
@@ -775,8 +776,9 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
         <View style={styles.scopeBanner}>
           <Ionicons name="information-circle-outline" size={16} color={PRIMARY} />
           <Text style={styles.scopeBannerText}>
-            Mostramos el grupo de la ciudad vinculada a tu perfil. Usa el botón
-            flotante para explorar más grupos de ciudad.
+            Mostramos tus grupos y el de la ciudad vinculada a tu perfil. Usa
+            el botón flotante para buscar otras ciudades y unirte a varios
+            grupos a la vez.
           </Text>
         </View>
       ) : (
@@ -898,7 +900,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
         }
       />
 
-      {isResidentUser ? (
+      {canExploreAll ? (
         <FloatingActionButton
           onPress={handleToggleExploreAll}
           icon={isExploringAll ? "close" : "search"}

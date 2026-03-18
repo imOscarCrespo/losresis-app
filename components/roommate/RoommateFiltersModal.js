@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   Modal,
   ScrollView,
@@ -15,28 +15,6 @@ import {
   ROOMMATE_OPTION_SETS,
   ROOMMATE_THEME,
 } from "../../utils/roommateUtils";
-import { SelectorModal } from "../SelectorModal";
-
-const sanitizeCityOptions = (options = []) => {
-  const seen = new Set();
-
-  return options.filter((option) => {
-    const id = String(option?.id ?? "").trim();
-    const name = String(option?.name ?? "").trim();
-
-    if (!id || !name) {
-      return false;
-    }
-
-    const key = id.toLowerCase();
-    if (seen.has(key)) {
-      return false;
-    }
-
-    seen.add(key);
-    return true;
-  });
-};
 
 const ChoicePills = ({ options, value, onChange, allowNull = false }) => (
   <View style={styles.pillsRow}>
@@ -63,42 +41,21 @@ export function RoommateFiltersModal({
   visible,
   onClose,
   initialFilters,
-  cityOptions = [],
   onSave,
 }) {
   const insets = useSafeAreaInsets();
   const [filters, setFilters] = useState(
     initialFilters || ROOMMATE_FORM_DEFAULTS.filters
   );
-  const [cityModalVisible, setCityModalVisible] = useState(false);
 
   React.useEffect(() => {
     if (visible) {
-      setFilters(initialFilters || ROOMMATE_FORM_DEFAULTS.filters);
-      setCityModalVisible(false);
+      setFilters({
+        ...(initialFilters || ROOMMATE_FORM_DEFAULTS.filters),
+        preferred_city: "",
+      });
     }
   }, [visible, initialFilters]);
-
-  const resolvedCityOptions = useMemo(() => {
-    const cleanedOptions = sanitizeCityOptions(cityOptions);
-
-    if (!filters.preferred_city) {
-      return cleanedOptions;
-    }
-
-    const exists = cleanedOptions.some(
-      (option) => option.id === filters.preferred_city
-    );
-
-    if (exists) {
-      return cleanedOptions;
-    }
-
-    return [
-      { id: filters.preferred_city, name: filters.preferred_city },
-      ...cleanedOptions,
-    ];
-  }, [cityOptions, filters.preferred_city]);
 
   const handleFieldChange = (field, value) => {
     setFilters((current) => ({ ...current, [field]: value }));
@@ -107,12 +64,9 @@ export function RoommateFiltersModal({
   const handleReset = () => {
     setFilters({
       ...ROOMMATE_FORM_DEFAULTS.filters,
-      preferred_city: "",
       budget_max_eur: "",
     });
   };
-
-  const cityActive = Boolean(filters.preferred_city);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
@@ -136,34 +90,7 @@ export function RoommateFiltersModal({
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Ubicación y presupuesto</Text>
-
-            <TouchableOpacity
-              style={[styles.citySelectorButton, cityActive && styles.citySelectorButtonActive]}
-              onPress={() => setCityModalVisible(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="business"
-                size={16}
-                color={cityActive ? ROOMMATE_THEME.PRIMARY : ROOMMATE_THEME.ACCENT}
-              />
-              <Text
-                style={[
-                  styles.citySelectorText,
-                  cityActive && styles.citySelectorTextActive,
-                  !cityActive && styles.citySelectorPlaceholder,
-                ]}
-                numberOfLines={1}
-              >
-                {filters.preferred_city || "Ciudad"}
-              </Text>
-              <Ionicons
-                name="chevron-down"
-                size={16}
-                color={cityActive ? ROOMMATE_THEME.PRIMARY : ROOMMATE_THEME.ACCENT}
-              />
-            </TouchableOpacity>
+            <Text style={styles.cardTitle}>Presupuesto</Text>
 
             <TextInput
               style={styles.input}
@@ -227,23 +154,16 @@ export function RoommateFiltersModal({
         >
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => onSave?.(filters)}
+            onPress={() =>
+              onSave?.({
+                ...filters,
+                preferred_city: "",
+              })
+            }
           >
             <Text style={styles.primaryButtonText}>Aplicar filtros</Text>
           </TouchableOpacity>
         </View>
-
-        <SelectorModal
-          visible={cityModalVisible}
-          onClose={() => setCityModalVisible(false)}
-          title="Filtrar por ciudad"
-          options={resolvedCityOptions}
-          value={filters.preferred_city}
-          onSelect={(value) => handleFieldChange("preferred_city", value)}
-          placeholder="Todas las ciudades"
-          accentColor={ROOMMATE_THEME.ACCENT}
-          primaryColor={ROOMMATE_THEME.PRIMARY}
-        />
       </SafeAreaView>
     </Modal>
   );
@@ -300,33 +220,6 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 20,
     fontWeight: "900",
-    color: ROOMMATE_THEME.ACCENT,
-  },
-  citySelectorButton: {
-    minHeight: 52,
-    borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E9DFFB",
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  citySelectorButtonActive: {
-    backgroundColor: "#F8F5FF",
-    borderColor: "#D8C7FF",
-  },
-  citySelectorText: {
-    flex: 1,
-    color: ROOMMATE_THEME.ACCENT,
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  citySelectorTextActive: {
-    color: ROOMMATE_THEME.PRIMARY,
-  },
-  citySelectorPlaceholder: {
     color: ROOMMATE_THEME.ACCENT,
   },
   input: {

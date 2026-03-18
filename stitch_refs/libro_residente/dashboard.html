@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#640af5",
+                        "background-light": "#f7f5f8",
+                        "background-dark": "#171022",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="max-w-md mx-auto bg-white dark:bg-slate-900 min-h-screen flex flex-col shadow-xl">
+<!-- Header Section -->
+<header class="p-6 pb-4 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-10">
+<div>
+<h1 class="text-2xl font-800 tracking-tight text-slate-900 dark:text-white">Libro de residente</h1>
+<p class="text-primary font-semibold text-sm">Ginecología · R1</p>
+</div>
+<div class="relative">
+<div class="size-12 rounded-full border-2 border-primary/20 p-0.5">
+<div class="w-full h-full rounded-full bg-cover bg-center" data-alt="Portrait of a medical resident in scrubs" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuArKjEb9ft4UTjNAos3ZWARaEJD5vlAlHOQN_yjucDY3YMY-tfBh-NJFrTYwFnH0ZaVv4Gkn39K0X4THjO85ON7vwOCRjsYIY7ysfdChRvO1hoF2uIpun0GtrsjmUCB9YhuRDKocr04VtcbLdUk0xShyG1ucWQZb8M_ZgBfTiduvCeQXAh0cHpH0cfC4Xqq8Op04Iu-GZgBgwk9tB5g6VT0VZUkpwOkuHM6TBuh-V5A_t6z7pGPdIORT0tsAW-TEKLD7sA0sBbwKJDd')"></div>
+</div>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto px-4 space-y-6 pb-24">
+<!-- Actividad de Hoy Card -->
+<section>
+<div class="bg-primary/5 dark:bg-primary/10 border border-primary/10 rounded-xl p-4 flex items-center gap-4">
+<div class="bg-primary text-white p-2 rounded-lg">
+<span class="material-symbols-outlined text-2xl">event_note</span>
+</div>
+<div>
+<h3 class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actividad de hoy</h3>
+<p class="text-slate-800 dark:text-slate-200 font-medium mt-0.5">
+                            Hoy has registrado: <span class="text-primary font-bold">2 partos eutócicos, 1 cesárea</span>
+</p>
+</div>
+</div>
+</section>
+<!-- Progress Overview Section -->
+<section>
+<div class="flex justify-between items-end mb-3">
+<h2 class="text-lg font-bold text-slate-800 dark:text-white">Tu actividad</h2>
+<button class="text-primary text-xs font-bold flex items-center gap-1 hover:underline">
+<span class="material-symbols-outlined text-sm">edit</span>
+                        Editar estructura
+                    </button>
+</div>
+<div class="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-100 dark:border-slate-700">
+<div class="flex justify-between items-center mb-4">
+<div>
+<p class="text-3xl font-800 text-slate-900 dark:text-white">124</p>
+<p class="text-xs text-slate-500 font-medium">actividades registradas</p>
+</div>
+<div class="text-right">
+<p class="text-xs font-bold text-slate-400 uppercase">Última actividad</p>
+<p class="text-sm font-semibold text-slate-700 dark:text-slate-300">Hoy, 10:45 AM</p>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-xs font-bold mb-1">
+<span class="text-slate-400">Progreso anual</span>
+<span class="text-primary">45%</span>
+</div>
+<div class="w-full h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 45%"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Categories & Rows -->
+<section class="space-y-4">
+<!-- Category 1: Sala de partos -->
+<div class="space-y-3">
+<h3 class="px-1 text-sm font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+<span class="material-symbols-outlined text-lg text-blue-500">baby_changing_station</span>
+                        Sala de partos
+                    </h3>
+<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700 overflow-hidden shadow-sm">
+<!-- Row: Partos eutócicos -->
+<div class="p-4 flex items-center justify-between">
+<div class="flex-1">
+<p class="font-bold text-slate-800 dark:text-slate-200">Partos eutócicos</p>
+<div class="flex items-center gap-2 mt-1">
+<div class="w-24 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+<div class="h-full bg-blue-400" style="width: 42%"></div>
+</div>
+<span class="text-[10px] font-bold text-slate-400">Meta: 80</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="size-8 rounded-full border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-400 hover:bg-slate-50">
+<span class="material-symbols-outlined text-lg">remove</span>
+</button>
+<span class="text-lg font-bold w-6 text-center">34</span>
+<button class="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20">
+<span class="material-symbols-outlined text-lg font-bold">add</span>
+</button>
+</div>
+</div>
+<!-- Row: Episiotomías -->
+<div class="p-4 flex items-center justify-between">
+<div class="flex-1">
+<p class="font-bold text-slate-800 dark:text-slate-200">Episiotomías</p>
+<div class="flex items-center gap-2 mt-1">
+<div class="w-24 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+<div class="h-full bg-blue-400" style="width: 40%"></div>
+</div>
+<span class="text-[10px] font-bold text-slate-400">Meta: 20</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="size-8 rounded-full border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-400 hover:bg-slate-50">
+<span class="material-symbols-outlined text-lg">remove</span>
+</button>
+<span class="text-lg font-bold w-6 text-center">8</span>
+<button class="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20">
+<span class="material-symbols-outlined text-lg font-bold">add</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Category 2: Quirófano -->
+<div class="space-y-3">
+<h3 class="px-1 text-sm font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+<span class="material-symbols-outlined text-lg text-primary">medical_services</span>
+                        Quirófano
+                    </h3>
+<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700 overflow-hidden shadow-sm">
+<!-- Row: Cesáreas -->
+<div class="p-4 flex items-center justify-between">
+<div class="flex-1">
+<p class="font-bold text-slate-800 dark:text-slate-200">Cesáreas</p>
+<div class="flex items-center gap-2 mt-1">
+<div class="w-24 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+<div class="h-full bg-primary" style="width: 40%"></div>
+</div>
+<span class="text-[10px] font-bold text-slate-400">Meta: 30</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="size-8 rounded-full border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-400 hover:bg-slate-50">
+<span class="material-symbols-outlined text-lg">remove</span>
+</button>
+<span class="text-lg font-bold w-6 text-center">12</span>
+<button class="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20">
+<span class="material-symbols-outlined text-lg font-bold">add</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Category 3: Urgencias obstétricas -->
+<div class="space-y-3">
+<h3 class="px-1 text-sm font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+<span class="material-symbols-outlined text-lg text-red-500">e911_emergency</span>
+                        Urgencias obstétricas
+                    </h3>
+<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-8 text-center">
+<span class="material-symbols-outlined text-slate-300 dark:text-slate-600 text-4xl">folder_open</span>
+<p class="text-xs text-slate-400 mt-2 font-medium">Pulsa en registrar para añadir una actividad de urgencias</p>
+</div>
+</div>
+</section>
+</main>
+<!-- Fixed Action Button -->
+<div class="fixed bottom-20 left-1/2 -translate-x-1/2 w-full max-w-md px-4">
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2 transition-transform active:scale-95">
+<span class="material-symbols-outlined">add_circle</span>
+                Registrar actividad
+            </button>
+</div>
+<!-- Bottom Navigation Bar -->
+<nav class="sticky bottom-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 pb-6 pt-2 px-6 flex justify-between items-center z-20">
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="text-[10px] font-bold">Inicio</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined font-fill">menu_book</span>
+<span class="text-[10px] font-bold">Libro</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">schedule</span>
+<span class="text-[10px] font-bold">Guardias</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-bold">Perfil</span>
+</a>
+</nav>
+</div>
+</body></html>

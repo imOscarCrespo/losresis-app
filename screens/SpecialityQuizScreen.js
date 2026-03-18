@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
 import {
-  getAllSpecialityProfiles,
   getQuizQuestions,
   startQuizSession,
   saveQuizAnswer,
@@ -19,45 +19,248 @@ import {
 } from "../services/specialityQuizService";
 import posthogLogger from "../services/posthogService";
 
-/**
- * Pantalla principal del Test de Especialidad.
- * Flujo:
- *  - Paso 1: Bienvenida
- *  - Paso 2: Preguntas (carrusel lineal)
- *  - Paso 3: Resultados (top 3 especialidades sugeridas)
- */
-export default function SpecialityQuizScreen({ userProfile, onSectionChange }) {
+const DIMENSION_WEIGHTS = {
+  block_1_orientacion_cognitiva: 1.5,
+  block_2_relacion_medico_paciente: 1.5,
+  block_3_tolerancia_estres_entorno: 1.3,
+  block_4_estilo_vida_equilibrio: 1.3,
+  block_5_personalidad_profesional: 1.0,
+  block_6_motivaciones_valores: 1.0,
+  block_7_orientacion_academica: 1.0,
+};
+
+const PROFILE_DEFINITIONS = {
+  1: {
+    speciality_key: "perfil_a_diagnostico_analitico",
+    profile_letter: "A",
+    name: "Diagnóstico / Analítico",
+    category: "diagnostico_analitico",
+    shortDescription: "Razonamiento clínico complejo y profundidad diagnóstica.",
+    description:
+      "Disfrutas desentrañando casos complejos, profundizando en mecanismos fisiopatológicos y afinando el juicio clínico con información detallada.",
+    relatedSpecialities: [
+      "Medicina Interna",
+      "Neurología",
+      "Reumatología",
+      "Nefrología",
+      "Neumología",
+      "Enfermedades Infecciosas",
+    ],
+    tone: {
+      background: "#EEF2FF",
+      badge: "#4F46E5",
+      accent: "#312E81",
+    },
+  },
+  2: {
+    speciality_key: "perfil_b_procedimental_tecnico",
+    profile_letter: "B",
+    name: "Procedimental / Técnico",
+    category: "procedimental_tecnico",
+    shortDescription: "Acción directa, decisión rápida y destreza manual.",
+    description:
+      "Tiendes a disfrutar los entornos intensos, los procedimientos exigentes y la resolución inmediata de problemas clínicos concretos.",
+    relatedSpecialities: [
+      "Cirugía General",
+      "Traumatología",
+      "Neurocirugía",
+      "Cirugía Cardiovascular",
+      "Urología",
+      "Cardiología Intervencionista",
+    ],
+    tone: {
+      background: "#ECFDF5",
+      badge: "#059669",
+      accent: "#064E3B",
+    },
+  },
+  3: {
+    speciality_key: "perfil_c_relacional_humanista",
+    profile_letter: "C",
+    name: "Relacional / Humanista",
+    category: "relacional_humanista",
+    shortDescription: "Relación longitudinal, acompañamiento y continuidad.",
+    description:
+      "Tu motivación principal parece estar en el vínculo con pacientes, la continuidad asistencial y el acompañamiento en procesos humanos complejos.",
+    relatedSpecialities: [
+      "Medicina de Familia",
+      "Pediatría",
+      "Geriatría",
+      "Psiquiatría",
+      "Cuidados Paliativos",
+      "Oncología Médica",
+    ],
+    tone: {
+      background: "#FFF7ED",
+      badge: "#EA580C",
+      accent: "#9A3412",
+    },
+  },
+  4: {
+    speciality_key: "perfil_d_academico_innovador",
+    profile_letter: "D",
+    name: "Académico / Innovador",
+    category: "academico_innovador",
+    shortDescription: "Investigación, docencia, innovación y sistemas.",
+    description:
+      "Te atraen la mejora estructural, la investigación, la docencia y los contextos donde se generan nuevas ideas, técnicas o modelos de atención.",
+    relatedSpecialities: [
+      "Medicina Preventiva",
+      "Salud Pública",
+      "Farmacología Clínica",
+      "Genética",
+      "Medicina Nuclear",
+    ],
+    tone: {
+      background: "#F5F3FF",
+      badge: "#7C3AED",
+      accent: "#4C1D95",
+    },
+  },
+};
+
+const PROFILE_ORDER = [1, 2, 3, 4];
+const PRIMARY = "#670CF5";
+const INDIGO = "#1B0977";
+
+const getDefinitionLabel = (definitionIndex) => {
+  if (definitionIndex >= 4) return "Muy definido";
+  if (definitionIndex >= 2) return "Bastante definido";
+  if (definitionIndex >= 1) return "Mixto";
+  return "Muy mixto";
+};
+
+const sortQuestionOptions = (question) => {
+  const options = Array.isArray(question?.options) ? [...question.options] : [];
+  return options.sort((a, b) => a.order_index - b.order_index);
+};
+
+const buildQuizResults = (questions, allAnswers) => {
+  const weightedScores = {
+    1: 0,
+    2: 0,
+    3: 0,
+    4: 0,
+  };
+  const rawCounts = {
+    1: 0,
+    2: 0,
+    3: 0,
+    4: 0,
+  };
+
+  let totalWeightedPoints = 0;
+
+  questions.forEach((question) => {
+    const selectedValue = allAnswers[question.id];
+    if (!PROFILE_DEFINITIONS[selectedValue]) return;
+
+    const weight = DIMENSION_WEIGHTS[question.dimension] || 1;
+    weightedScores[selectedValue] += weight;
+    rawCounts[selectedValue] += 1;
+    totalWeightedPoints += weight;
+  });
+
+  const sortedProfiles = PROFILE_ORDER.map((value) => {
+    const definition = PROFILE_DEFINITIONS[value];
+    const weightedScore = weightedScores[value];
+    const rawCount = rawCounts[value];
+    const matchPercent = totalWeightedPoints
+      ? Math.round((weightedScore / totalWeightedPoints) * 100)
+      : 0;
+
+    return {
+      ...definition,
+      value,
+      weighted_score: Number(weightedScore.toFixed(2)),
+      raw_count: rawCount,
+      score: Number(weightedScore.toFixed(2)),
+      match_percent: matchPercent,
+    };
+  }).sort((a, b) => b.weighted_score - a.weighted_score);
+
+  const dominant = sortedProfiles[0] || null;
+  const secondary = sortedProfiles[1] || null;
+  const definitionIndex = dominant && secondary
+    ? Number((dominant.weighted_score - secondary.weighted_score).toFixed(2))
+    : 0;
+
+  const summary = {
+    dominant_profile: dominant,
+    secondary_profile: secondary,
+    definition_index: definitionIndex,
+    definition_label: getDefinitionLabel(definitionIndex),
+    total_weighted_points: Number(totalWeightedPoints.toFixed(2)),
+  };
+
+  const rawScores = {
+    weighted_scores: weightedScores,
+    raw_counts: rawCounts,
+    summary,
+  };
+
+  return {
+    topResults: sortedProfiles.slice(0, 3),
+    rawScores,
+    summary,
+  };
+};
+
+const getDimensionLabel = (dimension) => {
+  switch (dimension) {
+    case "block_1_orientacion_cognitiva":
+      return "Orientación cognitiva";
+    case "block_2_relacion_medico_paciente":
+      return "Relación médico-paciente";
+    case "block_3_tolerancia_estres_entorno":
+      return "Estrés y entorno";
+    case "block_4_estilo_vida_equilibrio":
+      return "Estilo de vida";
+    case "block_5_personalidad_profesional":
+      return "Personalidad profesional";
+    case "block_6_motivaciones_valores":
+      return "Motivaciones y valores";
+    case "block_7_orientacion_academica":
+      return "Orientación académica";
+    default:
+      return dimension?.replaceAll("_", " ") || "Bloque";
+  }
+};
+
+export default function SpecialityQuizScreen({ userProfile }) {
   const userId = userProfile?.id;
 
-  const [step, setStep] = useState("welcome"); // welcome | questions | results
+  const [step, setStep] = useState("welcome");
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({});
   const [sessionId, setSessionId] = useState(null);
-  const [specialityProfiles, setSpecialityProfiles] = useState([]);
   const [results, setResults] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [history, setHistory] = useState([]);
 
-  // Cargar definición del test al montar
   useEffect(() => {
     let isMounted = true;
+
     const loadData = async () => {
       try {
         setLoading(true);
-        const [questionsRes, profilesRes, historyRes] = await Promise.all([
+        const [questionsRes, historyRes] = await Promise.all([
           getQuizQuestions(),
-          getAllSpecialityProfiles(),
           userId
             ? getQuizHistoryForUser(userId, 3)
             : Promise.resolve({ success: true, data: [] }),
         ]);
 
         if (questionsRes.success && Array.isArray(questionsRes.data)) {
-          const sortedQuestions = [...questionsRes.data].sort(
-            (a, b) => a.order_index - b.order_index
-          );
+          const sortedQuestions = [...questionsRes.data]
+            .map((question) => ({
+              ...question,
+              options: sortQuestionOptions(question),
+            }))
+            .sort((a, b) => a.order_index - b.order_index);
+
           if (isMounted) {
             setQuestions(sortedQuestions);
           }
@@ -68,20 +271,14 @@ export default function SpecialityQuizScreen({ userProfile, onSectionChange }) {
           );
         }
 
-        if (profilesRes.success && Array.isArray(profilesRes.data)) {
-          if (isMounted) {
-            setSpecialityProfiles(profilesRes.data);
-          }
-        } else {
-          console.error(
-            "Error al cargar perfiles de especialidad:",
-            profilesRes.error || "Respuesta inválida"
-          );
-        }
-
         if (historyRes.success && Array.isArray(historyRes.data)) {
+          const compatibleHistory = historyRes.data.filter(
+            (session) =>
+              session?.meta?.version === "v2_profiles_abcd" ||
+              !!session?.raw_scores?.summary
+          );
           if (isMounted) {
-            setHistory(historyRes.data);
+            setHistory(compatibleHistory);
           }
         } else if (!historyRes.success) {
           console.error(
@@ -98,21 +295,19 @@ export default function SpecialityQuizScreen({ userProfile, onSectionChange }) {
       }
     };
 
-    // Tracking de pantalla
     posthogLogger.logScreen("SpecialityQuizScreen");
     loadData();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [userId]);
 
   const totalQuestions = questions.length;
   const currentQuestion = questions[currentIndex] || null;
 
   const progress = useMemo(() => {
     if (!totalQuestions) return 0;
-    // +1 porque el usuario está contestando la pregunta actual
     return ((currentIndex + 1) / totalQuestions) * 100;
   }, [currentIndex, totalQuestions]);
 
@@ -120,16 +315,19 @@ export default function SpecialityQuizScreen({ userProfile, onSectionChange }) {
     try {
       setSubmitting(true);
       const { success, data, error } = await startQuizSession(userId, {
-        version: "v1",
+        version: "v2_profiles_abcd",
       });
+
       if (!success || !data) {
         console.error("No se pudo iniciar la sesión de test:", error);
         return;
       }
+
       setSessionId(data.id);
       setStep("questions");
       setCurrentIndex(0);
       setAnswers({});
+      setResults(null);
     } catch (error) {
       console.error("Error iniciando sesión de test:", error);
     } finally {
@@ -141,25 +339,46 @@ export default function SpecialityQuizScreen({ userProfile, onSectionChange }) {
     if (!currentQuestion) return;
 
     const questionId = currentQuestion.id;
-
     const newAnswers = {
       ...answers,
       [questionId]: value,
     };
+
     setAnswers(newAnswers);
 
     if (sessionId) {
-      // Guardar en Supabase pero sin bloquear la UX
       saveQuizAnswer(sessionId, questionId, value).catch((error) => {
         console.error("Error guardando respuesta del test:", error);
       });
     }
 
-    // Avanzar a la siguiente pregunta o calcular resultados
     if (currentIndex < totalQuestions - 1) {
       setCurrentIndex((prev) => prev + 1);
-    } else {
-      handleFinish(newAnswers);
+      return;
+    }
+
+    handleFinish(newAnswers);
+  };
+
+  const handleFinish = async (allAnswers) => {
+    try {
+      setSubmitting(true);
+      const builtResults = buildQuizResults(questions, allAnswers);
+      setResults(builtResults);
+
+      if (sessionId) {
+        await finishQuizSession(
+          sessionId,
+          builtResults.topResults,
+          builtResults.rawScores
+        );
+      }
+
+      setStep("results");
+    } catch (error) {
+      console.error("Error finalizando test de especialidad:", error);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -171,147 +390,6 @@ export default function SpecialityQuizScreen({ userProfile, onSectionChange }) {
     setCurrentIndex((prev) => Math.max(0, prev - 1));
   };
 
-  /**
-   * Heurística sencilla de scoring basada en las NUEVAS dimensiones del cuestionario.
-   * No pretende ser un modelo MIR perfecto, sino una guía divertida.
-   */
-  const calculateScores = (allAnswers, profiles) => {
-    if (!profiles || !profiles.length) return { topResults: [], rawScores: {} };
-
-    // Reducir respuestas por dimensión (media simple 1–5)
-    const dimensionValues = {};
-    questions.forEach((q) => {
-      const value = allAnswers[q.id];
-      if (typeof value !== "number") return;
-      if (!dimensionValues[q.dimension]) {
-        dimensionValues[q.dimension] = { sum: 0, count: 0 };
-      }
-      dimensionValues[q.dimension].sum += value;
-      dimensionValues[q.dimension].count += 1;
-    });
-
-    const getDim = (dim) => {
-      const item = dimensionValues[dim];
-      if (!item || !item.count) return 0;
-      return item.sum / item.count;
-    };
-
-    // Alias de dimensiones para legibilidad
-    const workLifeBalance = getDim("work_life_balance");
-    const onCallTolerance = getDim("on_call_tolerance");
-    const proceduralInterest = getDim("procedural_interest");
-    const emergencyTolerance = getDim("emergency_tolerance");
-    const researchInterest = getDim("research_interest");
-    const patientRelationship = getDim("patient_relationship");
-    const patientContact = getDim("patient_contact");
-    const technologyInterest = getDim("technology_interest");
-    const uncertaintyTolerance = getDim("uncertainty_tolerance");
-    const empathyCommunication = getDim("empathy_communication");
-
-    const rawScores = {};
-
-    profiles.forEach((profile) => {
-      let score = 0;
-
-      // Peso base por categoría según cuestionario
-      switch (profile.category) {
-        case "quirurgica":
-          score += proceduralInterest * 2.0;
-          score += emergencyTolerance * 1.5;
-          score += onCallTolerance * 1.0;
-          score += (6 - workLifeBalance) * 0.5; // menos foco en WLB
-          break;
-        case "urgencias_criticos":
-          score += emergencyTolerance * 2.0;
-          score += proceduralInterest * 1.0;
-          score += onCallTolerance * 1.2;
-          score += (6 - workLifeBalance) * 0.8;
-          break;
-        case "medica":
-          score += researchInterest * 1.5;
-          score += uncertaintyTolerance * 1.2;
-          score += patientRelationship * 1.2;
-          break;
-        case "atencion_primaria":
-          score += patientRelationship * 2.0;
-          score += workLifeBalance * 1.2;
-          score += empathyCommunication * 1.0;
-          break;
-        case "diagnostica":
-          score += researchInterest * 1.5;
-          score += technologyInterest * 1.2;
-          score += (6 - patientContact) * 1.0;
-          break;
-        case "salud_publica":
-          score += workLifeBalance * 1.5;
-          score += researchInterest * 1.0;
-          break;
-        default:
-          break;
-      }
-
-      // Ajustes por especialidad concreta (ejemplos representativos)
-      if (profile.speciality_key === "dermatologia") {
-        score += workLifeBalance * 1.5;
-      }
-      if (profile.speciality_key === "medicina_urgencias") {
-        score += emergencyTolerance * 2.0;
-      }
-      if (profile.speciality_key === "medicina_familiar") {
-        score += patientRelationship * 1.8;
-        score += workLifeBalance * 0.8;
-      }
-      if (profile.speciality_key === "cirugia_plastica") {
-        score += proceduralInterest * 1.8;
-        score += technologyInterest * 0.8;
-      }
-      if (profile.speciality_key === "medicina_preventiva_salud_publica") {
-        score += researchInterest * 1.2;
-      }
-
-      rawScores[profile.speciality_key] = score;
-    });
-
-    const sorted = [...profiles]
-      .map((p) => ({
-        speciality_key: p.speciality_key,
-        name: p.name,
-        category: p.category,
-        description: p.description,
-        score: rawScores[p.speciality_key] || 0,
-      }))
-      .sort((a, b) => b.score - a.score);
-
-    const topResults = sorted.slice(0, 3);
-
-    return {
-      topResults,
-      rawScores,
-    };
-  };
-
-  const handleFinish = async (allAnswers) => {
-    try {
-      setSubmitting(true);
-
-      const { topResults, rawScores } = calculateScores(
-        allAnswers,
-        specialityProfiles
-      );
-      setResults({ topResults, rawScores });
-
-      if (sessionId) {
-        await finishQuizSession(sessionId, topResults, rawScores);
-      }
-
-      setStep("results");
-    } catch (error) {
-      console.error("Error finalizando test de especialidad:", error);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleBackFromResults = () => {
     setStep("welcome");
     setCurrentIndex(0);
@@ -321,235 +399,205 @@ export default function SpecialityQuizScreen({ userProfile, onSectionChange }) {
   };
 
   const handleOpenHistorySession = (session) => {
-    const topResults = Array.isArray(session.top_results)
-      ? session.top_results
-      : [];
+    const topResults = Array.isArray(session.top_results) ? session.top_results : [];
     if (!topResults.length) return;
+
+    const summary = session.raw_scores?.summary || null;
 
     setResults({
       topResults,
       rawScores: session.raw_scores || {},
+      summary,
     });
     setStep("results");
   };
 
-  const handleGoToHospitals = (specialityName) => {
-    if (onSectionChange) {
-      onSectionChange("hospitales", {
-        specialityName,
-      });
-    }
-  };
-
-  const renderWelcome = () => {
-    return (
-      <View style={styles.container}>
+  const renderWelcome = () => (
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.headerShell}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Test de especialidad</Text>
+          <Text style={styles.headerTitle}>Test de orientación MIR</Text>
+          <View style={styles.headerIcon}>
+            <Ionicons name="sparkles-outline" size={18} color={PRIMARY} />
+          </View>
         </View>
+      </View>
+
+      <View style={styles.contentSurface}>
         <ScrollView
           style={styles.content}
-          contentContainerStyle={styles.welcomeContent}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.welcomeCard}>
-            <View style={styles.emojiRow}>
-              <Text style={styles.bigEmoji}>🧠</Text>
-              <Text style={styles.bigEmoji}>🩺</Text>
-              <Text style={styles.bigEmoji}>⚡️</Text>
-            </View>
-            <Text style={styles.welcomeTitle}>
-              ¿Qué especialidad encaja contigo?
-            </Text>
-            <Text style={styles.welcomeSubtitle}>
-              Responde unas pocas preguntas sobre cómo te ves trabajando y te
-              proponemos las{" "}
-              <Text style={styles.welcomeHighlight}>
-                3 especialidades con más encaje
+          <View style={styles.contentInner}>
+            <View style={styles.heroCard}>
+              <Text style={styles.heroEyebrow}>Orientación de especialidad</Text>
+              <Text style={styles.heroTitle}>
+                Descubre qué perfil MIR encaja más contigo
               </Text>
-              .
-            </Text>
+              <Text style={styles.heroText}>
+                Responde 28 preguntas y te mostraremos tu perfil dominante, tu
+                perfil secundario y las especialidades más afines.
+              </Text>
 
-            <View style={styles.chipsRow}>
-              <View style={styles.chip}>
-                <Ionicons
-                  name="time-outline"
-                  size={16}
-                  color={COLORS.PRIMARY}
-                />
-                <Text style={styles.chipText}>2–3 minutos</Text>
+              <View style={styles.progressHeader}>
+                <Text style={styles.progressHeaderLabel}>Duración estimada</Text>
+                <Text style={styles.progressHeaderValue}>3-4 min</Text>
               </View>
-              <View style={styles.chip}>
-                <Ionicons
-                  name="sparkles-outline"
-                  size={16}
-                  color={COLORS.PRIMARY}
-                />
-                <Text style={styles.chipText}>Basado en valores y estilo</Text>
-              </View>
-            </View>
 
-            <TouchableOpacity
-              style={[
-                styles.primaryButton,
-                submitting && styles.primaryButtonDisabled,
-              ]}
-              onPress={handleStart}
-              disabled={submitting || !userId}
-              activeOpacity={0.85}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <Text style={styles.primaryButtonText}>Empezar test</Text>
+              <View style={styles.stepBadgeRow}>
+                <View style={styles.stepBadge}>
+                  <Ionicons name="analytics-outline" size={14} color={PRIMARY} />
+                  <Text style={styles.stepBadgeText}>Perfiles A/B/C/D</Text>
+                </View>
+                <View style={styles.stepBadge}>
+                  <Ionicons name="git-compare-outline" size={14} color={PRIMARY} />
+                  <Text style={styles.stepBadgeText}>Perfil dominante</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.primaryAction,
+                  (submitting || !userId) && styles.primaryActionDisabled,
+                ]}
+                onPress={handleStart}
+                disabled={submitting || !userId}
+                activeOpacity={0.85}
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.primaryActionText}>Empezar test</Text>
+                )}
+              </TouchableOpacity>
+
+              {!userId && (
+                <Text style={styles.heroSupportText}>
+                  Inicia sesión como estudiante para guardar tus resultados.
+                </Text>
               )}
-            </TouchableOpacity>
+            </View>
 
-            {!userId && (
-              <Text style={styles.infoText}>
-                Inicia sesión como estudiante para guardar tus resultados y
-                repetir el test cuando quieras.
-              </Text>
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Qué vas a obtener</Text>
+              <View style={styles.featureList}>
+                <View style={styles.featureRow}>
+                  <Ionicons name="checkmark-circle-outline" size={18} color={PRIMARY} />
+                  <Text style={styles.featureText}>Perfil dominante y perfil secundario.</Text>
+                </View>
+                <View style={styles.featureRow}>
+                  <Ionicons name="checkmark-circle-outline" size={18} color={PRIMARY} />
+                  <Text style={styles.featureText}>Índice de definición para ver si tu perfil es mixto o claro.</Text>
+                </View>
+                <View style={styles.featureRow}>
+                  <Ionicons name="checkmark-circle-outline" size={18} color={PRIMARY} />
+                  <Text style={styles.featureText}>Especialidades afines según tu resultado.</Text>
+                </View>
+              </View>
+            </View>
+
+            {userId && history.length > 0 && (
+              <View style={styles.card}>
+                <View style={styles.sectionTitleRow}>
+                  <View style={styles.sectionBar} />
+                  <Text style={styles.sectionTitle}>Tus tests anteriores</Text>
+                </View>
+                {history.map((session) => {
+                  const date = session.started_at ? new Date(session.started_at) : null;
+                  const dateLabel = date
+                    ? date.toLocaleDateString("es-ES", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })
+                    : "Fecha desconocida";
+
+                  const top = Array.isArray(session.top_results) ? session.top_results : [];
+                  const first = top[0];
+                  const second = top[1];
+
+                  return (
+                    <TouchableOpacity
+                      key={session.id}
+                      style={styles.historyItem}
+                      onPress={() => handleOpenHistorySession(session)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.historyItemHeader}>
+                        <Text style={styles.historyDate}>{dateLabel}</Text>
+                        {session.finished_at && (
+                          <View style={styles.historyBadge}>
+                            <Text style={styles.historyBadgeText}>Completado</Text>
+                          </View>
+                        )}
+                      </View>
+                      {first ? (
+                        <Text style={styles.historyMain}>
+                          Dominante: {first.name}
+                          {second ? ` · Secundario: ${second.name}` : ""}
+                        </Text>
+                      ) : (
+                        <Text style={styles.historyEmpty}>
+                          Test sin resultados guardados
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             )}
           </View>
-
-          {userId && history.length > 0 && (
-            <View style={styles.historyCard}>
-              <Text style={styles.historyTitle}>Tus tests anteriores</Text>
-              {history.map((session) => {
-                const date = session.started_at
-                  ? new Date(session.started_at)
-                  : null;
-                const dateLabel = date
-                  ? date.toLocaleDateString("es-ES", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })
-                  : "Fecha desconocida";
-
-                const top = Array.isArray(session.top_results)
-                  ? session.top_results
-                  : [];
-                const first = top[0];
-                const second = top[1];
-
-                return (
-                  <TouchableOpacity
-                    key={session.id}
-                    style={styles.historyItem}
-                    onPress={() => handleOpenHistorySession(session)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.historyItemHeader}>
-                      <Text style={styles.historyDate}>{dateLabel}</Text>
-                      {session.finished_at && (
-                        <View style={styles.historyBadge}>
-                          <Text style={styles.historyBadgeText}>
-                            Completado
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    {first && (
-                      <Text style={styles.historyMain}>
-                        Top 1: {first.name}
-                        {second ? ` · Top 2: ${second.name}` : ""}
-                      </Text>
-                    )}
-                    {!first && (
-                      <Text style={styles.historyEmpty}>
-                        Test sin resultados guardados
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
         </ScrollView>
       </View>
-    );
-  };
+    </SafeAreaView>
+  );
 
-  const renderLikertOptions = (question) => {
-    const labels = ["Muy poco", "Poco", "Algo", "Bastante", "Muchísimo"];
+  const renderQuestionOptions = (question) => {
+    const options = Array.isArray(question?.options) ? question.options : [];
     const selectedValue = answers[question.id];
 
     return (
-      <View style={styles.likertRow}>
-        {labels.map((label, index) => {
-          const value = index + 1;
-          const isSelected = selectedValue === value;
+      <View style={styles.optionsList}>
+        {options.map((option) => {
+          const profile = PROFILE_DEFINITIONS[option.value];
+          const isSelected = selectedValue === option.value;
+
           return (
             <TouchableOpacity
-              key={label}
+              key={option.id || `${question.id}-${option.order_index}`}
               style={[
-                styles.likertOption,
-                isSelected && styles.likertOptionSelected,
+                styles.optionCard,
+                isSelected && styles.optionCardSelected,
               ]}
-              onPress={() => handleAnswer(value)}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.likertLabel,
-                  isSelected && styles.likertLabelSelected,
-                ]}
-              >
-                {label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    );
-  };
-
-  const renderEntornoOptions = (question) => {
-    // Opciones específicas para la dimensión "entorno"
-    const options = [
-      {
-        id: "alta_tecnologia",
-        label: "Hospital grande y tecnología puntera",
-        value: 5,
-      },
-      {
-        id: "mixto",
-        label: "Un poco de todo",
-        value: 3,
-      },
-      {
-        id: "comunitario",
-        label: "Centro de salud / comunidad",
-        value: 1,
-      },
-    ];
-
-    const selected = answers[question.id];
-
-    return (
-      <View style={styles.entornoRow}>
-        {options.map((opt) => {
-          const isSelected = selected === opt.value;
-          return (
-            <TouchableOpacity
-              key={opt.id}
-              style={[
-                styles.entornoOption,
-                isSelected && styles.entornoOptionSelected,
-              ]}
-              onPress={() => handleAnswer(opt.value)}
+              onPress={() => handleAnswer(option.value)}
               activeOpacity={0.85}
             >
-              <Text
-                style={[
-                  styles.entornoLabel,
-                  isSelected && styles.entornoLabelSelected,
-                ]}
-              >
-                {opt.label}
-              </Text>
+              <View style={styles.optionHeader}>
+                <View
+                  style={[
+                    styles.optionLetterBadge,
+                    isSelected && styles.optionLetterBadgeSelected,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.optionLetterText,
+                      isSelected && styles.optionLetterTextSelected,
+                    ]}
+                  >
+                    {profile?.profile_letter || option.order_index}
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.optionText,
+                    isSelected && styles.optionTextSelected,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -560,20 +608,8 @@ export default function SpecialityQuizScreen({ userProfile, onSectionChange }) {
   const renderQuestion = () => {
     if (!currentQuestion) {
       return (
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={handleBackFromQuestions}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Test de especialidad</Text>
-          </View>
-          <View style={styles.loadingCenter}>
-            <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-          </View>
+        <View style={styles.loadingCenter}>
+          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
         </View>
       );
     }
@@ -581,160 +617,208 @@ export default function SpecialityQuizScreen({ userProfile, onSectionChange }) {
     const isLast = currentIndex === totalQuestions - 1;
 
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBackFromQuestions}
-            activeOpacity={0.7}
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.headerShell}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBackFromQuestions}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={20} color={INDIGO} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Test de orientación MIR</Text>
+            <View style={styles.headerCounter}>
+              <Text style={styles.headerCounterText}>
+                {currentIndex + 1}/{totalQuestions || "?"}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.contentSurface}>
+          <ScrollView
+            style={styles.content}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
           >
-            <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Pregunta {currentIndex + 1}</Text>
-          <Text style={styles.headerSubtitle}>de {totalQuestions || "?"}</Text>
+            <View style={styles.contentInner}>
+              <View style={styles.heroCard}>
+                <Text style={styles.heroEyebrow}>
+                  {getDimensionLabel(currentQuestion.dimension)}
+                </Text>
+                <Text style={styles.heroTitle}>Pregunta {currentIndex + 1}</Text>
+                <Text style={styles.heroText}>
+                  {isLast
+                    ? "Última pregunta. Al responderla calcularemos tu perfil dominante."
+                    : "Selecciona la opción que mejor refleje tu preferencia."}
+                </Text>
+
+                <View style={styles.progressHeader}>
+                  <Text style={styles.progressHeaderLabel}>Progreso</Text>
+                  <Text style={styles.progressHeaderValue}>{Math.round(progress)}%</Text>
+                </View>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${progress}%` }]} />
+                </View>
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>{currentQuestion.text}</Text>
+                {renderQuestionOptions(currentQuestion)}
+                <Text style={styles.helperText}>
+                  Puedes cambiar tus respuestas volviendo atrás.
+                </Text>
+              </View>
+            </View>
+          </ScrollView>
         </View>
+      </SafeAreaView>
+    );
+  };
 
-        {/* Barra de progreso */}
-        <View style={styles.progressBarBackground}>
-          <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
-        </View>
+  const renderProfileCard = (item, index) => {
+    const tone = item.tone || PROFILE_DEFINITIONS[item.value]?.tone;
+    const relatedSpecialities = Array.isArray(item.relatedSpecialities)
+      ? item.relatedSpecialities
+      : [];
 
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.questionContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.questionCard}>
-            <Text style={styles.questionText}>{currentQuestion.text}</Text>
-
-            {currentQuestion.question_type === "likert"
-              ? renderLikertOptions(currentQuestion)
-              : renderEntornoOptions(currentQuestion)}
-
-            <Text style={styles.helperText}>
-              {isLast
-                ? "Al responder esta pregunta calcularemos tu top 3 de especialidades."
-                : "Puedes cambiar tus respuestas volviendo atrás en cualquier momento."}
+    return (
+      <View
+        key={item.speciality_key || item.name || index}
+        style={[styles.resultCard, { backgroundColor: tone?.background || "#FFF" }]}
+      >
+        <View style={styles.resultTopRow}>
+          <View
+            style={[
+              styles.rankCircle,
+              { backgroundColor: tone?.badge || COLORS.PRIMARY },
+            ]}
+          >
+            <Text style={styles.rankText}>{item.profile_letter || index + 1}</Text>
+          </View>
+          <View
+            style={[
+              styles.categoryBadge,
+              { backgroundColor: tone?.badge || COLORS.PRIMARY },
+            ]}
+          >
+            <Text style={styles.categoryBadgeText}>
+              {index === 0 ? "Dominante" : index === 1 ? "Secundario" : "Complementario"}
             </Text>
           </View>
-        </ScrollView>
+        </View>
+
+        <Text style={[styles.resultName, { color: tone?.accent || "#111827" }]}>
+          {item.name}
+        </Text>
+
+        <View style={styles.matchRow}>
+          <Text style={styles.matchLabel}>Peso acumulado</Text>
+          <Text style={styles.matchValue}>{item.match_percent || 0}%</Text>
+        </View>
+        <View style={styles.matchBarBackground}>
+          <View
+            style={[
+              styles.matchBarFill,
+              {
+                width: `${item.match_percent || 0}%`,
+                backgroundColor: tone?.badge || COLORS.PRIMARY,
+              },
+            ]}
+          />
+        </View>
+
+        {!!item.shortDescription && (
+          <Text style={styles.resultIntro}>{item.shortDescription}</Text>
+        )}
+        {!!item.description && (
+          <Text style={styles.resultDescription}>{item.description}</Text>
+        )}
+        {relatedSpecialities.length > 0 && (
+          <Text style={styles.relatedSpecialities}>
+            Especialidades afines: {relatedSpecialities.join(", ")}.
+          </Text>
+        )}
       </View>
     );
   };
 
   const renderResults = () => {
     const top = results?.topResults || [];
+    const summary = results?.summary || results?.rawScores?.summary || null;
 
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBackFromResults}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Tus especialidades top</Text>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.headerShell}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBackFromResults}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={20} color={INDIGO} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Tu perfil MIR</Text>
+            <View style={styles.headerIcon}>
+              <Ionicons name="analytics-outline" size={18} color={PRIMARY} />
+            </View>
+          </View>
         </View>
 
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.resultsContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.resultsHeader}>
-            <Text style={styles.resultsTitle}>
-              Hemos encontrado estas 3 especialidades que encajan especialmente
-              bien contigo:
-            </Text>
-            <Text style={styles.resultsSubtitle}>
-              No es una predicción MIR, sino una brújula basada en tus valores,
-              estilo de vida y preferencias.
-            </Text>
-          </View>
-
-          {top.map((item, index) => {
-            const badgeLabel =
-              item.category === "quirurgica"
-                ? "Quirúrgica"
-                : item.category === "medica"
-                ? "Médica"
-                : item.category === "atencion_primaria"
-                ? "Atención primaria"
-                : item.category === "urgencias_criticos"
-                ? "Urgencias y críticos"
-                : item.category === "diagnostica"
-                ? "Diagnóstica"
-                : "Salud pública";
-
-            const score = item.score || 0;
-            const scorePercent = Math.max(
-              0,
-              Math.min(100, Math.round((score / (score + 10 || 1)) * 100))
-            );
-
-            return (
-              <View
-                key={item.speciality_key || index}
-                style={styles.resultCard}
-              >
-                <View style={styles.resultBadgeRow}>
-                  <View style={styles.rankCircle}>
-                    <Text style={styles.rankText}>{index + 1}</Text>
-                  </View>
-                  <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryBadgeText}>{badgeLabel}</Text>
-                  </View>
-                </View>
-
-                <Text style={styles.resultName}>{item.name}</Text>
-
-                <View style={styles.matchRow}>
-                  <Text style={styles.matchLabel}>Match aproximado</Text>
-                  <Text style={styles.matchValue}>{scorePercent}%</Text>
-                </View>
-                <View style={styles.matchBarBackground}>
-                  <View
-                    style={[styles.matchBarFill, { width: `${scorePercent}%` }]}
-                  />
-                </View>
-
-                {!!item.description && (
-                  <Text style={styles.resultDescription} numberOfLines={4}>
-                    {item.description}
+        <View style={styles.contentSurface}>
+          <ScrollView
+            style={styles.content}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.contentInner}>
+              {summary?.dominant_profile && (
+                <View style={styles.heroCard}>
+                  <Text style={styles.heroEyebrow}>Resultado principal</Text>
+                  <Text style={styles.heroTitle}>
+                    Perfil dominante: {summary.dominant_profile.name}
                   </Text>
-                )}
-
-                <View style={styles.resultActions}>
-                  <TouchableOpacity
-                    style={styles.secondaryButton}
-                    onPress={() => handleGoToHospitals(item.name)}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons
-                      name="business-outline"
-                      size={18}
-                      color={COLORS.PRIMARY}
-                    />
-                    <Text style={styles.secondaryButtonText}>
-                      Ver hospitales
+                  {summary?.secondary_profile && (
+                    <Text style={styles.heroText}>
+                      Perfil secundario: {summary.secondary_profile.name}
                     </Text>
-                  </TouchableOpacity>
+                  )}
+                  <View style={styles.summaryMetaRow}>
+                    <View style={styles.summaryPill}>
+                      <Text style={styles.summaryPillText}>
+                        Índice {summary?.definition_index ?? 0}
+                      </Text>
+                    </View>
+                    <View style={styles.summaryPill}>
+                      <Text style={styles.summaryPillText}>
+                        {summary?.definition_label || "Sin definir"}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-              </View>
-            );
-          })}
+              )}
 
-          {top.length === 0 && (
-            <View style={styles.loadingCenter}>
-              <Text style={styles.infoText}>
-                No hemos podido calcular resultados. Prueba a repetir el test.
-              </Text>
+              {top.length > 0 && (
+                <View style={styles.sectionTitleRow}>
+                  <View style={styles.sectionBar} />
+                  <Text style={styles.sectionTitle}>Perfiles relacionados</Text>
+                </View>
+              )}
+
+              {top.map((item, index) => renderProfileCard(item, index))}
+
+              {!top.length && (
+                <View style={styles.card}>
+                  <Text style={styles.infoText}>
+                    No hemos podido calcular resultados. Repite el test.
+                  </Text>
+                </View>
+              )}
             </View>
-          )}
-        </ScrollView>
-      </View>
+          </ScrollView>
+        </View>
+      </SafeAreaView>
     );
   };
 
@@ -754,399 +838,426 @@ export default function SpecialityQuizScreen({ userProfile, onSectionChange }) {
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+  },
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#F8FAFC",
+  },
+  headerShell: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 10,
+    backgroundColor: "#F8FAFC",
   },
   header: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    gap: 10,
   },
-  backButton: {
-    padding: 4,
-    marginRight: 12,
+  headerIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F5F3FF",
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1a1a1a",
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "800",
+    color: INDIGO,
   },
-  headerSubtitle: {
-    marginLeft: 6,
-    fontSize: 14,
-    color: "#6B7280",
+  headerCounter: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#F5F3FF",
+  },
+  headerCounterText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: PRIMARY,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+  },
+  contentSurface: {
+    flex: 1,
   },
   content: {
     flex: 1,
   },
-  welcomeContent: {
-    padding: 16,
-    paddingBottom: 32,
+  scrollContent: {
+    paddingBottom: 28,
   },
-  welcomeCard: {
+  contentInner: {
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    gap: 16,
+  },
+  heroCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
   },
-  emojiRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 12,
-    gap: 8,
-  },
-  bigEmoji: {
-    fontSize: 28,
-  },
-  welcomeTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#111827",
+  heroEyebrow: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: PRIMARY,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
     marginBottom: 8,
   },
-  welcomeSubtitle: {
-    fontSize: 15,
-    color: "#4B5563",
-    lineHeight: 22,
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: INDIGO,
+    marginBottom: 8,
   },
-  welcomeHighlight: {
+  heroText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#64748B",
+  },
+  progressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  progressHeaderLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  progressHeaderValue: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: PRIMARY,
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#E9D5FF",
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: PRIMARY,
+  },
+  heroSupportText: {
+    marginTop: 10,
+    fontSize: 13,
+    color: "#64748B",
     fontWeight: "600",
-    color: COLORS.PRIMARY,
   },
-  chipsRow: {
+  stepBadgeRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
-    marginTop: 16,
-    marginBottom: 20,
+    gap: 10,
+    marginTop: 14,
   },
-  chip: {
+  stepBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
-    borderColor: "#DBEAFE",
-    gap: 6,
+    borderColor: "#E8EAF3",
   },
-  chipText: {
+  stepBadgeText: {
     fontSize: 12,
-    color: "#1D4ED8",
-    fontWeight: "500",
+    fontWeight: "700",
+    color: INDIGO,
   },
-  historyCard: {
+  primaryAction: {
     marginTop: 16,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    backgroundColor: PRIMARY,
+    borderRadius: 16,
+    paddingVertical: 15,
+    alignItems: "center",
   },
-  historyTitle: {
+  primaryActionDisabled: {
+    opacity: 0.6,
+  },
+  primaryActionText: {
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 8,
+    fontWeight: "800",
+  },
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
+  },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  sectionBar: {
+    width: 4,
+    height: 24,
+    borderRadius: 2,
+    backgroundColor: PRIMARY,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: INDIGO,
+  },
+  featureList: {
+    gap: 12,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  featureText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#6B7280",
+  },
+  infoText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#6B7280",
+    textAlign: "center",
   },
   historyItem: {
-    paddingVertical: 10,
+    paddingVertical: 14,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: "#F1F5F9",
   },
   historyItemHeader: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 2,
+    alignItems: "center",
+    marginBottom: 6,
   },
   historyDate: {
     fontSize: 13,
+    fontWeight: "700",
     color: "#6B7280",
   },
   historyBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "#ECFDF3",
+    backgroundColor: "#DCFCE7",
   },
   historyBadgeText: {
     fontSize: 11,
-    fontWeight: "600",
-    color: "#15803D",
+    fontWeight: "800",
+    color: "#166534",
   },
   historyMain: {
-    fontSize: 13,
+    fontSize: 15,
+    lineHeight: 22,
     color: "#111827",
-    marginTop: 2,
+    fontWeight: "600",
   },
   historyEmpty: {
-    fontSize: 13,
-    color: "#9CA3AF",
-    marginTop: 2,
-  },
-  primaryButton: {
-    marginTop: 8,
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: COLORS.PRIMARY,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  primaryButtonDisabled: {
-    backgroundColor: "#9CA3AF",
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  infoText: {
-    marginTop: 12,
-    fontSize: 13,
+    fontSize: 14,
     color: "#6B7280",
   },
-  questionContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  questionCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  questionText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 20,
-  },
-  likertRow: {
-    flexDirection: "column",
+  optionsList: {
     gap: 10,
+    marginTop: 14,
   },
-  likertOption: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: "#F9FAFB",
-  },
-  likertOptionSelected: {
-    backgroundColor: "#EEF2FF",
-    borderColor: COLORS.PRIMARY,
-  },
-  likertLabel: {
-    fontSize: 14,
-    color: "#374151",
-    textAlign: "center",
-  },
-  likertLabelSelected: {
-    color: COLORS.PRIMARY,
-    fontWeight: "600",
-  },
-  entornoRow: {
-    flexDirection: "column",
-    gap: 10,
-  },
-  entornoOption: {
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    backgroundColor: "#F3F4F6",
-  },
-  entornoOptionSelected: {
-    backgroundColor: "#DBEAFE",
-  },
-  entornoLabel: {
-    fontSize: 14,
-    color: "#111827",
-  },
-  entornoLabelSelected: {
-    fontWeight: "600",
-    color: "#1D4ED8",
-  },
-  helperText: {
-    marginTop: 16,
-    fontSize: 13,
-    color: "#6B7280",
-  },
-  progressBarBackground: {
-    height: 4,
-    backgroundColor: "#E5E7EB",
-    marginHorizontal: 16,
-    marginTop: 4,
-    borderRadius: 999,
-    overflow: "hidden",
-  },
-  progressBarFill: {
-    height: "100%",
-    backgroundColor: COLORS.PRIMARY,
-  },
-  resultsContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  resultsHeader: {
-    marginBottom: 16,
-  },
-  resultsTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 4,
-  },
-  resultsSubtitle: {
-    fontSize: 14,
-    color: "#4B5563",
-    lineHeight: 20,
-  },
-  resultCard: {
-    backgroundColor: "#FFFFFF",
+  optionCard: {
     borderRadius: 18,
     padding: 16,
-    marginBottom: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
+    backgroundColor: "#FFFFFF",
   },
-  resultBadgeRow: {
+  optionCardSelected: {
+    borderColor: PRIMARY,
+    backgroundColor: "#F5F3FF",
+  },
+  optionHeader: {
     flexDirection: "row",
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  optionLetterBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#F3F4F6",
     alignItems: "center",
-    marginBottom: 8,
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  optionLetterBadgeSelected: {
+    backgroundColor: PRIMARY,
+  },
+  optionLetterText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#374151",
+  },
+  optionLetterTextSelected: {
+    color: "#FFFFFF",
+  },
+  optionText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#111827",
+    fontWeight: "600",
+  },
+  optionTextSelected: {
+    color: "#2E1065",
+  },
+  helperText: {
+    marginTop: 18,
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#6B7280",
+  },
+  summaryMetaRow: {
+    marginTop: 12,
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
+  summaryPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#F5F3FF",
+  },
+  summaryPillText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: PRIMARY,
+  },
+  resultCard: {
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
+  },
+  resultTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
   rankCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#EEF2FF",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
   rankText: {
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.PRIMARY,
+    fontWeight: "800",
   },
   categoryBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#F3F4F6",
   },
   categoryBadgeText: {
-    fontSize: 12,
-    color: "#4B5563",
-    fontWeight: "500",
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
   resultName: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 8,
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: "800",
+    marginBottom: 14,
   },
   matchRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 4,
+    marginBottom: 8,
   },
   matchLabel: {
     fontSize: 13,
+    fontWeight: "700",
     color: "#6B7280",
   },
   matchValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.PRIMARY,
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#111827",
   },
   matchBarBackground: {
-    height: 6,
+    height: 8,
     borderRadius: 999,
     backgroundColor: "#E5E7EB",
     overflow: "hidden",
-    marginBottom: 8,
+    marginBottom: 14,
   },
   matchBarFill: {
-    height: "100%",
+    height: 8,
     borderRadius: 999,
-    backgroundColor: COLORS.PRIMARY,
+  },
+  resultIntro: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#111827",
+    fontWeight: "700",
+    marginBottom: 8,
   },
   resultDescription: {
-    fontSize: 13,
-    color: "#4B5563",
-    lineHeight: 18,
-    marginTop: 4,
+    fontSize: 15,
+    lineHeight: 23,
+    color: "#374151",
   },
-  resultActions: {
-    marginTop: 10,
-    flexDirection: "row",
-    justifyContent: "flex-start",
-  },
-  secondaryButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "#EFF6FF",
-    gap: 6,
-  },
-  secondaryButtonText: {
-    fontSize: 13,
-    color: COLORS.PRIMARY,
-    fontWeight: "600",
-  },
-  repeatButton: {
-    marginTop: 8,
-    alignSelf: "center",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF",
-    gap: 8,
-  },
-  repeatButtonText: {
+  relatedSpecialities: {
+    marginTop: 12,
     fontSize: 14,
-    color: COLORS.PRIMARY,
+    lineHeight: 22,
+    color: "#374151",
     fontWeight: "600",
   },
   loadingCenter: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F5F5F5",
+    padding: 24,
+    backgroundColor: "#F8FAFC",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: "#64748B",
+    fontWeight: "600",
   },
 });

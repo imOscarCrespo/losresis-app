@@ -729,6 +729,7 @@ export default function DashboardScreen({
         );
 
       case "residenceLibrary":
+      case "libro-residente":
         return (
           <ResidenceLibraryScreen
             userProfile={userProfile}
@@ -814,7 +815,6 @@ export default function DashboardScreen({
         );
 
       // Secciones del menú (placeholder)
-      case "libro-residente":
       case "rotaciones-externas":
         return (
           <ExternalRotationsScreen

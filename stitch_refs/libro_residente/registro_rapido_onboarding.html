@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7c3aed",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#221610",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%237c3aed' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="max-w-md mx-auto min-h-screen flex flex-col shadow-xl bg-white dark:bg-slate-900">
+<!-- TopAppBar -->
+<header class="flex items-center p-4 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-10">
+<button class="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined block">arrow_back</span>
+</button>
+<h1 class="text-xl font-bold ml-2 flex-1">Registrar actividad</h1>
+<button class="text-primary font-semibold text-sm px-3 py-1 hover:bg-primary/10 rounded-lg transition-colors">Historial</button>
+</header>
+<main class="flex-1 p-4 space-y-6">
+<!-- Quick Suggestions -->
+<section>
+<p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">Sugerencias rápidas</p>
+<div class="flex flex-wrap gap-2">
+<button class="px-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-sm font-medium hover:bg-primary hover:text-white transition-all">Parto eutócico</button>
+<button class="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-medium hover:border-primary/50 border border-transparent transition-all">Cesárea</button>
+<button class="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-medium hover:border-primary/50 border border-transparent transition-all">Guardia</button>
+<button class="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-medium hover:border-primary/50 border border-transparent transition-all">Sesión clínica</button>
+</div>
+</section>
+<!-- Dropdown Section -->
+<section class="space-y-4">
+<div class="space-y-1.5">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Categoría</label>
+<select class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-primary focus:border-primary">
+<option>Sala de partos</option>
+<option>Urgencias</option>
+<option>Planta</option>
+<option>Consultas</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Actividad</label>
+<select class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-primary focus:border-primary">
+<option>Parto eutócico</option>
+<option>Parto instrumental</option>
+<option>Revisión postparto</option>
+<option>Atención al recién nacido</option>
+</select>
+</div>
+</section>
+<!-- Registration Type - Counter Selection -->
+<section>
+<p class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Tipo de registro</p>
+<div class="flex items-center justify-between p-4 bg-primary/5 border border-primary/20 rounded-xl">
+<div class="flex items-center justify-between p-4 bg-primary/5 border border-primary/20 rounded-xl">
+<span class="material-symbols-outlined text-primary">plus_one</span>
+<div>
+<p class="font-bold text-slate-900 dark:text-white leading-tight">Contador +1</p>
+<p class="text-xs text-slate-500">Suma automática al total</p>
+</div>
+</div>
+<div class="flex items-center justify-between p-4 bg-primary/5 border border-primary/20 rounded-xl">
+<span class="material-symbols-outlined text-base">check</span>
+</div>
+</div>
+</section>
+<!-- Additional Fields -->
+<section class="space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1.5">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Fecha</label>
+<div class="relative">
+<input class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-primary focus:border-primary text-sm" type="date" value="2023-10-27"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Hora (opcional)</label>
+<input class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-primary focus:border-primary text-sm" type="time"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Notas cortas</label>
+<textarea class="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 focus:ring-primary focus:border-primary text-sm resize-none" placeholder="Ej. Sin complicaciones, paciente 30 años..." rows="2"></textarea>
+</div>
+</section>
+</main>
+<!-- Footer Action -->
+<footer class="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/25 flex items-center justify-center gap-2 transition-transform active:scale-[0.98]">
+<span class="material-symbols-outlined">save</span>
+                Guardar actividad
+            </button>
+<p class="text-center text-[10px] text-slate-400 mt-3 dark:text-slate-500 uppercase tracking-widest font-medium">Libro de Residente v2.4</p>
+</footer>
+</div>
+</body></html>

@@ -29,3 +29,4 @@ export { RotationReviewListCard } from "./RotationReviewListCard";
 export { LibroNodeItem } from "./LibroNodeItem";
 export { LibroNodeModal } from "./LibroNodeModal";
 export { LibroEntryModal } from "./LibroEntryModal";
+export { LibroQuickRegisterModal } from "./LibroQuickRegisterModal";

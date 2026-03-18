@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -133,7 +132,6 @@ export default function HomeDashboardScreen({
   onSectionChange,
 }) {
   const insets = useSafeAreaInsets();
-  const [searchInput, setSearchInput] = useState("");
   const [hospitalRatings, setHospitalRatings] = useState({});
   const [mirStats, setMirStats] = useState({ count: 0, lastGrade: null });
   const [lastQuizTop, setLastQuizTop] = useState(null);
@@ -144,8 +142,6 @@ export default function HomeDashboardScreen({
     hospitals,
     specialties,
     filteredHospitals,
-    searchTerm,
-    setSearchTerm,
     loadingHospitals,
   } = useHospitals();
   const { events: agendaEvents, loading: loadingAgendaEvents } = useAgendaEvents(
@@ -387,12 +383,6 @@ export default function HomeDashboardScreen({
     [filteredHospitals]
   );
 
-  const handleSearchSubmit = () => setSearchTerm(searchInput.trim());
-
-  useEffect(() => {
-    setSearchInput(searchTerm);
-  }, [searchTerm]);
-
   return (
     <ScrollView
       style={styles.container}
@@ -469,13 +459,13 @@ export default function HomeDashboardScreen({
             {/* Separador horizontal */}
             <View style={styles.studentStatRowDivider} />
 
-            {/* Fila inferior: top especialidad */}
+            {/* Fila inferior: perfil dominante */}
             <TouchableOpacity
               style={styles.studentStatRowFull}
               onPress={() => onSectionChange?.("specialityQuiz")}
               activeOpacity={0.75}
             >
-              <Text style={styles.studentStatLabel}>Top especialidad</Text>
+              <Text style={styles.studentStatLabel}>Perfil dominante</Text>
               <Text style={styles.studentStatValueMd} numberOfLines={1}>
                 {lastQuizTop ?? "—"}
               </Text>
@@ -635,6 +625,7 @@ export default function HomeDashboardScreen({
                 <Ionicons name="heart" size={18} color={PRIMARY} />
               </View>
               <View style={styles.roomiesTextWrap}>
+                <Text style={styles.roomiesBrandTitle}>RoomiesMIR</Text>
                 <Text style={styles.roomiesTitle}>Nuevo: matching de convivencia</Text>
                 <Text style={styles.roomiesText}>
                   Crea tu perfil roomie, responde el quiz y swipea futuros compis de piso.
@@ -660,6 +651,7 @@ export default function HomeDashboardScreen({
               <Ionicons name="heart" size={18} color={PRIMARY} />
             </View>
             <View style={styles.roomiesTextWrap}>
+              <Text style={styles.roomiesBrandTitle}>RoomiesMIR</Text>
               <Text style={styles.roomiesTitle}>Nuevo: matching de convivencia</Text>
               <Text style={styles.roomiesText}>
                 Crea tu perfil roomie, responde el quiz y swipea futuros compis de piso.
@@ -673,47 +665,41 @@ export default function HomeDashboardScreen({
       )}
 
       {userProfile?.is_student && (
-        <>
-          <View style={styles.searchWrap}>
-            <Ionicons name="search" size={20} color="#6B7280" style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar hospital o especialidad..."
-              placeholderTextColor="#9CA3AF"
-              value={searchInput}
-              onChangeText={setSearchInput}
-              onSubmitEditing={handleSearchSubmit}
-              returnKeyType="search"
-            />
-          </View>
+        <TouchableOpacity
+          style={styles.specialityQuizBanner}
+          onPress={() => onSectionChange?.("specialityQuiz")}
+          activeOpacity={0.9}
+        >
+          <View style={styles.specialityQuizBannerGlow} />
+          <View style={styles.specialityQuizBannerContent}>
+            <View style={styles.specialityQuizBadge}>
+              <Text style={styles.specialityQuizBadgeText}>NUEVO</Text>
+            </View>
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Hospitales</Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{filteredHospitals.length} RESULTADOS</Text>
+            <View style={styles.specialityQuizTextWrap}>
+              <Text style={styles.specialityQuizTitle}>
+                Analiza la especialidad más relacionada contigo
+              </Text>
+              <Text style={styles.specialityQuizText}>
+                Responde el test de orientación MIR y descubre tu perfil dominante.
+              </Text>
+              <View style={styles.specialityQuizMetaRow}>
+                <Ionicons name="sparkles-outline" size={15} color="#0F766E" />
+                <Text style={styles.specialityQuizMetaText}>
+                  Perfil dominante: {lastQuizTop ?? "pendiente"}
+                </Text>
               </View>
             </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filtersRow}
-            >
-              <TouchableOpacity style={styles.filterChip}>
-                <Ionicons name="options" size={14} color={ACCENT} />
-                <Text style={styles.filterChipText}>Ordenar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.filterChip}>
-                <Ionicons name="location" size={14} color={ACCENT} />
-                <Text style={styles.filterChipText}>Provincia</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.filterChip}>
-                <Ionicons name="medkit" size={14} color={ACCENT} />
-                <Text style={styles.filterChipText}>Especialidad</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
 
+            <View style={styles.specialityQuizArrow}>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            </View>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {userProfile?.is_student && (
+        <>
           <View style={styles.section}>
             <View style={styles.sectionTitleRow}>
               <View style={styles.sectionBarGreen} />
@@ -1388,8 +1374,15 @@ const styles = StyleSheet.create({
   roomiesTextWrap: {
     flex: 1,
   },
+  roomiesBrandTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: PRIMARY,
+    marginBottom: 2,
+    letterSpacing: 0.2,
+  },
   roomiesTitle: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "800",
     color: ACCENT,
     marginBottom: 4,
@@ -1407,31 +1400,77 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: PRIMARY,
   },
-  searchWrap: {
+  specialityQuizBanner: {
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: 24,
+    backgroundColor: "#ECFEFF",
+    padding: 18,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "rgba(13,148,136,0.14)",
+  },
+  specialityQuizBannerGlow: {
+    position: "absolute",
+    top: -40,
+    right: -20,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: "rgba(45,212,191,0.16)",
+  },
+  specialityQuizBannerContent: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF",
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingLeft: 44,
-    paddingRight: 16,
-    marginBottom: 24,
-    position: "relative",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    gap: 14,
   },
-  searchIcon: {
-    position: "absolute",
-    left: 16,
+  specialityQuizBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "#0F766E",
+    marginBottom: 10,
   },
-  searchInput: {
+  specialityQuizBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+  },
+  specialityQuizTextWrap: {
     flex: 1,
-    fontSize: 14,
-    color: ACCENT,
-    padding: 0,
+  },
+  specialityQuizTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#134E4A",
+    lineHeight: 24,
+    marginBottom: 6,
+  },
+  specialityQuizText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "rgba(19,78,74,0.84)",
+  },
+  specialityQuizMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+  },
+  specialityQuizMetaText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0F766E",
+  },
+  specialityQuizArrow: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0F766E",
   },
   section: {
     marginBottom: 24,
@@ -1457,38 +1496,6 @@ const styles = StyleSheet.create({
     color: "rgba(27,9,119,0.5)",
     marginTop: 2,
     textTransform: "uppercase",
-  },
-  badge: {
-    backgroundColor: "rgba(27,9,119,0.08)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "rgba(27,9,119,0.5)",
-  },
-  filtersRow: {
-    flexDirection: "row",
-    gap: 8,
-    paddingBottom: 8,
-  },
-  filterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#FFF",
-    borderWidth: 1,
-    borderColor: "rgba(27,9,119,0.1)",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  filterChipText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: ACCENT,
   },
   sectionTitleRow: {
     flexDirection: "row",

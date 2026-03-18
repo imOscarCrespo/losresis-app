@@ -49,7 +49,7 @@ export default function RoommateScreen({
   initialMatchId = null,
 }) {
   const insets = useSafeAreaInsets();
-  const { hospitals, specialties, uniqueCities } = useHospitals();
+  const { uniqueCities } = useHospitals();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [questions, setQuestions] = useState([]);
   const [myBundle, setMyBundle] = useState(null);
@@ -609,9 +609,6 @@ export default function RoommateScreen({
         visible={filtersVisible}
         onClose={() => setFiltersVisible(false)}
         initialFilters={savedFilters}
-        cityOptions={hospitalCityOptions}
-        hospitals={hospitals}
-        specialities={specialties}
         onSave={handleSaveFilters}
       />
 

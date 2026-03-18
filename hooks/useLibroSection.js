@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   getAllLibroData,
   createNode,
+  createLibroStructure,
+  getLibroUserSettings,
+  upsertLibroUserSettings,
   updateNode,
   deleteNode,
   createEntry,
@@ -23,7 +26,9 @@ export const useLibroSection = (userId, section) => {
   const [nodes, setNodes] = useState([]);
   const [entries, setEntries] = useState([]);
   const [events, setEvents] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
   const [isAddingNode, setIsAddingNode] = useState(false);
   const [editingNode, setEditingNode] = useState(null);
@@ -196,6 +201,23 @@ export const useLibroSection = (userId, section) => {
 
     return null;
   }, [userId]);
+
+  const fetchSettings = useCallback(async () => {
+    const currentUserId = await getCurrentUserId();
+    if (!currentUserId) return null;
+
+    setSettingsLoading(true);
+    try {
+      const settingsData = await getLibroUserSettings(currentUserId);
+      setSettings(settingsData || null);
+      return settingsData || null;
+    } catch (error) {
+      console.error("Error fetching libro settings:", error);
+      return null;
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, [getCurrentUserId]);
 
   // Funciones CRUD para nodos
   const addNode = useCallback(
@@ -403,17 +425,107 @@ export const useLibroSection = (userId, section) => {
     }
   }, [getCurrentUserId, section, fetchAllData]);
 
+  const createStructure = useCallback(
+    async ({ specialityId = null, categories = [] }) => {
+      const currentUserId = await getCurrentUserId();
+      if (!currentUserId || !section) return false;
+
+      setLoading(true);
+      try {
+        await createLibroStructure({
+          userId: currentUserId,
+          section,
+          specialityId,
+          categories,
+        });
+        await Promise.all([fetchAllData(), fetchSettings()]);
+        return true;
+      } catch (error) {
+        console.error("Error creating libro structure:", error);
+        return false;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fetchAllData, fetchSettings, getCurrentUserId, section]
+  );
+
+  const markOnboardingComplete = useCallback(
+    async ({ specialityId = null, lastUsedNodeId = null, quickActivityIds = [] } = {}) => {
+      const currentUserId = await getCurrentUserId();
+      if (!currentUserId) return false;
+
+      try {
+        const updatedSettings = await upsertLibroUserSettings(currentUserId, {
+          speciality_id: specialityId,
+          onboarding_completed_at: new Date().toISOString(),
+          onboarding_version: 1,
+          last_used_node_id: lastUsedNodeId,
+          quick_activity_ids: quickActivityIds,
+        });
+        setSettings(updatedSettings);
+        return true;
+      } catch (error) {
+        console.error("Error marking onboarding complete:", error);
+        return false;
+      }
+    },
+    [getCurrentUserId]
+  );
+
+  const updateLibroSettings = useCallback(
+    async (partialSettings = {}) => {
+      const currentUserId = await getCurrentUserId();
+      if (!currentUserId) return false;
+
+      try {
+        const updatedSettings = await upsertLibroUserSettings(currentUserId, {
+          speciality_id:
+            partialSettings.speciality_id !== undefined
+              ? partialSettings.speciality_id
+              : settings?.speciality_id || null,
+          onboarding_completed_at:
+            partialSettings.onboarding_completed_at !== undefined
+              ? partialSettings.onboarding_completed_at
+              : settings?.onboarding_completed_at || null,
+          onboarding_version:
+            partialSettings.onboarding_version || settings?.onboarding_version || 1,
+          last_used_node_id:
+            partialSettings.last_used_node_id !== undefined
+              ? partialSettings.last_used_node_id
+              : settings?.last_used_node_id || null,
+          quick_activity_ids:
+            partialSettings.quick_activity_ids !== undefined
+              ? partialSettings.quick_activity_ids
+              : settings?.quick_activity_ids || [],
+        });
+        setSettings(updatedSettings);
+        return true;
+      } catch (error) {
+        console.error("Error updating libro settings:", error);
+        return false;
+      }
+    },
+    [getCurrentUserId, settings]
+  );
+
   // Cargar datos al montar y cuando cambien usuario o sección
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
 
   return {
     nodes,
     nodeTree,
     entries,
     events,
+    settings,
     loading,
+    settingsLoading,
     statistics,
     selectedNode,
     setSelectedNode,
@@ -433,7 +545,11 @@ export const useLibroSection = (userId, section) => {
     getNodeEntries,
     getNodeEvents,
     fetchAllData,
+    fetchSettings,
     createTemplate,
+    createStructure,
+    markOnboardingComplete,
+    updateLibroSettings,
   };
 };
 

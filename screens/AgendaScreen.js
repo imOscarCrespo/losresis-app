@@ -689,6 +689,7 @@ export const AgendaScreen = ({ userProfile }) => {
           <View style={styles.calendarCard}>
             <Calendar
               key={`${visibleMonth.getFullYear()}-${visibleMonth.getMonth()}`}
+              firstDay={1}
               current={formatDateKey(
                 new Date(
                 visibleMonth.getFullYear(),
