@@ -284,6 +284,54 @@ export type Database = {
           },
         ]
       }
+      dashboard_advertisement: {
+        Row: {
+          created_at: string
+          description: string | null
+          ends_at: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          placement_scope: string
+          position: number
+          role_scope: string
+          starts_at: string | null
+          target_section: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          placement_scope?: string
+          position?: number
+          role_scope?: string
+          starts_at?: string | null
+          target_section?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          placement_scope?: string
+          position?: number
+          role_scope?: string
+          starts_at?: string | null
+          target_section?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       dimension_weights: {
         Row: {
           category: string

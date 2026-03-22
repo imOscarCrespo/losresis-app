@@ -1,6 +1,6 @@
 /**
  * Configuración del Footer v2
- * Estudiantes: Inicio, Hospitales, MIR, Vivienda, Perfil
+ * Estudiantes: Inicio, Hospitales, MIR, Chats, Perfil
  * Residentes: Inicio, Agenda, Chats, Reseñas, Perfil
  */
 
@@ -24,10 +24,10 @@ export const STUDENT_FOOTER_ITEMS = [
     screen: "nota-mir",
   },
   {
-    id: "vivienda",
-    icon: "business",
-    label: "Vivienda",
-    screen: "vivienda",
+    id: "grupos",
+    icon: "chatbubbles",
+    label: "Chats",
+    screen: "grupos",
   },
   {
     id: "usuario",

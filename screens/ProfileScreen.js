@@ -53,6 +53,7 @@ import Constants from "expo-constants";
 export default function ProfileScreen({
   onBack,
   onSignOut,
+  onProfileUpdated,
   onSectionChange,
   currentSection,
   isOnboarding = false,
@@ -97,6 +98,10 @@ export default function ProfileScreen({
         validateEmailDomain,
         isOnboarding
       );
+
+      if (result?.success && onProfileUpdated) {
+        await onProfileUpdated();
+      }
 
       if (result?.success && isOnboarding) {
         // En modo onboarding, redirigir inmediatamente
@@ -267,7 +272,10 @@ export default function ProfileScreen({
 
       // Actualizar el estado de la solicitud de revisión y recargar perfil
       await refreshEmailReviewStatus();
-      loadUserProfile();
+      await loadUserProfile();
+      if (onProfileUpdated) {
+        await onProfileUpdated();
+      }
 
       setTimeout(() => {
         setShowEmailReviewSection(false);

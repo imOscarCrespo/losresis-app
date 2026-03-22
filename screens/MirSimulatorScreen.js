@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
+  ImageBackground,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,19 +17,24 @@ import { SelectFilter } from "../components/SelectFilter";
 import { useHospitals } from "../hooks/useHospitals";
 import { calculateMIRProbabilities } from "../services/mirSimulatorService";
 import posthogLogger from "../services/posthogService";
+import { getAdvertisementsByPlacement } from "../services/dashboardAdvertisementService";
 
 const PRIMARY = "#670CF5";
 const INDIGO = "#1B0977";
 const BG_LIGHT = "#F8FAFC";
 
-export default function MirSimulatorScreen({ onBack }) {
+export default function MirSimulatorScreen({ onBack, userProfile }) {
   const insets = useSafeAreaInsets();
   const { specialties, uniqueRegions } = useHospitals();
+  const scrollViewRef = useRef(null);
   const [mirScore, setMirScore] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [resultsCardY, setResultsCardY] = useState(null);
+  const [shouldScrollToResults, setShouldScrollToResults] = useState(false);
+  const [mirAds, setMirAds] = useState([]);
 
   const specialtyOptions = useMemo(() => {
     return (specialties || [])
@@ -54,7 +60,74 @@ export default function MirSimulatorScreen({ onBack }) {
     posthogLogger.logScreen("MirSimulatorScreen");
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadMirAds = async () => {
+      const { success, ads } = await getAdvertisementsByPlacement(
+        userProfile,
+        "mir_results"
+      );
+
+      if (!isMounted) return;
+      setMirAds(success ? ads : []);
+    };
+
+    loadMirAds();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    userProfile?.id,
+    userProfile?.is_student,
+    userProfile?.is_resident,
+    userProfile?.is_doctor,
+  ]);
+
+  useEffect(() => {
+    if (!shouldScrollToResults || results.length === 0 || resultsCardY == null) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(resultsCardY - 16, 0),
+        animated: true,
+      });
+      setShouldScrollToResults(false);
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [results.length, resultsCardY, shouldScrollToResults]);
+
   const canCalculate = mirScore && selectedSpecialty && !loading;
+  const interleavedResults = useMemo(() => {
+    if (!results.length) return [];
+
+    const items = [];
+    let adCursor = 0;
+
+    results.forEach((result, index) => {
+      items.push({
+        type: "result",
+        id: `result-${result.hospital.id}`,
+        result,
+      });
+
+      if (mirAds.length > 0 && (index + 1) % 2 === 0) {
+        const ad = mirAds[adCursor % mirAds.length];
+        items.push({
+          type: "ad",
+          id: `ad-${ad.id}-${index}`,
+          ad,
+        });
+        adCursor += 1;
+      }
+    });
+
+    return items;
+  }, [results, mirAds]);
 
   const handleCalculate = async () => {
     if (!canCalculate) return;
@@ -80,6 +153,7 @@ export default function MirSimulatorScreen({ onBack }) {
 
       if (success) {
         setResults(calculatedResults);
+        setShouldScrollToResults(true);
       } else {
         console.error("Error calculating probabilities:", error);
         alert(
@@ -147,7 +221,7 @@ export default function MirSimulatorScreen({ onBack }) {
     return "#FEE2E2";
   };
 
-  const renderResultItem = ({ item }) => {
+  const renderResultCard = (item) => {
     const currentYear = new Date().getFullYear();
     const filteredGrades = item.grades.filter((grade) => {
       const year =
@@ -285,8 +359,41 @@ export default function MirSimulatorScreen({ onBack }) {
     );
   };
 
+  const renderMirAdCard = (ad) => {
+    return (
+      <View style={styles.inlineAdCard}>
+        {ad?.image_url ? (
+          <ImageBackground
+            source={{ uri: ad.image_url }}
+            style={styles.inlineAdImage}
+            imageStyle={styles.inlineAdImageAsset}
+          >
+            <View style={styles.inlineAdBadge}>
+              <Text style={styles.inlineAdBadgeText}>Ad</Text>
+            </View>
+          </ImageBackground>
+        ) : (
+          <View style={[styles.inlineAdImage, styles.inlineAdPlaceholder]}>
+            <View style={styles.inlineAdBadge}>
+              <Text style={styles.inlineAdBadgeText}>Ad</Text>
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderResultsListItem = ({ item }) => {
+    if (item.type === "ad") {
+      return renderMirAdCard(item.ad);
+    }
+
+    return renderResultCard(item.result);
+  };
+
   return (
     <ScrollView
+      ref={scrollViewRef}
       style={styles.container}
       contentContainerStyle={{ paddingBottom: 24 }}
       showsVerticalScrollIndicator={false}
@@ -373,7 +480,12 @@ export default function MirSimulatorScreen({ onBack }) {
 
       {/* Resultados */}
       {results.length > 0 && (
-        <View style={styles.resultsCard}>
+        <View
+          style={styles.resultsCard}
+          onLayout={(event) => {
+            setResultsCardY(event.nativeEvent.layout.y);
+          }}
+        >
           <View style={styles.resultsHeader}>
             <Text style={styles.resultsTitle}>Resultados de probabilidad</Text>
             <Text style={styles.resultsSubtitle}>
@@ -381,9 +493,9 @@ export default function MirSimulatorScreen({ onBack }) {
             </Text>
           </View>
           <FlatList
-            data={results}
-            renderItem={renderResultItem}
-            keyExtractor={(item) => item.hospital.id}
+            data={interleavedResults}
+            renderItem={renderResultsListItem}
+            keyExtractor={(item) => item.id}
             scrollEnabled={false}
             contentContainerStyle={styles.resultsList}
           />
@@ -506,7 +618,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginHorizontal: 24,
     marginTop: 24,
-    overflow: "hidden",
     borderWidth: 1,
     borderColor: "#E2E8F0",
     shadowColor: "#000",
@@ -533,11 +644,54 @@ const styles = StyleSheet.create({
   },
   resultsList: {
     padding: 16,
+    gap: 12,
   },
   resultCard: {
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  inlineAdCard: {
+    borderRadius: 20,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.12)",
+    padding: 12,
+  },
+  inlineAdImage: {
+    minHeight: 132,
+    borderRadius: 20,
+    overflow: "hidden",
+    padding: 16,
+    justifyContent: "flex-end",
+    alignItems: "flex-end",
+  },
+  inlineAdImageAsset: {
+    borderRadius: 20,
+  },
+  inlineAdPlaceholder: {
+    backgroundColor: "#F6F0FF",
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.10)",
+  },
+  inlineAdBadge: {
+    alignSelf: "flex-end",
+    backgroundColor: "rgba(15,23,42,0.72)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  inlineAdBadgeText: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#FFF",
   },
   resultHeader: {
     flexDirection: "row",

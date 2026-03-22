@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Notifications from "expo-notifications";
 import { supabase } from "../../../config/supabase";
@@ -254,7 +253,7 @@ export default function NotificationSettingsScreen({
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.safeArea}>
         <View style={styles.headerShell}>{renderHeader()}</View>
         <View style={styles.contentSurface}>
           <View style={styles.loadingContainer}>
@@ -262,12 +261,12 @@ export default function NotificationSettingsScreen({
             <Text style={styles.loadingText}>Cargando...</Text>
           </View>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <View style={styles.safeArea}>
       <View style={styles.headerShell}>{renderHeader()}</View>
       <View style={styles.contentSurface}>
         <ScrollView
@@ -348,7 +347,7 @@ export default function NotificationSettingsScreen({
           </View>
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

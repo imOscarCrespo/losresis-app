@@ -196,7 +196,7 @@ const buildStepDefinitions = (questions = []) => [
             <Text style={styles.questionLabel}>{questions[0].prompt}</Text>
             <ChoiceRow
               options={SCALE_OPTIONS}
-              value={bundle.answers[questions[0].code] || 3}
+              value={bundle.answers[questions[0].code] ?? null}
               onChange={(value) => {
                 updateLifestyle("cleanliness_level", value);
                 updateAnswer(questions[0].code, value);

@@ -409,6 +409,9 @@ export default function HousingScreen({ onSectionChange }) {
   }, [uniqueCities]);
 
   const hasActiveFilters = !!(city || kind || maxPrice || showMyAds);
+  const adCountLabel = `${totalCount} ${
+    totalCount === 1 ? "anuncio" : "anuncios"
+  }`;
 
   // Display labels for chips
   const kindLabel = kind
@@ -543,23 +546,24 @@ export default function HousingScreen({ onSectionChange }) {
           <Ionicons name="chevron-down" size={16} color={maxPrice ? PRIMARY : ACCENT} />
         </TouchableOpacity>
 
-        {/* Limpiar */}
-        {hasActiveFilters && (
-          <TouchableOpacity style={styles.chipClear} onPress={clearFilters}>
-            <Ionicons name="close-circle" size={16} color={ERROR} />
-            <Text style={styles.chipClearText}>Limpiar</Text>
-          </TouchableOpacity>
-        )}
       </ScrollView>
 
       {/* Section label */}
       <View style={styles.sectionRow}>
         <Text style={styles.sectionLabel}>
-          {hasActiveFilters ? "Resultados" : "Anuncios disponibles"}
+          {hasActiveFilters ? adCountLabel : "Anuncios disponibles"}
         </Text>
-        <Text style={styles.sectionCount}>
-          {totalCount} {totalCount === 1 ? "anuncio" : "anuncios"}
-        </Text>
+        {hasActiveFilters ? (
+          <TouchableOpacity
+            style={styles.sectionAction}
+            onPress={clearFilters}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.sectionActionText}>Reset filters</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.sectionCount}>{adCountLabel}</Text>
+        )}
       </View>
     </View>
   );
@@ -801,6 +805,19 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     letterSpacing: 0.8,
     textTransform: "uppercase",
+  },
+  sectionAction: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: `${PRIMARY}10`,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}20`,
+  },
+  sectionActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: PRIMARY,
   },
 
   // ── Card ──

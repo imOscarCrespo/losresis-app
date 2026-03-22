@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Application from "expo-application";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import DashboardScreen from "./screens/DashboardScreen";
 import ProfileScreen from "./screens/ProfileScreen";
+import { supabase } from "./config/supabase";
 import {
   getSession,
   getCurrentUser,
@@ -43,6 +44,22 @@ export default function App() {
     posthogLogger.initialize();
     trackAppOpenAndSession();
     checkAuth();
+  }, []);
+
+  useEffect(() => {
+    if (AppState.currentState === "active") {
+      supabase.auth.startAutoRefresh();
+    }
+
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        supabase.auth.startAutoRefresh();
+      } else {
+        supabase.auth.stopAutoRefresh();
+      }
+    });
+
+    return () => subscription.remove();
   }, []);
 
   const trackAppOpenAndSession = async () => {

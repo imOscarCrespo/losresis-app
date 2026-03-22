@@ -635,7 +635,12 @@ export default function DashboardScreen({
 
       case "mirSimulator":
       case "nota-mir":
-        return <MirSimulatorScreen onBack={handleBackFromMirSimulator} />;
+        return (
+          <MirSimulatorScreen
+            onBack={handleBackFromMirSimulator}
+            userProfile={userProfile}
+          />
+        );
 
       case "specialityQuiz":
         return (
@@ -651,6 +656,7 @@ export default function DashboardScreen({
           <ProfileScreen
             onBack={handleBackFromProfile}
             onSignOut={onSignOut}
+            onProfileUpdated={loadUserProfile}
             onSectionChange={handleSectionChange}
             currentSection={currentSection}
           />

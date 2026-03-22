@@ -274,7 +274,14 @@ export default function ReviewsScreen({
       .map((s) => ({ id: s.id, name: s.name }));
   }, [specialties]);
 
-  const hasActiveFilters = !!(hospitalSearchTerm || selectedHospital || selectedSpecialty);
+  const hasActiveFilters = !!(
+    hospitalSearchTerm ||
+    selectedHospital ||
+    selectedSpecialty
+  );
+  const reviewCountLabel = `${reviewSummaries.length} ${
+    reviewSummaries.length === 1 ? "reseña" : "reseñas"
+  }`;
 
   const hospitalLabel = selectedHospital
     ? hospitalOptions.find((o) => o.id === selectedHospital)?.name ?? "Hospital"
@@ -381,24 +388,24 @@ export default function ReviewsScreen({
             />
           </TouchableOpacity>
 
-          {/* Limpiar */}
-          {hasActiveFilters && (
-            <TouchableOpacity style={styles.chipClear} onPress={clearFilters}>
-              <Ionicons name="close-circle" size={15} color={ERROR} />
-              <Text style={styles.chipClearText}>Limpiar</Text>
-            </TouchableOpacity>
-          )}
         </ScrollView>
 
         {/* Section label */}
         <View style={styles.sectionRow}>
           <Text style={styles.sectionLabel}>
-            {hasActiveFilters ? "Resultados" : "Reseñas disponibles"}
+            {hasActiveFilters ? reviewCountLabel : "Reseñas disponibles"}
           </Text>
-          <Text style={styles.sectionCount}>
-            {reviewSummaries.length}{" "}
-            {reviewSummaries.length === 1 ? "reseña" : "reseñas"}
-          </Text>
+          {hasActiveFilters ? (
+            <TouchableOpacity
+              style={styles.sectionAction}
+              onPress={clearFilters}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.sectionActionText}>Reset filters</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.sectionCount}>{reviewCountLabel}</Text>
+          )}
         </View>
       </View>
 
@@ -614,6 +621,19 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     letterSpacing: 0.8,
     textTransform: "uppercase",
+  },
+  sectionAction: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: `${PRIMARY}10`,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}20`,
+  },
+  sectionActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: PRIMARY,
   },
 
   // ── Scroll / list ──

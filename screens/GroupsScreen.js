@@ -728,6 +728,9 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
     () => availableCities.map((c) => ({ id: c, name: c })),
     [availableCities]
   );
+  const groupCountLabel = `${displayGroups.length} ${
+    displayGroups.length === 1 ? "grupo" : "grupos"
+  }`;
 
   const ListHeader = (
     <View style={styles.listHeader}>
@@ -794,33 +797,33 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
             icon="business-outline"
             onPress={() => setOpenModal("city")}
           />
-          {hasFilters && (
-            <TouchableOpacity
-              style={styles.chipClear}
-              onPress={() => {
-                setCityFilter(null);
-              }}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="close-circle" size={14} color={ERROR} />
-              <Text style={styles.chipClearText}>Limpiar</Text>
-            </TouchableOpacity>
-          )}
         </ScrollView>
       )}
 
       {/* Contador */}
       <View style={styles.sectionRow}>
         <Text style={styles.sectionLabel}>
-          {showMyGroups
+          {hasFilters
+            ? groupCountLabel
+            : showMyGroups
             ? "Mis grupos"
             : showResidentScopeNote || showStudentScopeNote
             ? "Grupos para ti"
             : "Grupos disponibles"}
         </Text>
-        <Text style={styles.sectionCount}>
-          {displayGroups.length} {displayGroups.length === 1 ? "grupo" : "grupos"}
-        </Text>
+        {hasFilters ? (
+          <TouchableOpacity
+            style={styles.sectionAction}
+            onPress={() => {
+              setCityFilter(null);
+            }}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.sectionActionText}>Reset filters</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.sectionCount}>{groupCountLabel}</Text>
+        )}
       </View>
     </View>
   );
@@ -1072,6 +1075,19 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     letterSpacing: 0.8,
     textTransform: "uppercase",
+  },
+  sectionAction: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: PRIMARY + "10",
+    borderWidth: 1,
+    borderColor: PRIMARY + "20",
+  },
+  sectionActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: PRIMARY,
   },
 
   // Card

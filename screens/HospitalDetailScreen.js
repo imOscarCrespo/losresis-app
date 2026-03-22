@@ -233,7 +233,7 @@ export default function HospitalDetailScreen({
               activeOpacity={0.8}
             >
               <Text style={[styles.moreInfoBtnText, isExpanded && styles.moreInfoBtnTextActive]}>
-                {isExpanded ? "Menos info" : "Más info"}
+                {isExpanded ? "Ver menos" : "Ver más"}
               </Text>
               <Ionicons
                 name={isExpanded ? "chevron-up" : "chevron-down"}

@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  ImageBackground,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,6 +18,10 @@ import { getCourses } from "../services/lectureService";
 import { getHospitalRatings } from "../services/reviewsService";
 import { getMirSimulatorStats } from "../services/mirSimulatorService";
 import { getLastQuizSessionForUser } from "../services/specialityQuizService";
+import {
+  getDashboardAdvertisements,
+  getDashboardAudience,
+} from "../services/dashboardAdvertisementService";
 
 const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
@@ -27,13 +33,6 @@ function getGreeting() {
   if (h < 12) return "BUENOS DÍAS";
   if (h < 20) return "BUENAS TARDES";
   return "BUENAS NOCHES";
-}
-
-function getGreetingSentence() {
-  const h = new Date().getHours();
-  if (h < 12) return "Buenos días";
-  if (h < 20) return "Buenas tardes";
-  return "Buenas noches";
 }
 
 function getCurrentWeekdayIndex() {
@@ -132,11 +131,15 @@ export default function HomeDashboardScreen({
   onSectionChange,
 }) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [hospitalRatings, setHospitalRatings] = useState({});
   const [mirStats, setMirStats] = useState({ count: 0, lastGrade: null });
   const [lastQuizTop, setLastQuizTop] = useState(null);
   const [residentCourses, setResidentCourses] = useState([]);
   const [loadingResidentCourses, setLoadingResidentCourses] = useState(false);
+  const [dashboardAds, setDashboardAds] = useState([]);
+  const [loadingDashboardAds, setLoadingDashboardAds] = useState(false);
+  const [activeAdIndex, setActiveAdIndex] = useState(0);
 
   const {
     hospitals,
@@ -207,14 +210,42 @@ export default function HomeDashboardScreen({
     };
   }, [userProfile?.is_resident, userProfile?.speciality_id]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDashboardAds = async () => {
+      setLoadingDashboardAds(true);
+
+      const { success, ads } = await getDashboardAdvertisements(userProfile);
+      if (!isMounted) return;
+
+      setDashboardAds(success ? ads : []);
+      setActiveAdIndex(0);
+      setLoadingDashboardAds(false);
+    };
+
+    loadDashboardAds();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    userProfile?.id,
+    userProfile?.is_student,
+    userProfile?.is_resident,
+    userProfile?.is_doctor,
+  ]);
+
   const displayName = useMemo(() => {
     const name = userProfile?.name || "";
     const surname = userProfile?.surname || "";
     return [name, surname].filter(Boolean).join(" ").trim() || "Usuario";
   }, [userProfile]);
 
-  const firstName = userProfile?.name || displayName.split(" ")[0] || "Usuario";
-  const lastName = userProfile?.surname || displayName.split(" ").slice(1).join(" ") || "";
+  const firstName = useMemo(() => {
+    const sourceName = (userProfile?.name || displayName).trim();
+    return sourceName.split(/\s+/)[0] || "Usuario";
+  }, [displayName, userProfile?.name]);
   const residentHospital = useMemo(
     () => hospitals.find((hospital) => hospital.id === userProfile?.hospital_id),
     [hospitals, userProfile?.hospital_id]
@@ -382,6 +413,58 @@ export default function HomeDashboardScreen({
     () => filteredHospitals.slice(3, 7),
     [filteredHospitals]
   );
+  const carouselCardWidth = Math.max(width - 32, 280);
+  const carouselHasAds = dashboardAds.length > 0;
+  const carouselItems = dashboardAds;
+
+  const handleAdScrollEnd = (event) => {
+    const nextIndex = Math.round(
+      event.nativeEvent.contentOffset.x / carouselCardWidth
+    );
+    setActiveAdIndex(nextIndex);
+  };
+
+  const handleAdPress = (ad) => {
+    if (!ad?.target_section) return;
+    onSectionChange?.(ad.target_section);
+  };
+
+  const renderAdvertisementCard = (ad) => {
+    const actionable = Boolean(ad?.target_section);
+    const cardStyle = [styles.adCard, { width: carouselCardWidth }];
+    const cardProps = actionable
+      ? {
+          activeOpacity: 0.9,
+          onPress: () => handleAdPress(ad),
+        }
+      : {};
+
+    const imageContent = ad?.image_url ? (
+      <ImageBackground
+        source={{ uri: ad.image_url }}
+        style={styles.adImage}
+        imageStyle={styles.adImageAsset}
+      >
+        <View style={styles.adPill}>
+          <Text style={styles.adPillText}>Ad</Text>
+        </View>
+      </ImageBackground>
+    ) : (
+      <View style={[styles.adImage, styles.adImagePlaceholder]}>
+        <View style={styles.adPlaceholderGlowPrimary} />
+        <View style={styles.adPlaceholderGlowSecondary} />
+        <View style={styles.adPill}>
+          <Text style={styles.adPillText}>Ad</Text>
+        </View>
+      </View>
+    );
+
+    return (
+      <TouchableOpacity key={ad.id} style={cardStyle} {...cardProps}>
+        {imageContent}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <ScrollView
@@ -393,31 +476,22 @@ export default function HomeDashboardScreen({
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
         <View style={styles.headerBlur} />
         <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.greeting}>
-              {userProfile?.is_resident ? residentMeta : getGreeting()}
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.greeting}>{getGreeting()}</Text>
+            <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">
+              {firstName}
             </Text>
-            {userProfile?.is_resident ? (
-              <Text style={styles.userName}>
-                {getGreetingSentence()}, {firstName}
-              </Text>
-            ) : (
-              <Text style={styles.userName}>
-                {firstName}
-                {lastName ? (
-                  <Text style={styles.userNameSecondary}> {lastName}</Text>
-                ) : null}
-              </Text>
-            )}
-            <Text style={styles.headerSubtitle}>
+            <Text style={styles.headerSubtitle} numberOfLines={1} ellipsizeMode="tail">
               {userProfile?.is_resident
-                ? residentHospital?.name || "Tu hospital"
+                ? [residentMeta, residentHospital?.name || "Tu hospital"]
+                    .filter(Boolean)
+                    .join(" · ")
                 : "Tu próxima residencia te espera"}
             </Text>
           </View>
           <TouchableOpacity
             style={styles.notifButton}
-            onPress={() => {}}
+            onPress={() => onSectionChange?.("notifications")}
           >
             <Ionicons name="notifications-outline" size={24} color="#FFF" />
           </TouchableOpacity>
@@ -511,35 +585,68 @@ export default function HomeDashboardScreen({
 
       {/* Quick actions para estudiantes */}
       {userProfile?.is_student && (
-        <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={styles.quickActionBtn}
-            onPress={() => onSectionChange?.("grupos")}
-          >
-            <View style={[styles.quickActionIcon, { backgroundColor: "#6D28D920" }]}>
-              <Ionicons name="people" size={22} color="#6D28D9" />
+        <>
+          <View style={styles.quickActions}>
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => onSectionChange?.("vivienda")}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: "#E2E8F0" }]}>
+                <Ionicons name="business-outline" size={22} color="#475569" />
+              </View>
+              <Text style={styles.quickActionLabel}>Vivienda</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => onSectionChange?.("reseñas")}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: `${SECONDARY}20` }]}>
+                <Ionicons name="star-outline" size={22} color={SECONDARY} />
+              </View>
+              <Text style={styles.quickActionLabel}>Reseñas</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => onSectionChange?.("myPreferences")}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: `${ACCENT}20` }]}>
+                <Ionicons name="heart-outline" size={22} color={ACCENT} />
+              </View>
+              <Text style={styles.quickActionLabel}>Preferencias</Text>
+            </TouchableOpacity>
+          </View>
+
+          {!loadingDashboardAds && carouselHasAds && (
+            <View style={styles.section}>
+              <ScrollView
+                horizontal
+                pagingEnabled
+                decelerationRate="fast"
+                snapToInterval={carouselCardWidth}
+                snapToAlignment="start"
+                disableIntervalMomentum={carouselItems.length <= 1}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.adCarouselRow}
+                onMomentumScrollEnd={handleAdScrollEnd}
+              >
+                {carouselItems.map(renderAdvertisementCard)}
+              </ScrollView>
+              <View style={styles.adFooterRow}>
+                <View style={styles.adPagination}>
+                  {carouselItems.map((item, index) => (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.adPaginationDot,
+                        index === activeAdIndex && styles.adPaginationDotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
             </View>
-            <Text style={styles.quickActionLabel}>Grupos</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickActionBtn}
-            onPress={() => onSectionChange?.("reseñas")}
-          >
-            <View style={[styles.quickActionIcon, { backgroundColor: `${SECONDARY}20` }]}>
-              <Ionicons name="star-outline" size={22} color={SECONDARY} />
-            </View>
-            <Text style={styles.quickActionLabel}>Reseñas</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickActionBtn}
-            onPress={() => onSectionChange?.("myPreferences")}
-          >
-            <View style={[styles.quickActionIcon, { backgroundColor: `${ACCENT}20` }]}>
-              <Ionicons name="heart-outline" size={22} color={ACCENT} />
-            </View>
-            <Text style={styles.quickActionLabel}>Preferencias</Text>
-          </TouchableOpacity>
-        </View>
+          )}
+        </>
       )}
 
       {/* Quick actions para residentes */}
@@ -614,6 +721,37 @@ export default function HomeDashboardScreen({
               ))}
             </View>
           </View>
+
+          {!loadingDashboardAds && carouselHasAds && (
+            <View style={styles.section}>
+              <ScrollView
+                horizontal
+                pagingEnabled
+                decelerationRate="fast"
+                snapToInterval={carouselCardWidth}
+                snapToAlignment="start"
+                disableIntervalMomentum={carouselItems.length <= 1}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.adCarouselRow}
+                onMomentumScrollEnd={handleAdScrollEnd}
+              >
+                {carouselItems.map(renderAdvertisementCard)}
+              </ScrollView>
+              <View style={styles.adFooterRow}>
+                <View style={styles.adPagination}>
+                  {carouselItems.map((item, index) => (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.adPaginationDot,
+                        index === activeAdIndex && styles.adPaginationDotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
+            </View>
+          )}
 
           <TouchableOpacity
             style={styles.roomiesBanner}
@@ -886,45 +1024,6 @@ export default function HomeDashboardScreen({
         </View>
       )}
 
-      {userProfile?.is_resident && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Novedades para vosotros</Text>
-          <TouchableOpacity
-            style={styles.promoCard}
-            onPress={() => onSectionChange?.("cursos")}
-            activeOpacity={0.88}
-          >
-            <View style={styles.promoImage}>
-              <View style={styles.promoBadge}>
-                <Text style={styles.promoBadgeText}>PROMOCIÓN</Text>
-              </View>
-            </View>
-            <View style={styles.promoBody}>
-              <Text style={styles.promoTitle}>Máster en Ginecología Oncológica</Text>
-              <Text style={styles.promoDescription}>
-                Inscripciones abiertas para la nueva convocatoria 2026. Especialízate con
-                los mejores profesionales.
-              </Text>
-              <View style={styles.promoFooter}>
-                <View style={styles.promoMetaRow}>
-                  <View style={styles.promoMetaItem}>
-                    <Ionicons name="thumbs-up-outline" size={16} color="#6B7280" />
-                    <Text style={styles.promoMetaText}>850</Text>
-                  </View>
-                  <View style={styles.promoMetaItem}>
-                    <Ionicons name="chatbubble-outline" size={16} color="#6B7280" />
-                    <Text style={styles.promoMetaText}>12</Text>
-                  </View>
-                </View>
-                <View style={styles.promoSave}>
-                  <Ionicons name="bookmark-outline" size={16} color={PRIMARY} />
-                  <Text style={styles.promoSaveText}>Guardar</Text>
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-      )}
     </ScrollView>
   );
 }
@@ -964,6 +1063,11 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 24,
   },
+  headerTextContainer: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 12,
+  },
   greeting: {
     fontSize: 11,
     fontWeight: "800",
@@ -975,10 +1079,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "800",
     color: "#FFF",
-  },
-  userNameSecondary: {
-    color: SECONDARY,
-    fontStyle: "italic",
   },
   headerSubtitle: {
     fontSize: 14,
@@ -1118,11 +1218,13 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
+    justifyContent: "space-between",
     marginBottom: 24,
   },
   quickActionBtn: {
-    flex: 1,
+    width: "31%",
     backgroundColor: "#FFF",
     borderRadius: 16,
     padding: 16,
@@ -1518,6 +1620,78 @@ const styles = StyleSheet.create({
     backgroundColor: PRIMARY,
     borderRadius: 2,
   },
+  adCarouselRow: {
+    paddingBottom: 10,
+  },
+  adCard: {
+    borderRadius: 24,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.10)",
+    backgroundColor: "#FFFFFF",
+  },
+  adImage: {
+    height: 132,
+    justifyContent: "flex-end",
+    alignItems: "flex-end",
+    padding: 16,
+  },
+  adImageAsset: {
+    borderRadius: 24,
+  },
+  adImagePlaceholder: {
+    backgroundColor: "#F6F0FF",
+  },
+  adPlaceholderGlowPrimary: {
+    position: "absolute",
+    top: -22,
+    right: -12,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(103,12,245,0.14)",
+  },
+  adPlaceholderGlowSecondary: {
+    position: "absolute",
+    bottom: -30,
+    left: -10,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: "rgba(0,189,124,0.12)",
+  },
+  adPill: {
+    alignSelf: "flex-end",
+    backgroundColor: "rgba(15,23,42,0.72)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  adPillText: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#FFF",
+  },
+  adFooterRow: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 4,
+  },
+  adPagination: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  adPaginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#D1D5DB",
+  },
+  adPaginationDotActive: {
+    width: 20,
+    backgroundColor: PRIMARY,
+  },
   horizontalCards: {
     flexDirection: "row",
     gap: 16,
@@ -1779,86 +1953,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: SECONDARY,
   },
-  promoCard: {
-    marginTop: 12,
-    backgroundColor: "#FFF",
-    borderRadius: 24,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(27,9,119,0.06)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  promoImage: {
-    height: 128,
-    backgroundColor: "#D9CCFF",
-    justifyContent: "flex-start",
-    padding: 16,
-  },
-  promoBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: PRIMARY,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  promoBadgeText: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: "#FFF",
-  },
-  promoBody: {
-    padding: 18,
-  },
-  promoTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#1F2937",
-    lineHeight: 24,
-  },
-  promoDescription: {
-    fontSize: 13,
-    color: "#6B7280",
-    lineHeight: 19,
-    marginTop: 8,
-  },
-  promoFooter: {
-    marginTop: 16,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: "#EEF2F7",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  promoMetaRow: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  promoMetaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  promoMetaText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#6B7280",
-  },
-  promoSave: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  promoSaveText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: PRIMARY,
-  },
-
   // Student activity analytics card
   studentPrepCard: {
     backgroundColor: "rgba(27,9,119,0.4)",

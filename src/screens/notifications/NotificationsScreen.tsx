@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
   fetchNotifications,
@@ -164,19 +163,19 @@ export default function NotificationsScreen({
 
   if (loading && notifications.length === 0) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.safeArea}>
         <View style={styles.headerShell}>{renderHeader()}</View>
         <View style={styles.contentSurface}>
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#670CF5" />
           </View>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <View style={styles.safeArea}>
       <View style={styles.headerShell}>{renderHeader()}</View>
       <View style={styles.contentSurface}>
         <FlatList
@@ -200,7 +199,7 @@ export default function NotificationsScreen({
           }
         />
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

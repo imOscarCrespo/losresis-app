@@ -237,6 +237,9 @@ export default function HospitalsScreen({
     selectedCity ||
     selectedSpecialty
   );
+  const hospitalCountLabel = `${filteredHospitals.length} ${
+    filteredHospitals.length === 1 ? "hospital" : "hospitales"
+  }`;
 
   const handleHospitalItemPress = (hospital) => {
     onHospitalSelect?.(hospital, selectedSpecialty);
@@ -387,12 +390,6 @@ export default function HospitalsScreen({
           />
         </TouchableOpacity>
 
-        {hasActiveFilters && (
-          <TouchableOpacity style={styles.chipClear} onPress={clearFilters}>
-            <Ionicons name="close-circle" size={16} color="#EF4444" />
-            <Text style={styles.chipClearText}>Limpiar</Text>
-          </TouchableOpacity>
-        )}
       </ScrollView>
 
       {/* Hospital list */}
@@ -413,12 +410,19 @@ export default function HospitalsScreen({
           ListHeaderComponent={
             <View style={styles.sectionRow}>
               <Text style={styles.sectionLabel}>
-                {hasActiveFilters ? "Resultados" : "Hospitales destacados"}
+                {hasActiveFilters ? hospitalCountLabel : "Hospitales destacados"}
               </Text>
-              <Text style={styles.sectionCount}>
-                {filteredHospitals.length}{" "}
-                {filteredHospitals.length === 1 ? "hospital" : "hospitales"}
-              </Text>
+              {hasActiveFilters ? (
+                <TouchableOpacity
+                  style={styles.sectionAction}
+                  onPress={clearFilters}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.sectionActionText}>Reset filters</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.sectionCount}>{hospitalCountLabel}</Text>
+              )}
             </View>
           }
           ListEmptyComponent={
@@ -602,6 +606,19 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     letterSpacing: 0.8,
     textTransform: "uppercase",
+  },
+  sectionAction: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: `${PRIMARY}10`,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}20`,
+  },
+  sectionActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: PRIMARY,
   },
 
   /* Hospital card */

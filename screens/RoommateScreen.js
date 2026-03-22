@@ -207,9 +207,24 @@ export default function RoommateScreen({
     const age = bundleToValidate?.profile?.age;
     const budgetMin = bundleToValidate?.profile?.budget_min_eur;
     const budgetMax = bundleToValidate?.profile?.budget_max_eur;
+    const homePlan = bundleToValidate?.profile?.home_plan;
+    const lookingFor = bundleToValidate?.profile?.looking_for;
+    const preferredGender = bundleToValidate?.search?.preferred_gender;
 
     if (!city) {
       return "Selecciona una ciudad para tu perfil.";
+    }
+
+    if (!homePlan) {
+      return "Selecciona tu plan de piso.";
+    }
+
+    if (!lookingFor) {
+      return "Selecciona qué estás buscando.";
+    }
+
+    if (!preferredGender) {
+      return "Selecciona una preferencia de género.";
     }
 
     if (age && Number.isNaN(Number(age))) {

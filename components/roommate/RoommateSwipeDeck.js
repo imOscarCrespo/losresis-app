@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { memo, useEffect, useRef } from "react";
 import {
   Animated,
   Image,
-  PanResponder,
   Pressable,
   StyleSheet,
   Text,
@@ -19,7 +18,105 @@ import {
   getRoommateTags,
 } from "../../utils/roommateUtils";
 
-const SWIPE_THRESHOLD = 110;
+const SWIPE_OUT_DISTANCE = 420;
+const SWIPE_OUT_Y = -30;
+
+const CandidateCard = memo(function CandidateCard({
+  candidate,
+  onOpenProfile,
+  onOpenFilters,
+}) {
+  const displayName = getRoommateDisplayName(candidate.profile);
+  const budgetLabel = getBudgetLabel(candidate.profile);
+  const tags = getRoommateTags(candidate.profile, candidate.lifestyle);
+
+  return (
+    <View style={styles.card}>
+      <Pressable style={styles.cardPressable} onPress={() => onOpenProfile?.(candidate)}>
+        <View style={styles.heroGradient}>
+          <View style={styles.avatarBubble}>
+            {getRoommateAvatarUrl(candidate.profile.avatar_url) ? (
+              <Image
+                source={{ uri: getRoommateAvatarUrl(candidate.profile.avatar_url) }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <Text style={styles.avatarText}>{getRoommateInitials(candidate.profile)}</Text>
+            )}
+          </View>
+          <View style={styles.compatibilityPill}>
+            <View style={styles.compatibilityDot} />
+            <Text style={styles.compatibilityText}>
+              {candidate.compatibility}% compatibilidad
+            </Text>
+          </View>
+          <View style={styles.cardFooter}>
+            <Text style={styles.cardName}>{displayName}</Text>
+            <Text style={styles.cardMeta}>
+              {candidate.profile.speciality?.name ||
+                candidate.profile.occupation_label ||
+                "Perfil verificado"}
+            </Text>
+            <Text style={styles.cardMeta}>
+              {candidate.profile.hospital?.name || candidate.profile.city}
+            </Text>
+            <View style={styles.tagsRow}>
+              {tags.map((tag) => (
+                <View key={tag} style={styles.tag}>
+                  <Text style={styles.tagText}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.cardBody}>
+          <View style={styles.bodyGrid}>
+            <View style={styles.infoCard}>
+              <Ionicons name="wallet-outline" size={18} color={ROOMMATE_THEME.PRIMARY} />
+              <Text style={styles.infoLabel}>Presupuesto</Text>
+              <Text style={styles.infoValue}>{budgetLabel}</Text>
+            </View>
+            <View style={styles.infoCard}>
+              <Ionicons
+                name="calendar-outline"
+                size={18}
+                color={ROOMMATE_THEME.SECONDARY}
+              />
+              <Text style={styles.infoLabel}>Entrada</Text>
+              <Text style={styles.infoValue}>
+                {candidate.profile.move_in_date || "Flexible"}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.quote}>
+            {candidate.profile.bio ||
+              candidate.profile.ideal_roommate ||
+              "Busca una convivencia fácil, responsable y con buen rollo."}
+          </Text>
+
+          <View style={styles.detailRow}>
+            <TouchableOpacity
+              style={styles.detailButton}
+              onPress={() => onOpenProfile?.(candidate)}
+            >
+              <Text style={styles.detailButtonText}>Ver perfil completo</Text>
+              <Ionicons
+                name="arrow-forward-outline"
+                size={16}
+                color={ROOMMATE_THEME.ACCENT}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.filterIcon} onPress={onOpenFilters}>
+              <Ionicons name="options-outline" size={18} color={ROOMMATE_THEME.ACCENT} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Pressable>
+    </View>
+  );
+});
 
 export function RoommateSwipeDeck({
   candidates = [],
@@ -28,85 +125,35 @@ export function RoommateSwipeDeck({
   onOpenProfile,
 }) {
   const position = useRef(new Animated.ValueXY()).current;
+  const swipeLockedRef = useRef(false);
   const activeCandidate = candidates[0];
   const nextCandidate = candidates[1];
 
   useEffect(() => {
+    swipeLockedRef.current = false;
     position.setValue({ x: 0, y: 0 });
   }, [activeCandidate?.profile?.user_id, position]);
 
   const animateToDecision = (decision) => {
+    if (!activeCandidate || swipeLockedRef.current) {
+      return;
+    }
+
+    swipeLockedRef.current = true;
     const toValue =
-      decision === "like" ? { x: 420, y: -30 } : { x: -420, y: -30 };
+      decision === "like"
+        ? { x: SWIPE_OUT_DISTANCE, y: SWIPE_OUT_Y }
+        : { x: -SWIPE_OUT_DISTANCE, y: SWIPE_OUT_Y };
 
     Animated.timing(position, {
       toValue,
-      duration: 220,
-      useNativeDriver: false,
+      duration: 180,
+      useNativeDriver: true,
     }).start(() => {
       onSwipe?.(decision);
       position.setValue({ x: 0, y: 0 });
     });
   };
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
-          Math.abs(gesture.dx) > 8 || Math.abs(gesture.dy) > 8,
-        onPanResponderMove: Animated.event(
-          [null, { dx: position.x, dy: position.y }],
-          { useNativeDriver: false }
-        ),
-        onPanResponderRelease: (_, gesture) => {
-          if (gesture.dx > SWIPE_THRESHOLD) {
-            animateToDecision("like");
-            return;
-          }
-
-          if (gesture.dx < -SWIPE_THRESHOLD) {
-            animateToDecision("pass");
-            return;
-          }
-
-          Animated.spring(position, {
-            toValue: { x: 0, y: 0 },
-            useNativeDriver: false,
-            friction: 7,
-          }).start();
-        },
-      }),
-    [position]
-  );
-
-  const rotate = position.x.interpolate({
-    inputRange: [-220, 0, 220],
-    outputRange: ["-10deg", "0deg", "10deg"],
-  });
-
-  const likeOpacity = position.x.interpolate({
-    inputRange: [0, 120],
-    outputRange: [0, 1],
-    extrapolate: "clamp",
-  });
-
-  const passOpacity = position.x.interpolate({
-    inputRange: [-120, 0],
-    outputRange: [1, 0],
-    extrapolate: "clamp",
-  });
-
-  const nextScale = position.x.interpolate({
-    inputRange: [-200, 0, 200],
-    outputRange: [0.96, 0.92, 0.96],
-    extrapolate: "clamp",
-  });
-
-  const nextTranslate = position.x.interpolate({
-    inputRange: [-200, 0, 200],
-    outputRange: [0, 12, 0],
-    extrapolate: "clamp",
-  });
 
   if (!activeCandidate) {
     return (
@@ -127,97 +174,6 @@ export function RoommateSwipeDeck({
     );
   }
 
-  const renderCandidateCard = (candidate, animatedStyle) => {
-    const displayName = getRoommateDisplayName(candidate.profile);
-    const budgetLabel = getBudgetLabel(candidate.profile);
-    const tags = getRoommateTags(candidate.profile, candidate.lifestyle);
-
-    return (
-      <Animated.View style={[styles.card, animatedStyle]}>
-        <Pressable style={styles.cardPressable} onPress={() => onOpenProfile?.(candidate)}>
-          <View style={styles.heroGradient}>
-            <View style={styles.avatarBubble}>
-              {getRoommateAvatarUrl(candidate.profile.avatar_url) ? (
-                <Image
-                  source={{ uri: getRoommateAvatarUrl(candidate.profile.avatar_url) }}
-                  style={styles.avatarImage}
-                />
-              ) : (
-                <Text style={styles.avatarText}>
-                  {getRoommateInitials(candidate.profile)}
-                </Text>
-              )}
-            </View>
-            <View style={styles.compatibilityPill}>
-              <View style={styles.compatibilityDot} />
-              <Text style={styles.compatibilityText}>
-                {candidate.compatibility}% compatibilidad
-              </Text>
-            </View>
-            <View style={styles.cardFooter}>
-              <Text style={styles.cardName}>{displayName}</Text>
-              <Text style={styles.cardMeta}>
-                {candidate.profile.speciality?.name ||
-                  candidate.profile.occupation_label ||
-                  "Perfil verificado"}
-              </Text>
-              <Text style={styles.cardMeta}>
-                {candidate.profile.hospital?.name || candidate.profile.city}
-              </Text>
-              <View style={styles.tagsRow}>
-                {tags.map((tag) => (
-                  <View key={tag} style={styles.tag}>
-                    <Text style={styles.tagText}>{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.cardBody}>
-            <View style={styles.bodyGrid}>
-              <View style={styles.infoCard}>
-                <Ionicons name="wallet-outline" size={18} color={ROOMMATE_THEME.PRIMARY} />
-                <Text style={styles.infoLabel}>Presupuesto</Text>
-                <Text style={styles.infoValue}>{budgetLabel}</Text>
-              </View>
-              <View style={styles.infoCard}>
-                <Ionicons name="calendar-outline" size={18} color={ROOMMATE_THEME.SECONDARY} />
-                <Text style={styles.infoLabel}>Entrada</Text>
-                <Text style={styles.infoValue}>
-                  {candidate.profile.move_in_date || "Flexible"}
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.quote}>
-              {candidate.profile.bio ||
-                candidate.profile.ideal_roommate ||
-                "Busca una convivencia fácil, responsable y con buen rollo."}
-            </Text>
-
-            <View style={styles.detailRow}>
-              <TouchableOpacity
-                style={styles.detailButton}
-                onPress={() => onOpenProfile?.(candidate)}
-              >
-                <Text style={styles.detailButtonText}>Ver perfil completo</Text>
-                <Ionicons
-                  name="arrow-forward-outline"
-                  size={16}
-                  color={ROOMMATE_THEME.ACCENT}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.filterIcon} onPress={onOpenFilters}>
-                <Ionicons name="options-outline" size={18} color={ROOMMATE_THEME.ACCENT} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Pressable>
-      </Animated.View>
-    );
-  };
-
   return (
     <View style={styles.deckWrap}>
       <View style={styles.deckArea}>
@@ -227,7 +183,7 @@ export function RoommateSwipeDeck({
               styles.card,
               styles.nextCard,
               {
-                transform: [{ scale: nextScale }, { translateY: nextTranslate }],
+                transform: [{ scale: 0.92 }, { translateY: 12 }],
               },
             ]}
           >
@@ -240,25 +196,21 @@ export function RoommateSwipeDeck({
         ) : null}
 
         <Animated.View
-          {...panResponder.panHandlers}
           style={[
             styles.swipeCard,
             {
               transform: [
                 { translateX: position.x },
                 { translateY: position.y },
-                { rotate },
               ],
             },
           ]}
         >
-          {renderCandidateCard(activeCandidate)}
-          <Animated.View style={[styles.overlayBadge, styles.likeBadge, { opacity: likeOpacity }]}>
-            <Text style={styles.overlayBadgeText}>LIKE</Text>
-          </Animated.View>
-          <Animated.View style={[styles.overlayBadge, styles.passBadge, { opacity: passOpacity }]}>
-            <Text style={styles.overlayBadgeText}>PASS</Text>
-          </Animated.View>
+          <CandidateCard
+            candidate={activeCandidate}
+            onOpenFilters={onOpenFilters}
+            onOpenProfile={onOpenProfile}
+          />
         </Animated.View>
       </View>
 
@@ -469,30 +421,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#F6F1FF",
     alignItems: "center",
     justifyContent: "center",
-  },
-  overlayBadge: {
-    position: "absolute",
-    top: 36,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderWidth: 3,
-    borderRadius: 16,
-    transform: [{ rotate: "-12deg" }],
-  },
-  overlayBadgeText: {
-    fontSize: 26,
-    fontWeight: "900",
-    letterSpacing: 1.2,
-  },
-  likeBadge: {
-    right: 28,
-    borderColor: ROOMMATE_THEME.SECONDARY,
-    backgroundColor: "rgba(0,189,124,0.12)",
-  },
-  passBadge: {
-    left: 28,
-    borderColor: ROOMMATE_THEME.DANGER,
-    backgroundColor: "rgba(244,63,94,0.12)",
   },
   actionsRow: {
     flexDirection: "row",

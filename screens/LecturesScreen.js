@@ -450,6 +450,9 @@ export const LecturesScreen = ({ userProfile, navigation }) => {
   );
 
   const isInitialLoading = loading && courses.length === 0;
+  const courseCountLabel = `${filteredCourses.length} ${
+    filteredCourses.length === 1 ? "curso" : "cursos"
+  }`;
 
   return (
     <View style={styles.container}>
@@ -553,12 +556,6 @@ export const LecturesScreen = ({ userProfile, navigation }) => {
           />
         </TouchableOpacity>
 
-        {hasActiveFilters ? (
-          <TouchableOpacity style={styles.chipClear} onPress={handleClearFilters}>
-            <Ionicons name="close-circle" size={16} color={DANGER} />
-            <Text style={styles.chipClearText}>Limpiar</Text>
-          </TouchableOpacity>
-        ) : null}
       </ScrollView>
 
       {isInitialLoading ? (
@@ -599,11 +596,19 @@ export const LecturesScreen = ({ userProfile, navigation }) => {
 
               <View style={styles.sectionRow}>
                 <Text style={styles.sectionLabel}>
-                  {hasActiveFilters ? "Resultados" : "Próximos cursos"}
+                  {hasActiveFilters ? courseCountLabel : "Próximos cursos"}
                 </Text>
-                <Text style={styles.sectionCount}>
-                  {filteredCourses.length} visibles
-                </Text>
+                {hasActiveFilters ? (
+                  <TouchableOpacity
+                    style={styles.sectionAction}
+                    onPress={handleClearFilters}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.sectionActionText}>Reset filters</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.sectionCount}>{courseCountLabel}</Text>
+                )}
               </View>
             </>
           }
@@ -852,6 +857,19 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     letterSpacing: 0.8,
     textTransform: "uppercase",
+  },
+  sectionAction: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: `${PRIMARY}10`,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}20`,
+  },
+  sectionActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: PRIMARY,
   },
   card: {
     backgroundColor: "#FFFFFF",
