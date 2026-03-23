@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
 import {
@@ -204,6 +203,50 @@ const buildQuizResults = (questions, allAnswers) => {
     rawScores,
     summary,
   };
+};
+
+const buildSpecialityResults = (results) => {
+  const profiles = PROFILE_ORDER.map((value) => {
+    const definition = PROFILE_DEFINITIONS[value];
+    const weightedScore = results?.rawScores?.weighted_scores?.[value] || 0;
+    const totalWeightedPoints = results?.rawScores?.summary?.total_weighted_points || 0;
+    const matchPercent = totalWeightedPoints
+      ? Math.round((weightedScore / totalWeightedPoints) * 100)
+      : 0;
+
+    return {
+      ...definition,
+      value,
+      weighted_score: Number(weightedScore.toFixed(2)),
+      match_percent: matchPercent,
+    };
+  }).sort((a, b) => b.weighted_score - a.weighted_score);
+
+  const specialities = profiles.flatMap((profile) => {
+    const related = Array.isArray(profile.relatedSpecialities)
+      ? profile.relatedSpecialities
+      : [];
+    const perSpecialityScore = related.length
+      ? profile.weighted_score / related.length
+      : 0;
+
+    return related.map((name) => ({
+      name,
+      profileName: profile.name,
+      score: perSpecialityScore,
+      tone: profile.tone,
+    }));
+  });
+
+  const totalScore = specialities.reduce((sum, item) => sum + item.score, 0);
+
+  return specialities
+    .map((item) => ({
+      ...item,
+      probability: totalScore ? Math.round((item.score / totalScore) * 100) : 0,
+    }))
+    .sort((a, b) => b.probability - a.probability)
+    .slice(0, 8);
 };
 
 const getDimensionLabel = (dimension) => {
@@ -413,7 +456,7 @@ export default function SpecialityQuizScreen({ userProfile }) {
   };
 
   const renderWelcome = () => (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <View style={styles.safeArea}>
       <View style={styles.headerShell}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Test de orientación MIR</Text>
@@ -433,11 +476,11 @@ export default function SpecialityQuizScreen({ userProfile }) {
             <View style={styles.heroCard}>
               <Text style={styles.heroEyebrow}>Orientación de especialidad</Text>
               <Text style={styles.heroTitle}>
-                Descubre qué perfil MIR encaja más contigo
+                Descubre las especialidades MIR más afines para ti
               </Text>
               <Text style={styles.heroText}>
-                Responde 28 preguntas y te mostraremos tu perfil dominante, tu
-                perfil secundario y las especialidades más afines.
+                Responde 28 preguntas y te mostraremos un ranking de
+                especialidades afines con su porcentaje según tus respuestas.
               </Text>
 
               <View style={styles.progressHeader}>
@@ -447,12 +490,12 @@ export default function SpecialityQuizScreen({ userProfile }) {
 
               <View style={styles.stepBadgeRow}>
                 <View style={styles.stepBadge}>
-                  <Ionicons name="analytics-outline" size={14} color={PRIMARY} />
-                  <Text style={styles.stepBadgeText}>Perfiles A/B/C/D</Text>
+                  <Ionicons name="medkit-outline" size={14} color={PRIMARY} />
+                  <Text style={styles.stepBadgeText}>Ranking de especialidades</Text>
                 </View>
                 <View style={styles.stepBadge}>
-                  <Ionicons name="git-compare-outline" size={14} color={PRIMARY} />
-                  <Text style={styles.stepBadgeText}>Perfil dominante</Text>
+                  <Ionicons name="stats-chart-outline" size={14} color={PRIMARY} />
+                  <Text style={styles.stepBadgeText}>Porcentaje de afinidad</Text>
                 </View>
               </View>
 
@@ -484,15 +527,15 @@ export default function SpecialityQuizScreen({ userProfile }) {
               <View style={styles.featureList}>
                 <View style={styles.featureRow}>
                   <Ionicons name="checkmark-circle-outline" size={18} color={PRIMARY} />
-                  <Text style={styles.featureText}>Perfil dominante y perfil secundario.</Text>
+                  <Text style={styles.featureText}>Especialidades ordenadas de mayor a menor afinidad.</Text>
                 </View>
                 <View style={styles.featureRow}>
                   <Ionicons name="checkmark-circle-outline" size={18} color={PRIMARY} />
-                  <Text style={styles.featureText}>Índice de definición para ver si tu perfil es mixto o claro.</Text>
+                  <Text style={styles.featureText}>Un porcentaje orientativo para cada especialidad destacada.</Text>
                 </View>
                 <View style={styles.featureRow}>
                   <Ionicons name="checkmark-circle-outline" size={18} color={PRIMARY} />
-                  <Text style={styles.featureText}>Especialidades afines según tu resultado.</Text>
+                  <Text style={styles.featureText}>Una lectura resumida del patrón de respuestas que explica el resultado.</Text>
                 </View>
               </View>
             </View>
@@ -550,7 +593,7 @@ export default function SpecialityQuizScreen({ userProfile }) {
           </View>
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 
   const renderQuestionOptions = (question) => {
@@ -617,7 +660,7 @@ export default function SpecialityQuizScreen({ userProfile }) {
     const isLast = currentIndex === totalQuestions - 1;
 
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.safeArea}>
         <View style={styles.headerShell}>
           <View style={styles.header}>
             <TouchableOpacity
@@ -650,7 +693,7 @@ export default function SpecialityQuizScreen({ userProfile }) {
                 <Text style={styles.heroTitle}>Pregunta {currentIndex + 1}</Text>
                 <Text style={styles.heroText}>
                   {isLast
-                    ? "Última pregunta. Al responderla calcularemos tu perfil dominante."
+                    ? "Última pregunta. Al responderla calcularemos tus especialidades más afines."
                     : "Selecciona la opción que mejor refleje tu preferencia."}
                 </Text>
 
@@ -673,73 +716,60 @@ export default function SpecialityQuizScreen({ userProfile }) {
             </View>
           </ScrollView>
         </View>
-      </SafeAreaView>
+      </View>
     );
   };
 
-  const renderProfileCard = (item, index) => {
-    const tone = item.tone || PROFILE_DEFINITIONS[item.value]?.tone;
-    const relatedSpecialities = Array.isArray(item.relatedSpecialities)
-      ? item.relatedSpecialities
-      : [];
+  const renderSpecialityCard = (item, index) => {
+    const tone = item.tone;
 
     return (
       <View
-        key={item.speciality_key || item.name || index}
-        style={[styles.resultCard, { backgroundColor: tone?.background || "#FFF" }]}
+        key={`${item.name}-${index}`}
+        style={[styles.specialityCard, { borderColor: tone?.badge || "#E8EAF3" }]}
       >
-        <View style={styles.resultTopRow}>
+        <View style={styles.specialityCardTopRow}>
           <View
             style={[
-              styles.rankCircle,
+              styles.specialityRankBadge,
               { backgroundColor: tone?.badge || COLORS.PRIMARY },
             ]}
           >
-            <Text style={styles.rankText}>{item.profile_letter || index + 1}</Text>
+            <Text style={styles.specialityRankText}>#{index + 1}</Text>
           </View>
-          <View
-            style={[
-              styles.categoryBadge,
-              { backgroundColor: tone?.badge || COLORS.PRIMARY },
-            ]}
-          >
-            <Text style={styles.categoryBadgeText}>
-              {index === 0 ? "Dominante" : index === 1 ? "Secundario" : "Complementario"}
-            </Text>
-          </View>
+          <Text style={styles.specialityProbability}>{item.probability}%</Text>
         </View>
 
-        <Text style={[styles.resultName, { color: tone?.accent || "#111827" }]}>
-          {item.name}
-        </Text>
+        <Text style={styles.specialityName}>{item.name}</Text>
+        <Text style={styles.specialityMeta}>Afinidad orientativa según tus respuestas</Text>
 
-        <View style={styles.matchRow}>
-          <Text style={styles.matchLabel}>Peso acumulado</Text>
-          <Text style={styles.matchValue}>{item.match_percent || 0}%</Text>
-        </View>
         <View style={styles.matchBarBackground}>
           <View
             style={[
               styles.matchBarFill,
               {
-                width: `${item.match_percent || 0}%`,
+                width: `${item.probability}%`,
                 backgroundColor: tone?.badge || COLORS.PRIMARY,
               },
             ]}
           />
         </View>
 
-        {!!item.shortDescription && (
-          <Text style={styles.resultIntro}>{item.shortDescription}</Text>
-        )}
-        {!!item.description && (
-          <Text style={styles.resultDescription}>{item.description}</Text>
-        )}
-        {relatedSpecialities.length > 0 && (
-          <Text style={styles.relatedSpecialities}>
-            Especialidades afines: {relatedSpecialities.join(", ")}.
+        <View
+          style={[
+            styles.specialityProfilePill,
+            { backgroundColor: tone?.background || "#F8FAFC" },
+          ]}
+        >
+          <Text
+            style={[
+              styles.specialityProfilePillText,
+              { color: tone?.accent || INDIGO },
+            ]}
+          >
+            Más alineada con el perfil {item.profileName}
           </Text>
-        )}
+        </View>
       </View>
     );
   };
@@ -747,9 +777,10 @@ export default function SpecialityQuizScreen({ userProfile }) {
   const renderResults = () => {
     const top = results?.topResults || [];
     const summary = results?.summary || results?.rawScores?.summary || null;
+    const specialities = buildSpecialityResults(results);
 
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.safeArea}>
         <View style={styles.headerShell}>
           <View style={styles.header}>
             <TouchableOpacity
@@ -759,7 +790,7 @@ export default function SpecialityQuizScreen({ userProfile }) {
             >
               <Ionicons name="arrow-back" size={20} color={INDIGO} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Tu perfil MIR</Text>
+            <Text style={styles.headerTitle}>Tus especialidades MIR</Text>
             <View style={styles.headerIcon}>
               <Ionicons name="analytics-outline" size={18} color={PRIMARY} />
             </View>
@@ -773,42 +804,54 @@ export default function SpecialityQuizScreen({ userProfile }) {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.contentInner}>
-              {summary?.dominant_profile && (
+              {specialities.length > 0 && (
                 <View style={styles.heroCard}>
-                  <Text style={styles.heroEyebrow}>Resultado principal</Text>
-                  <Text style={styles.heroTitle}>
-                    Perfil dominante: {summary.dominant_profile.name}
+                  <Text style={styles.heroEyebrow}>Resultado del test</Text>
+                  <Text style={styles.heroTitle}>Especialidades más afines para ti</Text>
+                  <Text style={styles.heroText}>
+                    Este ranking resume qué especialidades encajan mejor con tus
+                    respuestas. El porcentaje indica afinidad orientativa dentro de
+                    este test.
                   </Text>
-                  {summary?.secondary_profile && (
-                    <Text style={styles.heroText}>
-                      Perfil secundario: {summary.secondary_profile.name}
-                    </Text>
+                  {specialities[0] && (
+                    <View style={styles.topRecommendationCard}>
+                      <Text style={styles.topRecommendationLabel}>Mejor encaje</Text>
+                      <View style={styles.topRecommendationRow}>
+                        <Text style={styles.topRecommendationName}>
+                          {specialities[0].name}
+                        </Text>
+                        <Text style={styles.topRecommendationProbability}>
+                          {specialities[0].probability}%
+                        </Text>
+                      </View>
+                    </View>
                   )}
-                  <View style={styles.summaryMetaRow}>
-                    <View style={styles.summaryPill}>
-                      <Text style={styles.summaryPillText}>
-                        Índice {summary?.definition_index ?? 0}
-                      </Text>
-                    </View>
-                    <View style={styles.summaryPill}>
-                      <Text style={styles.summaryPillText}>
-                        {summary?.definition_label || "Sin definir"}
-                      </Text>
-                    </View>
-                  </View>
                 </View>
               )}
 
-              {top.length > 0 && (
+              {specialities.length > 0 && (
                 <View style={styles.sectionTitleRow}>
                   <View style={styles.sectionBar} />
-                  <Text style={styles.sectionTitle}>Perfiles relacionados</Text>
+                  <Text style={styles.sectionTitle}>Ranking de especialidades</Text>
                 </View>
               )}
 
-              {top.map((item, index) => renderProfileCard(item, index))}
+              {specialities.map((item, index) => renderSpecialityCard(item, index))}
 
-              {!top.length && (
+              {!!summary?.dominant_profile && top.length > 0 && (
+                <View style={styles.card}>
+                  <Text style={styles.secondarySectionTitle}>Lectura del resultado</Text>
+                  <Text style={styles.secondarySectionText}>
+                    Tu patrón de respuestas se acerca más al perfil{" "}
+                    {summary.dominant_profile.name}
+                    {summary?.secondary_profile
+                      ? `, con influencia secundaria de ${summary.secondary_profile.name}.`
+                      : "."}
+                  </Text>
+                </View>
+              )}
+
+              {!specialities.length && (
                 <View style={styles.card}>
                   <Text style={styles.infoText}>
                     No hemos podido calcular resultados. Repite el test.
@@ -818,7 +861,7 @@ export default function SpecialityQuizScreen({ userProfile }) {
             </View>
           </ScrollView>
         </View>
-      </SafeAreaView>
+      </View>
     );
   };
 
@@ -840,42 +883,41 @@ export default function SpecialityQuizScreen({ userProfile }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF",
   },
   container: {
     flex: 1,
     backgroundColor: "#F8FAFC",
   },
   headerShell: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 10,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF",
   },
   header: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: "#E8EAF3",
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
     gap: 10,
   },
   headerIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F5F3FF",
+    backgroundColor: "rgba(103,12,245,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.12)",
   },
   headerTitle: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 17,
+    fontWeight: "700",
     color: INDIGO,
+    letterSpacing: -0.2,
   },
   headerCounter: {
     paddingHorizontal: 10,
@@ -894,10 +936,11 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "rgba(103,12,245,0.10)",
   },
   contentSurface: {
     flex: 1,
+    backgroundColor: "#F8FAFC",
   },
   content: {
     flex: 1,
@@ -907,7 +950,7 @@ const styles = StyleSheet.create({
   },
   contentInner: {
     paddingHorizontal: 16,
-    paddingTop: 6,
+    paddingTop: 14,
     gap: 16,
   },
   heroCard: {
@@ -1143,79 +1186,101 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: "#6B7280",
   },
-  summaryMetaRow: {
-    marginTop: 12,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  summaryPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
+  topRecommendationCard: {
+    marginTop: 18,
+    padding: 16,
+    borderRadius: 18,
     backgroundColor: "#F5F3FF",
+    borderWidth: 1,
+    borderColor: "#E9D5FF",
   },
-  summaryPillText: {
+  topRecommendationLabel: {
     fontSize: 12,
     fontWeight: "800",
     color: PRIMARY,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 8,
   },
-  resultCard: {
+  topRecommendationRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
+  topRecommendationName: {
+    flex: 1,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "800",
+    color: INDIGO,
+  },
+  topRecommendationProbability: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: PRIMARY,
+  },
+  specialityCard: {
+    backgroundColor: "#FFFFFF",
     borderRadius: 22,
     padding: 20,
-    borderWidth: 1,
-    borderColor: "#E8EAF3",
+    borderWidth: 1.5,
   },
-  resultTopRow: {
+  specialityCardTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 14,
   },
-  rankCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rankText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  categoryBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  specialityRankBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 999,
   },
-  categoryBadgeText: {
+  specialityRankText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
-    textTransform: "uppercase",
   },
-  resultName: {
+  specialityProbability: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: "#111827",
+  },
+  specialityName: {
     fontSize: 24,
     lineHeight: 30,
     fontWeight: "800",
-    marginBottom: 14,
+    color: INDIGO,
+    marginBottom: 6,
   },
-  matchRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  specialityMeta: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#64748B",
+    marginBottom: 12,
+  },
+  specialityProfilePill: {
+    marginTop: 14,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  specialityProfilePillText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  secondarySectionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: INDIGO,
     marginBottom: 8,
   },
-  matchLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#6B7280",
-  },
-  matchValue: {
+  secondarySectionText: {
     fontSize: 15,
-    fontWeight: "800",
-    color: "#111827",
+    lineHeight: 23,
+    color: "#475569",
   },
   matchBarBackground: {
     height: 8,
@@ -1227,25 +1292,6 @@ const styles = StyleSheet.create({
   matchBarFill: {
     height: 8,
     borderRadius: 999,
-  },
-  resultIntro: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#111827",
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  resultDescription: {
-    fontSize: 15,
-    lineHeight: 23,
-    color: "#374151",
-  },
-  relatedSpecialities: {
-    marginTop: 12,
-    fontSize: 14,
-    lineHeight: 22,
-    color: "#374151",
-    fontWeight: "600",
   },
   loadingCenter: {
     flex: 1,

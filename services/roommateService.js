@@ -119,6 +119,7 @@ const parseBundleForSave = (bundle) => {
 
   const search = {
     ...normalized.search,
+    preferred_gender: normalized.search.preferred_gender || "any",
     preferred_city: normalizeText(normalized.search.preferred_city),
     min_age: normalized.search.min_age ? Number(normalized.search.min_age) : null,
     max_age: normalized.search.max_age ? Number(normalized.search.max_age) : null,
@@ -136,6 +137,8 @@ const parseBundleForSave = (bundle) => {
       : null,
     move_in_from: normalizeText(normalized.search.move_in_from),
     move_in_to: normalizeText(normalized.search.move_in_to),
+    preferred_sleep_schedule:
+      normalized.search.preferred_sleep_schedule || "any",
     notes: normalizeText(normalized.search.notes),
   };
 

@@ -776,6 +776,7 @@ export type Database = {
       groups: {
         Row: {
           city: string | null
+          cohort_year: number | null
           created_at: string | null
           description: string | null
           hospital_id: string | null
@@ -788,6 +789,7 @@ export type Database = {
         }
         Insert: {
           city?: string | null
+          cohort_year?: number | null
           created_at?: string | null
           description?: string | null
           hospital_id?: string | null
@@ -800,6 +802,7 @@ export type Database = {
         }
         Update: {
           city?: string | null
+          cohort_year?: number | null
           created_at?: string | null
           description?: string | null
           hospital_id?: string | null

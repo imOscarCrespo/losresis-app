@@ -27,6 +27,57 @@ const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
 const ACCENT = "#1B0977";
 const BG_LIGHT = "#F8F9FE";
+const QUIZ_SPECIALITY_MAP = {
+  1: [
+    "Medicina Interna",
+    "Neurología",
+    "Reumatología",
+    "Nefrología",
+    "Neumología",
+    "Enfermedades Infecciosas",
+  ],
+  2: [
+    "Cirugía General",
+    "Traumatología",
+    "Neurocirugía",
+    "Cirugía Cardiovascular",
+    "Urología",
+    "Cardiología Intervencionista",
+  ],
+  3: [
+    "Medicina de Familia",
+    "Pediatría",
+    "Geriatría",
+    "Psiquiatría",
+    "Cuidados Paliativos",
+    "Oncología Médica",
+  ],
+  4: [
+    "Medicina Preventiva",
+    "Salud Pública",
+    "Farmacología Clínica",
+    "Genética",
+    "Medicina Nuclear",
+  ],
+};
+
+function getTopQuizSpeciality(session) {
+  const weightedScores = session?.raw_scores?.weighted_scores;
+  if (!weightedScores) return null;
+
+  const rankedProfiles = Object.entries(weightedScores)
+    .map(([key, score]) => ({
+      key: Number(key),
+      score: Number(score) || 0,
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const topProfile = rankedProfiles[0];
+  if (!topProfile) return null;
+
+  const topSpecialities = QUIZ_SPECIALITY_MAP[topProfile.key] || [];
+  return topSpecialities[0] || null;
+}
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -134,7 +185,7 @@ export default function HomeDashboardScreen({
   const { width } = useWindowDimensions();
   const [hospitalRatings, setHospitalRatings] = useState({});
   const [mirStats, setMirStats] = useState({ count: 0, lastGrade: null });
-  const [lastQuizTop, setLastQuizTop] = useState(null);
+  const [lastQuizTopSpeciality, setLastQuizTopSpeciality] = useState(null);
   const [residentCourses, setResidentCourses] = useState([]);
   const [loadingResidentCourses, setLoadingResidentCourses] = useState(false);
   const [dashboardAds, setDashboardAds] = useState([]);
@@ -163,8 +214,8 @@ export default function HomeDashboardScreen({
       if (res.success) setMirStats({ count: res.count, lastGrade: res.lastGrade });
     });
     getLastQuizSessionForUser(userProfile.id).then(({ success, data }) => {
-      if (success && data?.top_results?.length) {
-        setLastQuizTop(data.top_results[0].name);
+      if (success) {
+        setLastQuizTopSpeciality(getTopQuizSpeciality(data));
       }
     });
   }, [userProfile?.id]);
@@ -533,15 +584,15 @@ export default function HomeDashboardScreen({
             {/* Separador horizontal */}
             <View style={styles.studentStatRowDivider} />
 
-            {/* Fila inferior: perfil dominante */}
+            {/* Fila inferior: resultado del test de especialidad */}
             <TouchableOpacity
               style={styles.studentStatRowFull}
               onPress={() => onSectionChange?.("specialityQuiz")}
               activeOpacity={0.75}
             >
-              <Text style={styles.studentStatLabel}>Perfil dominante</Text>
+              <Text style={styles.studentStatLabel}>Especialidad más afín</Text>
               <Text style={styles.studentStatValueMd} numberOfLines={1}>
-                {lastQuizTop ?? "—"}
+                {lastQuizTopSpeciality ?? "—"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -811,20 +862,20 @@ export default function HomeDashboardScreen({
           <View style={styles.specialityQuizBannerGlow} />
           <View style={styles.specialityQuizBannerContent}>
             <View style={styles.specialityQuizBadge}>
-              <Text style={styles.specialityQuizBadgeText}>NUEVO</Text>
+              <Text style={styles.specialityQuizBadgeText}>TEST MIR</Text>
             </View>
 
             <View style={styles.specialityQuizTextWrap}>
               <Text style={styles.specialityQuizTitle}>
-                Analiza la especialidad más relacionada contigo
+                Descubre tus especialidades MIR más afines
               </Text>
               <Text style={styles.specialityQuizText}>
-                Responde el test de orientación MIR y descubre tu perfil dominante.
+                Haz el test y obtén un ranking de especialidades con porcentaje de afinidad.
               </Text>
               <View style={styles.specialityQuizMetaRow}>
                 <Ionicons name="sparkles-outline" size={15} color="#0F766E" />
                 <Text style={styles.specialityQuizMetaText}>
-                  Perfil dominante: {lastQuizTop ?? "pendiente"}
+                  Especialidad top: {lastQuizTopSpeciality ?? "pendiente"}
                 </Text>
               </View>
             </View>
@@ -1451,7 +1502,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: "#F4EEFF",
     padding: 18,
-    marginBottom: 24,
+    marginBottom: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1508,7 +1559,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: "#ECFEFF",
     padding: 18,
-    marginBottom: 24,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: "rgba(13,148,136,0.14)",
   },

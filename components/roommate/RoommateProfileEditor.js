@@ -102,19 +102,17 @@ const buildStepDefinitions = (questions = []) => [
     render: ({
       bundle,
       updateProfile,
-      updateLifestyle,
-      updateAnswer,
       cityLabel,
       onOpenCityModal,
       onPickAvatar,
     }) => (
       <>
-        <View style={styles.avatarField}>
-          <TouchableOpacity
-            style={styles.avatarPickerButton}
-            onPress={onPickAvatar}
-            activeOpacity={0.85}
-          >
+        <TouchableOpacity
+          style={styles.avatarField}
+          onPress={onPickAvatar}
+          activeOpacity={0.9}
+        >
+          <View style={styles.avatarPickerButton}>
             {bundle.profile.avatar_asset?.uri || bundle.profile.avatar_url ? (
               <Image
                 source={{
@@ -129,7 +127,7 @@ const buildStepDefinitions = (questions = []) => [
                 <Ionicons name="camera-outline" size={24} color={ROOMMATE_THEME.PRIMARY} />
               </View>
             )}
-          </TouchableOpacity>
+          </View>
           <View style={styles.avatarFieldBody}>
             <Text style={styles.avatarFieldTitle}>Foto de perfil</Text>
             <Text style={styles.avatarFieldText}>
@@ -143,7 +141,7 @@ const buildStepDefinitions = (questions = []) => [
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </TouchableOpacity>
         <TextInput
           style={styles.input}
           placeholder="Titular breve. Ej: R2 tranquila buscando piso"
@@ -191,19 +189,6 @@ const buildStepDefinitions = (questions = []) => [
           value={bundle.profile.home_plan}
           onChange={(value) => updateProfile("home_plan", value)}
         />
-        {questions[0] ? (
-          <>
-            <Text style={styles.questionLabel}>{questions[0].prompt}</Text>
-            <ChoiceRow
-              options={SCALE_OPTIONS}
-              value={bundle.answers[questions[0].code] ?? null}
-              onChange={(value) => {
-                updateLifestyle("cleanliness_level", value);
-                updateAnswer(questions[0].code, value);
-              }}
-            />
-          </>
-        ) : null}
       </>
     ),
   },
@@ -212,6 +197,17 @@ const buildStepDefinitions = (questions = []) => [
     subtitle: "Buscamos afinidad real, no solo una bio bonita.",
     render: ({ bundle, updateLifestyle, updateAnswer, questions }) => (
       <>
+        <Text style={styles.questionLabel}>
+          {questions[0]?.prompt || "¿Qué nivel de orden necesitas en casa?"}
+        </Text>
+        <ChoiceRow
+          options={SCALE_OPTIONS}
+          value={bundle.answers[questions[0]?.code] ?? null}
+          onChange={(value) => {
+            updateLifestyle("cleanliness_level", value);
+            updateAnswer(questions[0]?.code, value);
+          }}
+        />
         <Text style={styles.fieldTitle}>Tu ritmo</Text>
         <ChoiceRow
           options={ROOMMATE_OPTION_SETS.sleepSchedule}
@@ -300,17 +296,13 @@ const buildStepDefinitions = (questions = []) => [
     subtitle: "Ahora definimos el matching que quieres ver en swipe.",
     render: ({ bundle, updateProfile, updateSearch, updateAnswer, questions }) => (
       <>
-        <ChoiceRow
-          options={ROOMMATE_OPTION_SETS.lookingFor}
-          value={bundle.profile.looking_for}
-          onChange={(value) => updateProfile("looking_for", value)}
-        />
         <Text style={styles.fieldTitle}>Fin de semana ideal</Text>
         <ChoiceRow
           options={questions[4]?.options || []}
           value={bundle.answers[questions[4]?.code]}
           onChange={(value) => updateAnswer(questions[4]?.code, value)}
         />
+        <Text style={styles.fieldTitle}>Presupuesto</Text>
         <View style={styles.doubleRow}>
           <TextInput
             style={[styles.input, styles.flexOne]}
@@ -348,7 +340,7 @@ const buildStepDefinitions = (questions = []) => [
   },
   {
     title: "Activa tu perfil",
-    subtitle: "Un último paso para salir a swipear y aparecer en matches.",
+    subtitle: "Un último paso para dejar tu perfil listo.",
     render: ({ bundle, updateProfile, updateAnswer, questions }) => (
       <>
         <TextInput
@@ -386,19 +378,6 @@ const buildStepDefinitions = (questions = []) => [
             value={Boolean(bundle.profile.is_visible)}
             onValueChange={(value) => updateProfile("is_visible", value)}
             trackColor={{ true: ROOMMATE_THEME.PRIMARY }}
-          />
-        </View>
-        <View style={styles.switchCard}>
-          <View style={styles.switchBody}>
-            <Text style={styles.switchTitle}>Estoy buscando activamente</Text>
-            <Text style={styles.switchText}>
-              Esto controla si apareces o no en la cola de descubrimiento.
-            </Text>
-          </View>
-          <Switch
-            value={Boolean(bundle.profile.is_active)}
-            onValueChange={(value) => updateProfile("is_active", value)}
-            trackColor={{ true: ROOMMATE_THEME.SECONDARY }}
           />
         </View>
       </>

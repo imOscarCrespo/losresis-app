@@ -6,7 +6,6 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
-  TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -27,13 +26,11 @@ export type NotificationDataPayload = {
 
 type NotificationsScreenProps = {
   userId: string | undefined;
-  onBack: () => void;
   onNavigateToEntity: (entityType: string, entityId: string | { groupId: string; groupName?: string }) => void;
 };
 
 export default function NotificationsScreen({
   userId,
-  onBack,
   onNavigateToEntity,
 }: NotificationsScreenProps) {
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
@@ -133,23 +130,11 @@ export default function NotificationsScreen({
     []
   );
 
-  const renderHeader = useCallback(
-    () => (
-      <View style={styles.backHeader}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn} hitSlop={12}>
-          <Ionicons name="chevron-back" size={22} color="#1B0977" />
-          <Text style={styles.backBtnText}>Atrás</Text>
-        </TouchableOpacity>
-      </View>
-    ),
-    [onBack]
-  );
-
   const renderListHeader = useCallback(
     () => (
       <View style={styles.scrollContent}>
         <View style={styles.titleRow}>
-          <Text style={styles.screenTitle}>Notificaciones</Text>
+          <Text style={styles.sectionTitle}>Actividad reciente</Text>
           <View style={styles.countBadge}>
             <Text style={styles.countText}>
               {unreadCount} {unreadCount === 1 ? "nueva" : "nuevas"}
@@ -164,7 +149,14 @@ export default function NotificationsScreen({
   if (loading && notifications.length === 0) {
     return (
       <View style={styles.safeArea}>
-        <View style={styles.headerShell}>{renderHeader()}</View>
+        <View style={styles.headerShell}>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Notificaciones</Text>
+            <View style={styles.headerIcon}>
+              <Ionicons name="notifications-outline" size={18} color="#670CF5" />
+            </View>
+          </View>
+        </View>
         <View style={styles.contentSurface}>
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#670CF5" />
@@ -176,7 +168,14 @@ export default function NotificationsScreen({
 
   return (
     <View style={styles.safeArea}>
-      <View style={styles.headerShell}>{renderHeader()}</View>
+      <View style={styles.headerShell}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Notificaciones</Text>
+          <View style={styles.headerIcon}>
+            <Ionicons name="notifications-outline" size={18} color="#670CF5" />
+          </View>
+        </View>
+      </View>
       <View style={styles.contentSurface}>
         <FlatList
           data={notifications}
@@ -211,30 +210,36 @@ const styles = StyleSheet.create({
   headerShell: {
     backgroundColor: "#FFFFFF",
   },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    gap: 10,
+    backgroundColor: "#FFFFFF",
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1B0977",
+    letterSpacing: -0.2,
+  },
+  headerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(103,12,245,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.12)",
+  },
   contentSurface: {
     flex: 1,
     backgroundColor: "#F8F9FE",
-  },
-  backHeader: {
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E8EAF3",
-  },
-  backBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    alignSelf: "flex-start",
-    borderRadius: 10,
-  },
-  backBtnText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1B0977",
   },
   titleRow: {
     flexDirection: "row",
@@ -246,12 +251,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 14,
   },
-  screenTitle: {
+  sectionTitle: {
     flex: 1,
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: "700",
     color: "#1B0977",
-    letterSpacing: -0.3,
   },
   countBadge: {
     backgroundColor: "rgba(103,12,245,0.07)",

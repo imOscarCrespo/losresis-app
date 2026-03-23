@@ -52,7 +52,7 @@ export const ROOMMATE_FORM_DEFAULTS = {
     party_frequency: null,
   },
   search: {
-    preferred_gender: null,
+    preferred_gender: "any",
     min_age: "",
     max_age: "",
     budget_min_eur: "",
@@ -61,7 +61,7 @@ export const ROOMMATE_FORM_DEFAULTS = {
     preferred_neighborhoods: [],
     move_in_from: "",
     move_in_to: "",
-    preferred_sleep_schedule: null,
+    preferred_sleep_schedule: "any",
     min_cleanliness_level: "",
     min_sociability_level: "",
     accepts_smoking: null,
@@ -76,7 +76,7 @@ export const ROOMMATE_FORM_DEFAULTS = {
     move_in_from: "",
     move_in_to: "",
     min_cleanliness_level: "",
-    preferred_sleep_schedule: null,
+    preferred_sleep_schedule: "any",
     accepts_pets: null,
     accepts_smoking: null,
     only_verified: false,
@@ -87,7 +87,6 @@ export const ROOMMATE_FORM_DEFAULTS = {
 export const ROOMMATE_OPTION_SETS = {
   homePlan: [
     { value: "already_have_flat", label: "Ya tengo piso" },
-    { value: "need_room", label: "Busco habitación" },
     { value: "open_to_team_up", label: "Quiero montar piso" },
   ],
   lookingFor: [

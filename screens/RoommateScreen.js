@@ -311,10 +311,6 @@ export default function RoommateScreen({
         <View>
           <Text style={styles.heroEyebrow}>ROOMIES LOSRESIS</Text>
           <Text style={styles.heroTitle}>Matching de convivencia</Text>
-          <Text style={styles.heroText}>
-            Swipea perfiles compatibles, guarda tus filtros y encuentra roomies
-            con hábitos parecidos a los tuyos.
-          </Text>
         </View>
         <TouchableOpacity
           style={styles.heroIcon}
@@ -322,23 +318,6 @@ export default function RoommateScreen({
         >
           <Ionicons name="options-outline" size={20} color="#FFFFFF" />
         </TouchableOpacity>
-      </View>
-
-      <View style={styles.heroStats}>
-        <View style={styles.heroStatCard}>
-          <Text style={styles.heroStatValue}>{candidates.length}</Text>
-          <Text style={styles.heroStatLabel}>En cola</Text>
-        </View>
-        <View style={styles.heroStatCard}>
-          <Text style={styles.heroStatValue}>{matches.length}</Text>
-          <Text style={styles.heroStatLabel}>Matches</Text>
-        </View>
-        <View style={styles.heroStatCard}>
-          <Text style={styles.heroStatValue}>
-            {hasProfile && myBundle?.profile?.is_visible ? "ON" : "OFF"}
-          </Text>
-          <Text style={styles.heroStatLabel}>Visible</Text>
-        </View>
       </View>
     </View>
   );
@@ -688,13 +667,6 @@ const styles = StyleSheet.create({
     fontSize: 31,
     fontWeight: "900",
   },
-  heroText: {
-    marginTop: 8,
-    color: "rgba(255,255,255,0.88)",
-    fontSize: 15,
-    lineHeight: 22,
-    maxWidth: 280,
-  },
   heroIcon: {
     width: 48,
     height: 48,
@@ -703,29 +675,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 6,
-  },
-  heroStats: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  heroStatCard: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.14)",
-    borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-  },
-  heroStatValue: {
-    color: "#FFFFFF",
-    fontSize: 22,
-    fontWeight: "900",
-  },
-  heroStatLabel: {
-    marginTop: 6,
-    color: "rgba(255,255,255,0.82)",
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
   },
   tabsRow: {
     marginHorizontal: 18,

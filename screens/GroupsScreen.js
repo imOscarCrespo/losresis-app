@@ -56,6 +56,30 @@ const getUserType = (userProfile) => {
 const getResidentDefaultGroupsStorageKey = (userId) =>
   `${DEFAULT_RESIDENT_GROUPS_KEY_PREFIX}${userId}`;
 
+const getResidentCohortYear = (residentYear, now = new Date()) => {
+  const parsedResidentYear = Number(residentYear);
+
+  if (!Number.isInteger(parsedResidentYear) || parsedResidentYear < 1) {
+    return null;
+  }
+
+  return now.getFullYear() - parsedResidentYear;
+};
+
+const getGroupCohortYear = (group) => {
+  const parsedCohortYear = Number(group?.cohort_year);
+
+  if (Number.isInteger(parsedCohortYear)) {
+    return parsedCohortYear;
+  }
+
+  const matchedYear = group?.name?.match(/ - (\d{4})$/);
+  if (!matchedYear) return null;
+
+  const parsedMatchedYear = Number(matchedYear[1]);
+  return Number.isInteger(parsedMatchedYear) ? parsedMatchedYear : null;
+};
+
 const getResidentDefaultMatchFlags = (group, residentContext) => {
   const isGeneralCityGroup = !group.speciality_id && !group.hospital_id;
   const isGeneralHospitalGroup = !group.speciality_id && !!group.hospital_id;
@@ -76,7 +100,9 @@ const getResidentDefaultMatchFlags = (group, residentContext) => {
   const matchesSpeciality =
     isGeneralSpecialityGroup &&
     !!residentContext.specialityId &&
-    group.speciality_id === residentContext.specialityId;
+    residentContext.cohortYear != null &&
+    group.speciality_id === residentContext.specialityId &&
+    getGroupCohortYear(group) === residentContext.cohortYear;
   const matchesHospitalSpeciality =
     isHospitalSpecialityGroup &&
     !!residentContext.hospitalId &&
@@ -394,13 +420,18 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
   const residentCity = userProfile?.city?.trim()?.toLowerCase() || null;
   const residentHospitalId = userProfile?.hospital_id || null;
   const residentSpecialityId = userProfile?.speciality_id || null;
+  const residentCohortYear = useMemo(
+    () => getResidentCohortYear(userProfile?.resident_year),
+    [userProfile?.resident_year]
+  );
   const residentContext = useMemo(
     () => ({
       city: residentCity,
+      cohortYear: residentCohortYear,
       hospitalId: residentHospitalId,
       specialityId: residentSpecialityId,
     }),
-    [residentCity, residentHospitalId, residentSpecialityId]
+    [residentCity, residentCohortYear, residentHospitalId, residentSpecialityId]
   );
   const canExploreAll = isResidentUser || isStudentUser;
   const shouldShowExploreFilters = isExploringAll;
@@ -772,7 +803,8 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
           <Ionicons name="information-circle-outline" size={16} color={PRIMARY} />
           <Text style={styles.scopeBannerText}>
             Mostramos los grupos a los que ya te has unido, los de tu ciudad y
-            los de tu hospital. Usa el botón flotante para buscar más grupos.
+            los de tu hospital, además del grupo de tu especialidad y cohorte.
+            Usa el botón flotante para buscar más grupos.
           </Text>
         </View>
       ) : showStudentScopeNote ? (

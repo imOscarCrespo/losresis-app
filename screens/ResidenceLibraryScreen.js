@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLibroSection } from "../hooks/useLibroSection";
 import { useResidentReviewCheck } from "../hooks/useResidentReviewCheck";
@@ -706,12 +705,12 @@ export default function ResidenceLibraryScreen({
     !draftCategories.length
   ) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.safeArea}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#670CF5" />
           <Text style={styles.loadingText}>Preparando tu libro de residente...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -721,7 +720,7 @@ export default function ResidenceLibraryScreen({
     const colorOptions = getColorTokenOptions();
 
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.safeArea}>
         <View style={styles.headerShell}>
           <View style={styles.header}>
             <Text style={styles.title}>Libro de residente</Text>
@@ -1048,12 +1047,12 @@ export default function ResidenceLibraryScreen({
             </View>
           </ScrollView>
         </View>
-      </SafeAreaView>
+      </View>
     );
   };
 
   const renderDashboard = () => (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <View style={styles.safeArea}>
       <View style={styles.headerShell}>
         <View style={styles.header}>
           <View>
@@ -1240,7 +1239,7 @@ export default function ResidenceLibraryScreen({
         cancelText="Cancelar"
         confirmColor="#EF4444"
       />
-    </SafeAreaView>
+    </View>
   );
 
   return hasCompletedOnboarding ? renderDashboard() : renderOnboarding();
