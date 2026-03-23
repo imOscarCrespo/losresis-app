@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary-dim": "#005a4d",
+              "surface-container-high": "#dfe3e7",
+              "surface-bright": "#f5f7fa",
+              "on-primary-fixed": "#000000",
+              "on-primary-container": "#2a0070",
+              "inverse-on-surface": "#9a9da0",
+              "secondary-fixed-dim": "#f5a9ff",
+              "surface-container": "#e5e8ec",
+              "surface-container-lowest": "#ffffff",
+              "error": "#b41340",
+              "on-error": "#ffefef",
+              "outline-variant": "#abadb0",
+              "on-surface": "#2c2f32",
+              "primary-fixed": "#ac8eff",
+              "on-error-container": "#510017",
+              "surface-container-low": "#eef1f4",
+              "surface-tint": "#6b18f8",
+              "on-tertiary-fixed": "#004a3f",
+              "primary-container": "#ac8eff",
+              "background": "#f5f7fa",
+              "surface-container-highest": "#d9dde1",
+              "outline": "#74777a",
+              "on-tertiary": "#c2ffef",
+              "secondary-container": "#f9beff",
+              "on-secondary": "#ffeefc",
+              "inverse-surface": "#0b0f11",
+              "tertiary-fixed-dim": "#5aeed2",
+              "surface-dim": "#d0d5d9",
+              "on-primary-fixed-variant": "#350088",
+              "on-primary": "#f7f0ff",
+              "tertiary": "#006859",
+              "primary": "#6b18f8",
+              "on-secondary-container": "#7b0094",
+              "secondary-fixed": "#f9beff",
+              "tertiary-fixed": "#6bfde0",
+              "on-background": "#2c2f32",
+              "surface-variant": "#d9dde1",
+              "on-secondary-fixed": "#5c0070",
+              "secondary-dim": "#8800a4",
+              "on-surface-variant": "#595c5e",
+              "on-secondary-fixed-variant": "#8a00a6",
+              "error-dim": "#a70138",
+              "primary-fixed-dim": "#a07dff",
+              "surface": "#f5f7fa",
+              "on-tertiary-fixed-variant": "#006a5a",
+              "primary-dim": "#5e00e3",
+              "secondary": "#9b00bb",
+              "on-tertiary-container": "#005f51",
+              "inverse-primary": "#9d79ff",
+              "error-container": "#f74b6d",
+              "tertiary-container": "#6bfde0"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "1.5rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      body { font-family: 'Inter', sans-serif; }
+      .font-headline { font-family: 'Manrope', sans-serif; }
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .glass-card {
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(20px);
+      }
+      body {
+        min-height: max(884px, 100dvh);
+      }
+    </style>
+</head>
+<body class="bg-background text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="sticky top-0 z-40 bg-[#eef1f4] dark:bg-slate-900 transition-colors duration-200">
+<div class="flex justify-between items-center w-full px-6 py-4 max-w-7xl mx-auto">
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface hover:bg-[#dfe3e7] dark:hover:bg-slate-800 p-2 rounded-full transition-colors active:scale-95">
+                    menu
+                </button>
+<h1 class="text-2xl font-bold text-[#6b18f8] dark:text-[#ac8eff] font-headline tracking-tight">Rotaciones Externas</h1>
+</div>
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-full bg-primary-container overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Resident profile picture medical professional" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBoKc0EnN8tAMDKYpZ6yT9hpreA_9T2Undr0k_coHxV6F_JYC-pd-abyeZXjGzdAhw9OKcswebLrju1ClAmn-C39cDKPiXS_myUYxj1kQgzK9gkpxyUy3fkgFcz3Tdnk357AcbJWn9wA_uueasMfxK-mHmJVavXx2eGXQwjRG621UqNdxcmpsx9L-VtKN2WVn38KJkuz6Utfr2Fjl5FRuXKC697YO0i0EVK65VEvslJspWULKNGSdTSVbUNt2Ij37RC600kQWfpKYfq"/>
+</div>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto px-6 py-8">
+<!-- Search & Filter Section -->
+<section class="mb-10 space-y-4">
+<div class="flex flex-col gap-4"><!-- Specialty Dropdown (Now First) -->
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">medical_services</span>
+<select class="w-full pl-12 pr-10 py-4 bg-surface-container-high border-none rounded-xl text-on-surface appearance-none focus:ring-2 focus:ring-primary/40">
+<option>Especialidad</option>
+<option>Cardiología</option>
+<option>Pediatría</option>
+<option>Neonatología</option>
+<option>Cirugía General</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+<!-- Search Input (Now Second) -->
+<div class="relative flex-grow">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full pl-12 pr-4 py-4 bg-surface-container-high border-none rounded-xl text-on-surface focus:ring-2 focus:ring-primary/40 placeholder:text-on-surface-variant/60" placeholder="Ciudad" type="text"/>
+</div></div>
+</section>
+<!-- Headline -->
+<div class="mb-8">
+<h2 class="font-headline text-3xl font-extrabold text-on-surface tracking-tight mb-2">Explorar Destinos</h2>
+<p class="text-on-surface-variant font-body">Descubre oportunidades de rotación externa validadas por otros residentes.</p>
+</div>
+<!-- Results Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Card 1 -->
+<div class="group bg-surface-container-lowest rounded-2xl p-6 flex flex-col shadow-[0_8px_24px_rgba(53,0,136,0.04)] border border-surface-container transition-all hover:shadow-[0_12px_32px_rgba(53,0,136,0.08)]">
+<div class="flex justify-between items-start mb-4">
+<span class="bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Cardiología Pediátrica</span>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-yellow-500 text-[18px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-sm font-bold text-on-surface">4.9</span>
+</div>
+</div>
+<h3 class="font-headline text-xl font-bold text-on-surface leading-tight mb-2">Rotación de Cardiología Pediátrica</h3>
+<div class="flex items-center gap-2 text-on-surface-variant mb-6">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span class="text-sm font-medium">Hosp. Sant Joan de Déu, Barcelona</span>
+</div>
+<button class="mt-auto w-full py-3 bg-primary text-white rounded-full font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all">
+                    Ver reseña
+                    <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+<!-- Card 2 -->
+<div class="group bg-surface-container-lowest rounded-2xl p-6 flex flex-col shadow-[0_8px_24px_rgba(53,0,136,0.04)] border border-surface-container transition-all hover:shadow-[0_12px_32px_rgba(53,0,136,0.08)]">
+<div class="flex justify-between items-start mb-4">
+<span class="bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Neonatología</span>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-yellow-500 text-[18px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-sm font-bold text-on-surface">5.0</span>
+</div>
+</div>
+<h3 class="font-headline text-xl font-bold text-on-surface leading-tight mb-2">Rotación de Neonatología</h3>
+<div class="flex items-center gap-2 text-on-surface-variant mb-6">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span class="text-sm font-medium">Boston Children’s Hospital, EE.UU.</span>
+</div>
+<button class="mt-auto w-full py-3 bg-primary text-white rounded-full font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all">
+                    Ver reseña
+                    <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+<!-- Card 3 -->
+<div class="group bg-surface-container-lowest rounded-2xl p-6 flex flex-col shadow-[0_8px_24px_rgba(53,0,136,0.04)] border border-surface-container transition-all hover:shadow-[0_12px_32px_rgba(53,0,136,0.08)]">
+<div class="flex justify-between items-start mb-4">
+<span class="bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Cirugía Oncológica</span>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-yellow-500 text-[18px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-sm font-bold text-on-surface">4.7</span>
+</div>
+</div>
+<h3 class="font-headline text-xl font-bold text-on-surface leading-tight mb-2">Rotación de Cirugía Oncológica</h3>
+<div class="flex items-center gap-2 text-on-surface-variant mb-6">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span class="text-sm font-medium">MD Anderson Cancer Center, Houston</span>
+</div>
+<button class="mt-auto w-full py-3 bg-primary text-white rounded-full font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all">
+                    Ver reseña
+                    <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_-8px_24px_rgba(53,0,136,0.06)] rounded-t-[24px]">
+<div class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-400 px-4 py-1 hover:text-[#6b18f8] dark:hover:text-[#ac8eff] transition-all duration-300 ease-out cursor-pointer">
+<span class="material-symbols-outlined mb-1">grid_view</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Hub</span>
+</div>
+<!-- Active Tab: Explorar -->
+<div class="flex flex-col items-center justify-center bg-[#ac8eff]/20 text-[#6b18f8] dark:text-[#ac8eff] rounded-2xl px-4 py-1 transition-all duration-300 ease-out cursor-pointer">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">search</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Explorar</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-400 px-4 py-1 hover:text-[#6b18f8] dark:hover:text-[#ac8eff] transition-all duration-300 ease-out cursor-pointer">
+<span class="material-symbols-outlined mb-1">home_work</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Housing</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-400 px-4 py-1 hover:text-[#6b18f8] dark:hover:text-[#ac8eff] transition-all duration-300 ease-out cursor-pointer">
+<span class="material-symbols-outlined mb-1">lightbulb</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Tips</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-400 px-4 py-1 hover:text-[#6b18f8] dark:hover:text-[#ac8eff] transition-all duration-300 ease-out cursor-pointer">
+<span class="material-symbols-outlined mb-1">group_add</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Match</span>
+</div>
+</nav>
+</body></html>

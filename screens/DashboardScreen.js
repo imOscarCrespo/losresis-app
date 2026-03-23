@@ -253,6 +253,7 @@ export default function DashboardScreen({
     }
     // Si es threadDetail, guardar el threadId
     if (sectionId === "threadDetail" && params.threadId) {
+      setPreviousSection(params.fromSection || currentSection);
       setSelectedThreadId(params.threadId);
     }
     // Si volvemos desde threadDetail, limpiar el threadId
@@ -310,7 +311,8 @@ export default function DashboardScreen({
 
   const handleBackFromThreadDetail = () => {
     setSelectedThreadId(null);
-    setCurrentSection("leisureForum");
+    setCurrentSection(previousSection || "leisureForum");
+    setPreviousSection(null);
   };
 
   const handleBackFromGroupChat = () => {

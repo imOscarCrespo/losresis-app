@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Contactar - Los Resis</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-bright": "#f5f7fa",
+                        "tertiary-dim": "#005a4d",
+                        "on-secondary-container": "#7b0094",
+                        "surface-container-low": "#eef1f4",
+                        "surface-dim": "#d0d5d9",
+                        "on-tertiary": "#c2ffef",
+                        "inverse-surface": "#0b0f11",
+                        "error-container": "#f74b6d",
+                        "surface": "#f5f7fa",
+                        "on-secondary-fixed-variant": "#8a00a6",
+                        "on-primary": "#f7f0ff",
+                        "secondary-dim": "#8800a4",
+                        "on-primary-container": "#2a0070",
+                        "surface-variant": "#d9dde1",
+                        "secondary-container": "#f9beff",
+                        "on-error": "#ffefef",
+                        "background": "#f5f7fa",
+                        "on-secondary": "#ffeefc",
+                        "error-dim": "#a70138",
+                        "surface-container-high": "#dfe3e7",
+                        "primary-fixed": "#ac8eff",
+                        "on-tertiary-fixed-variant": "#006a5a",
+                        "tertiary": "#006859",
+                        "on-tertiary-container": "#005f51",
+                        "tertiary-fixed-dim": "#5aeed2",
+                        "primary-container": "#ac8eff",
+                        "on-primary-fixed-variant": "#350088",
+                        "on-secondary-fixed": "#5c0070",
+                        "surface-container-highest": "#d9dde1",
+                        "outline-variant": "#abadb0",
+                        "secondary-fixed-dim": "#f5a9ff",
+                        "error": "#b41340",
+                        "on-primary-fixed": "#000000",
+                        "secondary-fixed": "#f9beff",
+                        "primary-fixed-dim": "#a07dff",
+                        "secondary": "#9b00bb",
+                        "primary-dim": "#5e00e3",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface-variant": "#595c5e",
+                        "on-tertiary-fixed": "#004a3f",
+                        "on-background": "#2c2f32",
+                        "tertiary-fixed": "#6bfde0",
+                        "inverse-on-surface": "#9a9da0",
+                        "outline": "#74777a",
+                        "on-surface": "#2c2f32",
+                        "primary": "#6b18f8",
+                        "surface-tint": "#6b18f8",
+                        "inverse-primary": "#9d79ff",
+                        "on-error-container": "#510017",
+                        "surface-container": "#e5e8ec",
+                        "tertiary-container": "#6bfde0"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "1.5rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .text-gradient {
+            background: linear-gradient(135deg, #6b18f8 0%, #ac8eff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body text-on-surface antialiased min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="flex items-center justify-between px-6 h-16 w-full fixed top-0 z-50 bg-[#f5f7fa] dark:bg-slate-900 no-border">
+<div class="flex items-center gap-4">
+<button class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#eef1f4] dark:hover:bg-slate-800 transition-colors active:scale-95 duration-200 ease-in-out">
+<span class="material-symbols-outlined text-[#6b18f8] dark:text-[#ac8eff]" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-manrope text-2xl font-bold tracking-tight text-[#6b18f8] dark:text-[#ac8eff]">Contactar</h1>
+</div>
+<div class="w-10"></div> <!-- Spacer for center alignment logic -->
+</header>
+<main class="flex-grow pt-24 pb-32 px-6 max-w-2xl mx-auto w-full">
+<!-- Profile Anchor Section -->
+<section class="mb-10 text-center">
+<div class="relative inline-block mb-4">
+<div class="w-24 h-24 rounded-full p-1 bg-gradient-to-tr from-primary to-primary-container">
+<div class="w-full h-full rounded-full bg-surface-container-lowest overflow-hidden flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-5xl" data-icon="person_filled" style="font-variation-settings: 'FILL' 1;">person</span>
+</div>
+</div>
+<div class="absolute bottom-1 right-1 w-6 h-6 bg-tertiary rounded-full border-4 border-surface flex items-center justify-center">
+<div class="w-2 h-2 bg-white rounded-full"></div>
+</div>
+</div>
+<h2 class="font-headline text-3xl font-extrabold text-on-surface tracking-tight mb-2">Dra. Marta G.</h2>
+<p class="text-on-surface-variant font-medium">Residente de Cardiología • Hospital Central</p>
+</section>
+<!-- Main Interaction Card -->
+<div class="bg-surface-container-lowest rounded-xl shadow-[0_8px_24px_rgba(53,0,136,0.06)] p-8 mb-8">
+<p class="text-lg font-headline font-semibold text-on-surface mb-8 text-center">
+                Elige cómo quieres contactar con Dra. Marta G.
+            </p>
+<div class="space-y-4">
+<!-- WhatsApp Button -->
+<button class="w-full group flex items-center p-5 bg-surface-container-low hover:bg-surface-container-high transition-all duration-200 rounded-xl active:scale-98">
+<div class="w-12 h-12 rounded-full bg-[#25D366]/10 flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[#25D366] text-2xl" data-icon="chat">chat</span>
+</div>
+<div class="text-left flex-grow">
+<p class="font-headline font-bold text-on-surface">WhatsApp</p>
+<p class="text-xs text-on-surface-variant font-medium">Enviar mensaje por WhatsApp</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant" data-icon="chevron_right">chevron_right</span>
+</button>
+<!-- Internal Chat Button -->
+<button class="w-full group flex items-center p-5 bg-gradient-to-br from-primary to-primary-dim text-white shadow-lg shadow-primary/20 rounded-xl transition-all duration-200 active:scale-98">
+<div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-white text-2xl" data-icon="forum" style="font-variation-settings: 'FILL' 1;">forum</span>
+</div>
+<div class="text-left flex-grow">
+<p class="font-headline font-bold">Chat de la App</p>
+<p class="text-xs text-white/80 font-medium">Abrir chat interno</p>
+</div>
+<span class="material-symbols-outlined text-white/60" data-icon="arrow_forward">arrow_forward</span>
+</button>
+<!-- Email Button -->
+<button class="w-full group flex items-center p-5 bg-surface-container-low hover:bg-surface-container-high transition-all duration-200 rounded-xl active:scale-98">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary text-2xl" data-icon="mail">mail</span>
+</div>
+<div class="text-left flex-grow">
+<p class="font-headline font-bold text-on-surface">Email</p>
+<p class="text-xs text-on-surface-variant font-medium">Enviar un correo electrónico</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Privacy Note -->
+<footer class="flex items-start gap-3 p-4 bg-surface-container-high/50 rounded-lg">
+<span class="material-symbols-outlined text-primary text-xl mt-0.5" data-icon="verified_user" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+<p class="text-sm text-on-surface-variant leading-relaxed">
+                Tu privacidad es importante. Solo compartimos la información necesaria para el contacto.
+            </p>
+</footer>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl rounded-t-[24px] shadow-[0_-8px_24px_rgba(53,0,136,0.06)]">
+<a class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-500 px-4 py-1 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="medical_services">medical_services</span>
+<span class="font-inter text-[11px] font-semibold uppercase tracking-wider">Shift</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-500 px-4 py-1 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="group">group</span>
+<span class="font-inter text-[11px] font-semibold uppercase tracking-wider">Patients</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-500 px-4 py-1 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="forum">forum</span>
+<span class="font-inter text-[11px] font-semibold uppercase tracking-wider">Chat</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#6b18f8] dark:text-[#ac8eff] bg-[#ac8eff]/10 rounded-2xl px-4 py-1 active:scale-98 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="person" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="font-inter text-[11px] font-semibold uppercase tracking-wider">Profile</span>
+</a>
+</nav>
+</body></html>

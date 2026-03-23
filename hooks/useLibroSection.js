@@ -256,6 +256,10 @@ export const useLibroSection = (userId, section) => {
           {
             name: node.name,
             goal: node.goal !== undefined ? node.goal : undefined,
+            icon_name: node.icon_name !== undefined ? node.icon_name : undefined,
+            color_token: node.color_token !== undefined ? node.color_token : undefined,
+            tracking_mode:
+              node.tracking_mode !== undefined ? node.tracking_mode : undefined,
           },
           currentUserId
         );

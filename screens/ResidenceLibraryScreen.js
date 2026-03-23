@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator,
   Alert,
@@ -30,6 +31,7 @@ import posthogLogger from "../services/posthogService";
 const SECTION = "clinical_practice";
 const ONBOARDING_STEPS = ["intro", "categories", "activities", "preview"];
 const TODAY = new Date().toISOString().slice(0, 10);
+const COLLAPSED_CATEGORIES_STORAGE_KEY = "@losresis:libro_collapsed_categories";
 
 const TRACKING_MODE_LABEL = {
   counter: "Contador",
@@ -107,7 +109,7 @@ const ActivityDraftRow = ({ activity, onDelete }) => (
   </View>
 );
 
-const ProcedureRow = ({ node, onIncrement, onDecrement, onRegister, onOpenActions }) => {
+const ProcedureRow = ({ node, onIncrement, onDecrement, onOpenActions }) => {
   const count = node.total_count || 0;
   const goal = node.goal || 0;
   const progress = getProgress(count, goal);
@@ -159,12 +161,6 @@ const ProcedureRow = ({ node, onIncrement, onDecrement, onRegister, onOpenAction
               </TouchableOpacity>
             </>
           ) : null}
-
-          <TouchableOpacity style={styles.primarySmallButton} onPress={() => onRegister(node)}>
-            <Text style={styles.primarySmallButtonText}>
-              {TRACKING_MODE_ACTION[node.tracking_mode] || "Registrar"}
-            </Text>
-          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -173,12 +169,13 @@ const ProcedureRow = ({ node, onIncrement, onDecrement, onRegister, onOpenAction
 
 const CategoryCard = ({
   node,
+  collapsed = false,
+  onToggleCollapse,
   onAddChild,
   onEditParent,
   onDeleteParent,
   onIncrement,
   onDecrement,
-  onRegister,
   onOpenChildActions,
 }) => {
   const color = COLOR_TOKEN_MAP[node.color_token] || COLOR_TOKEN_MAP.violet;
@@ -201,70 +198,86 @@ const CategoryCard = ({
             </Text>
           </View>
         </View>
-        <TouchableOpacity
-          style={styles.iconActionButton}
-          onPress={() =>
-            Alert.alert(node.name, "Gestiona esta categoría", [
-              { text: "Añadir actividad", onPress: () => onAddChild(node) },
-              { text: "Editar categoría", onPress: () => onEditParent(node) },
-              {
-                text: "Eliminar categoría",
-                style: "destructive",
-                onPress: () => onDeleteParent(node),
-              },
-              { text: "Cancelar", style: "cancel" },
-            ])
-          }
-        >
-          <Ionicons name="ellipsis-horizontal" size={18} color="#64748B" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.summaryRow}>
-        <View style={styles.summaryStat}>
-          <Text style={styles.summaryStatValue}>{totalCount}</Text>
-          <Text style={styles.summaryStatLabel}>registradas</Text>
-        </View>
-        <View style={styles.summaryStat}>
-          <Text style={styles.summaryStatValue}>{totalGoal || "-"}</Text>
-          <Text style={styles.summaryStatLabel}>meta</Text>
-        </View>
-        <View style={styles.summaryStat}>
-          <Text style={styles.summaryStatValue}>{Math.round(progress)}%</Text>
-          <Text style={styles.summaryStatLabel}>avance</Text>
-        </View>
-      </View>
-
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: color }]} />
-      </View>
-
-      <TouchableOpacity style={styles.secondaryButton} onPress={() => onAddChild(node)}>
-        <Ionicons name="add-circle-outline" size={16} color="#670CF5" />
-        <Text style={styles.secondaryButtonText}>Añadir actividad</Text>
-      </TouchableOpacity>
-
-      <View style={styles.procedureList}>
-        {children.length ? (
-          children.map((child) => (
-            <ProcedureRow
-              key={child.id}
-              node={child}
-              onIncrement={onIncrement}
-              onDecrement={onDecrement}
-              onRegister={onRegister}
-              onOpenActions={onOpenChildActions}
+        <View style={styles.categoryHeaderActions}>
+          <TouchableOpacity
+            style={styles.iconActionButton}
+            onPress={() => onToggleCollapse?.(node.id)}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name={collapsed ? "chevron-down" : "chevron-up"}
+              size={18}
+              color="#64748B"
             />
-          ))
-        ) : (
-          <View style={styles.emptyCategoryState}>
-            <Ionicons name="sparkles-outline" size={18} color="#64748B" />
-            <Text style={styles.emptyCategoryText}>
-              Añade la primera actividad dentro de esta categoría.
-            </Text>
-          </View>
-        )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.iconActionButton}
+            onPress={() =>
+              Alert.alert(node.name, "Gestiona esta categoría", [
+                { text: "Añadir actividad", onPress: () => onAddChild(node) },
+                { text: "Editar categoría", onPress: () => onEditParent(node) },
+                {
+                  text: "Eliminar categoría",
+                  style: "destructive",
+                  onPress: () => onDeleteParent(node),
+                },
+                { text: "Cancelar", style: "cancel" },
+              ])
+            }
+          >
+            <Ionicons name="ellipsis-horizontal" size={18} color="#64748B" />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {!collapsed ? (
+        <>
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryStat}>
+              <Text style={styles.summaryStatValue}>{totalCount}</Text>
+              <Text style={styles.summaryStatLabel}>registradas</Text>
+            </View>
+            <View style={styles.summaryStat}>
+              <Text style={styles.summaryStatValue}>{totalGoal || "-"}</Text>
+              <Text style={styles.summaryStatLabel}>meta</Text>
+            </View>
+            <View style={styles.summaryStat}>
+              <Text style={styles.summaryStatValue}>{Math.round(progress)}%</Text>
+              <Text style={styles.summaryStatLabel}>avance</Text>
+            </View>
+          </View>
+
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: color }]} />
+          </View>
+
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => onAddChild(node)}>
+            <Ionicons name="add-circle-outline" size={16} color="#670CF5" />
+            <Text style={styles.secondaryButtonText}>Añadir actividad</Text>
+          </TouchableOpacity>
+
+          <View style={styles.procedureList}>
+            {children.length ? (
+              children.map((child) => (
+                <ProcedureRow
+                  key={child.id}
+                  node={child}
+                  onIncrement={onIncrement}
+                  onDecrement={onDecrement}
+                  onOpenActions={onOpenChildActions}
+                />
+              ))
+            ) : (
+              <View style={styles.emptyCategoryState}>
+                <Ionicons name="sparkles-outline" size={18} color="#64748B" />
+                <Text style={styles.emptyCategoryText}>
+                  Añade la primera actividad dentro de esta categoría.
+                </Text>
+              </View>
+            )}
+          </View>
+        </>
+      ) : null}
     </View>
   );
 };
@@ -281,6 +294,7 @@ export default function ResidenceLibraryScreen({
   const [specialtyName, setSpecialtyName] = useState("");
   const [specialtyResolved, setSpecialtyResolved] = useState(!specialityId);
   const [showNodeModal, setShowNodeModal] = useState(false);
+  const [showNodeFormScreen, setShowNodeFormScreen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showQuickRegister, setShowQuickRegister] = useState(false);
   const [selectedParentForChild, setSelectedParentForChild] = useState(null);
@@ -294,6 +308,8 @@ export default function ResidenceLibraryScreen({
   const [activityName, setActivityName] = useState("");
   const [activityGoal, setActivityGoal] = useState("");
   const [activityTrackingMode, setActivityTrackingMode] = useState("counter");
+  const [collapsedCategories, setCollapsedCategories] = useState({});
+  const [collapsedCategoriesLoaded, setCollapsedCategoriesLoaded] = useState(false);
 
   const { hasReview } = useResidentReviewCheck(userId, userProfile);
   const shouldShowReviewPrompt =
@@ -301,7 +317,6 @@ export default function ResidenceLibraryScreen({
 
   const {
     nodeTree,
-    entries,
     loading,
     settings,
     settingsLoading,
@@ -334,47 +349,18 @@ export default function ResidenceLibraryScreen({
   );
 
   const quickActivityIds = settings?.quick_activity_ids || [];
-  const quickActivityNodes = useMemo(() => {
-    const quickMap = new Map(procedureNodes.map((node) => [node.id, node]));
-    const orderedQuickNodes = quickActivityIds
-      .map((id) => quickMap.get(id))
-      .filter(Boolean);
-
-    if (orderedQuickNodes.length >= 4) {
-      return orderedQuickNodes.slice(0, 4);
-    }
-
-    const fallbackNodes = procedureNodes.filter(
-      (node) => !orderedQuickNodes.some((quickNode) => quickNode.id === node.id)
-    );
-
-    return [...orderedQuickNodes, ...fallbackNodes].slice(0, 4);
-  }, [procedureNodes, quickActivityIds]);
 
   const overview = useMemo(() => {
-    const categories = nodeTree.length;
-    const procedures = procedureNodes.length;
     const totalGoal = procedureNodes.reduce((sum, node) => sum + (node.goal || 0), 0);
-    const completed = procedureNodes.filter(
-      (node) => node.goal && node.total_count >= node.goal
-    ).length;
     const totalCount = procedureNodes.reduce(
       (sum, node) => sum + (node.total_count || 0),
       0
     );
-    const todayEntries = entries.filter(
-      (entry) => (entry.performed_at || entry.created_at?.slice(0, 10)) === TODAY
-    );
 
     return {
-      categories,
-      procedures,
-      completed,
-      totalCount,
-      progress: totalGoal ? Math.round((totalCount / totalGoal) * 100) : 0,
-      todayCount: todayEntries.reduce((sum, entry) => sum + Math.max(entry.count || 0, 0), 0),
+      progress: totalGoal ? Math.min(Math.round((totalCount / totalGoal) * 100), 100) : 0,
     };
-  }, [entries, nodeTree, procedureNodes]);
+  }, [procedureNodes]);
 
   const hasCompletedOnboarding =
     !!settings?.onboarding_completed_at || nodeTree.length > 0;
@@ -382,6 +368,53 @@ export default function ResidenceLibraryScreen({
   useEffect(() => {
     posthogLogger.logScreen("ResidenceLibraryScreen");
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCollapsedCategories = async () => {
+      if (!userId) {
+        if (isMounted) {
+          setCollapsedCategories({});
+          setCollapsedCategoriesLoaded(true);
+        }
+        return;
+      }
+
+      try {
+        const storedValue = await AsyncStorage.getItem(
+          `${COLLAPSED_CATEGORIES_STORAGE_KEY}:${userId}:${SECTION}`
+        );
+        if (!isMounted) return;
+
+        setCollapsedCategories(storedValue ? JSON.parse(storedValue) : {});
+      } catch (error) {
+        if (isMounted) {
+          setCollapsedCategories({});
+        }
+      } finally {
+        if (isMounted) {
+          setCollapsedCategoriesLoaded(true);
+        }
+      }
+    };
+
+    setCollapsedCategoriesLoaded(false);
+    loadCollapsedCategories();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || !collapsedCategoriesLoaded) return;
+
+    AsyncStorage.setItem(
+      `${COLLAPSED_CATEGORIES_STORAGE_KEY}:${userId}:${SECTION}`,
+      JSON.stringify(collapsedCategories)
+    ).catch(() => {});
+  }, [collapsedCategories, collapsedCategoriesLoaded, userId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -431,6 +464,7 @@ export default function ResidenceLibraryScreen({
 
   const closeNodeModal = () => {
     setShowNodeModal(false);
+    setShowNodeFormScreen(false);
     setEditingNode(null);
     setSelectedParentForChild(null);
   };
@@ -559,9 +593,9 @@ export default function ResidenceLibraryScreen({
   const handleAddNode = async (formData) => {
     const success = await addNode({
       ...formData,
-      icon_name: selectedParentForChild ? undefined : "folder-outline",
-      color_token: selectedParentForChild ? undefined : "violet",
-      tracking_mode: selectedParentForChild ? "counter" : undefined,
+      tracking_mode: selectedParentForChild
+        ? formData.tracking_mode || "counter"
+        : undefined,
     });
 
     if (!success) {
@@ -579,6 +613,11 @@ export default function ResidenceLibraryScreen({
       ...editingNode,
       name: formData.name,
       goal: formData.goal !== undefined ? formData.goal : editingNode.goal,
+      icon_name: formData.icon_name !== undefined ? formData.icon_name : editingNode.icon_name,
+      color_token:
+        formData.color_token !== undefined ? formData.color_token : editingNode.color_token,
+      tracking_mode:
+        formData.tracking_mode !== undefined ? formData.tracking_mode : editingNode.tracking_mode,
     });
 
     if (!success) {
@@ -684,11 +723,12 @@ export default function ResidenceLibraryScreen({
         onPress: () => openQuickRegister(node),
       },
       {
-        text: "Editar nombre u objetivo",
-        onPress: () => {
-          setEditingNode(node);
-          setShowNodeModal(true);
-        },
+        text: "Editar actividad, objetivo y tipo",
+        onPress: () =>
+          handleProtectedAction(() => {
+            setEditingNode(node);
+            setShowNodeModal(true);
+          }),
       },
       {
         text: "Eliminar actividad",
@@ -697,6 +737,13 @@ export default function ResidenceLibraryScreen({
       },
       { text: "Cancelar", style: "cancel" },
     ]);
+  };
+
+  const toggleCategoryCollapse = (categoryId) => {
+    setCollapsedCategories((prev) => ({
+      ...prev,
+      [categoryId]: !prev[categoryId],
+    }));
   };
 
   if (
@@ -711,6 +758,20 @@ export default function ResidenceLibraryScreen({
           <Text style={styles.loadingText}>Preparando tu libro de residente...</Text>
         </View>
       </View>
+    );
+  }
+
+  if (showNodeFormScreen) {
+    return (
+      <LibroNodeModal
+        visible
+        onClose={closeNodeModal}
+        onSubmit={editingNode ? handleEditNode : handleAddNode}
+        existingNode={editingNode}
+        selectedParent={selectedParentForChild}
+        loading={loading}
+        asScreen
+      />
     );
   }
 
@@ -1063,7 +1124,15 @@ export default function ResidenceLibraryScreen({
                 .join(" · ")}
             </Text>
           </View>
-          <TouchableOpacity style={styles.headerIcon} onPress={() => openQuickRegister()}>
+          <TouchableOpacity
+            style={styles.headerIcon}
+            onPress={() =>
+              handleProtectedAction(() => {
+                setSelectedParentForChild(null);
+                setShowNodeFormScreen(true);
+              })
+            }
+          >
             <Ionicons name="add" size={18} color="#670CF5" />
           </TouchableOpacity>
         </View>
@@ -1073,93 +1142,17 @@ export default function ResidenceLibraryScreen({
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           <View style={styles.contentInner}>
             <View style={styles.heroCard}>
-              <Text style={styles.heroEyebrow}>Dashboard principal</Text>
-              <Text style={styles.heroTitle}>Registra y revisa tu actividad asistencial</Text>
-              <Text style={styles.heroText}>
-                Usa el registro rápido para lo frecuente y entra en cada categoría cuando necesites más contexto.
-              </Text>
-
-              <View style={styles.overviewRow}>
-                <View style={styles.overviewStat}>
-                  <Text style={styles.overviewStatValue}>{overview.categories}</Text>
-                  <Text style={styles.overviewStatLabel}>categorías</Text>
-                </View>
-                <View style={styles.overviewStat}>
-                  <Text style={styles.overviewStatValue}>{overview.procedures}</Text>
-                  <Text style={styles.overviewStatLabel}>actividades</Text>
-                </View>
-                <View style={styles.overviewStat}>
-                  <Text style={styles.overviewStatValue}>{overview.totalCount}</Text>
-                  <Text style={styles.overviewStatLabel}>registros</Text>
-                </View>
-              </View>
-
-              <View style={styles.heroFooter}>
-                <View style={styles.progressHeader}>
-                  <Text style={styles.progressHeaderLabel}>Avance global</Text>
-                  <Text style={styles.progressHeaderValue}>{overview.progress}%</Text>
-                </View>
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${overview.progress}%` }]} />
-                </View>
-                <Text style={styles.heroSupportText}>
-                  Hoy llevas {overview.todayCount} registro{overview.todayCount === 1 ? "" : "s"} · {overview.completed} metas completadas
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.card}>
-              <View style={styles.sectionHeaderRow}>
-                <View>
-                  <Text style={styles.sectionTitle}>Registro rápido</Text>
-                  <Text style={styles.sectionText}>
-                    Accesos directos a las actividades que más usas.
+              <View style={styles.dashboardProgressTopRow}>
+                <View style={styles.dashboardProgressCopy}>
+                  <Text style={styles.dashboardProgressTitle}>Tu progreso</Text>
+                  <Text style={styles.dashboardProgressText}>
+                    Sigue completando actividades para avanzar en tu libro.
                   </Text>
                 </View>
-                <TouchableOpacity style={styles.secondaryButton} onPress={() => openQuickRegister()}>
-                  <Ionicons name="flash-outline" size={16} color="#670CF5" />
-                  <Text style={styles.secondaryButtonText}>Abrir</Text>
-                </TouchableOpacity>
+                <Text style={styles.dashboardProgressValue}>{overview.progress}%</Text>
               </View>
-
-              <View style={styles.quickGrid}>
-                {quickActivityNodes.map((node) => (
-                  <TouchableOpacity
-                    key={node.id}
-                    style={styles.quickCard}
-                    onPress={() => openQuickRegister(node)}
-                  >
-                    <Text style={styles.quickCardTitle} numberOfLines={2}>
-                      {node.name}
-                    </Text>
-                    <Text style={styles.quickCardMeta}>
-                      {TRACKING_MODE_ACTION[node.tracking_mode] || "Registrar"}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.card}>
-              <View style={styles.sectionHeaderRow}>
-                <View>
-                  <Text style={styles.sectionTitle}>Tu estructura</Text>
-                  <Text style={styles.sectionText}>
-                    Categorías y actividades definidas en tu onboarding.
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.addCategoryChip}
-                  onPress={() =>
-                    handleProtectedAction(() => {
-                      setSelectedParentForChild(null);
-                      setShowNodeModal(true);
-                    })
-                  }
-                >
-                  <Ionicons name="add" size={16} color="#670CF5" />
-                  <Text style={styles.addCategoryChipText}>Categoría</Text>
-                </TouchableOpacity>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${overview.progress}%` }]} />
               </View>
             </View>
 
@@ -1167,11 +1160,13 @@ export default function ResidenceLibraryScreen({
               <CategoryCard
                 key={parentNode.id}
                 node={parentNode}
+                collapsed={!!collapsedCategories[parentNode.id]}
+                onToggleCollapse={toggleCategoryCollapse}
                 onAddChild={(parent) =>
                   handleProtectedAction(() => {
                     setSelectedParentForChild(parent);
                     setEditingNode(null);
-                    setShowNodeModal(true);
+                    setShowNodeFormScreen(true);
                   })
                 }
                 onEditParent={(node) =>
@@ -1183,7 +1178,6 @@ export default function ResidenceLibraryScreen({
                 onDeleteParent={(node) => setShowDeleteConfirm(node)}
                 onIncrement={(node) => handleProtectedAction(() => handleIncrement(node))}
                 onDecrement={handleDecrement}
-                onRegister={(node) => handleProtectedAction(() => openQuickRegister(node))}
                 onOpenChildActions={openChildActions}
               />
             ))}
@@ -1342,6 +1336,39 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 16,
     marginBottom: 8,
+  },
+  dashboardProgressHeader: {
+    marginTop: 0,
+  },
+  dashboardProgressTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+    marginBottom: 12,
+  },
+  dashboardProgressCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 4,
+  },
+  dashboardProgressTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1B0977",
+  },
+  dashboardProgressText: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#64748B",
+  },
+  dashboardProgressValue: {
+    flexShrink: 1,
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#670CF5",
+    textAlign: "right",
   },
   progressHeaderLabel: {
     fontSize: 13,
@@ -1692,8 +1719,12 @@ const styles = StyleSheet.create({
   sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 12,
+  },
+  sectionHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
   },
   secondaryButton: {
     marginTop: 16,
@@ -1737,6 +1768,8 @@ const styles = StyleSheet.create({
   addCategoryChip: {
     flexDirection: "row",
     alignItems: "center",
+    alignSelf: "flex-start",
+    flexShrink: 1,
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1760,6 +1793,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     gap: 12,
+  },
+  categoryHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   categoryHeaderLeft: {
     flexDirection: "row",
@@ -1897,19 +1935,6 @@ const styles = StyleSheet.create({
   },
   counterButtonDisabled: {
     backgroundColor: "#F1F5F9",
-  },
-  primarySmallButton: {
-    minHeight: 36,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    backgroundColor: "#670CF5",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primarySmallButtonText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "800",
   },
   reviewPromptOverlay: {
     position: "absolute",

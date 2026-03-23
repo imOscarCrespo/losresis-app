@@ -26,6 +26,7 @@ export const RotationModal = ({
   onSubmit,
   existingRotation,
   userPhone,
+  specialties = [],
   loading,
 }) => {
   const [formData, setFormData] = useState({
@@ -33,6 +34,10 @@ export const RotationModal = ({
     longitude: -3.7038,
     start_date: new Date(),
     end_date: null,
+    hospital_name: "",
+    service_name: "",
+    speciality_id: "",
+    notes: "",
     phone: userPhone || "",
   });
   const [selectedCountryCode, setSelectedCountryCode] = useState("");
@@ -94,6 +99,16 @@ export const RotationModal = ({
     return options;
   }, [selectedCountryCode]);
 
+  const specialtyOptions = useMemo(() => {
+    return specialties
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((specialty) => ({
+        value: specialty.id,
+        label: specialty.name,
+      }));
+  }, [specialties]);
+
   // Cargar datos existentes cuando se abre el modal
   useEffect(() => {
     if (visible) {
@@ -106,6 +121,10 @@ export const RotationModal = ({
           end_date: existingRotation.end_date
             ? new Date(existingRotation.end_date)
             : null,
+          hospital_name: existingRotation.hospital_name || "",
+          service_name: existingRotation.service_name || "",
+          speciality_id: existingRotation.speciality_id || "",
+          notes: existingRotation.notes || "",
           phone: userPhone || "",
         });
         setHasEndDate(!!existingRotation.end_date);
@@ -211,6 +230,10 @@ export const RotationModal = ({
           longitude: -3.7038,
           start_date: new Date(),
           end_date: null,
+          hospital_name: "",
+          service_name: "",
+          speciality_id: "",
+          notes: "",
           phone: userPhone || "",
         });
         setHasEndDate(false);
@@ -262,7 +285,13 @@ export const RotationModal = ({
   };
 
   const handleSubmit = () => {
-    if (!selectedCountryCode || !selectedCityName || !cityCoordinates) {
+    if (
+      !selectedCountryCode ||
+      !selectedCityName ||
+      !cityCoordinates ||
+      !formData.hospital_name.trim() ||
+      !formData.speciality_id
+    ) {
       // Mostrar error si no hay país/ciudad seleccionados
       return;
     }
@@ -275,6 +304,9 @@ export const RotationModal = ({
       ...formData,
       country: selectedCountry?.name || "",
       city: selectedCityName,
+      hospital_name: formData.hospital_name.trim(),
+      service_name: formData.service_name.trim(),
+      notes: formData.notes.trim(),
     };
 
     onSubmit(rotationData, hasEndDate);
@@ -334,6 +366,51 @@ export const RotationModal = ({
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            <View style={styles.field}>
+              <Text style={styles.sectionTitle}>Destino</Text>
+              <Text style={styles.sectionText}>
+                Añade los datos básicos para que otros residentes puedan
+                encontrarte y filtrar mejor.
+              </Text>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Hospital de destino *</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.hospital_name}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, hospital_name: text })
+                }
+                placeholder="Ej. Hospital Clínic"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Servicio / unidad</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.service_name}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, service_name: text })
+                }
+                placeholder="Ej. Cardiología Pediátrica"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <SelectFilter
+                label="Especialidad"
+                value={formData.speciality_id}
+                onChange={(value) =>
+                  setFormData({ ...formData, speciality_id: value })
+                }
+                options={specialtyOptions}
+                placeholder="Selecciona una especialidad"
+                required
+              />
+            </View>
+
             {/* Country Selector */}
             <View style={styles.field}>
               <SelectFilter
@@ -459,6 +536,20 @@ export const RotationModal = ({
                 placeholder="Teléfono de contacto"
               />
             </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Notas</Text>
+              <TextInput
+                style={[styles.input, styles.notesInput]}
+                value={formData.notes}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, notes: text })
+                }
+                placeholder="Información útil para tu futura rotación"
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
           </ScrollView>
 
           <View style={styles.actions}>
@@ -467,7 +558,9 @@ export const RotationModal = ({
                 styles.submitButton,
                 (!selectedCountryCode ||
                   !selectedCityName ||
-                  !cityCoordinates) &&
+                  !cityCoordinates ||
+                  !formData.hospital_name.trim() ||
+                  !formData.speciality_id) &&
                   styles.submitButtonDisabled,
               ]}
               onPress={handleSubmit}
@@ -475,7 +568,9 @@ export const RotationModal = ({
                 loading ||
                 !selectedCountryCode ||
                 !selectedCityName ||
-                !cityCoordinates
+                !cityCoordinates ||
+                !formData.hospital_name.trim() ||
+                !formData.speciality_id
               }
             >
               {loading ? (
@@ -540,6 +635,17 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY_DARK,
     marginBottom: 8,
   },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.GRAY_DARK,
+    marginBottom: 6,
+  },
+  sectionText: {
+    fontSize: 14,
+    color: COLORS.GRAY,
+    lineHeight: 20,
+  },
   input: {
     backgroundColor: COLORS.WHITE,
     borderWidth: 1,
@@ -548,6 +654,9 @@ const styles = StyleSheet.create({
     padding: 14,
     fontSize: 16,
     color: COLORS.GRAY_DARK,
+  },
+  notesInput: {
+    minHeight: 92,
   },
   dateButton: {
     flexDirection: "row",

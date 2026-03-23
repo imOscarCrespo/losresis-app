@@ -14,10 +14,16 @@ import { supabase } from "../config/supabase";
  */
 export const getAllExternalRotationReviews = async (
   userId = null,
-  country = null,
-  city = null
+  filters = {}
 ) => {
   try {
+    const {
+      country = null,
+      city = null,
+      specialtyId = null,
+      search = null,
+    } = filters;
+
     // Construir query base
     const buildQuery = (baseQuery) => {
       let query = baseQuery;
@@ -28,6 +34,9 @@ export const getAllExternalRotationReviews = async (
       }
       if (city) {
         query = query.eq("city", city);
+      }
+      if (specialtyId) {
+        query = query.eq("speciality_id", specialtyId);
       }
 
       return query;
@@ -42,12 +51,42 @@ export const getAllExternalRotationReviews = async (
         .select(
           `
           *,
+          users!external_rotation_review_user_id_fkey (
+            id,
+            name,
+            surname,
+            work_email,
+            phone,
+            resident_year,
+            specialities (
+              id,
+              name
+            ),
+            hospitals!users_hospital_id_fkey (
+              id,
+              name
+            )
+          ),
+          specialities (
+            id,
+            name
+          ),
+          external_rotation_review_answer (
+            question_id,
+            rating_value,
+            text_value
+          ),
+          external_rotation_review_thread (
+            thread_id
+          ),
           external_rotation (
             id,
             latitude,
             longitude,
             start_date,
-            end_date
+            end_date,
+            hospital_name,
+            service_name
           )
         `
         )
@@ -70,12 +109,42 @@ export const getAllExternalRotationReviews = async (
         .select(
           `
           *,
+          users!external_rotation_review_user_id_fkey (
+            id,
+            name,
+            surname,
+            work_email,
+            phone,
+            resident_year,
+            specialities (
+              id,
+              name
+            ),
+            hospitals!users_hospital_id_fkey (
+              id,
+              name
+            )
+          ),
+          specialities (
+            id,
+            name
+          ),
+          external_rotation_review_answer (
+            question_id,
+            rating_value,
+            text_value
+          ),
+          external_rotation_review_thread (
+            thread_id
+          ),
           external_rotation (
             id,
             latitude,
             longitude,
             start_date,
-            end_date
+            end_date,
+            hospital_name,
+            service_name
           )
         `
         )
@@ -102,7 +171,7 @@ export const getAllExternalRotationReviews = async (
         (a, b) => new Date(b.created_at) - new Date(a.created_at)
       );
 
-      return uniqueReviews;
+      return normalizeReviews(uniqueReviews, search);
     } else {
       // Solo reseñas aprobadas
       let query = supabase
@@ -110,12 +179,42 @@ export const getAllExternalRotationReviews = async (
         .select(
           `
           *,
+          users!external_rotation_review_user_id_fkey (
+            id,
+            name,
+            surname,
+            work_email,
+            phone,
+            resident_year,
+            specialities (
+              id,
+              name
+            ),
+            hospitals!users_hospital_id_fkey (
+              id,
+              name
+            )
+          ),
+          specialities (
+            id,
+            name
+          ),
+          external_rotation_review_answer (
+            question_id,
+            rating_value,
+            text_value
+          ),
+          external_rotation_review_thread (
+            thread_id
+          ),
           external_rotation (
             id,
             latitude,
             longitude,
             start_date,
-            end_date
+            end_date,
+            hospital_name,
+            service_name
           )
         `
         )
@@ -131,7 +230,7 @@ export const getAllExternalRotationReviews = async (
         throw error;
       }
 
-      return data || [];
+      return normalizeReviews(data || [], search);
     }
   } catch (error) {
     console.error("❌ Exception in getAllExternalRotationReviews:", error);
@@ -207,33 +306,54 @@ export const createRotationReview = async (reviewData) => {
       userId,
       rotationId,
       externalHospitalName,
+      serviceName,
+      specialityId,
       city,
       country,
       answers,
-      freeComment,
-      isAnonymous,
+      difficulty,
+      difficultyNotes,
+      rotationKind,
+      highlightSummary,
+      beforeYouGo,
+      tutorName,
+      tutorEmail,
+      preferredContactMethod,
     } = reviewData;
 
-    if (!userId || !rotationId) {
-      throw new Error("User ID and Rotation ID are required");
+    if (!userId) {
+      throw new Error("User ID is required");
     }
 
-    // Obtener start_date, end_date, country y city de la rotación
-    const { data: rotation, error: rotationError } = await supabase
-      .from("external_rotation")
-      .select("start_date, end_date, country, city")
-      .eq("id", rotationId)
-      .eq("user_id", userId)
-      .single();
+    let rotation = null;
+    if (rotationId) {
+      const { data: rotationData, error: rotationError } = await supabase
+        .from("external_rotation")
+        .select(
+          "id, start_date, end_date, country, city, hospital_name, service_name, speciality_id"
+        )
+        .eq("id", rotationId)
+        .eq("user_id", userId)
+        .single();
 
-    if (rotationError || !rotation) {
-      console.error("❌ Error fetching rotation:", rotationError);
-      throw new Error("No se pudo obtener la información de la rotación");
+      if (rotationError || !rotationData) {
+        console.error("❌ Error fetching rotation:", rotationError);
+        throw new Error("No se pudo obtener la información de la rotación");
+      }
+
+      rotation = rotationData;
     }
 
-    // Usar country y city de la rotación si están disponibles, sino usar los del formulario
-    const finalCountry = rotation.country || country;
-    const finalCity = rotation.city || city;
+    const finalCountry = rotation?.country || country;
+    const finalCity = rotation?.city || city;
+    const finalHospitalName =
+      externalHospitalName?.trim() || rotation?.hospital_name || null;
+    const finalServiceName = serviceName?.trim() || rotation?.service_name || null;
+    const finalSpecialityId = specialityId || rotation?.speciality_id || null;
+
+    if (!finalCountry || !finalCity || !finalHospitalName) {
+      throw new Error("Hospital, país y ciudad son obligatorios");
+    }
 
     // Crear la reseña
     const { data: review, error: reviewError } = await supabase
@@ -241,14 +361,29 @@ export const createRotationReview = async (reviewData) => {
       .insert([
         {
           user_id: userId,
-          rotation_id: rotationId,
-          external_hospital_name: externalHospitalName,
+          rotation_id: rotationId || null,
+          external_hospital_name: finalHospitalName,
+          speciality_id: finalSpecialityId,
+          service_name: finalServiceName,
           city: finalCity,
           country: finalCountry,
-          start_date: rotation.start_date,
-          end_date: rotation.end_date,
-          free_comment: freeComment || null,
-          is_anonymous: isAnonymous || false,
+          start_date: reviewData.startDate,
+          end_date: reviewData.endDate || null,
+          difficulty: difficulty || null,
+          difficulty_notes: difficultyNotes?.trim() || null,
+          rotation_kind: rotationKind || null,
+          highlight_summary: highlightSummary?.trim() || null,
+          before_you_go: beforeYouGo?.trim() || null,
+          tutor_name: tutorName?.trim() || null,
+          tutor_email: tutorEmail?.trim() || null,
+          preferred_contact_method:
+            preferredContactMethod || "app_chat",
+          allow_app_contact:
+            preferredContactMethod === "app_chat" ||
+            preferredContactMethod === "whatsapp" ||
+            preferredContactMethod === "email",
+          free_comment: null,
+          is_anonymous: false,
           is_approved: false, // Requiere aprobación
         },
       ])
@@ -342,8 +477,26 @@ export const createRotationReview = async (reviewData) => {
  */
 export const updateRotationReview = async (reviewId, reviewData) => {
   try {
-    const { externalHospitalName, city, country, answers, rotationId, userId } =
-      reviewData;
+    const {
+      externalHospitalName,
+      serviceName,
+      specialityId,
+      city,
+      country,
+      answers,
+      difficulty,
+      difficultyNotes,
+      rotationKind,
+      highlightSummary,
+      beforeYouGo,
+      tutorName,
+      tutorEmail,
+      preferredContactMethod,
+      rotationId,
+      userId,
+      startDate: inputStartDate,
+      endDate: inputEndDate,
+    } = reviewData;
 
     if (!reviewId) {
       throw new Error("Review ID is required");
@@ -367,40 +520,68 @@ export const updateRotationReview = async (reviewId, reviewData) => {
     }
 
     // Obtener start_date, end_date, country y city de la rotación
-    let startDate = null;
-    let endDate = null;
+    let resolvedStartDate = null;
+    let resolvedEndDate = null;
     let rotationCountry = null;
     let rotationCity = null;
+    let rotationHospitalName = null;
+    let rotationServiceName = null;
+    let rotationSpecialityId = null;
 
     if (finalRotationId && finalUserId) {
       const { data: rotation } = await supabase
         .from("external_rotation")
-        .select("start_date, end_date, country, city")
+        .select(
+          "start_date, end_date, country, city, hospital_name, service_name, speciality_id"
+        )
         .eq("id", finalRotationId)
         .eq("user_id", finalUserId)
         .single();
 
       if (rotation) {
-        startDate = rotation.start_date;
-        endDate = rotation.end_date;
+        resolvedStartDate = rotation.start_date;
+        resolvedEndDate = rotation.end_date;
         rotationCountry = rotation.country;
         rotationCity = rotation.city;
+        rotationHospitalName = rotation.hospital_name;
+        rotationServiceName = rotation.service_name;
+        rotationSpecialityId = rotation.speciality_id;
       }
     }
 
     // Usar country y city de la rotación si están disponibles, sino usar los del formulario
     const finalCountry = rotationCountry || country;
     const finalCity = rotationCity || city;
+    const finalHospitalName =
+      externalHospitalName?.trim() || rotationHospitalName || null;
+    const finalServiceName = serviceName?.trim() || rotationServiceName || null;
+    const finalSpecialityId = specialityId || rotationSpecialityId || null;
 
     // Actualizar la reseña
     const { data: review, error: reviewError } = await supabase
       .from("external_rotation_review")
       .update({
-        external_hospital_name: externalHospitalName,
+        rotation_id: finalRotationId || null,
+        external_hospital_name: finalHospitalName,
+        speciality_id: finalSpecialityId,
+        service_name: finalServiceName,
         city: finalCity,
         country: finalCountry,
-        start_date: startDate,
-        end_date: endDate,
+        start_date: resolvedStartDate || inputStartDate,
+        end_date: resolvedEndDate || inputEndDate || null,
+        difficulty: difficulty || null,
+        difficulty_notes: difficultyNotes?.trim() || null,
+        rotation_kind: rotationKind || null,
+        highlight_summary: highlightSummary?.trim() || null,
+        before_you_go: beforeYouGo?.trim() || null,
+        tutor_name: tutorName?.trim() || null,
+        tutor_email: tutorEmail?.trim() || null,
+        preferred_contact_method:
+          preferredContactMethod || "app_chat",
+        allow_app_contact:
+          preferredContactMethod === "app_chat" ||
+          preferredContactMethod === "whatsapp" ||
+          preferredContactMethod === "email",
       })
       .eq("id", reviewId)
       .select()
@@ -424,12 +605,17 @@ export const updateRotationReview = async (reviewId, reviewData) => {
 
     // Crear nuevas respuestas
     if (answers && answers.length > 0) {
-      const answersToInsert = answers.map((answer) => ({
-        review_id: reviewId,
-        question_id: answer.question_id,
-        rating_value: answer.rating_value || null,
-        text_value: answer.text_value || null,
-      }));
+      const answersToInsert = answers
+        .filter((answer) => answer?.question_id)
+        .map((answer) => ({
+          review_id: reviewId,
+          question_id: answer.question_id,
+          rating_value:
+            answer.rating_value !== undefined && answer.rating_value !== null
+              ? Number(answer.rating_value)
+              : null,
+          text_value: answer.text_value?.trim() || null,
+        }));
 
       const { error: answersError } = await supabase
         .from("external_rotation_review_answer")
@@ -506,6 +692,38 @@ export const getRotationReviewWithAnswers = async (reviewId) => {
       .select(
         `
         *,
+        users!external_rotation_review_user_id_fkey (
+          id,
+          name,
+          surname,
+          work_email,
+          phone,
+          resident_year,
+          specialities (
+            id,
+            name
+          ),
+          hospitals!users_hospital_id_fkey (
+            id,
+            name
+          )
+        ),
+        specialities (
+          id,
+          name
+        ),
+        external_rotation_review_thread (
+          thread_id
+        ),
+        external_rotation (
+          id,
+          latitude,
+          longitude,
+          start_date,
+          end_date,
+          hospital_name,
+          service_name
+        ),
         external_rotation_review_answer (
           *,
           external_rotation_question (*)
@@ -527,6 +745,150 @@ export const getRotationReviewWithAnswers = async (reviewId) => {
   }
 };
 
+const normalizeReviews = (reviews, search = null) => {
+  const mapped = (reviews || []).map((review) => {
+    const ratingValues = (review.external_rotation_review_answer || [])
+      .map((answer) => answer.rating_value)
+      .filter((value) => typeof value === "number");
+
+    const averageRating = ratingValues.length
+      ? ratingValues.reduce((sum, value) => sum + value, 0) / ratingValues.length
+      : null;
+
+    return {
+      ...review,
+      average_rating: averageRating,
+      ratings_count: ratingValues.length,
+      thread_id: review.external_rotation_review_thread?.thread_id || null,
+      reviewer_name: review.users?.name || "",
+      reviewer_surname: review.users?.surname || "",
+      reviewer_email: review.users?.work_email || "",
+      reviewer_phone: review.users?.phone || "",
+      reviewer_hospital_name: review.users?.hospitals?.name || "",
+      reviewer_specialty_name:
+        review.specialities?.name || review.users?.specialities?.name || "",
+      specialty_name:
+        review.specialities?.name || review.users?.specialities?.name || "",
+    };
+  });
+
+  if (!search?.trim()) {
+    return mapped;
+  }
+
+  const normalizedSearch = search.trim().toLowerCase();
+  return mapped.filter((review) =>
+    [
+      review.external_hospital_name,
+      review.service_name,
+      review.city,
+      review.country,
+      review.highlight_summary,
+      review.before_you_go,
+      review.specialty_name,
+      review.reviewer_name,
+      review.reviewer_surname,
+    ]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(normalizedSearch))
+  );
+};
+
+const getOrCreateExternalRotationsForum = async () => {
+  const { data: existingForum, error: forumError } = await supabase
+    .from("forum")
+    .select("id")
+    .eq("scope", "external_rotations")
+    .eq("role_scope", "resident")
+    .maybeSingle();
+
+  if (forumError) {
+    throw forumError;
+  }
+
+  if (existingForum) {
+    return existingForum.id;
+  }
+
+  const { data: createdForum, error: createForumError } = await supabase
+    .from("forum")
+    .insert({
+      name: "Rotaciones Externas",
+      scope: "external_rotations",
+      role_scope: "resident",
+      description: "Preguntas y conversaciones sobre rotaciones externas",
+      speciality_id: null,
+      city: null,
+    })
+    .select("id")
+    .single();
+
+  if (createForumError) {
+    throw createForumError;
+  }
+
+  return createdForum.id;
+};
+
+export const ensureReviewContactThread = async (reviewId) => {
+  if (!reviewId) {
+    throw new Error("Review ID is required");
+  }
+
+  const { data: reviewThread } = await supabase
+    .from("external_rotation_review_thread")
+    .select("thread_id")
+    .eq("review_id", reviewId)
+    .maybeSingle();
+
+  if (reviewThread?.thread_id) {
+    return reviewThread.thread_id;
+  }
+
+  const { data: review, error: reviewError } = await supabase
+    .from("external_rotation_review")
+    .select("id, user_id, external_hospital_name, city, country")
+    .eq("id", reviewId)
+    .single();
+
+  if (reviewError || !review) {
+    throw reviewError || new Error("Review not found");
+  }
+
+  const forumId = await getOrCreateExternalRotationsForum();
+  const title = `Dudas sobre ${review.external_hospital_name} (${review.city}, ${review.country})`;
+  const body =
+    "Espacio para resolver dudas sobre esta experiencia de rotación externa.";
+
+  const { data: thread, error: threadError } = await supabase
+    .from("thread")
+    .insert({
+      forum_id: forumId,
+      user_id: review.user_id,
+      title,
+      body,
+    })
+    .select("id")
+    .single();
+
+  if (threadError) {
+    throw threadError;
+  }
+
+  const { error: linkError } = await supabase
+    .from("external_rotation_review_thread")
+    .insert({
+      review_id: reviewId,
+      thread_id: thread.id,
+    });
+
+  if (linkError) {
+    throw linkError;
+  }
+
+  return thread.id;
+};
+
 export default {
   getAllExternalRotationReviews,
   checkExistingRotationReview,
@@ -535,4 +897,5 @@ export default {
   updateRotationReview,
   deleteRotationReview,
   getRotationReviewWithAnswers,
+  ensureReviewContactThread,
 };
