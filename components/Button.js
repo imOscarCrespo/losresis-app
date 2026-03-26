@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  TouchableOpacity,
   Text,
   StyleSheet,
   ActivityIndicator,
@@ -8,6 +7,7 @@ import {
 } from "react-native";
 import { GoogleLogo } from "./GoogleLogo";
 import { AppleLogo } from "./AppleLogo";
+import { MotionPressable } from "./MotionPressable";
 
 /**
  * Componente Button reutilizable
@@ -59,11 +59,12 @@ export const Button = ({
   };
 
   return (
-    <TouchableOpacity
+    <MotionPressable
       style={buttonStyle}
       onPress={onPress}
       disabled={isDisabled || isLoading}
-      activeOpacity={0.8}
+      scaleTo={0.985}
+      pressedOpacity={0.96}
     >
       {isLoading ? (
         <ActivityIndicator color={getLoaderColor()} size="small" />
@@ -84,7 +85,7 @@ export const Button = ({
           <Text style={textStyleCombined}>{title}</Text>
         </View>
       )}
-    </TouchableOpacity>
+    </MotionPressable>
   );
 };
 

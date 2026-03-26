@@ -1,6 +1,7 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { MotionPressable } from "./MotionPressable";
 
 const USER_TYPES = [
   {
@@ -30,11 +31,13 @@ export const UserTypeSelector = ({ selectedType, onTypeChange }) => {
         {USER_TYPES.map((type) => {
           const isSelected = selectedType === type.id;
           return (
-            <TouchableOpacity
+            <MotionPressable
               key={type.id}
               style={[styles.card, isSelected && styles.cardActive]}
+              pressedStyle={styles.cardPressed}
               onPress={() => onTypeChange(type.id)}
-              activeOpacity={0.7}
+              scaleTo={0.97}
+              pressedOpacity={0.96}
             >
               <Ionicons
                 name={type.icon}
@@ -47,7 +50,7 @@ export const UserTypeSelector = ({ selectedType, onTypeChange }) => {
                 {type.label}
               </Text>
               <Text style={styles.cardSubtitle}>{type.subtitle}</Text>
-            </TouchableOpacity>
+            </MotionPressable>
           );
         })}
       </View>
@@ -81,6 +84,10 @@ const styles = StyleSheet.create({
   cardActive: {
     borderColor: "#007AFF",
     backgroundColor: "#F0F8FF",
+  },
+  cardPressed: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#CBD5E1",
   },
   cardTitle: {
     fontSize: 16,

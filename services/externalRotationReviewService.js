@@ -384,7 +384,7 @@ export const createRotationReview = async (reviewData) => {
             preferredContactMethod === "email",
           free_comment: null,
           is_anonymous: false,
-          is_approved: false, // Requiere aprobación
+          is_approved: true, // Publicadas automáticamente hasta implementar moderación
         },
       ])
       .select()
@@ -889,6 +889,150 @@ export const ensureReviewContactThread = async (reviewId) => {
   return thread.id;
 };
 
+export const getFavoriteExternalRotationReviews = async (userId) => {
+  try {
+    if (!userId) {
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from("external_rotation_review_favorite")
+      .select(
+        `
+        created_at,
+        external_rotation_review (
+          *,
+          users!external_rotation_review_user_id_fkey (
+            id,
+            name,
+            surname,
+            work_email,
+            phone,
+            resident_year,
+            specialities (
+              id,
+              name
+            ),
+            hospitals!users_hospital_id_fkey (
+              id,
+              name
+            )
+          ),
+          specialities (
+            id,
+            name
+          ),
+          external_rotation_review_answer (
+            question_id,
+            rating_value,
+            text_value
+          ),
+          external_rotation_review_thread (
+            thread_id
+          ),
+          external_rotation (
+            id,
+            latitude,
+            longitude,
+            start_date,
+            end_date,
+            hospital_name,
+            service_name
+          )
+        )
+      `
+      )
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("❌ Error fetching favorite rotation reviews:", error);
+      throw error;
+    }
+
+    const favoriteReviews = (data || [])
+      .map((item) => item.external_rotation_review)
+      .filter(Boolean);
+
+    return normalizeReviews(favoriteReviews);
+  } catch (error) {
+    console.error("❌ Exception in getFavoriteExternalRotationReviews:", error);
+    throw error;
+  }
+};
+
+export const isExternalRotationReviewFavorite = async (userId, reviewId) => {
+  try {
+    if (!userId || !reviewId) {
+      return false;
+    }
+
+    const { data, error } = await supabase
+      .from("external_rotation_review_favorite")
+      .select("review_id")
+      .eq("user_id", userId)
+      .eq("review_id", reviewId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("❌ Error checking favorite rotation review:", error);
+      throw error;
+    }
+
+    return Boolean(data?.review_id);
+  } catch (error) {
+    console.error("❌ Exception in isExternalRotationReviewFavorite:", error);
+    throw error;
+  }
+};
+
+export const setExternalRotationReviewFavorite = async (
+  userId,
+  reviewId,
+  shouldFavorite
+) => {
+  try {
+    if (!userId || !reviewId) {
+      throw new Error("User ID and review ID are required");
+    }
+
+    if (shouldFavorite) {
+      const { error } = await supabase
+        .from("external_rotation_review_favorite")
+        .upsert(
+          {
+            user_id: userId,
+            review_id: reviewId,
+          },
+          { onConflict: "user_id,review_id", ignoreDuplicates: true }
+        );
+
+      if (error) {
+        console.error("❌ Error creating favorite rotation review:", error);
+        throw error;
+      }
+
+      return true;
+    }
+
+    const { error } = await supabase
+      .from("external_rotation_review_favorite")
+      .delete()
+      .eq("user_id", userId)
+      .eq("review_id", reviewId);
+
+    if (error) {
+      console.error("❌ Error deleting favorite rotation review:", error);
+      throw error;
+    }
+
+    return false;
+  } catch (error) {
+    console.error("❌ Exception in setExternalRotationReviewFavorite:", error);
+    throw error;
+  }
+};
+
 export default {
   getAllExternalRotationReviews,
   checkExistingRotationReview,
@@ -898,4 +1042,7 @@ export default {
   deleteRotationReview,
   getRotationReviewWithAnswers,
   ensureReviewContactThread,
+  getFavoriteExternalRotationReviews,
+  isExternalRotationReviewFavorite,
+  setExternalRotationReviewFavorite,
 };

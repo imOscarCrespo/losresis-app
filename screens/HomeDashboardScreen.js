@@ -405,6 +405,8 @@ export default function HomeDashboardScreen({
       : residentHeroEvent.state === "upcoming"
         ? "PRÓXIMO"
         : "SIN EVENTOS";
+  const showResidentHeroTopRow =
+    loadingAgendaEvents || residentHeroEvent.state !== "empty";
   const residentHeroTitle = loadingAgendaEvents
     ? "Cargando agenda..."
     : residentHeroEvent.event?.title ||
@@ -524,7 +526,7 @@ export default function HomeDashboardScreen({
       showsVerticalScrollIndicator={false}
     >
       {/* Header púrpura */}
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+      <View style={[styles.header, { paddingTop: 16 }]}>
         <View style={styles.headerBlur} />
         <View style={styles.headerRow}>
           <View style={styles.headerTextContainer}>
@@ -598,17 +600,19 @@ export default function HomeDashboardScreen({
           </View>
         ) : (
           <View style={styles.residentHeroCard}>
-            <View style={styles.residentHeroTopRow}>
-              <Text style={styles.residentHeroEyebrow}>{residentHeroEyebrowText}</Text>
-              <View
-                style={[
-                  styles.residentStatusPill,
-                  residentHeroEvent.state === "empty" && styles.residentStatusPillMuted,
-                ]}
-              >
-                <Text style={styles.residentStatusPillText}>{residentHeroStatusText}</Text>
+            {showResidentHeroTopRow && (
+              <View style={styles.residentHeroTopRow}>
+                <Text style={styles.residentHeroEyebrow}>{residentHeroEyebrowText}</Text>
+                <View
+                  style={[
+                    styles.residentStatusPill,
+                    residentHeroEvent.state === "empty" && styles.residentStatusPillMuted,
+                  ]}
+                >
+                  <Text style={styles.residentStatusPillText}>{residentHeroStatusText}</Text>
+                </View>
               </View>
-            </View>
+            )}
             <View style={styles.residentHeroBody}>
               <View style={styles.residentHeroIconWrap}>
                 <Ionicons name={residentHeroConfig.icon} size={22} color="#FFF" />
@@ -1090,8 +1094,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: PRIMARY,
     borderRadius: 24,
-    padding: 24,
-    marginBottom: 16,
+    padding: 20,
+    marginBottom: 14,
     overflow: "hidden",
     shadowColor: PRIMARY,
     shadowOffset: { width: 0, height: 4 },
@@ -1112,7 +1116,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 24,
+    marginBottom: 18,
   },
   headerTextContainer: {
     flex: 1,
@@ -1124,7 +1128,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 2,
     color: "rgba(255,255,255,0.85)",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   userName: {
     fontSize: 28,
@@ -1134,7 +1138,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     color: "rgba(255,255,255,0.9)",
-    marginTop: 4,
+    marginTop: 2,
   },
   notifButton: {
     width: 44,
@@ -1143,6 +1147,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
+    marginTop: -6,
   },
   mirCard: {
     backgroundColor: "rgba(27,9,119,0.4)",
@@ -1194,7 +1199,7 @@ const styles = StyleSheet.create({
   residentHeroCard: {
     backgroundColor: "rgba(255,255,255,0.10)",
     borderRadius: 18,
-    padding: 18,
+    padding: 16,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.18)",
   },
@@ -1202,7 +1207,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 8,
   },
   residentHeroEyebrow: {
     fontSize: 10,
@@ -2008,7 +2013,7 @@ const styles = StyleSheet.create({
   studentPrepCard: {
     backgroundColor: "rgba(27,9,119,0.4)",
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
   },
@@ -2017,7 +2022,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1.5,
     color: "rgba(255,255,255,0.6)",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   studentStatsRow: {
     flexDirection: "row",
@@ -2049,7 +2054,7 @@ const styles = StyleSheet.create({
   studentStatRowDivider: {
     height: 1,
     backgroundColor: "rgba(255,255,255,0.12)",
-    marginVertical: 14,
+    marginVertical: 12,
   },
   studentStatRowFull: {
     flexDirection: "row",

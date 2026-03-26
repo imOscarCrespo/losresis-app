@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
+import { MotionPressable } from "../components/MotionPressable";
 
 /**
  * Pantalla de selección de deportes
@@ -76,13 +76,14 @@ export default function SportsSelectionScreen({ onSectionChange, userProfile }) 
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
+        <MotionPressable
           style={styles.backButton}
           onPress={handleBack}
-          activeOpacity={0.7}
+          scaleTo={0.9}
+          pressedOpacity={0.72}
         >
           <Ionicons name="arrow-back" size={24} color={COLORS.TEXT_PRIMARY} />
-        </TouchableOpacity>
+        </MotionPressable>
         <View style={styles.headerContent}>
           <Text style={styles.title}>Deporte</Text>
           <Text style={styles.subtitle}>
@@ -98,11 +99,13 @@ export default function SportsSelectionScreen({ onSectionChange, userProfile }) 
         showsVerticalScrollIndicator={false}
       >
         {sportsOptions.map((option) => (
-          <TouchableOpacity
+          <MotionPressable
             key={option.id}
             style={styles.optionCard}
+            pressedStyle={styles.optionCardPressed}
             onPress={() => handleOptionPress(option.forumType)}
-            activeOpacity={0.7}
+            scaleTo={0.985}
+            pressedOpacity={0.97}
           >
             <View
               style={[
@@ -117,7 +120,7 @@ export default function SportsSelectionScreen({ onSectionChange, userProfile }) 
               <Text style={styles.optionDescription}>{option.description}</Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color={COLORS.GRAY} />
-          </TouchableOpacity>
+          </MotionPressable>
         ))}
       </ScrollView>
     </View>
@@ -178,6 +181,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  optionCardPressed: {
+    borderColor: "#C7D2FE",
+    backgroundColor: "#F8FAFF",
+  },
   iconContainer: {
     width: 64,
     height: 64,
@@ -201,4 +208,3 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
-

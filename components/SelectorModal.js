@@ -4,15 +4,14 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MotionPressable } from "./MotionPressable";
 
 const DEFAULT_ACCENT = "#1B0977";
 const DEFAULT_PRIMARY = "#670CF5";
@@ -107,9 +106,14 @@ export function SelectorModal({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
-          <TouchableOpacity style={styles.backBtn} onPress={handleClose}>
+          <MotionPressable
+            style={styles.backBtn}
+            onPress={handleClose}
+            scaleTo={0.92}
+            pressedOpacity={0.75}
+          >
             <Ionicons name="arrow-back" size={24} color={accentColor} />
-          </TouchableOpacity>
+          </MotionPressable>
           <Text style={[styles.title, { color: accentColor }]} numberOfLines={1}>
             {title}
           </Text>
@@ -129,9 +133,14 @@ export function SelectorModal({
                 returnKeyType="done"
               />
               {search.length > 0 ? (
-                <TouchableOpacity onPress={() => setSearch("")}>
+                <MotionPressable
+                  onPress={() => setSearch("")}
+                  style={styles.searchClearButton}
+                  scaleTo={0.9}
+                  pressedOpacity={0.72}
+                >
                   <Ionicons name="close-circle" size={18} color="#94A3B8" />
-                </TouchableOpacity>
+                </MotionPressable>
               ) : null}
             </View>
           </View>
@@ -149,14 +158,17 @@ export function SelectorModal({
             const isClear = itemValue === "";
 
             return (
-              <Pressable
+              <MotionPressable
                 style={({ pressed }) => [
                   styles.option,
                   isSelected && styles.optionSelected,
                   isClear && styles.optionClear,
                   pressed && styles.optionPressed,
                 ]}
+                pressedStyle={styles.optionPressed}
                 onPress={() => setTempValue(isClear ? "" : itemValue)}
+                scaleTo={0.985}
+                pressedOpacity={0.98}
               >
                 <View style={styles.optionBody}>
                   <Text
@@ -172,7 +184,7 @@ export function SelectorModal({
                 {isClear ? null : (
                   <RadioDot selected={isSelected} primaryColor={primaryColor} />
                 )}
-              </Pressable>
+              </MotionPressable>
             );
           }}
           ListEmptyComponent={
@@ -183,13 +195,14 @@ export function SelectorModal({
         />
 
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <TouchableOpacity
+          <MotionPressable
             style={[styles.confirmBtn, { backgroundColor: primaryColor }]}
             onPress={handleConfirm}
-            activeOpacity={0.85}
+            scaleTo={0.985}
+            pressedOpacity={0.96}
           >
             <Text style={styles.confirmText}>{confirmText}</Text>
-          </TouchableOpacity>
+          </MotionPressable>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -239,12 +252,19 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     paddingVertical: 14,
   },
+  searchClearButton: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   listContent: {
     paddingBottom: 20,
   },
   option: {
     minHeight: 62,
     paddingHorizontal: 18,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -259,7 +279,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF7F7",
   },
   optionPressed: {
-    opacity: 0.75,
+    backgroundColor: "#F3F4F6",
   },
   optionBody: {
     flex: 1,

@@ -17,6 +17,7 @@ import {
   Dimensions,
   Keyboard,
   Platform,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -27,7 +28,9 @@ import {
   unsubscribeFromGroupMessages,
 } from "../services/groupMessagesService";
 import {
+  getGroupById,
   getGroupMembership,
+  getGroupMembers,
   leaveGroup,
   markGroupAsRead,
   setGroupNotificationsMuted,
@@ -80,6 +83,53 @@ const getInitials = (name, surname) => {
   const first = name ? name[0].toUpperCase() : "";
   const last = surname ? surname[0].toUpperCase() : "";
   return first + last || "?";
+};
+
+const getDisplayName = (user) =>
+  `${user?.name || ""} ${user?.surname || ""}`.trim() || "Usuario";
+
+const getGroupInfoItems = (group, membersCount) => {
+  if (!group) return [];
+
+  const items = [
+    { key: "members", icon: "people-outline", label: "Miembros", value: String(membersCount) },
+  ];
+
+  if (group.speciality?.name) {
+    items.push({
+      key: "speciality",
+      icon: "medical-outline",
+      label: "Especialidad",
+      value: group.speciality.name,
+    });
+  }
+
+  if (group.hospital?.name) {
+    items.push({
+      key: "hospital",
+      icon: "business-outline",
+      label: "Hospital",
+      value: group.hospital.name,
+    });
+  } else if (group.city) {
+    items.push({
+      key: "city",
+      icon: "location-outline",
+      label: "Ciudad",
+      value: group.city,
+    });
+  }
+
+  if (group.cohort_year) {
+    items.push({
+      key: "cohort",
+      icon: "calendar-outline",
+      label: "Cohorte",
+      value: String(group.cohort_year),
+    });
+  }
+
+  return items;
 };
 
 // ── Insertar divisores de fecha entre mensajes ────────────────────────
@@ -235,6 +285,28 @@ const ChatComposer = React.memo(function ChatComposer({
   );
 });
 
+const MemberRow = React.memo(function MemberRow({ member, isCurrentUser }) {
+  const initials = getInitials(member?.user?.name, member?.user?.surname);
+  const displayName = getDisplayName(member?.user);
+
+  return (
+    <View style={styles.memberRow}>
+      <View style={styles.memberAvatar}>
+        <Text style={styles.memberAvatarText}>{initials}</Text>
+      </View>
+
+      <View style={styles.memberInfo}>
+        <Text style={styles.memberName} numberOfLines={1}>
+          {displayName}
+        </Text>
+        <Text style={styles.memberSubtitle}>
+          {isCurrentUser ? "Tú" : "Dentro del grupo"}
+        </Text>
+      </View>
+    </View>
+  );
+});
+
 // ── GroupChatScreen ───────────────────────────────────────────────────
 export default function GroupChatScreen({
   groupId,
@@ -252,8 +324,12 @@ export default function GroupChatScreen({
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [groupDetails, setGroupDetails] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [muteLoading, setMuteLoading] = useState(false);
+  const [members, setMembers] = useState([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersVisible, setMembersVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerHeight, setComposerHeight] = useState(72);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
@@ -298,6 +374,19 @@ export default function GroupChatScreen({
 
     loadMembership();
   }, [groupId, currentUserId]);
+
+  useEffect(() => {
+    const loadGroupDetails = async () => {
+      if (!groupId) return;
+
+      const result = await getGroupById(groupId);
+      if (result.success) {
+        setGroupDetails(result.group);
+      }
+    };
+
+    loadGroupDetails();
+  }, [groupId]);
 
   useEffect(() => {
     const windowHeight = Dimensions.get("window").height;
@@ -493,6 +582,32 @@ export default function GroupChatScreen({
     setMuteLoading(false);
   }, [groupId, currentUserId, isMuted, muteLoading]);
 
+  const loadMembers = useCallback(async (options = {}) => {
+    const { silent = false } = options;
+
+    if (!groupId) return;
+
+    setMembersLoading(true);
+    const result = await getGroupMembers(groupId);
+
+    if (result.success) {
+      setMembers(result.members || []);
+    } else if (!silent) {
+      Alert.alert("Error", result.error || "No se pudieron cargar los miembros");
+    }
+
+    setMembersLoading(false);
+  }, [groupId]);
+
+  useEffect(() => {
+    loadMembers({ silent: true });
+  }, [loadMembers]);
+
+  const handleOpenMembers = useCallback(async () => {
+    setMembersVisible(true);
+    await loadMembers();
+  }, [loadMembers]);
+
   const handleComposerFocus = useCallback(() => {
     setIsComposerFocused(true);
     scrollToBottom();
@@ -512,6 +627,11 @@ export default function GroupChatScreen({
 
   const composerBottomInset = 0;
   const TAP_SLOP = 8;
+  const membersCount = members.length || groupDetails?.member_count || 0;
+  const groupInfoItems = useMemo(
+    () => getGroupInfoItems(groupDetails, membersCount),
+    [groupDetails, membersCount]
+  );
 
   const displayData = useMemo(
     () => injectDateDividers(messages),
@@ -557,7 +677,11 @@ export default function GroupChatScreen({
             <Ionicons name="arrow-back" size={22} color={ACCENT} />
           </TouchableOpacity>
 
-          <View style={styles.headerInfo}>
+          <TouchableOpacity
+            style={styles.headerInfo}
+            onPress={handleOpenMembers}
+            activeOpacity={0.75}
+          >
             <View style={styles.headerAvatar}>
               <Ionicons name="people" size={18} color={WHITE} />
             </View>
@@ -578,7 +702,7 @@ export default function GroupChatScreen({
                 </Text>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
 
           <View style={styles.headerActions}>
             <TouchableOpacity
@@ -749,6 +873,85 @@ export default function GroupChatScreen({
           </View>
         </View>
       </View>
+
+      <Modal
+        visible={membersVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setMembersVisible(false)}
+      >
+        <View style={styles.membersModalOverlay}>
+          <TouchableOpacity
+            style={styles.membersModalBackdrop}
+            activeOpacity={1}
+            onPress={() => setMembersVisible(false)}
+          />
+
+          <View style={styles.membersModalCard}>
+            <View style={styles.membersModalHeader}>
+              <View>
+                <Text style={styles.membersModalTitle}>
+                  {groupDetails?.name || groupName || "Grupo"}
+                </Text>
+                <Text style={styles.membersModalSubtitle}>
+                  Información y miembros del grupo
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.membersModalClose}
+                onPress={() => setMembersVisible(false)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={20} color={ACCENT} />
+              </TouchableOpacity>
+            </View>
+
+            {membersLoading ? (
+              <View style={styles.membersState}>
+                <ActivityIndicator size="small" color={PRIMARY} />
+                <Text style={styles.membersStateText}>Cargando miembros...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={members}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <MemberRow
+                    member={item}
+                    isCurrentUser={item.user_id === currentUserId}
+                  />
+                )}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.membersListContent}
+                ListHeaderComponent={
+                  <View style={styles.groupInfoCard}>
+                    <Text style={styles.groupInfoTitle}>Información del grupo</Text>
+                    {groupInfoItems.map((item) => (
+                      <View key={item.key} style={styles.groupInfoRow}>
+                        <View style={styles.groupInfoLabelWrap}>
+                          <Ionicons name={item.icon} size={16} color={PRIMARY} />
+                          <Text style={styles.groupInfoLabel}>{item.label}</Text>
+                        </View>
+                        <Text style={styles.groupInfoValue}>{item.value}</Text>
+                      </View>
+                    ))}
+
+                    <Text style={styles.groupInfoMembersTitle}>Miembros dentro del grupo</Text>
+                  </View>
+                }
+                ListEmptyComponent={
+                  <View style={styles.membersState}>
+                    <Text style={styles.membersStateText}>
+                      No hay miembros para mostrar.
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -864,6 +1067,143 @@ const styles = StyleSheet.create({
   },
   leaveBtn: {
     backgroundColor: ERROR + "10",
+  },
+
+  // Members modal
+  membersModalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(15, 23, 42, 0.32)",
+  },
+  membersModalBackdrop: {
+    flex: 1,
+  },
+  membersModalCard: {
+    backgroundColor: WHITE,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 24,
+    minHeight: "45%",
+    maxHeight: "78%",
+  },
+  membersModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    gap: 12,
+  },
+  membersModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
+  },
+  membersModalSubtitle: {
+    marginTop: 2,
+    fontSize: 13,
+    color: TEXT_MEDIUM,
+  },
+  membersModalClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: PRIMARY + "10",
+  },
+  membersListContent: {
+    paddingBottom: 12,
+  },
+  groupInfoCard: {
+    backgroundColor: SURFACE,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 14,
+    marginBottom: 10,
+  },
+  groupInfoTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: ACCENT,
+    marginBottom: 10,
+  },
+  groupInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingVertical: 7,
+  },
+  groupInfoLabelWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 1,
+  },
+  groupInfoLabel: {
+    fontSize: 13,
+    color: TEXT_MEDIUM,
+    fontWeight: "600",
+  },
+  groupInfoValue: {
+    flex: 1,
+    textAlign: "right",
+    fontSize: 13,
+    color: TEXT_DARK,
+    fontWeight: "600",
+  },
+  groupInfoMembersTitle: {
+    marginTop: 10,
+    fontSize: 15,
+    fontWeight: "700",
+    color: ACCENT,
+  },
+  memberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+  },
+  memberAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: PRIMARY + "12",
+  },
+  memberAvatarText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: PRIMARY,
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: TEXT_DARK,
+  },
+  memberSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    color: TEXT_MEDIUM,
+  },
+  membersState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 24,
+    gap: 10,
+  },
+  membersStateText: {
+    fontSize: 14,
+    color: TEXT_MEDIUM,
   },
 
   // Chat list

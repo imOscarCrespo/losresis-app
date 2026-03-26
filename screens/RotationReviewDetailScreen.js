@@ -8,7 +8,11 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { getRotationReviewWithAnswers } from "../services/externalRotationReviewService";
+import {
+  getRotationReviewWithAnswers,
+  isExternalRotationReviewFavorite,
+  setExternalRotationReviewFavorite,
+} from "../services/externalRotationReviewService";
 import { formatLongDate, formatShortDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
@@ -119,12 +123,16 @@ const AnswerCard = ({ title, body, tone = "primary" }) => {
 
 export default function RotationReviewDetailScreen({
   reviewId,
+  userId,
   onBack,
   onContact,
+  onFavoriteChanged,
 }) {
   const [review, setReview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
 
   useEffect(() => {
     posthogLogger.logScreen("RotationReviewDetailScreen", { reviewId });
@@ -152,6 +160,24 @@ export default function RotationReviewDetailScreen({
 
     loadReview();
   }, [reviewId]);
+
+  useEffect(() => {
+    const loadFavoriteState = async () => {
+      if (!userId || !reviewId) {
+        setIsFavorite(false);
+        return;
+      }
+
+      try {
+        const favorite = await isExternalRotationReviewFavorite(userId, reviewId);
+        setIsFavorite(favorite);
+      } catch (err) {
+        console.error("Error loading favorite state:", err);
+      }
+    };
+
+    loadFavoriteState();
+  }, [reviewId, userId]);
 
   const ratingCards = useMemo(() => {
     const answers = review?.external_rotation_review_answer || [];
@@ -197,6 +223,26 @@ export default function RotationReviewDetailScreen({
     )}`;
   }, [review]);
 
+  const canFavorite = Boolean(userId && review?.user_id && review.user_id !== userId);
+
+  const handleToggleFavorite = async () => {
+    if (!canFavorite || favoriteLoading) {
+      return;
+    }
+
+    try {
+      setFavoriteLoading(true);
+      const nextValue = !isFavorite;
+      await setExternalRotationReviewFavorite(userId, reviewId, nextValue);
+      setIsFavorite(nextValue);
+      onFavoriteChanged?.();
+    } catch (err) {
+      console.error("Error toggling favorite review:", err);
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.stateContainer}>
@@ -228,7 +274,22 @@ export default function RotationReviewDetailScreen({
           <Ionicons name="arrow-back" size={22} color={PRIMARY} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Detalle</Text>
-        <View style={styles.headerButton} />
+        {canFavorite ? (
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={handleToggleFavorite}
+            disabled={favoriteLoading}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={isFavorite ? "heart" : "heart-outline"}
+              size={22}
+              color={isFavorite ? COLORS.ERROR : PRIMARY}
+            />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerButton} />
+        )}
       </View>
 
       <ScrollView

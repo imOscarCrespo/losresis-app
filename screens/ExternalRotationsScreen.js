@@ -30,6 +30,7 @@ import {
   createRotationReview,
   deleteRotationReview,
   ensureReviewContactThread,
+  getFavoriteExternalRotationReviews,
   getAllExternalRotationReviews,
   getRotationReviewQuestions,
   updateRotationReview,
@@ -246,39 +247,20 @@ const SectionTitle = ({ eyebrow, title, description, actionLabel, onAction }) =>
   </View>
 );
 
-const HubActionCard = ({ icon, title, description, primary = false, onPress, buttonLabel }) => (
-  <View style={styles.hubActionCard}>
+const HubActionCard = ({ title, description, buttonLabel, onPress }) => (
+  <TouchableOpacity
+    style={styles.hubActionCard}
+    onPress={onPress}
+    activeOpacity={0.85}
+  >
     <View>
-      <View
-        style={[
-          styles.hubIconWrap,
-          primary ? styles.hubIconWrapPrimary : styles.hubIconWrapAlt,
-        ]}
-      >
-        <Ionicons
-          name={icon}
-          size={24}
-          color={primary ? PRIMARY : SUCCESS}
-        />
-      </View>
       <Text style={styles.hubActionTitle}>{title}</Text>
       <Text style={styles.hubActionDescription}>{description}</Text>
     </View>
-    <TouchableOpacity
-      style={[styles.hubActionButton, !primary && styles.hubActionButtonAlt]}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
-      <Text
-        style={[
-          styles.hubActionButtonText,
-          !primary && styles.hubActionButtonTextAlt,
-        ]}
-      >
-        {buttonLabel}
-      </Text>
-    </TouchableOpacity>
-  </View>
+    <View style={styles.hubActionButton}>
+      <Text style={styles.hubActionButtonText}>{buttonLabel}</Text>
+    </View>
+  </TouchableOpacity>
 );
 
 const MiniDestinationCard = ({ review, onPress }) => (
@@ -435,6 +417,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
   const [rotations, setRotations] = useState([]);
   const [userRotations, setUserRotations] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [favoriteReviews, setFavoriteReviews] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -471,7 +454,14 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
     try {
       setLoading(true);
 
-      const [specialtiesRes, rotationsData, userRotationsData, reviewsData, questionsData] =
+      const [
+        specialtiesRes,
+        rotationsData,
+        userRotationsData,
+        reviewsData,
+        questionsData,
+        favoriteReviewsData,
+      ] =
         await Promise.all([
           supabase
             .from("specialities")
@@ -481,6 +471,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
           getUserRotations(userId),
           getAllExternalRotationReviews(userId, {}),
           getRotationReviewQuestions(),
+          getFavoriteExternalRotationReviews(userId),
         ]);
 
       if (specialtiesRes.error) {
@@ -492,6 +483,9 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
       setUserRotations(userRotationsData || []);
       setReviews(reviewsData || []);
       setQuestions(questionsData || []);
+      setFavoriteReviews(
+        (favoriteReviewsData || []).filter((review) => review.user_id !== userId)
+      );
     } catch (error) {
       console.error("Error loading external rotations data:", error);
       Alert.alert("Error", "No se pudo cargar la información de rotaciones.");
@@ -691,15 +685,6 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
   const exploreVisibleReviews = useMemo(
     () => filteredReviews.filter((review) => review.user_id !== userId),
     [filteredReviews, userId]
-  );
-
-  const featuredReviews = useMemo(
-    () =>
-      publishedReviews
-        .filter((review) => review.is_approved)
-        .sort((a, b) => (b.average_rating || 0) - (a.average_rating || 0))
-        .slice(0, 3),
-    [publishedReviews]
   );
 
   const primaryUserRotation = userRotations[0] || null;
@@ -1244,12 +1229,10 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
     >
       <View style={styles.hubGrid}>
         <HubActionCard
-          icon="search"
-          title="Explorar futura rotación"
-          description="Investiga destinos, hospitales, ciudades y servicios."
-          primary
+          title="Explorar rotaciones"
+          description="¿Aún no sabes qué rotación externa realizar?"
+          buttonLabel="Explorar"
           onPress={() => setRoute({ name: "explore", payload: null })}
-          buttonLabel="Empezar a buscar"
         />
         {primaryUserRotation ? (
           <View style={styles.hubActionCard}>
@@ -1292,11 +1275,10 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
           </View>
         ) : (
           <HubActionCard
-            icon="location"
-            title="Añadir mi futura rotación"
-            description="Comparte tus planes para encontrar a otros residentes."
+            title="Mi futura rotación"
+            description="¿Ya tienes la rotación confirmada?"
+            buttonLabel="Añadir"
             onPress={() => openRotationForm()}
-            buttonLabel="Registrar planes"
           />
         )}
         {primaryUserReview ? (
@@ -1349,32 +1331,34 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
           </View>
         ) : (
           <HubActionCard
-            icon="document-text"
             title="Añadir mi experiencia"
             description="Cuenta cómo fue tu rotación y ayuda a quien viene detrás."
-            onPress={() => openPublish()}
             buttonLabel="Escribir reseña"
+            onPress={() => openPublish()}
           />
         )}
       </View>
-
       <SectionTitle
-        title="Experiencias destacadas"
-        description="Centros y servicios mejor valorados por la comunidad."
+        title="Tus favoritas"
+        description="Reseñas que has guardado para volver a consultarlas."
       />
-      {featuredReviews.length ? (
-        featuredReviews.map((review) => (
+      {favoriteReviews.length ? (
+        favoriteReviews.map((review) => (
           <MiniDestinationCard
             key={review.id}
             review={review}
-            onPress={() => setRoute({ name: "detail", payload: { review } })}
+            onPress={() =>
+              setRoute({ name: "detail", payload: { review, from: "hub" } })
+            }
           />
         ))
       ) : (
         <EmptyState
-          icon="star-outline"
-          title="Todavía no hay experiencias destacadas"
-          description="Cuando se publiquen reseñas aprobadas aparecerán aquí."
+          icon="heart-outline"
+          title="Aún no tienes favoritas"
+          description="Guarda reseñas desde el detalle y aparecerán aquí."
+          actionLabel="Explorar reseñas"
+          onAction={() => setRoute({ name: "explore", payload: null })}
         />
       )}
     </ScrollView>
@@ -1451,7 +1435,9 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
                   dateLabel: formatDateRange(review.start_date, review.end_date),
                 }}
                 buttonLabel="Leer reseña"
-                onContact={() => setRoute({ name: "detail", payload: { review } })}
+                onContact={() =>
+                  setRoute({ name: "detail", payload: { review, from: "explore" } })
+                }
               />
             ))}
           </View>
@@ -1495,7 +1481,9 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
             <ReviewListCard
               key={review.id}
               review={review}
-              onPress={() => setRoute({ name: "detail", payload: { review } })}
+              onPress={() =>
+                setRoute({ name: "detail", payload: { review, from: "explore" } })
+              }
             />
           ))}
         </View>
@@ -1605,7 +1593,9 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
               dateLabel: formatDateRange(review.start_date, review.end_date),
             }}
             buttonLabel="Leer reseña"
-            onContact={() => setRoute({ name: "detail", payload: { review } })}
+            onContact={() =>
+              setRoute({ name: "detail", payload: { review, from: "match" } })
+            }
           />
         ))
       ) : (
@@ -2171,8 +2161,12 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
     return (
       <RotationReviewDetailScreen
         reviewId={selectedReview.id}
-        onBack={() => setRoute({ name: "explore", payload: null })}
+        userId={userId}
+        onBack={() =>
+          setRoute({ name: route.payload?.from || "explore", payload: null })
+        }
         onContact={(review) => handleOpenContact(review)}
+        onFavoriteChanged={refreshAll}
       />
     );
   }
@@ -2180,7 +2174,9 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        {route.name === "hub" ? (
+        {route.name === "hub" ||
+        route.name === "explore" ||
+        route.name === "match" ? (
           <View style={styles.headerSpacer} />
         ) : (
           <TouchableOpacity
@@ -2355,23 +2351,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   hubGrid: {
-    gap: 12,
+    gap: 10,
   },
   hubActionCard: {
     backgroundColor: SURFACE_CARD,
     borderRadius: 20,
-    padding: 16,
-    gap: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    gap: 10,
     borderWidth: 1,
     borderColor: BORDER,
   },
   hubIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   hubIconWrapPrimary: {
     backgroundColor: PRIMARY_SOFT,
@@ -2380,25 +2377,26 @@ const styles = StyleSheet.create({
     backgroundColor: SUCCESS_SOFT,
   },
   hubActionTitle: {
-    fontSize: 18,
-    lineHeight: 22,
+    fontSize: 17,
+    lineHeight: 21,
     fontWeight: "800",
     color: TEXT,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   hubActionDescription: {
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 12,
+    lineHeight: 17,
     color: TEXT_MUTED,
   },
   hubActionButton: {
     backgroundColor: PRIMARY,
     borderRadius: 999,
-    minHeight: 42,
-    paddingVertical: 11,
-    paddingHorizontal: 14,
+    minHeight: 34,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "center",
+    alignSelf: "flex-start",
   },
   hubActionRow: {
     flexDirection: "row",
@@ -2413,15 +2411,15 @@ const styles = StyleSheet.create({
   hubActionButtonText: {
     color: "#FFFFFF",
     fontWeight: "800",
-    fontSize: 13,
+    fontSize: 12,
   },
   hubActionButtonTextAlt: {
     color: PRIMARY,
   },
   hubDangerButton: {
     borderRadius: 999,
-    minHeight: 42,
-    paddingVertical: 11,
+    minHeight: 34,
+    paddingVertical: 8,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -2431,7 +2429,7 @@ const styles = StyleSheet.create({
   hubDangerButtonText: {
     color: COLORS.ERROR,
     fontWeight: "800",
-    fontSize: 13,
+    fontSize: 12,
   },
   miniDestinationCard: {
     backgroundColor: SURFACE_CARD,

@@ -78,6 +78,39 @@ export const getGroups = async (userType, filters = {}) => {
 };
 
 /**
+ * Obtener un grupo concreto por id desde la cache
+ * @param {string} groupId
+ */
+export const getGroupById = async (groupId) => {
+  try {
+    if (!groupId) {
+      return { success: false, group: null, error: "Group ID is required" };
+    }
+
+    const allGroups = await fetchGroupsCache();
+    const group = allGroups.find((item) => item?.id === groupId) || null;
+
+    if (!group) {
+      return { success: false, group: null, error: "Grupo no encontrado" };
+    }
+
+    return {
+      success: true,
+      group: {
+        ...group,
+        member_count: Number.isFinite(group.member_count)
+          ? group.member_count
+          : 0,
+      },
+      error: null,
+    };
+  } catch (error) {
+    console.error("Exception in getGroupById:", error);
+    return { success: false, group: null, error: error.message };
+  }
+};
+
+/**
  * Obtener las membresías del usuario actual
  * @param {string} userId
  */
@@ -212,6 +245,34 @@ export const getGroupMemberCounts = async (groupIds = []) => {
   } catch (error) {
     console.error("Exception in getGroupMemberCounts:", error);
     return { success: false, countsByGroupId: {}, error: error.message };
+  }
+};
+
+/**
+ * Obtener miembros de un grupo con datos básicos de usuario
+ * @param {string} groupId
+ */
+export const getGroupMembers = async (groupId) => {
+  try {
+    if (!groupId) {
+      return { success: false, members: [], error: "Group ID is required" };
+    }
+
+    const { data, error } = await supabase
+      .from("group_members")
+      .select("id, joined_at, user_id, user:user_id(id, name, surname)")
+      .eq("group_id", groupId)
+      .order("joined_at", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching group members:", error);
+      return { success: false, members: [], error: error.message };
+    }
+
+    return { success: true, members: data || [], error: null };
+  } catch (error) {
+    console.error("Exception in getGroupMembers:", error);
+    return { success: false, members: [], error: error.message };
   }
 };
 

@@ -13,6 +13,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useLibroSection } from "../hooks/useLibroSection";
 import { useResidentReviewCheck } from "../hooks/useResidentReviewCheck";
+import { exportLibroToPdf } from "../services/libroPdfService";
 import {
   ConfirmationModal,
   LibroNodeModal,
@@ -310,6 +311,7 @@ export default function ResidenceLibraryScreen({
   const [activityTrackingMode, setActivityTrackingMode] = useState("counter");
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [collapsedCategoriesLoaded, setCollapsedCategoriesLoaded] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const { hasReview } = useResidentReviewCheck(userId, userProfile);
   const shouldShowReviewPrompt =
@@ -317,6 +319,8 @@ export default function ResidenceLibraryScreen({
 
   const {
     nodeTree,
+    entries,
+    events,
     loading,
     settings,
     settingsLoading,
@@ -746,6 +750,37 @@ export default function ResidenceLibraryScreen({
     }));
   };
 
+  const handleExportPdf = async () => {
+    if (!nodeTree.length) {
+      Alert.alert("Sin contenido", "Todavía no hay contenido suficiente para exportar.");
+      return;
+    }
+
+    setExportingPdf(true);
+
+    try {
+      await exportLibroToPdf({
+        specialtyName,
+        userResidencyYear,
+        nodeTree,
+        entries,
+        events,
+      });
+
+      posthogLogger.capture("resident_book_pdf_exported", {
+        section: SECTION,
+        categories_count: nodeTree.length,
+        entries_count: entries.length,
+        events_count: events.length,
+      });
+    } catch (error) {
+      console.error("Error exporting libro PDF:", error);
+      Alert.alert("Error", "No se pudo generar el PDF.");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   if (
     (loading || settingsLoading || !specialtyResolved) &&
     !hasCompletedOnboarding &&
@@ -1124,17 +1159,30 @@ export default function ResidenceLibraryScreen({
                 .join(" · ")}
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.headerIcon}
-            onPress={() =>
-              handleProtectedAction(() => {
-                setSelectedParentForChild(null);
-                setShowNodeFormScreen(true);
-              })
-            }
-          >
-            <Ionicons name="add" size={18} color="#670CF5" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={[styles.headerIcon, exportingPdf && styles.headerIconDisabled]}
+              onPress={() => handleProtectedAction(handleExportPdf)}
+              disabled={exportingPdf}
+            >
+              <Ionicons
+                name={exportingPdf ? "hourglass-outline" : "document-text-outline"}
+                size={18}
+                color="#670CF5"
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerIcon}
+              onPress={() =>
+                handleProtectedAction(() => {
+                  setSelectedParentForChild(null);
+                  setShowNodeFormScreen(true);
+                })
+              }
+            >
+              <Ionicons name="add" size={18} color="#670CF5" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -1154,6 +1202,20 @@ export default function ResidenceLibraryScreen({
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, { width: `${overview.progress}%` }]} />
               </View>
+              <TouchableOpacity
+                style={[styles.exportButton, exportingPdf && styles.exportButtonDisabled]}
+                onPress={() => handleProtectedAction(handleExportPdf)}
+                disabled={exportingPdf}
+              >
+                <Ionicons
+                  name={exportingPdf ? "hourglass-outline" : "download-outline"}
+                  size={16}
+                  color="#670CF5"
+                />
+                <Text style={styles.exportButtonText}>
+                  {exportingPdf ? "Generando PDF..." : "Descargar PDF"}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {nodeTree.map((parentNode) => (
@@ -1278,6 +1340,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(103,12,245,0.12)",
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerIconDisabled: {
+    opacity: 0.6,
+  },
   contentSurface: {
     flex: 1,
     backgroundColor: "#F8F9FE",
@@ -1369,6 +1439,28 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#670CF5",
     textAlign: "right",
+  },
+  exportButton: {
+    marginTop: 16,
+    minHeight: 44,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#F5F3FF",
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+  },
+  exportButtonDisabled: {
+    opacity: 0.7,
+  },
+  exportButtonText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#670CF5",
   },
   progressHeaderLabel: {
     fontSize: 13,

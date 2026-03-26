@@ -137,6 +137,28 @@ const isResidentDefaultGroup = (group, residentContext) => {
   );
 };
 
+const getCompactGroupName = (groupName) => {
+  if (!groupName || typeof groupName !== "string") return "Grupo";
+
+  const parts = groupName.split(" - ").map((part) => part.trim());
+
+  if (parts.length !== 2) {
+    return groupName;
+  }
+
+  const [hospitalName, specialityName] = parts;
+
+  if (!hospitalName || !specialityName) {
+    return groupName;
+  }
+
+  if (hospitalName.length <= 16) {
+    return groupName;
+  }
+
+  return `${hospitalName.slice(0, 16).trimEnd()}... - ${specialityName}`;
+};
+
 // ── RadioDot ─────────────────────────────────────────────────────────
 function RadioDot({ selected }) {
   return (
@@ -280,9 +302,8 @@ function FilterModal({ visible, onClose, title, options, value, onSelect, placeh
 // ── GroupCard ─────────────────────────────────────────────────────────
 function GroupCard({ group, isMember, joiningId, onPress }) {
   const isJoining = joiningId === group.id;
-  const locationLabel = group.hospital?.name || group.city || "Sin ubicación";
-  const specialityLabel = group.speciality?.name || "Grupo general";
   const unreadCount = Number(group.unread_count || 0);
+  const displayName = getCompactGroupName(group.name);
 
   return (
     <TouchableOpacity
@@ -290,23 +311,10 @@ function GroupCard({ group, isMember, joiningId, onPress }) {
       onPress={() => onPress(group)}
       activeOpacity={0.85}
     >
-      <View
-        style={[
-          styles.cardIconWrap,
-          { backgroundColor: isMember ? GREEN + "18" : PRIMARY + "12" },
-        ]}
-      >
-        <Ionicons
-          name="people"
-          size={28}
-          color={isMember ? GREEN : PRIMARY}
-        />
-      </View>
-
       <View style={styles.cardBody}>
         <View style={styles.cardTitleRow}>
-          <Text style={styles.cardName} numberOfLines={2}>
-            {group.name}
+          <Text style={styles.cardName} numberOfLines={1}>
+            {displayName}
           </Text>
 
           {isMember && unreadCount > 0 ? (
@@ -316,32 +324,8 @@ function GroupCard({ group, isMember, joiningId, onPress }) {
               </Text>
             </View>
           ) : null}
-        </View>
 
-        <View style={styles.cardMeta}>
-          <View style={styles.metaItem}>
-            <Ionicons name="medical-outline" size={12} color={TEXT_MEDIUM} />
-            <Text style={styles.metaText} numberOfLines={1}>
-              {specialityLabel}
-            </Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Ionicons name="location-outline" size={12} color={TEXT_MEDIUM} />
-            <Text style={styles.metaText} numberOfLines={1}>
-              {locationLabel}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.cardFooter}>
-          <View style={styles.memberCount}>
-            <Ionicons name="person-outline" size={12} color={TEXT_LIGHT} />
-            <Text style={styles.memberCountText}>
-              {group.member_count}{" "}
-              {group.member_count === 1 ? "miembro" : "miembros"}
-            </Text>
-          </View>
-
+          <View style={styles.cardActionWrap}>
           {isMember ? (
             <View style={styles.joinedBadge}>
               <Ionicons name="chatbubble" size={12} color={GREEN} />
@@ -359,6 +343,7 @@ function GroupCard({ group, isMember, joiningId, onPress }) {
               )}
             </View>
           )}
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -744,15 +729,32 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
 
   const displayGroups = useMemo(
     () =>
-      filteredGroups.map((group) => ({
-        ...group,
-        member_count:
-          showResidentScopeNote && relatedGroupCounts[group.id] != null
-            ? relatedGroupCounts[group.id]
-            : group.member_count,
-        unread_count: unreadByGroupId[group.id]?.unreadCount || 0,
-      })),
-    [filteredGroups, showResidentScopeNote, relatedGroupCounts, unreadByGroupId]
+      filteredGroups
+        .map((group) => ({
+          ...group,
+          member_count:
+            showResidentScopeNote && relatedGroupCounts[group.id] != null
+              ? relatedGroupCounts[group.id]
+              : group.member_count,
+          unread_count: unreadByGroupId[group.id]?.unreadCount || 0,
+        }))
+        .sort((a, b) => {
+          const aIsMember = memberGroupIds.has(a.id);
+          const bIsMember = memberGroupIds.has(b.id);
+
+          if (aIsMember !== bIsMember) {
+            return aIsMember ? -1 : 1;
+          }
+
+          return a.name.localeCompare(b.name, "es");
+        }),
+    [
+      filteredGroups,
+      showResidentScopeNote,
+      relatedGroupCounts,
+      unreadByGroupId,
+      memberGroupIds,
+    ]
   );
 
   const cityOptions = useMemo(
@@ -1124,19 +1126,17 @@ const styles = StyleSheet.create({
 
   // Card
   card: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: WHITE,
-    borderRadius: 18,
+    borderRadius: 16,
     marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 16,
-    gap: 14,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     shadowColor: ACCENT,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
     borderWidth: 1,
     borderColor: BORDER,
   },
@@ -1144,29 +1144,20 @@ const styles = StyleSheet.create({
     borderColor: GREEN + "40",
     borderWidth: 1.5,
   },
-  cardIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
   cardBody: {
-    flex: 1,
-    gap: 6,
+    width: "100%",
   },
   cardTitleRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
+    alignItems: "center",
+    gap: 8,
   },
   cardName: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
     color: ACCENT,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   unreadBadge: {
     minWidth: 24,
@@ -1183,49 +1174,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: WHITE,
   },
-  cardMeta: {
-    flexDirection: "row",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  metaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 12,
-    color: TEXT_MEDIUM,
-    fontWeight: "500",
-  },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 2,
-  },
-  memberCount: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  memberCountText: {
-    fontSize: 12,
-    color: TEXT_LIGHT,
+  cardActionWrap: {
+    marginLeft: "auto",
   },
   joinedBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
     backgroundColor: GREEN + "15",
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: GREEN + "30",
   },
   joinedBadgeText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     color: GREEN,
   },
@@ -1234,16 +1198,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     backgroundColor: PRIMARY,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
   joinBtnLoading: {
     opacity: 0.7,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   joinBtnText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     color: WHITE,
   },

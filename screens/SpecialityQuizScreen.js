@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +16,7 @@ import {
   getQuizHistoryForUser,
 } from "../services/specialityQuizService";
 import posthogLogger from "../services/posthogService";
+import { MotionPressable } from "../components/MotionPressable";
 
 const DIMENSION_WEIGHTS = {
   block_1_orientacion_cognitiva: 1.5,
@@ -499,21 +499,22 @@ export default function SpecialityQuizScreen({ userProfile }) {
                 </View>
               </View>
 
-              <TouchableOpacity
+              <MotionPressable
                 style={[
                   styles.primaryAction,
                   (submitting || !userId) && styles.primaryActionDisabled,
                 ]}
                 onPress={handleStart}
                 disabled={submitting || !userId}
-                activeOpacity={0.85}
+                scaleTo={0.985}
+                pressedOpacity={0.96}
               >
                 {submitting ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.primaryActionText}>Empezar test</Text>
                 )}
-              </TouchableOpacity>
+              </MotionPressable>
 
               {!userId && (
                 <Text style={styles.heroSupportText}>
@@ -561,11 +562,13 @@ export default function SpecialityQuizScreen({ userProfile }) {
                   const second = top[1];
 
                   return (
-                    <TouchableOpacity
+                    <MotionPressable
                       key={session.id}
                       style={styles.historyItem}
+                      pressedStyle={styles.historyItemPressed}
                       onPress={() => handleOpenHistorySession(session)}
-                      activeOpacity={0.8}
+                      scaleTo={0.985}
+                      pressedOpacity={0.97}
                     >
                       <View style={styles.historyItemHeader}>
                         <Text style={styles.historyDate}>{dateLabel}</Text>
@@ -585,7 +588,7 @@ export default function SpecialityQuizScreen({ userProfile }) {
                           Test sin resultados guardados
                         </Text>
                       )}
-                    </TouchableOpacity>
+                    </MotionPressable>
                   );
                 })}
               </View>
@@ -607,14 +610,16 @@ export default function SpecialityQuizScreen({ userProfile }) {
           const isSelected = selectedValue === option.value;
 
           return (
-            <TouchableOpacity
+            <MotionPressable
               key={option.id || `${question.id}-${option.order_index}`}
               style={[
                 styles.optionCard,
                 isSelected && styles.optionCardSelected,
               ]}
+              pressedStyle={styles.optionCardPressed}
               onPress={() => handleAnswer(option.value)}
-              activeOpacity={0.85}
+              scaleTo={0.982}
+              pressedOpacity={0.97}
             >
               <View style={styles.optionHeader}>
                 <View
@@ -641,7 +646,7 @@ export default function SpecialityQuizScreen({ userProfile }) {
                   {option.label}
                 </Text>
               </View>
-            </TouchableOpacity>
+            </MotionPressable>
           );
         })}
       </View>
@@ -663,13 +668,14 @@ export default function SpecialityQuizScreen({ userProfile }) {
       <View style={styles.safeArea}>
         <View style={styles.headerShell}>
           <View style={styles.header}>
-            <TouchableOpacity
+            <MotionPressable
               style={styles.backButton}
               onPress={handleBackFromQuestions}
-              activeOpacity={0.7}
+              scaleTo={0.9}
+              pressedOpacity={0.72}
             >
               <Ionicons name="arrow-back" size={20} color={INDIGO} />
-            </TouchableOpacity>
+            </MotionPressable>
             <Text style={styles.headerTitle}>Test de orientación MIR</Text>
             <View style={styles.headerCounter}>
               <Text style={styles.headerCounterText}>
@@ -1126,6 +1132,10 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontWeight: "600",
   },
+  historyItemPressed: {
+    backgroundColor: "#EEF2FF",
+    borderColor: "#C7D2FE",
+  },
   historyEmpty: {
     fontSize: 14,
     color: "#6B7280",
@@ -1144,6 +1154,10 @@ const styles = StyleSheet.create({
   optionCardSelected: {
     borderColor: PRIMARY,
     backgroundColor: "#F5F3FF",
+  },
+  optionCardPressed: {
+    backgroundColor: "#F8FAFF",
+    borderColor: "#C7D2FE",
   },
   optionHeader: {
     flexDirection: "row",
