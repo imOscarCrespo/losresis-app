@@ -18,6 +18,8 @@ import {
   ConfirmationModal,
   LibroNodeModal,
   LibroQuickRegisterModal,
+  ScreenHeader,
+  ScreenScaffold,
 } from "../components";
 import {
   CATEGORY_ICON_OPTIONS,
@@ -286,6 +288,7 @@ const CategoryCard = ({
 export default function ResidenceLibraryScreen({
   userProfile,
   navigation,
+  onBack,
   residentHasReview = true,
 }) {
   const userId = userProfile?.id;
@@ -816,17 +819,18 @@ export default function ResidenceLibraryScreen({
     const colorOptions = getColorTokenOptions();
 
     return (
-      <View style={styles.safeArea}>
-        <View style={styles.headerShell}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Libro de residente</Text>
-            <View style={styles.headerIcon}>
-              <Ionicons name="book-outline" size={18} color="#670CF5" />
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.contentSurface}>
+      <ScreenScaffold
+        style={styles.safeArea}
+        header={
+          <ScreenHeader
+            title="Libro de residente"
+            onBack={onBack}
+            iconName="book-outline"
+            compact
+          />
+        }
+        contentSurfaceStyle={styles.contentSurface}
+      >
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.contentInner}>
               <View style={styles.heroCard}>
@@ -1142,51 +1146,48 @@ export default function ResidenceLibraryScreen({
               ) : null}
             </View>
           </ScrollView>
-        </View>
-      </View>
+      </ScreenScaffold>
     );
   };
 
   const renderDashboard = () => (
-    <View style={styles.safeArea}>
-      <View style={styles.headerShell}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Libro de residente</Text>
-            <Text style={styles.headerMeta}>
-              {[specialtyName, userResidencyYear ? `R${userResidencyYear}` : null]
-                .filter(Boolean)
-                .join(" · ")}
-            </Text>
-          </View>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={[styles.headerIcon, exportingPdf && styles.headerIconDisabled]}
-              onPress={() => handleProtectedAction(handleExportPdf)}
-              disabled={exportingPdf}
-            >
-              <Ionicons
-                name={exportingPdf ? "hourglass-outline" : "document-text-outline"}
-                size={18}
-                color="#670CF5"
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.headerIcon}
-              onPress={() =>
-                handleProtectedAction(() => {
-                  setSelectedParentForChild(null);
-                  setShowNodeFormScreen(true);
-                })
-              }
-            >
-              <Ionicons name="add" size={18} color="#670CF5" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.contentSurface}>
+    <ScreenScaffold
+      style={styles.safeArea}
+      header={
+        <ScreenHeader
+          title="Libro de residente"
+          onBack={onBack}
+          compact
+          rightSlot={
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={[styles.headerIcon, exportingPdf && styles.headerIconDisabled]}
+                onPress={() => handleProtectedAction(handleExportPdf)}
+                disabled={exportingPdf}
+              >
+                <Ionicons
+                  name={exportingPdf ? "hourglass-outline" : "document-text-outline"}
+                  size={18}
+                  color="#670CF5"
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.headerIcon}
+                onPress={() =>
+                  handleProtectedAction(() => {
+                    setSelectedParentForChild(null);
+                    setShowNodeFormScreen(true);
+                  })
+                }
+              >
+                <Ionicons name="add" size={18} color="#670CF5" />
+              </TouchableOpacity>
+            </View>
+          }
+        />
+      }
+      contentSurfaceStyle={styles.contentSurface}
+    >
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           <View style={styles.contentInner}>
             <View style={styles.heroCard}>
@@ -1245,7 +1246,6 @@ export default function ResidenceLibraryScreen({
             ))}
           </View>
         </ScrollView>
-      </View>
 
       {shouldShowReviewPrompt ? (
         <View style={styles.reviewPromptOverlay}>
@@ -1295,7 +1295,7 @@ export default function ResidenceLibraryScreen({
         cancelText="Cancelar"
         confirmColor="#EF4444"
       />
-    </View>
+    </ScreenScaffold>
   );
 
   return hasCompletedOnboarding ? renderDashboard() : renderOnboarding();
@@ -1305,30 +1305,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-  },
-  headerShell: {
-    backgroundColor: "#FFFFFF",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    backgroundColor: "#FFFFFF",
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1B0977",
-    letterSpacing: -0.2,
-  },
-  headerMeta: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#64748B",
   },
   headerIcon: {
     width: 36,

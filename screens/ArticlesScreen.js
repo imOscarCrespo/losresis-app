@@ -13,6 +13,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useArticles } from "../hooks/useArticles";
 import { formatShortDate, formatLongDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import posthogLogger from "../services/posthogService";
 
 // ============================================================================
@@ -140,7 +142,7 @@ ArticleCard.displayName = "ArticleCard";
 /**
  * Pantalla de listado de artículos
  */
-export default function ArticlesScreen({ onSectionChange, userProfile }) {
+export default function ArticlesScreen({ onSectionChange, userProfile, onBack }) {
   const {
     articles,
     loading,
@@ -198,18 +200,16 @@ export default function ArticlesScreen({ onSectionChange, userProfile }) {
     }
   }, [hasMore, loading, loadMoreArticles]);
 
-  return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Artículos</Text>
-        <Text style={styles.resultsText}>
-          Mostrando <Text style={styles.resultsNumber}>{articles.length}</Text>{" "}
-          de {totalCount} artículos
-        </Text>
-      </View>
+  const header = (
+    <ScreenHeader
+      title="Artículos"
+      onBack={onBack}
+      compact
+    />
+  );
 
-      {/* Content */}
+  return (
+    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
       {loading && articles.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.PRIMARY} />
@@ -300,7 +300,7 @@ export default function ArticlesScreen({ onSectionChange, userProfile }) {
           )}
         </ScrollView>
       )}
-    </View>
+    </ScreenScaffold>
   );
 }
 
@@ -313,25 +313,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f5f5",
   },
-  header: {
-    backgroundColor: "#ffffff",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-    marginBottom: 8,
-  },
-  resultsText: {
-    fontSize: 14,
-    color: "#666",
-  },
-  resultsNumber: {
-    color: COLORS.PRIMARY,
-    fontWeight: "600",
+  contentSurface: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
   },
   content: {
     flex: 1,

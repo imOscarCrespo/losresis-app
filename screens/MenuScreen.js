@@ -1,6 +1,8 @@
 import React, { useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { MenuGrid } from "../components/MenuGrid";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import { NAVIGATION_ITEMS } from "../constants/navigationItems";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
@@ -11,6 +13,7 @@ import posthogLogger from "../services/posthogService";
  */
 export default function MenuScreen({
   onSectionChange,
+  onBack,
   currentSection,
   userProfile,
   residentHasReview = true,
@@ -32,10 +35,17 @@ export default function MenuScreen({
   }, []);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Menú</Text>
-      </View>
+    <ScreenScaffold
+      header={
+        <ScreenHeader
+          title="Menú"
+          onBack={onBack}
+          iconName="grid-outline"
+          compact
+        />
+      }
+      contentSurfaceStyle={styles.contentSurface}
+    >
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -49,25 +59,13 @@ export default function MenuScreen({
           residentHasReview={residentHasReview}
         />
       </ScrollView>
-    </View>
+    </ScreenScaffold>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  contentSurface: {
     backgroundColor: "#F5F5F5",
-  },
-  header: {
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1a1a1a",
   },
   content: {
     flex: 1,

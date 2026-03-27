@@ -5,15 +5,6 @@
 
 export const NAVIGATION_ITEMS = [
   {
-    id: "comunidad",
-    name: "Comunidad",
-    icon: "people",
-    description: "Conecta con otros residentes de tu especialidad",
-    doctorOnly: true,
-    color: "#7C3AED", // Violet
-    lightColor: "#EDE9FE",
-  },
-  {
     id: "mi-resena",
     name: "Mi Reseña",
     icon: "star",
@@ -88,8 +79,17 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#CCFBF1",
   },
   {
+    id: "residentPayouts",
+    name: "Nóminas",
+    icon: "cash",
+    description: "Registra tu nómina mensual y revisa la evolución anual",
+    residentOnly: true,
+    color: "#670CF5",
+    lightColor: "#F4EEFF",
+  },
+  {
     id: "grupos",
-    name: "Grupos",
+    name: "Chats",
     icon: "people",
     description:
       "Chatea con residentes y estudiantes de tu especialidad y ciudad",
@@ -208,6 +208,7 @@ export const IMPLEMENTED_SECTIONS = [
   "grupos",
   "groupChat",
   "agenda",
+  "residentPayouts",
 ];
 
 /**

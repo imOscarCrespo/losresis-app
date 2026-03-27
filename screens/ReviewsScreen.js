@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { useReviews } from "../hooks/useReviews";
 import { useHospitals } from "../hooks/useHospitals";
 import { prepareHospitalOptions } from "../utils/profileOptions";
@@ -303,161 +304,169 @@ export default function ReviewsScreen({
 
   return (
     <View style={styles.container}>
-      {/* Title row */}
-      <View style={styles.listHeader}>
-        <View style={styles.titleRow}>
-          <Text style={styles.screenTitle}>Reseñas</Text>
+      <BottomMenuHeroHeader
+        title="Reseñas"
+        subtitle="Consulta experiencias reales antes de elegir hospital y especialidad."
+        rightSlot={
           <View style={styles.countBadge}>
             <Text style={styles.countText}>
               {reviewSummaries.length}{" "}
               {reviewSummaries.length === 1 ? "RESEÑA" : "RESEÑAS"}
             </Text>
           </View>
-        </View>
+        }
+      />
 
-        {/* Search bar */}
-        <View style={styles.searchWrap}>
-          <Ionicons name="search" size={18} color={TEXT_LIGHT} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            value={hospitalSearchTerm}
-            onChangeText={setHospitalSearchTerm}
-            placeholder="Buscar por nombre de hospital..."
-            placeholderTextColor={TEXT_LIGHT}
-            returnKeyType="search"
-          />
-          {hospitalSearchTerm.length > 0 && (
-            <TouchableOpacity onPress={() => setHospitalSearchTerm("")}>
-              <Ionicons name="close-circle" size={18} color={TEXT_LIGHT} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Filter chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filtersScroll}
-          contentContainerStyle={styles.filtersRow}
-        >
-          {/* Hospital */}
-          <TouchableOpacity
-            style={[styles.chip, selectedHospital && styles.chipActive]}
-            onPress={() => setOpenModal("hospital")}
-          >
+      <View style={styles.contentShell}>
+        <View style={styles.listHeader}>
+          <View style={styles.searchWrap}>
             <Ionicons
-              name="business"
-              size={15}
-              color={selectedHospital ? PRIMARY : ACCENT}
+              name="search"
+              size={18}
+              color={TEXT_LIGHT}
+              style={styles.searchIcon}
             />
-            <Text
-              style={[styles.chipText, selectedHospital && styles.chipTextActive]}
-              numberOfLines={1}
-            >
-              {selectedHospital
-                ? hospitalOptions.find((o) => o.id === selectedHospital)?.name?.split(" - ")[0] ?? "Hospital"
-                : "Hospital"}
-            </Text>
-            <Ionicons
-              name="chevron-down"
-              size={15}
-              color={selectedHospital ? PRIMARY : ACCENT}
+            <TextInput
+              style={styles.searchInput}
+              value={hospitalSearchTerm}
+              onChangeText={setHospitalSearchTerm}
+              placeholder="Buscar por nombre de hospital..."
+              placeholderTextColor={TEXT_LIGHT}
+              returnKeyType="search"
             />
-          </TouchableOpacity>
-
-          {/* Especialidad */}
-          <TouchableOpacity
-            style={[styles.chip, selectedSpecialty && styles.chipActive]}
-            onPress={() => setOpenModal("specialty")}
-          >
-            <Ionicons
-              name="school"
-              size={15}
-              color={selectedSpecialty ? PRIMARY : ACCENT}
-            />
-            <Text
-              style={[styles.chipText, selectedSpecialty && styles.chipTextActive]}
-              numberOfLines={1}
-            >
-              {specialtyLabel}
-            </Text>
-            <Ionicons
-              name="chevron-down"
-              size={15}
-              color={selectedSpecialty ? PRIMARY : ACCENT}
-            />
-          </TouchableOpacity>
-
-        </ScrollView>
-
-        {/* Section label */}
-        <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>
-            {hasActiveFilters ? reviewCountLabel : "Reseñas disponibles"}
-          </Text>
-          {hasActiveFilters ? (
-            <TouchableOpacity
-              style={styles.sectionAction}
-              onPress={clearFilters}
-              activeOpacity={0.75}
-            >
-              <Text style={styles.sectionActionText}>Reset filters</Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={styles.sectionCount}>{reviewCountLabel}</Text>
-          )}
-        </View>
-      </View>
-
-      {/* Content */}
-      {loading ? (
-        <View style={styles.stateContainer}>
-          <ActivityIndicator size="large" color={PRIMARY} />
-          <Text style={styles.loadingText}>Cargando reseñas...</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.stateContainer}>
-          <Ionicons name="alert-circle" size={48} color={ERROR} />
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      ) : reviewSummaries.length === 0 ? (
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.emptyScrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIconWrap}>
-              <Ionicons name="document-text-outline" size={40} color={PRIMARY} />
-            </View>
-            <Text style={styles.emptyTitle}>
-              {hasActiveFilters
-                ? "Sin reseñas para estos filtros"
-                : "Aún no hay reseñas disponibles"}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {hasActiveFilters
-                ? "Prueba con otros filtros o limpia la búsqueda"
-                : "Estamos trabajando para que los residentes compartan sus experiencias. ¿Nos ayudas compartiendo la app?"}
-            </Text>
+            {hospitalSearchTerm.length > 0 && (
+              <TouchableOpacity onPress={() => setHospitalSearchTerm("")}>
+                <Ionicons name="close-circle" size={18} color={TEXT_LIGHT} />
+              </TouchableOpacity>
+            )}
           </View>
-        </ScrollView>
-      ) : (
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {reviewSummaries.map((summary) => (
-            <ReviewSummaryCard
-              key={`${summary.hospital_id}-${summary.speciality_id}-${summary.review_id}`}
-              summary={summary}
-              onPress={handleReviewPress}
-            />
-          ))}
-          <View style={{ height: 24 }} />
-        </ScrollView>
-      )}
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filtersScroll}
+            contentContainerStyle={styles.filtersRow}
+          >
+            <TouchableOpacity
+              style={[styles.chip, selectedHospital && styles.chipActive]}
+              onPress={() => setOpenModal("hospital")}
+            >
+              <Ionicons
+                name="business"
+                size={15}
+                color={selectedHospital ? PRIMARY : ACCENT}
+              />
+              <Text
+                style={[styles.chipText, selectedHospital && styles.chipTextActive]}
+                numberOfLines={1}
+              >
+                {selectedHospital
+                  ? hospitalOptions.find((o) => o.id === selectedHospital)?.name?.split(
+                      " - "
+                    )[0] ?? "Hospital"
+                  : "Hospital"}
+              </Text>
+              <Ionicons
+                name="chevron-down"
+                size={15}
+                color={selectedHospital ? PRIMARY : ACCENT}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.chip, selectedSpecialty && styles.chipActive]}
+              onPress={() => setOpenModal("specialty")}
+            >
+              <Ionicons
+                name="school"
+                size={15}
+                color={selectedSpecialty ? PRIMARY : ACCENT}
+              />
+              <Text
+                style={[styles.chipText, selectedSpecialty && styles.chipTextActive]}
+                numberOfLines={1}
+              >
+                {specialtyLabel}
+              </Text>
+              <Ionicons
+                name="chevron-down"
+                size={15}
+                color={selectedSpecialty ? PRIMARY : ACCENT}
+              />
+            </TouchableOpacity>
+          </ScrollView>
+
+          <View style={styles.sectionRow}>
+            <Text style={styles.sectionLabel}>
+              {hasActiveFilters ? reviewCountLabel : "Reseñas disponibles"}
+            </Text>
+            {hasActiveFilters ? (
+              <TouchableOpacity
+                style={styles.sectionAction}
+                onPress={clearFilters}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.sectionActionText}>Restablecer filtros</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.sectionCount}>{reviewCountLabel}</Text>
+            )}
+          </View>
+        </View>
+
+        {loading ? (
+          <View style={styles.stateContainer}>
+            <ActivityIndicator size="large" color={PRIMARY} />
+            <Text style={styles.loadingText}>Cargando reseñas...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.stateContainer}>
+            <Ionicons name="alert-circle" size={48} color={ERROR} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : reviewSummaries.length === 0 ? (
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.emptyScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconWrap}>
+                <Ionicons
+                  name="document-text-outline"
+                  size={40}
+                  color={PRIMARY}
+                />
+              </View>
+              <Text style={styles.emptyTitle}>
+                {hasActiveFilters
+                  ? "Sin reseñas para estos filtros"
+                  : "Aún no hay reseñas disponibles"}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {hasActiveFilters
+                  ? "Prueba con otros filtros o limpia la búsqueda"
+                  : "Estamos trabajando para que los residentes compartan sus experiencias. ¿Nos ayudas compartiendo la app?"}
+              </Text>
+            </View>
+          </ScrollView>
+        ) : (
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {reviewSummaries.map((summary) => (
+              <ReviewSummaryCard
+                key={`${summary.hospital_id}-${summary.speciality_id}-${summary.review_id}`}
+                summary={summary}
+                onPress={handleReviewPress}
+              />
+            ))}
+            <View style={{ height: 24 }} />
+          </ScrollView>
+        )}
+      </View>
 
       {/* Hospital filter modal */}
       <FilterModal
@@ -493,37 +502,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BG_LIGHT,
   },
+  contentShell: {
+    flex: 1,
+    marginTop: -18,
+  },
   listHeader: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 24,
     paddingBottom: 4,
   },
-
-  // ── Title row ──
-  titleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  screenTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: ACCENT,
-    letterSpacing: -0.3,
-  },
   countBadge: {
-    backgroundColor: `${PRIMARY}12`,
+    backgroundColor: "rgba(255,255,255,0.16)",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: `${PRIMARY}25`,
+    borderColor: "rgba(255,255,255,0.18)",
   },
   countText: {
     fontSize: 10,
     fontWeight: "700",
-    color: PRIMARY,
+    color: WHITE,
     letterSpacing: 0.8,
   },
 

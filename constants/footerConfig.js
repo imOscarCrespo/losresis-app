@@ -1,7 +1,8 @@
 /**
  * Configuración del Footer v2
  * Estudiantes: Inicio, Hospitales, MIR, Chats, Perfil
- * Residentes: Inicio, Agenda, Chats, Reseñas, Perfil
+ * Residentes: Inicio, Agenda, Chats, Perfil
+ * Doctores: Inicio, Agenda, Chats, Reseñas, Perfil
  */
 
 export const STUDENT_FOOTER_ITEMS = [
@@ -74,7 +75,11 @@ export const RESIDENT_FOOTER_ITEMS = [
  * Obtiene la configuración del footer según el tipo de usuario
  */
 export const getFooterConfig = (userProfile) => {
-  if (userProfile?.is_resident || userProfile?.is_doctor) {
+  if (userProfile?.is_resident) {
+    return RESIDENT_FOOTER_ITEMS.filter((item) => item.id !== "reseñas");
+  }
+
+  if (userProfile?.is_doctor) {
     return RESIDENT_FOOTER_ITEMS;
   }
 

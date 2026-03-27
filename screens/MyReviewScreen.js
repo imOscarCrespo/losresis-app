@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { StarRating } from "../components/StarRating";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import { useMyReview } from "../hooks/useMyReview";
 import { useHospitals } from "../hooks/useHospitals";
 import { formatShortDate } from "../utils/dateUtils";
@@ -42,6 +44,7 @@ export default function MyReviewScreen({
   navigation,
   onReviewCreated,
   onReviewDeleted,
+  onBack,
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -74,6 +77,38 @@ export default function MyReviewScreen({
   );
 
   const isResident = userProfile?.is_resident;
+  const headerStatusChip = existingReview ? (
+    <View
+      style={[
+        styles.statusChip,
+        existingReview.is_approved ? styles.statusChipGreen : styles.statusChipOrange,
+      ]}
+    >
+      <Ionicons
+        name={existingReview.is_approved ? "checkmark-circle" : "time-outline"}
+        size={13}
+        color={existingReview.is_approved ? SECONDARY : "#D97706"}
+      />
+      <Text
+        style={[
+          styles.statusChipText,
+          existingReview.is_approved
+            ? styles.statusChipTextGreen
+            : styles.statusChipTextOrange,
+        ]}
+      >
+        {existingReview.is_approved ? "Aprobada" : "Pendiente"}
+      </Text>
+    </View>
+  ) : null;
+  const header = (
+    <ScreenHeader
+      title="Mi Reseña"
+      onBack={onBack}
+      compact
+      rightSlot={headerStatusChip}
+    />
+  );
 
   useEffect(() => {
     if (existingReview && existingReview.review_answer) {
@@ -184,7 +219,7 @@ export default function MyReviewScreen({
   // ── Not a resident ──
   if (!isResident) {
     return (
-      <View style={styles.container}>
+      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
         <View style={styles.scrollContent}>
           <View style={styles.messageCard}>
             <View style={styles.messageIconWrap}>
@@ -196,14 +231,14 @@ export default function MyReviewScreen({
             </Text>
           </View>
         </View>
-      </View>
+      </ScreenScaffold>
     );
   }
 
   // ── Incomplete profile ──
   if (!hospital || !specialty) {
     return (
-      <View style={styles.container}>
+      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
         <View style={styles.scrollContent}>
           <View style={styles.messageCard}>
             <View style={styles.messageIconWrap}>
@@ -216,46 +251,17 @@ export default function MyReviewScreen({
             </Text>
           </View>
         </View>
-      </View>
+      </ScreenScaffold>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Title row */}
-        <View style={styles.titleRow}>
-          <Text style={styles.screenTitle}>Mi Reseña</Text>
-          {existingReview && (
-            <View
-              style={[
-                styles.statusChip,
-                existingReview.is_approved ? styles.statusChipGreen : styles.statusChipOrange,
-              ]}
-            >
-              <Ionicons
-                name={existingReview.is_approved ? "checkmark-circle" : "time-outline"}
-                size={13}
-                color={existingReview.is_approved ? SECONDARY : "#D97706"}
-              />
-              <Text
-                style={[
-                  styles.statusChipText,
-                  existingReview.is_approved
-                    ? styles.statusChipTextGreen
-                    : styles.statusChipTextOrange,
-                ]}
-              >
-                {existingReview.is_approved ? "Aprobada" : "Pendiente"}
-              </Text>
-            </View>
-          )}
-        </View>
-
         {/* Alerts */}
         {success && (
           <View style={styles.alertSuccess}>
@@ -651,7 +657,7 @@ export default function MyReviewScreen({
           </View>
         </View>
       </Modal>
-    </View>
+    </ScreenScaffold>
   );
 }
 
@@ -664,6 +670,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BG_LIGHT,
   },
+  contentSurface: {
+    flex: 1,
+    backgroundColor: BG_LIGHT,
+  },
   scroll: {
     flex: 1,
   },
@@ -672,19 +682,6 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
 
-  // ── Title row ──
-  titleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  screenTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: ACCENT,
-    letterSpacing: -0.3,
-  },
   statusChip: {
     flexDirection: "row",
     alignItems: "center",

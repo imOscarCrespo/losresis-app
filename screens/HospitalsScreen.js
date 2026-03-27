@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ScreenHeader } from "../components/ScreenHeader";
 import { useUnreadNotificationsCount } from "../src/hooks/useUnreadNotificationsCount";
 import { useHospitals } from "../hooks/useHospitals";
 import posthogLogger from "../services/posthogService";
@@ -283,16 +284,18 @@ export default function HospitalsScreen({
 
   return (
     <View style={styles.container}>
-      {/* Title row */}
-      <View style={styles.titleRow}>
-        <Text style={styles.screenTitle}>Hospitales</Text>
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>
-            {filteredHospitals.length}{" "}
-            {filteredHospitals.length === 1 ? "HOSPITAL" : "HOSPITALES"}
-          </Text>
-        </View>
-      </View>
+      <ScreenHeader
+        title="Hospitales"
+        compact
+        rightSlot={
+          <View style={styles.countBadge}>
+            <Text style={styles.countText}>
+              {filteredHospitals.length}{" "}
+              {filteredHospitals.length === 1 ? "HOSPITAL" : "HOSPITALES"}
+            </Text>
+          </View>
+        }
+      />
 
       {/* Search bar */}
       <View style={styles.searchWrap}>
@@ -418,7 +421,7 @@ export default function HospitalsScreen({
                   onPress={clearFilters}
                   activeOpacity={0.75}
                 >
-                  <Text style={styles.sectionActionText}>Reset filters</Text>
+                  <Text style={styles.sectionActionText}>Restablecer filtros</Text>
                 </TouchableOpacity>
               ) : (
                 <Text style={styles.sectionCount}>{hospitalCountLabel}</Text>
@@ -473,21 +476,6 @@ const styles = StyleSheet.create({
     backgroundColor: BG_LIGHT,
   },
 
-  /* Title row */
-  titleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 14,
-  },
-  screenTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: ACCENT,
-    letterSpacing: -0.3,
-  },
   countBadge: {
     backgroundColor: `${PRIMARY}12`,
     paddingHorizontal: 10,

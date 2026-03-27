@@ -13,6 +13,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHospitals } from "../hooks/useHospitals";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import {
   getMyRoommateBundle,
   getRoommateCandidates,
@@ -45,6 +47,7 @@ const TABS = [
 
 export default function RoommateScreen({
   userProfile,
+  onBack,
   initialTab = "discover",
   initialMatchId = null,
 }) {
@@ -304,21 +307,30 @@ export default function RoommateScreen({
     if (!candidates.length) return "Sin perfiles pendientes";
     return `${candidates.length} perfiles por descubrir`;
   }, [candidates.length]);
+  const header = (
+    <ScreenHeader
+      title="Roomies"
+      onBack={onBack}
+      compact
+      rightSlot={
+        <TouchableOpacity
+          style={styles.headerAction}
+          onPress={() => setFiltersVisible(true)}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="options-outline" size={18} color={ROOMMATE_THEME.PRIMARY} />
+        </TouchableOpacity>
+      }
+    />
+  );
 
   const renderHero = () => (
-    <View style={[styles.hero, { paddingTop: Math.max(insets.top + 8, 24) }]}>
-      <View style={styles.heroTopRow}>
-        <View>
-          <Text style={styles.heroEyebrow}>ROOMIES LOSRESIS</Text>
-          <Text style={styles.heroTitle}>Matching de convivencia</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.heroIcon}
-          onPress={() => setFiltersVisible(true)}
-        >
-          <Ionicons name="options-outline" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
+    <View style={styles.hero}>
+      <Text style={styles.heroEyebrow}>ROOMIES LOSRESIS</Text>
+      <Text style={styles.heroTitle}>Encuentra tu match de convivencia</Text>
+      <Text style={styles.heroText}>
+        Descubre perfiles compatibles, revisa matches y ajusta tus filtros desde el mismo flujo.
+      </Text>
     </View>
   );
 
@@ -559,34 +571,38 @@ export default function RoommateScreen({
 
   if (loading) {
     return (
-      <View style={styles.loadingWrap}>
-        <ActivityIndicator size="large" color={ROOMMATE_THEME.PRIMARY} />
-        <Text style={styles.loadingText}>Preparando roommate matching...</Text>
-      </View>
+      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={ROOMMATE_THEME.PRIMARY} />
+          <Text style={styles.loadingText}>Preparando roommate matching...</Text>
+        </View>
+      </ScreenScaffold>
     );
   }
 
   return (
     <>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={[styles.content, { paddingBottom: 36 }]}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={ROOMMATE_THEME.PRIMARY}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        {renderHero()}
-        {renderTabs()}
+      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={[styles.content, { paddingBottom: 36 }]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={ROOMMATE_THEME.PRIMARY}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {renderHero()}
+          {renderTabs()}
 
-        {activeTab === "discover" && renderDiscover()}
-        {activeTab === "matches" && renderMatches()}
-        {activeTab === "profile" && renderProfile()}
-      </ScrollView>
+          {activeTab === "discover" && renderDiscover()}
+          {activeTab === "matches" && renderMatches()}
+          {activeTab === "profile" && renderProfile()}
+        </ScrollView>
+      </ScreenScaffold>
 
       <RoommateProfileEditor
         visible={editorVisible}
@@ -639,21 +655,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: ROOMMATE_THEME.BACKGROUND,
   },
+  contentSurface: {
+    flex: 1,
+    backgroundColor: ROOMMATE_THEME.BACKGROUND,
+  },
   content: {
     gap: 18,
   },
   hero: {
     paddingHorizontal: 18,
+    paddingTop: 22,
     paddingBottom: 22,
     backgroundColor: ROOMMATE_THEME.PRIMARY,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
-    gap: 18,
-  },
-  heroTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 16,
+    gap: 10,
   },
   heroEyebrow: {
     color: "rgba(255,255,255,0.82)",
@@ -664,17 +680,24 @@ const styles = StyleSheet.create({
   heroTitle: {
     marginTop: 10,
     color: "#FFFFFF",
-    fontSize: 31,
+    fontSize: 29,
     fontWeight: "900",
   },
-  heroIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.14)",
+  heroText: {
+    color: "rgba(255,255,255,0.84)",
+    fontSize: 14,
+    lineHeight: 21,
+    maxWidth: 320,
+  },
+  headerAction: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 6,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E9DFFF",
   },
   tabsRow: {
     marginHorizontal: 18,

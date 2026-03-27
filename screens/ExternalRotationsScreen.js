@@ -16,6 +16,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Country, City } from "country-state-city";
 import { supabase } from "../config/supabase";
 import { COLORS } from "../constants/colors";
+import { ScreenHeader } from "../components/ScreenHeader";
 import { SelectorModal } from "../components/SelectorModal";
 import { SelectFilter, ConfirmationModal } from "../components";
 import {
@@ -408,7 +409,7 @@ const EmptyState = ({ icon, title, description, actionLabel, onAction }) => (
   </View>
 );
 
-export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
+export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => {
   const userId = userProfile?.id;
   const isResident = userProfile?.is_resident;
 
@@ -2173,23 +2174,17 @@ export const ExternalRotationsScreen = ({ userProfile, navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        {route.name === "hub" ||
-        route.name === "explore" ||
-        route.name === "match" ? (
-          <View style={styles.headerSpacer} />
-        ) : (
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={() => setRoute({ name: "hub", payload: null })}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="arrow-back" size={20} color={PRIMARY} />
-          </TouchableOpacity>
-        )}
-        <Text style={styles.headerTitle}>{routeTitle}</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+      <ScreenHeader
+        title={routeTitle}
+        onBack={
+          route.name === "hub" || route.name === "explore" || route.name === "match"
+            ? onBack
+            : () => setRoute({ name: "hub", payload: null })
+        }
+        centerTitle={
+          route.name === "hub" || route.name === "explore" || route.name === "match"
+        }
+      />
 
       {route.name !== "publish" &&
       route.name !== "contact" &&
@@ -2250,32 +2245,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: SURFACE,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 8,
-    backgroundColor: SURFACE,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: PRIMARY,
-  },
-  headerIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: SURFACE_CARD,
-  },
-  headerSpacer: {
-    width: 40,
-    height: 40,
   },
   featureTabsRow: {
     flexDirection: "row",

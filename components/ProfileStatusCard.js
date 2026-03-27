@@ -3,35 +3,48 @@ import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 /**
- * Componente que muestra el estado del perfil (completo/incompleto)
+ * Componente que muestra avisos accionables sobre el estado del perfil.
  */
-export const ProfileStatusCard = ({ isComplete }) => {
+export const ProfileStatusCard = ({ status }) => {
+  if (status === "hidden" || !status) {
+    return null;
+  }
+
+  const content =
+    status === "email_review_pending"
+      ? {
+          icon: "time",
+          iconColor: "#D97706",
+          title: "Validando tu email corporativo",
+          titleColor: "#D97706",
+          subtitle:
+            "Tu perfil está pendiente de revisión manual. En cuanto validemos tu email del hospital, no tendrás que hacer nada más.",
+          subtitleColor: "#B45309",
+        }
+      : {
+          icon: "alert-circle",
+          iconColor: "#D97706",
+          title: "Perfil incompleto",
+          titleColor: "#D97706",
+          subtitle:
+            "Completa los datos obligatorios para personalizar tu experiencia y acceder a todas las funciones.",
+          subtitleColor: "#B45309",
+        };
+
   return (
     <View style={styles.container}>
       <View style={styles.content}>
         <Ionicons
-          name={isComplete ? "checkmark-circle" : "alert-circle"}
+          name={content.icon}
           size={24}
-          color={isComplete ? "#059669" : "#D97706"}
+          color={content.iconColor}
         />
         <View style={styles.textContainer}>
-          <Text
-            style={[
-              styles.title,
-              { color: isComplete ? "#059669" : "#D97706" },
-            ]}
-          >
-            {isComplete ? "Perfil completo" : "Perfil incompleto"}
+          <Text style={[styles.title, { color: content.titleColor }]}>
+            {content.title}
           </Text>
-          <Text
-            style={[
-              styles.subtitle,
-              { color: isComplete ? "#047857" : "#B45309" },
-            ]}
-          >
-            {isComplete
-              ? "Tu perfil está completo y tienes acceso a todas las funciones"
-              : "Completa tu perfil para para personalizar tu experiencia"}
+          <Text style={[styles.subtitle, { color: content.subtitleColor }]}>
+            {content.subtitle}
           </Text>
         </View>
       </View>

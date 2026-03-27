@@ -7,9 +7,10 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { ScreenHeader } from "../../../components/ScreenHeader";
+import { ScreenScaffold } from "../../../components/ScreenScaffold";
 import * as Notifications from "expo-notifications";
 import { supabase } from "../../../config/supabase";
 
@@ -228,47 +229,34 @@ export default function NotificationSettingsScreen({
     getEnabled(option.notification_type)
   ).length;
 
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <TouchableOpacity
-        onPress={onBack}
-        style={styles.backBtn}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="arrow-back" size={22} color="#670CF5" />
-      </TouchableOpacity>
-      <Text style={styles.title} numberOfLines={1}>
-        Notificaciones
-      </Text>
-      <View style={styles.headerRight}>
+  const header = (
+    <ScreenHeader
+      title="Notificaciones"
+      onBack={onBack}
+      compact
+      rightSlot={
         <View style={styles.countBadge}>
           <Text style={styles.countText}>
             {enabledCount}/{NOTIFICATION_OPTIONS.length}
           </Text>
         </View>
-      </View>
-    </View>
+      }
+    />
   );
 
   if (loading) {
     return (
-      <View style={styles.safeArea}>
-        <View style={styles.headerShell}>{renderHeader()}</View>
-        <View style={styles.contentSurface}>
+      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#670CF5" />
             <Text style={styles.loadingText}>Cargando...</Text>
           </View>
-        </View>
-      </View>
+      </ScreenScaffold>
     );
   }
 
   return (
-    <View style={styles.safeArea}>
-      <View style={styles.headerShell}>{renderHeader()}</View>
-      <View style={styles.contentSurface}>
+    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -346,52 +334,14 @@ export default function NotificationSettingsScreen({
             </View>
           </View>
         </ScrollView>
-      </View>
-    </View>
+    </ScreenScaffold>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
   contentSurface: {
     flex: 1,
     backgroundColor: "#F8F9FE",
-  },
-  headerShell: {
-    backgroundColor: "#FFFFFF",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    backgroundColor: "#FFFFFF",
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(103,12,245,0.10)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerRight: {
-    width: 36,
-    alignItems: "flex-end",
-  },
-  title: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1B0977",
-    letterSpacing: -0.2,
-    marginHorizontal: 8,
   },
   countBadge: {
     backgroundColor: "rgba(103,12,245,0.07)",

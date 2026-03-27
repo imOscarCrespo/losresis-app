@@ -1750,6 +1750,56 @@ export type Database = {
           },
         ]
       }
+      resident_monthly_payouts: {
+        Row: {
+          created_at: string
+          gross_total_eur: number
+          guard_count: number
+          has_double_pay: boolean
+          has_pending_payment: boolean
+          id: string
+          period_month: number
+          period_year: number
+          strike_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          gross_total_eur: number
+          guard_count?: number
+          has_double_pay?: boolean
+          has_pending_payment?: boolean
+          id?: string
+          period_month: number
+          period_year: number
+          strike_count?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          gross_total_eur?: number
+          guard_count?: number
+          has_double_pay?: boolean
+          has_pending_payment?: boolean
+          id?: string
+          period_month?: number
+          period_year?: number
+          strike_count?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_monthly_payouts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       review: {
         Row: {
           approved_at: string

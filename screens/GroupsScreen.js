@@ -22,6 +22,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import {
   getGroups,
   getUserMemberships,
@@ -767,39 +768,6 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
 
   const ListHeader = (
     <View style={styles.listHeader}>
-      {/* Título */}
-      <View style={styles.titleRow}>
-        <View>
-          <Text style={styles.screenTitle}>Grupos</Text>
-          <Text style={styles.screenSubtitle}>
-            {showResidentScopeNote
-              ? "Tus grupos y tu entorno"
-              : showStudentScopeNote
-              ? "Tu ciudad"
-              : userTypeLabel}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.myGroupsChip, showMyGroups && styles.myGroupsChipActive]}
-          onPress={() => setShowMyGroups(!showMyGroups)}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={showMyGroups ? "person" : "person-outline"}
-            size={14}
-            color={showMyGroups ? WHITE : ACCENT}
-          />
-          <Text
-            style={[
-              styles.myGroupsChipText,
-              showMyGroups && styles.myGroupsChipTextActive,
-            ]}
-          >
-            Mis grupos
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       {showResidentScopeNote ? (
         <View style={styles.scopeBanner}>
           <Ionicons name="information-circle-outline" size={16} color={PRIMARY} />
@@ -853,7 +821,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
             }}
             activeOpacity={0.75}
           >
-            <Text style={styles.sectionActionText}>Reset filters</Text>
+            <Text style={styles.sectionActionText}>Restablecer filtros</Text>
           </TouchableOpacity>
         ) : (
           <Text style={styles.sectionCount}>{groupCountLabel}</Text>
@@ -884,58 +852,82 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
     </View>
   );
 
-  if (loading) {
-    return (
-      <View style={styles.stateContainer}>
-        <ActivityIndicator size="large" color={PRIMARY} />
-        <Text style={styles.loadingText}>Cargando grupos...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.stateContainer}>
-        <Ionicons name="alert-circle" size={48} color={ERROR} />
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={() => loadData()}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.retryButtonText}>Reintentar</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <FlatList
-        data={displayGroups}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <GroupCard
-            group={item}
-            isMember={memberGroupIds.has(item.id)}
-            joiningId={joiningId}
-            onPress={handleGroupPress}
+      <View style={styles.heroShell}>
+        <BottomMenuHeroHeader
+          title="Chats"
+          subtitle="Encuentra los chats clave de tu ciudad, hospital y especialidad."
+          rightSlot={
+            <TouchableOpacity
+              style={[styles.myGroupsChip, showMyGroups && styles.myGroupsChipActive]}
+              onPress={() => setShowMyGroups(!showMyGroups)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={showMyGroups ? "person" : "person-outline"}
+                size={14}
+                color={showMyGroups ? WHITE : ACCENT}
+              />
+              <Text
+                style={[
+                  styles.myGroupsChipText,
+                  showMyGroups && styles.myGroupsChipTextActive,
+                ]}
+              >
+                Mis grupos
+              </Text>
+            </TouchableOpacity>
+          }
+        />
+      </View>
+
+      <View style={styles.contentShell}>
+        {loading ? (
+          <View style={styles.stateContainer}>
+            <ActivityIndicator size="large" color={PRIMARY} />
+            <Text style={styles.loadingText}>Cargando grupos...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.stateContainer}>
+            <Ionicons name="alert-circle" size={48} color={ERROR} />
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => loadData()}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.retryButtonText}>Reintentar</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={displayGroups}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <GroupCard
+                group={item}
+                isMember={memberGroupIds.has(item.id)}
+                joiningId={joiningId}
+                onPress={handleGroupPress}
+              />
+            )}
+            ListHeaderComponent={ListHeader}
+            ListEmptyComponent={ListEmpty}
+            ListFooterComponent={<View style={{ height: 40 }} />}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={PRIMARY}
+                colors={[PRIMARY]}
+              />
+            }
           />
         )}
-        ListHeaderComponent={ListHeader}
-        ListEmptyComponent={ListEmpty}
-        ListFooterComponent={<View style={{ height: 40 }} />}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={PRIMARY}
-            colors={[PRIMARY]}
-          />
-        }
-      />
+      </View>
 
       {canExploreAll ? (
         <FloatingActionButton
@@ -966,33 +958,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BG,
   },
+  heroShell: {
+    position: "relative",
+    zIndex: 2,
+    elevation: 2,
+  },
+  contentShell: {
+    flex: 1,
+    marginTop: -18,
+    position: "relative",
+    zIndex: 1,
+  },
   listContent: {
     paddingBottom: 16,
   },
   listHeader: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 24,
     paddingBottom: 4,
-  },
-
-  // Title row
-  titleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 14,
-  },
-  screenTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: ACCENT,
-    letterSpacing: -0.3,
-  },
-  screenSubtitle: {
-    fontSize: 13,
-    color: TEXT_MEDIUM,
-    marginTop: 2,
-    fontWeight: "500",
   },
   myGroupsChip: {
     flexDirection: "row",

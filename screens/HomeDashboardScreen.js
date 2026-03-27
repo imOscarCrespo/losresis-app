@@ -22,6 +22,12 @@ import {
   getDashboardAdvertisements,
   getDashboardAudience,
 } from "../services/dashboardAdvertisementService";
+import {
+  formatPayoutPeriodLabel,
+  getCurrentPayoutReminderTargetDate,
+  getResidentPayoutForMonth,
+  shouldShowPayoutReminder,
+} from "../services/residentPayoutService";
 
 const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
@@ -191,6 +197,8 @@ export default function HomeDashboardScreen({
   const [dashboardAds, setDashboardAds] = useState([]);
   const [loadingDashboardAds, setLoadingDashboardAds] = useState(false);
   const [activeAdIndex, setActiveAdIndex] = useState(0);
+  const [payoutReminderTarget, setPayoutReminderTarget] = useState(null);
+  const [showPayoutReminder, setShowPayoutReminder] = useState(false);
 
   const {
     hospitals,
@@ -287,6 +295,59 @@ export default function HomeDashboardScreen({
     userProfile?.is_doctor,
   ]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPayoutReminder = async () => {
+      if (!userProfile?.id || !userProfile?.is_resident) {
+        if (isMounted) {
+          setPayoutReminderTarget(null);
+          setShowPayoutReminder(false);
+        }
+        return;
+      }
+
+      const targetDate = getCurrentPayoutReminderTargetDate();
+      if (!targetDate) {
+        if (isMounted) {
+          setPayoutReminderTarget(null);
+          setShowPayoutReminder(false);
+        }
+        return;
+      }
+
+      try {
+        const existingRecord = await getResidentPayoutForMonth(
+          userProfile.id,
+          targetDate.year,
+          targetDate.month
+        );
+
+        if (!isMounted) return;
+
+        setPayoutReminderTarget(targetDate);
+        setShowPayoutReminder(
+          shouldShowPayoutReminder({
+            userProfile,
+            existingRecord,
+          })
+        );
+      } catch (error) {
+        console.error("Error loading payout reminder:", error);
+        if (isMounted) {
+          setPayoutReminderTarget(targetDate);
+          setShowPayoutReminder(false);
+        }
+      }
+    };
+
+    loadPayoutReminder();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userProfile?.id, userProfile?.is_resident]);
+
   const displayName = useMemo(() => {
     const name = userProfile?.name || "";
     const surname = userProfile?.surname || "";
@@ -329,13 +390,6 @@ export default function HomeDashboardScreen({
         color: "#F97316",
       },
       {
-        label: "Comunidad",
-        icon: "people-outline",
-        section: "comunity",
-        tint: "#EDE9FE",
-        color: "#7C3AED",
-      },
-      {
         label: "Mi reseña",
         icon: "star-outline",
         section: "myReview",
@@ -348,6 +402,13 @@ export default function HomeDashboardScreen({
         section: "rotaciones-externas",
         tint: "#CCFBF1",
         color: "#0F766E",
+      },
+      {
+        label: "Nóminas",
+        icon: "cash-outline",
+        section: "residentPayouts",
+        tint: "#F4EEFF",
+        color: "#670CF5",
       },
       {
         label: "Vivienda",
@@ -707,6 +768,40 @@ export default function HomeDashboardScreen({
       {/* Quick actions para residentes */}
       {userProfile?.is_resident && (
         <View style={styles.residentTopStack}>
+          {showPayoutReminder && payoutReminderTarget ? (
+            <TouchableOpacity
+              style={styles.payoutBanner}
+              onPress={() =>
+                onSectionChange?.("residentPayoutEntry", {
+                  initialYear: payoutReminderTarget.year,
+                  initialMonth: payoutReminderTarget.month,
+                  lockInitialPeriod: true,
+                })
+              }
+              activeOpacity={0.9}
+            >
+              <View style={styles.payoutBannerIcon}>
+                <Ionicons name="cash-outline" size={20} color="#670CF5" />
+              </View>
+              <View style={styles.payoutBannerCopy}>
+                <Text style={styles.payoutBannerEyebrow}>CIERRE MENSUAL</Text>
+                <Text style={styles.payoutBannerTitle}>
+                  Añade tu nómina de{" "}
+                  {formatPayoutPeriodLabel(
+                    payoutReminderTarget.year,
+                    payoutReminderTarget.month
+                  )}
+                </Text>
+                <Text style={styles.payoutBannerText}>
+                  Guarda la nómina, guardias y extras del mes antes de que cierre la ventana.
+                </Text>
+              </View>
+              <View style={styles.payoutBannerArrow}>
+                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+          ) : null}
+
           <View style={styles.residentWeekCard}>
             <View style={styles.residentCardHeader}>
               <Text style={styles.residentCardTitle}>Semana actual</Text>
@@ -1310,6 +1405,59 @@ const styles = StyleSheet.create({
   residentTopStack: {
     gap: 14,
     marginBottom: 24,
+  },
+  payoutBanner: {
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.12)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    shadowColor: "#670CF5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  payoutBannerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F4EEFF",
+  },
+  payoutBannerCopy: {
+    flex: 1,
+  },
+  payoutBannerEyebrow: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    color: "#670CF5",
+    marginBottom: 4,
+  },
+  payoutBannerTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#1B0977",
+    textTransform: "capitalize",
+  },
+  payoutBannerText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#64748B",
+    marginTop: 4,
+  },
+  payoutBannerArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#670CF5",
   },
   residentWeekCard: {
     backgroundColor: "#FFF",

@@ -9,11 +9,16 @@ import {
   ActivityIndicator,
   Alert,
   Share,
-  KeyboardAvoidingView,
+  Modal,
+  Pressable,
   Platform,
   Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
+import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { SelectFilter } from "../components/SelectFilter";
 import { Button } from "../components/Button";
 import { EmailReviewSection } from "../components/EmailReviewSection";
@@ -49,6 +54,46 @@ import {
 } from "../utils/profileOptions";
 import posthogLogger from "../services/posthogService";
 import Constants from "expo-constants";
+
+const getProfileType = (profile) => {
+  if (profile?.is_resident) return "resident";
+  if (profile?.is_doctor) return "doctor";
+  if (profile?.is_student) return "student";
+  return "";
+};
+
+const hasBasicProfileInfo = (profile) => {
+  return !!(profile?.name?.trim() && profile?.city?.trim());
+};
+
+const hasRequiredFieldsForType = (profile, type) => {
+  if (!type) return false;
+
+  if (type === "student") {
+    return hasBasicProfileInfo(profile);
+  }
+
+  if (type === "resident") {
+    return !!(
+      hasBasicProfileInfo(profile) &&
+      profile?.work_email?.trim() &&
+      profile?.hospital_id &&
+      profile?.speciality_id &&
+      profile?.resident_year
+    );
+  }
+
+  if (type === "doctor") {
+    return !!(
+      hasBasicProfileInfo(profile) &&
+      profile?.work_email?.trim() &&
+      profile?.hospital_id &&
+      profile?.speciality_id
+    );
+  }
+
+  return false;
+};
 
 export default function ProfileScreen({
   onBack,
@@ -145,6 +190,7 @@ export default function ProfileScreen({
   // Obtener estado de la solicitud de revisión de email
   const {
     hasActiveRequest: hasActiveEmailReview,
+    request: emailReviewRequest,
     refresh: refreshEmailReviewStatus,
   } = useEmailReviewStatus(user?.id);
 
@@ -306,6 +352,22 @@ export default function ProfileScreen({
       if (err.message !== "User did not share") {
         console.error("Error sharing referral code:", err);
       }
+    }
+  };
+
+  const handleCopyReferralCode = async () => {
+    const code = userProfile?.referral_code;
+    if (!code) return;
+
+    try {
+      await Clipboard.setStringAsync(code);
+      Alert.alert("Código copiado", "Tu código promocional se ha copiado.");
+    } catch (error) {
+      console.error("Error copying referral code:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo copiar el código. Inténtalo de nuevo."
+      );
     }
   };
 
@@ -488,6 +550,7 @@ export default function ProfileScreen({
   const [activeRaffle, setActiveRaffle] = useState(null);
   const [loadingActiveRaffle, setLoadingActiveRaffle] = useState(false);
   const [referralAlreadyApplied, setReferralAlreadyApplied] = useState(false);
+  const [showReferralCodeModal, setShowReferralCodeModal] = useState(false);
 
   // Refs para inputs y scroll
   const scrollViewRef = useRef(null);
@@ -590,14 +653,23 @@ export default function ProfileScreen({
     validateEmailDomain,
   ]);
 
-  // Determinar si el perfil está completo basándose en los datos guardados (userProfile)
-  // Solo mostrar "completo" cuando los datos realmente están guardados en la BD
-  const profileComplete = useMemo(() => {
-    // Si no hay userProfile, el perfil no puede estar completo (no hay datos guardados)
-    if (!userProfile) return false;
+  const hasUnsavedChanges = useMemo(() => {
+    if (!userProfile) {
+      return !!(
+        formData.name ||
+        formData.surname ||
+        formData.phone ||
+        formData.city ||
+        formData.work_email ||
+        formData.hospital_id ||
+        formData.speciality_id ||
+        formData.resident_year ||
+        formData.is_resident ||
+        formData.is_doctor
+      );
+    }
 
-    // Verificar si hay cambios sin guardar comparando formData con userProfile
-    const hasUnsavedChanges =
+    return (
       formData.name !== (userProfile.name || "") ||
       formData.surname !== (userProfile.surname || "") ||
       formData.phone !== (userProfile.phone || "") ||
@@ -609,17 +681,55 @@ export default function ProfileScreen({
       formData.hospital_id !== (userProfile.hospital_id || "") ||
       formData.speciality_id !== (userProfile.speciality_id || "") ||
       formData.resident_year?.toString() !==
-        (userProfile.resident_year?.toString() || "");
+        (userProfile.resident_year?.toString() || "")
+    );
+  }, [formData, userProfile]);
 
-    // Si hay cambios sin guardar, el perfil no está completo (los cambios no están en BD)
-    if (hasUnsavedChanges) return false;
+  const profileUiState = useMemo(() => {
+    const draftType = getProfileType(formData);
+    const draftHasRequiredFields = hasRequiredFieldsForType(formData, draftType);
 
-    // Usar userProfile (datos guardados) para determinar si está completo
-    return isProfileComplete(userProfile, {
-      hasActiveEmailReview,
-      isEmailValid,
-    });
-  }, [userProfile, formData, hasActiveEmailReview, isEmailValid]);
+    if (hasUnsavedChanges) {
+      if (!draftType || !draftHasRequiredFields) {
+        return "incomplete";
+      }
+
+      return "hidden";
+    }
+
+    if (!userProfile) {
+      return "incomplete";
+    }
+
+    const savedType = getProfileType(userProfile);
+    if (!savedType || !hasRequiredFieldsForType(userProfile, savedType)) {
+      return "incomplete";
+    }
+
+    if (savedType === "resident" && emailReviewRequest?.status === "PENDING") {
+      return "email_review_pending";
+    }
+
+    if (
+      isProfileComplete(userProfile, {
+        hasActiveEmailReview,
+        isEmailValid,
+      })
+    ) {
+      return "hidden";
+    }
+
+    return "incomplete";
+  }, [
+    emailReviewRequest?.status,
+    formData,
+    hasActiveEmailReview,
+    hasUnsavedChanges,
+    isEmailValid,
+    userProfile,
+  ]);
+
+  const profileComplete = profileUiState === "hidden";
 
   // Redirigir automáticamente cuando el perfil se completa en modo onboarding
   // Solo si NO estamos en medio de un submit (evita redirección doble)
@@ -663,54 +773,63 @@ export default function ProfileScreen({
   }
 
   return (
-    <KeyboardAvoidingView
+    <ScreenScaffold
+      keyboardAvoiding
       style={styles.safeArea}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      header={
+        isOnboarding ? (
+          <ScreenHeader
+            title="Completa tu perfil"
+            centerTitle
+            compact
+          />
+        ) : (
+          <BottomMenuHeroHeader
+            title="Mi perfil"
+            subtitle="Completa tus datos personales y profesionales para desbloquear todas las funciones de la plataforma."
+          />
+        )
+      }
+      contentSurfaceStyle={styles.contentSurface}
     >
-      <View style={styles.headerShell}>
-        <View style={styles.header}>
-          {!isOnboarding ? (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={onBack}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="arrow-back" size={22} color={COLORS.PRIMARY} />
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.headerSpacer} />
-          )}
-          <Text style={styles.headerTitle}>
-            {isOnboarding ? "Completa tu perfil" : "Mi perfil"}
-          </Text>
-          <View style={styles.headerSpacer} />
-        </View>
-      </View>
-
-      <View style={styles.contentSurface}>
         <ScrollView
           ref={scrollViewRef}
-          style={styles.scrollView}
+          style={[styles.scrollView, !isOnboarding && styles.scrollViewWithHero]}
           contentContainerStyle={styles.scrollViewContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
           <View style={styles.contentInner}>
-            <View style={styles.heroCard}>
-              <Text style={styles.heroTitle}>
-                {isOnboarding
-                  ? "Activa tu perfil en 2 minutos"
-                  : "Mantén tu perfil al día"}
-              </Text>
-              <Text style={styles.heroText}>
-                Completa tus datos personales y profesionales para desbloquear
-                todas las funciones de la plataforma.
-              </Text>
-            </View>
+            {isOnboarding ? (
+              <View style={styles.heroCard}>
+                <Text style={styles.heroTitle}>Activa tu perfil en 2 minutos</Text>
+                <Text style={styles.heroText}>
+                  Completa tus datos personales y profesionales para desbloquear
+                  todas las funciones de la plataforma.
+                </Text>
+              </View>
+            ) : null}
 
-            <ProfileStatusCard isComplete={profileComplete} />
+            <ProfileStatusCard status={profileUiState} />
+
+            {hasUnsavedChanges ? (
+              <View style={styles.unsavedChangesCard}>
+                <Ionicons
+                  name="save-outline"
+                  size={20}
+                  color={COLORS.PRIMARY}
+                />
+                <View style={styles.unsavedChangesTextBlock}>
+                  <Text style={styles.unsavedChangesTitle}>
+                    Tienes cambios sin guardar
+                  </Text>
+                  <Text style={styles.unsavedChangesText}>
+                    Pulsa en guardar cambios para actualizar tu perfil.
+                  </Text>
+                </View>
+              </View>
+            ) : null}
 
             {showReferralApplySection && (loadingActiveRaffle || activeRaffle) && (
               <View style={styles.referralSection}>
@@ -794,34 +913,6 @@ export default function ProfileScreen({
                       {referralApplyMessage.text}
                     </Text>
                   </View>
-                )}
-              </View>
-            )}
-
-            {!isOnboarding && (
-              <View style={styles.myReferralSection}>
-                <Text style={styles.referralSectionTitle}>
-                  Tu código de referido
-                </Text>
-                {userProfile?.referral_code ? (
-                  <TouchableOpacity
-                    style={styles.myReferralCodeTouchable}
-                    onPress={handleShareReferralCode}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.myReferralCodeText}>
-                      {userProfile.referral_code}
-                    </Text>
-                    <Ionicons
-                      name="share-outline"
-                      size={22}
-                      color={COLORS.PRIMARY}
-                    />
-                  </TouchableOpacity>
-                ) : (
-                  <Text style={styles.referralMutedText}>
-                    Tu código de referido se mostrará aquí cuando esté disponible.
-                  </Text>
                 )}
               </View>
             )}
@@ -1141,6 +1232,26 @@ export default function ProfileScreen({
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.settingsRow, styles.settingsRowSecond]}
+                onPress={() => setShowReferralCodeModal(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingsRowContent}>
+                  <Ionicons
+                    name="gift-outline"
+                    size={24}
+                    color={COLORS.PRIMARY}
+                    style={styles.securityIcon}
+                  />
+                  <Text style={styles.settingsRowTitle}>Código promocional</Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={COLORS.TEXT_LIGHT}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.settingsRow, styles.settingsRowSecond]}
                 onPress={() => onSectionChange("contacto")}
                 activeOpacity={0.7}
               >
@@ -1214,8 +1325,80 @@ export default function ProfileScreen({
             </View>
           </View>
         </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+      <Modal
+        visible={showReferralCodeModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowReferralCodeModal(false)}
+      >
+        <Pressable
+          style={styles.referralModalOverlay}
+          onPress={() => setShowReferralCodeModal(false)}
+        >
+          <Pressable
+            style={styles.referralModalSheet}
+            onPress={(event) => event.stopPropagation()}
+          >
+            <View style={styles.referralModalHandle} />
+            <View style={styles.referralModalHeader}>
+              <View>
+                <Text style={styles.referralModalTitle}>Código promocional</Text>
+                <Text style={styles.referralModalSubtitle}>
+                  Compártelo o cópialo cuando quieras.
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowReferralCodeModal(false)}
+                activeOpacity={0.7}
+                style={styles.referralModalCloseButton}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {userProfile?.referral_code ? (
+              <>
+                <View style={styles.referralCodeCard}>
+                  <Text style={styles.referralCodeLabel}>Tu código</Text>
+                  <Text style={styles.referralCodeValue}>
+                    {userProfile.referral_code}
+                  </Text>
+                </View>
+                <View style={styles.referralModalActions}>
+                  <Button
+                    title="Copiar código"
+                    onPress={handleCopyReferralCode}
+                    variant="primary"
+                    style={styles.referralModalPrimaryButton}
+                  />
+                  <Button
+                    title="Compartir"
+                    onPress={handleShareReferralCode}
+                    variant="secondary"
+                    style={styles.referralModalSecondaryButton}
+                  />
+                </View>
+              </>
+            ) : (
+              <View style={styles.referralEmptyCard}>
+                <Ionicons
+                  name="gift-outline"
+                  size={24}
+                  color={COLORS.PRIMARY}
+                />
+                <Text style={styles.referralEmptyTitle}>
+                  Tu código todavía no está disponible
+                </Text>
+                <Text style={styles.referralEmptyText}>
+                  En cuanto lo tengamos listo, aparecerá aquí para que puedas
+                  copiarlo o compartirlo.
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </ScreenScaffold>
   );
 }
 
@@ -1228,11 +1411,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F8F9FE",
   },
-  headerShell: {
-    backgroundColor: "#FFFFFF",
-  },
   scrollView: {
     flex: 1,
+  },
+  scrollViewWithHero: {
+    marginTop: -18,
   },
   scrollViewContent: {
     paddingBottom: 32,
@@ -1256,35 +1439,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#64748B",
     fontWeight: "600",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
-    backgroundColor: "#FFFFFF",
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: `${COLORS.PRIMARY}10`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerSpacer: {
-    width: 36,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1B0977",
-    letterSpacing: -0.2,
-    marginHorizontal: 8,
   },
   heroCard: {
     backgroundColor: "#FFFFFF",
@@ -1310,6 +1464,30 @@ const styles = StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: "#E8EAF3",
+  },
+  unsavedChangesCard: {
+    backgroundColor: "#EFF6FF",
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  unsavedChangesTextBlock: {
+    flex: 1,
+  },
+  unsavedChangesTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1E3A8A",
+    marginBottom: 4,
+  },
+  unsavedChangesText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#1D4ED8",
   },
   section: {
     marginBottom: 28,
@@ -1562,31 +1740,103 @@ const styles = StyleSheet.create({
   referralApplyButton: {
     minWidth: 140,
   },
-  myReferralSection: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#E8EAF3",
+  referralModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.36)",
+    justifyContent: "flex-end",
   },
-  myReferralCodeTouchable: {
+  referralModalSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 28,
+  },
+  referralModalHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: "#D6DDE8",
+    alignSelf: "center",
+    marginBottom: 18,
+  },
+  referralModalHeader: {
     flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 20,
+  },
+  referralModalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1B0977",
+    marginBottom: 4,
+  },
+  referralModalSubtitle: {
+    fontSize: 14,
+    color: "#64748B",
+    lineHeight: 20,
+  },
+  referralModalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F1F5F9",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderStyle: "dashed",
-    borderColor: "#D8C7FF",
-    backgroundColor: "#F8F5FF",
   },
-  myReferralCodeText: {
-    fontSize: 18,
+  referralCodeCard: {
+    borderRadius: 20,
+    padding: 20,
+    backgroundColor: "#F8F5FF",
+    borderWidth: 1,
+    borderColor: "#E9DDFE",
+    marginBottom: 18,
+  },
+  referralCodeLabel: {
+    fontSize: 13,
     fontWeight: "700",
-    letterSpacing: 4,
+    color: "#64748B",
+    marginBottom: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  referralCodeValue: {
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: 6,
     color: "#1B0977",
+    textAlign: "center",
+  },
+  referralModalActions: {
+    gap: 12,
+  },
+  referralModalPrimaryButton: {
+    width: "100%",
+  },
+  referralModalSecondaryButton: {
+    width: "100%",
+  },
+  referralEmptyCard: {
+    borderRadius: 20,
+    padding: 20,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  referralEmptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1B0977",
+  },
+  referralEmptyText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#64748B",
   },
   versionContainer: {
     alignItems: "center",

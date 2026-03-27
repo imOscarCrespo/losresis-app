@@ -13,6 +13,7 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { ScreenHeader } from "../components/ScreenHeader";
 import { useReviewDetail } from "../hooks/useReviewDetail";
 import { formatLongDate } from "../utils/dateUtils";
 import { StudentQuestionsSection } from "../components/StudentQuestionsSection";
@@ -58,21 +59,6 @@ const StarRating = React.memo(({ rating }) => {
 });
 
 StarRating.displayName = "StarRating";
-
-// ============================================================================
-// BACK HEADER
-// ============================================================================
-
-function BackHeader({ onBack }) {
-  return (
-    <View style={styles.backHeader}>
-      <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
-        <Ionicons name="chevron-back" size={22} color={ACCENT} />
-        <Text style={styles.backBtnText}>Reseñas</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
 
 // ============================================================================
 // MAIN COMPONENT
@@ -175,7 +161,7 @@ export default function ReviewDetailScreen({ reviewId, onBack, userProfile }) {
   if (loading) {
     return (
       <View style={styles.container}>
-        <BackHeader onBack={onBack} />
+        <ScreenHeader title="Reseñas" onBack={onBack} compact />
         <View style={styles.stateContainer}>
           <ActivityIndicator size="large" color={PRIMARY} />
           <Text style={styles.loadingText}>Cargando reseña...</Text>
@@ -187,7 +173,7 @@ export default function ReviewDetailScreen({ reviewId, onBack, userProfile }) {
   if (error || !review) {
     return (
       <View style={styles.container}>
-        <BackHeader onBack={onBack} />
+        <ScreenHeader title="Reseñas" onBack={onBack} compact />
         <View style={styles.stateContainer}>
           <View style={styles.stateIconWrap}>
             <Ionicons name="alert-circle-outline" size={36} color={ERROR} />
@@ -203,7 +189,7 @@ export default function ReviewDetailScreen({ reviewId, onBack, userProfile }) {
 
   return (
     <View style={styles.container}>
-      <BackHeader onBack={onBack} />
+      <ScreenHeader title="Reseñas" onBack={onBack} compact />
 
       <ScrollView
         ref={scrollViewRef}
@@ -475,29 +461,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: BG_LIGHT,
-  },
-
-  // ── Back header ──
-  backHeader: {
-    backgroundColor: WHITE,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  backBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    alignSelf: "flex-start",
-    borderRadius: 10,
-  },
-  backBtnText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: ACCENT,
   },
 
   // ── Scroll ──

@@ -8,6 +8,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import {
   getQuizQuestions,
   startQuizSession,
@@ -270,7 +272,7 @@ const getDimensionLabel = (dimension) => {
   }
 };
 
-export default function SpecialityQuizScreen({ userProfile }) {
+export default function SpecialityQuizScreen({ userProfile, onBack }) {
   const userId = userProfile?.id;
 
   const [step, setStep] = useState("welcome");
@@ -456,17 +458,18 @@ export default function SpecialityQuizScreen({ userProfile }) {
   };
 
   const renderWelcome = () => (
-    <View style={styles.safeArea}>
-      <View style={styles.headerShell}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Test de orientación MIR</Text>
-          <View style={styles.headerIcon}>
-            <Ionicons name="sparkles-outline" size={18} color={PRIMARY} />
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.contentSurface}>
+    <ScreenScaffold
+      style={styles.safeArea}
+      header={
+        <ScreenHeader
+          title="Test de orientación MIR"
+          onBack={onBack}
+          iconName="sparkles-outline"
+          compact
+        />
+      }
+      contentSurfaceStyle={styles.contentSurface}
+    >
         <ScrollView
           style={styles.content}
           contentContainerStyle={styles.scrollContent}
@@ -595,8 +598,7 @@ export default function SpecialityQuizScreen({ userProfile }) {
             )}
           </View>
         </ScrollView>
-      </View>
-    </View>
+    </ScreenScaffold>
   );
 
   const renderQuestionOptions = (question) => {
@@ -665,27 +667,24 @@ export default function SpecialityQuizScreen({ userProfile }) {
     const isLast = currentIndex === totalQuestions - 1;
 
     return (
-      <View style={styles.safeArea}>
-        <View style={styles.headerShell}>
-          <View style={styles.header}>
-            <MotionPressable
-              style={styles.backButton}
-              onPress={handleBackFromQuestions}
-              scaleTo={0.9}
-              pressedOpacity={0.72}
-            >
-              <Ionicons name="arrow-back" size={20} color={INDIGO} />
-            </MotionPressable>
-            <Text style={styles.headerTitle}>Test de orientación MIR</Text>
-            <View style={styles.headerCounter}>
-              <Text style={styles.headerCounterText}>
-                {currentIndex + 1}/{totalQuestions || "?"}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.contentSurface}>
+      <ScreenScaffold
+        style={styles.safeArea}
+        header={
+          <ScreenHeader
+            title="Test de orientación MIR"
+            onBack={handleBackFromQuestions}
+            compact
+            rightSlot={
+              <View style={styles.headerCounter}>
+                <Text style={styles.headerCounterText}>
+                  {currentIndex + 1}/{totalQuestions || "?"}
+                </Text>
+              </View>
+            }
+          />
+        }
+        contentSurfaceStyle={styles.contentSurface}
+      >
           <ScrollView
             style={styles.content}
             contentContainerStyle={styles.scrollContent}
@@ -720,9 +719,8 @@ export default function SpecialityQuizScreen({ userProfile }) {
                 </Text>
               </View>
             </View>
-          </ScrollView>
-        </View>
-      </View>
+        </ScrollView>
+      </ScreenScaffold>
     );
   };
 
@@ -786,24 +784,18 @@ export default function SpecialityQuizScreen({ userProfile }) {
     const specialities = buildSpecialityResults(results);
 
     return (
-      <View style={styles.safeArea}>
-        <View style={styles.headerShell}>
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={handleBackFromResults}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="arrow-back" size={20} color={INDIGO} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Tus especialidades MIR</Text>
-            <View style={styles.headerIcon}>
-              <Ionicons name="analytics-outline" size={18} color={PRIMARY} />
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.contentSurface}>
+      <ScreenScaffold
+        style={styles.safeArea}
+        header={
+          <ScreenHeader
+            title="Tus especialidades MIR"
+            onBack={handleBackFromResults}
+            iconName="analytics-outline"
+            compact
+          />
+        }
+        contentSurfaceStyle={styles.contentSurface}
+      >
           <ScrollView
             style={styles.content}
             contentContainerStyle={styles.scrollContent}
@@ -866,8 +858,7 @@ export default function SpecialityQuizScreen({ userProfile }) {
               )}
             </View>
           </ScrollView>
-        </View>
-      </View>
+      </ScreenScaffold>
     );
   };
 
@@ -895,36 +886,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F8FAFC",
   },
-  headerShell: {
-    backgroundColor: "#FFFFFF",
-  },
-  header: {
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    gap: 10,
-  },
-  headerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(103,12,245,0.07)",
-    borderWidth: 1,
-    borderColor: "rgba(103,12,245,0.12)",
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: "700",
-    color: INDIGO,
-    letterSpacing: -0.2,
-  },
   headerCounter: {
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -935,14 +896,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     color: PRIMARY,
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(103,12,245,0.10)",
   },
   contentSurface: {
     flex: 1,

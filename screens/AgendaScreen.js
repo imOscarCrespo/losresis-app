@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { ConfirmationModal } from "../components/ConfirmationModal";
+import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { useAgendaEvents } from "../hooks/useAgendaEvents";
 import { useShiftPurchaseRequests } from "../hooks/useShiftPurchaseRequests";
 import { useShiftSwapRequests } from "../hooks/useShiftSwapRequests";
@@ -634,56 +635,56 @@ export const AgendaScreen = ({ userProfile }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.hero}>
-          <View style={styles.heroTopRow}>
-            <Text style={styles.heroTitle}>Agenda de residencia</Text>
+        <BottomMenuHeroHeader
+          title="Agenda de residencia"
+          subtitle="Calendario unificado para guardias, cursos, estudio e hitos de tu residencia."
+          rightSlot={
             <TouchableOpacity
               style={styles.heroIconButton}
               onPress={() => setShowTeamCalendar(true)}
             >
               <Ionicons name="people-outline" size={20} color={COLORS.WHITE} />
             </TouchableOpacity>
-          </View>
-          <Text style={styles.heroSubtitle}>
-            Calendario unificado para guardias, cursos, estudio e hitos de tu residencia.
-          </Text>
-          <View style={styles.heroMonthCard}>
-            <TouchableOpacity
-              style={styles.heroArrow}
-              onPress={() =>
-                setVisibleMonth(
-                  new Date(
-                    visibleMonth.getFullYear(),
-                    visibleMonth.getMonth() - 1,
-                    1
+          }
+          bottomContent={
+            <View style={styles.heroMonthCard}>
+              <TouchableOpacity
+                style={styles.heroArrow}
+                onPress={() =>
+                  setVisibleMonth(
+                    new Date(
+                      visibleMonth.getFullYear(),
+                      visibleMonth.getMonth() - 1,
+                      1
+                    )
                   )
-                )
-              }
-            >
-              <Ionicons name="chevron-back" size={18} color={COLORS.WHITE} />
-            </TouchableOpacity>
-            <View>
-              <Text style={styles.heroMonthLabel}>Calendario</Text>
-              <Text style={styles.heroMonthValue}>
-                {monthTitle(visibleMonth)}
-              </Text>
+                }
+              >
+                <Ionicons name="chevron-back" size={18} color={COLORS.WHITE} />
+              </TouchableOpacity>
+              <View>
+                <Text style={styles.heroMonthLabel}>Calendario</Text>
+                <Text style={styles.heroMonthValue}>
+                  {monthTitle(visibleMonth)}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.heroArrow}
+                onPress={() =>
+                  setVisibleMonth(
+                    new Date(
+                      visibleMonth.getFullYear(),
+                      visibleMonth.getMonth() + 1,
+                      1
+                    )
+                  )
+                }
+              >
+                <Ionicons name="chevron-forward" size={18} color={COLORS.WHITE} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.heroArrow}
-              onPress={() =>
-                setVisibleMonth(
-                  new Date(
-                    visibleMonth.getFullYear(),
-                    visibleMonth.getMonth() + 1,
-                    1
-                  )
-                )
-              }
-            >
-              <Ionicons name="chevron-forward" size={18} color={COLORS.WHITE} />
-            </TouchableOpacity>
-          </View>
-        </View>
+          }
+        />
 
         <View style={styles.body}>
           <View style={styles.calendarCard}>
@@ -1232,31 +1233,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 112,
-  },
-  hero: {
-    backgroundColor: AGENDA_ACCENT,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 34,
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
-  },
-  heroTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  heroTitle: {
-    color: COLORS.WHITE,
-    fontSize: 28,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-  },
-  heroSubtitle: {
-    color: "rgba(255,255,255,0.82)",
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 8,
   },
   heroIconButton: {
     width: 42,

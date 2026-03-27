@@ -21,6 +21,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHousingAds } from "../hooks/useHousingAds";
 import { useHospitals } from "../hooks/useHospitals";
 import { FloatingActionButton } from "../components/FloatingActionButton";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import { formatDateOnly } from "../utils/dateUtils";
 import posthogLogger from "../services/posthogService";
 
@@ -374,7 +376,7 @@ HousingAdCard.displayName = "HousingAdCard";
 // MAIN SCREEN
 // ============================================================================
 
-export default function HousingScreen({ onSectionChange }) {
+export default function HousingScreen({ onSectionChange, onBack }) {
   const {
     housingAds,
     loading,
@@ -475,25 +477,6 @@ export default function HousingScreen({ onSectionChange }) {
 
   const ListHeader = (
     <View style={styles.listHeader}>
-      {/* Title row */}
-      <View style={styles.titleRow}>
-        <Text style={styles.screenTitle}>Vivienda</Text>
-        <TouchableOpacity
-          style={[styles.myAdsChip, showMyAds && styles.myAdsChipActive]}
-          onPress={() => setShowMyAds(!showMyAds)}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={showMyAds ? "person" : "person-outline"}
-            size={14}
-            color={showMyAds ? WHITE : ACCENT}
-          />
-          <Text style={[styles.myAdsChipText, showMyAds && styles.myAdsChipTextActive]}>
-            Mis anuncios
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Filter chips */}
       <ScrollView
         horizontal
@@ -559,7 +542,7 @@ export default function HousingScreen({ onSectionChange }) {
             onPress={clearFilters}
             activeOpacity={0.75}
           >
-            <Text style={styles.sectionActionText}>Reset filters</Text>
+            <Text style={styles.sectionActionText}>Restablecer filtros</Text>
           </TouchableOpacity>
         ) : (
           <Text style={styles.sectionCount}>{adCountLabel}</Text>
@@ -591,30 +574,57 @@ export default function HousingScreen({ onSectionChange }) {
     ) : (
       <View style={{ height: 100 }} />
     );
+  const header = (
+    <ScreenHeader
+      title="Vivienda"
+      onBack={onBack}
+      compact
+      rightSlot={
+        <TouchableOpacity
+          style={[styles.myAdsChip, showMyAds && styles.myAdsChipActive]}
+          onPress={() => setShowMyAds(!showMyAds)}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={showMyAds ? "person" : "person-outline"}
+            size={14}
+            color={showMyAds ? WHITE : ACCENT}
+          />
+          <Text style={[styles.myAdsChipText, showMyAds && styles.myAdsChipTextActive]}>
+            Mis anuncios
+          </Text>
+        </TouchableOpacity>
+      }
+    />
+  );
 
   if (loading && housingAds.length === 0) {
     return (
-      <View style={styles.stateContainer}>
-        <ActivityIndicator size="large" color={PRIMARY} />
-        <Text style={styles.loadingText}>Cargando anuncios...</Text>
-      </View>
+      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+        <View style={styles.stateContainer}>
+          <ActivityIndicator size="large" color={PRIMARY} />
+          <Text style={styles.loadingText}>Cargando anuncios...</Text>
+        </View>
+      </ScreenScaffold>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.stateContainer}>
-        <Ionicons name="alert-circle" size={48} color={ERROR} />
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={refreshHousingAds}>
-          <Text style={styles.retryButtonText}>Reintentar</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+        <View style={styles.stateContainer}>
+          <Ionicons name="alert-circle" size={48} color={ERROR} />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={refreshHousingAds}>
+            <Text style={styles.retryButtonText}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      </ScreenScaffold>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
       <FlatList
         data={housingAds}
         keyExtractor={(item) => item.id}
@@ -674,7 +684,7 @@ export default function HousingScreen({ onSectionChange }) {
         onSelect={(id) => setMaxPrice(id ? Number(id) : null)}
         placeholder="Todos los precios"
       />
-    </View>
+    </ScreenScaffold>
   );
 }
 
@@ -687,6 +697,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BG_LIGHT,
   },
+  contentSurface: {
+    flex: 1,
+    backgroundColor: BG_LIGHT,
+  },
   listContent: {
     paddingBottom: 16,
   },
@@ -696,19 +710,6 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
 
-  // ── Title row ──
-  titleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  screenTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: ACCENT,
-    letterSpacing: -0.3,
-  },
   myAdsChip: {
     flexDirection: "row",
     alignItems: "center",

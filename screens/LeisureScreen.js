@@ -7,6 +7,8 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
 
@@ -53,7 +55,7 @@ const LeisureGridItem = ({ item, onPress }) => {
  * Pantalla principal de Ocio
  * Muestra un menú con dos opciones: "Fiesta" y "Deporte"
  */
-export default function LeisureScreen({ onSectionChange, userProfile }) {
+export default function LeisureScreen({ onSectionChange, onBack, userProfile }) {
   // Tracking de pantalla con PostHog
   useEffect(() => {
     posthogLogger.logScreen("LeisureScreen");
@@ -101,10 +103,17 @@ export default function LeisureScreen({ onSectionChange, userProfile }) {
   ];
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Ocio</Text>
-      </View>
+    <ScreenScaffold
+      header={
+        <ScreenHeader
+          title="Ocio"
+          onBack={onBack}
+          iconName="wine-outline"
+          compact
+        />
+      }
+      contentSurfaceStyle={styles.contentSurface}
+    >
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -122,25 +131,13 @@ export default function LeisureScreen({ onSectionChange, userProfile }) {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </ScreenScaffold>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  contentSurface: {
     backgroundColor: "#F5F5F5",
-  },
-  header: {
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1a1a1a",
   },
   content: {
     flex: 1,

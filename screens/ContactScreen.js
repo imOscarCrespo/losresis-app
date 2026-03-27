@@ -11,8 +11,9 @@ import {
   Platform,
   Linking,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import posthogLogger from "../services/posthogService";
 
 const CONTACT_TOPICS = [
@@ -148,29 +149,17 @@ ${formData.message}`;
   }, [formData]);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <View style={styles.headerShell}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={onBack}
-            style={styles.backBtn}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={22} color="#670CF5" />
-          </TouchableOpacity>
-          <Text style={styles.title} numberOfLines={1}>
-            Contacto
-          </Text>
-          <View style={styles.headerRight}>
-            <View style={styles.headerBadge}>
-              <Ionicons name="mail-outline" size={14} color="#670CF5" />
-            </View>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.contentSurface}>
+    <ScreenScaffold
+      header={
+        <ScreenHeader
+          title="Contacto"
+          onBack={onBack}
+          iconName="mail-outline"
+          compact
+        />
+      }
+      contentSurfaceStyle={styles.contentSurface}
+    >
         <KeyboardAvoidingView
           style={styles.keyboardView}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -364,59 +353,11 @@ ${formData.message}`;
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
-      </View>
-    </SafeAreaView>
+    </ScreenScaffold>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  headerShell: {
-    backgroundColor: "#FFFFFF",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    backgroundColor: "#FFFFFF",
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(103,12,245,0.10)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1B0977",
-    letterSpacing: -0.2,
-    marginHorizontal: 8,
-  },
-  headerRight: {
-    width: 36,
-    alignItems: "flex-end",
-  },
-  headerBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(103,12,245,0.07)",
-    borderWidth: 1,
-    borderColor: "rgba(103,12,245,0.12)",
-  },
   contentSurface: {
     flex: 1,
     backgroundColor: "#F8F9FE",

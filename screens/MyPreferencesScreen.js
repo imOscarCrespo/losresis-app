@@ -17,6 +17,8 @@ import { usePreferences } from "../hooks/usePreferences";
 import { useHospitals } from "../hooks/useHospitals";
 import { SelectFilter } from "../components/SelectFilter";
 import { FloatingActionButton } from "../components/FloatingActionButton";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import posthogLogger from "../services/posthogService";
 
 // ============================================================================
@@ -280,6 +282,7 @@ export default function MyPreferencesScreen({
   currentSection,
   userProfile,
   onHospitalSelect,
+  onBack,
 }) {
   const {
     preferences,
@@ -391,17 +394,34 @@ export default function MyPreferencesScreen({
     }
   };
 
+  const header = (
+    <ScreenHeader
+      title="Mis Preferencias"
+      onBack={onBack}
+      compact
+      rightSlot={
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>
+            {preferences.length} {preferences.length === 1 ? "ENTRADA" : "ENTRADAS"}
+          </Text>
+        </View>
+      }
+    />
+  );
+
   if (loading) {
     return (
-      <View style={styles.stateContainer}>
-        <ActivityIndicator size="large" color={PRIMARY} />
-        <Text style={styles.loadingText}>Cargando preferencias...</Text>
-      </View>
+      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+        <View style={styles.stateContainer}>
+          <ActivityIndicator size="large" color={PRIMARY} />
+          <Text style={styles.loadingText}>Cargando preferencias...</Text>
+        </View>
+      </ScreenScaffold>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
       {/* Editing mode bar */}
       {editingOrder && (
         <View style={styles.editBar}>
@@ -444,17 +464,6 @@ export default function MyPreferencesScreen({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Title row */}
-        <View style={styles.titleRow}>
-          <Text style={styles.screenTitle}>Mis Preferencias</Text>
-          <View style={styles.countBadge}>
-            <Text style={styles.countText}>
-              {preferences.length}{" "}
-              {preferences.length === 1 ? "ENTRADA" : "ENTRADAS"}
-            </Text>
-          </View>
-        </View>
-
         {/* Section label */}
         {preferences.length > 0 && (
           <View style={styles.sectionRow}>
@@ -538,7 +547,7 @@ export default function MyPreferencesScreen({
         errorMessage={addError}
         loading={addingPreference}
       />
-    </View>
+    </ScreenScaffold>
   );
 }
 
@@ -548,6 +557,10 @@ export default function MyPreferencesScreen({
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: BG_LIGHT,
+  },
+  contentSurface: {
     flex: 1,
     backgroundColor: BG_LIGHT,
   },
@@ -627,19 +640,6 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
 
-  // ── Title row ──
-  titleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  screenTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: ACCENT,
-    letterSpacing: -0.3,
-  },
   countBadge: {
     backgroundColor: `${PRIMARY}12`,
     paddingHorizontal: 10,

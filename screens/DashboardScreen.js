@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { ScreenLayout } from "../components/ScreenLayout";
+import { BackNavigationButton } from "../components/BackNavigationButton";
 import { PlaceholderScreen } from "../components/PlaceholderScreen";
 import { SwipeBackWrapper } from "../components/SwipeBackWrapper";
 import HospitalsScreen from "./HospitalsScreen";
@@ -37,6 +38,8 @@ import SpecialityQuizScreen from "./SpecialityQuizScreen";
 import GroupsScreen from "./GroupsScreen";
 import GroupChatScreen from "./GroupChatScreen";
 import RoommateScreen from "./RoommateScreen";
+import ResidentPayoutsScreen from "./ResidentPayoutsScreen";
+import ResidentPayoutEntryScreen from "./ResidentPayoutEntryScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
@@ -69,6 +72,24 @@ const applyDevUserType = (profile) => {
   return { ...profile, ...overrides };
 };
 
+const GENERIC_BACK_SECTIONS = new Set([
+  "menu",
+  "myPreferences",
+  "myReview",
+  "residenceLibrary",
+  "libro-residente",
+  "articulos",
+  "vivienda",
+  "roomies",
+  "ocio",
+  "notifications",
+  "specialityQuiz",
+  "rotaciones-externas",
+  "cursos",
+  "residentPayouts",
+  "residentPayoutEntry",
+]);
+
 export default function DashboardScreen({
   onSignOut,
   residentHasReview = true,
@@ -89,12 +110,18 @@ export default function DashboardScreen({
   const [creatingCourse, setCreatingCourse] = useState(false);
   const [editingCourseId, setEditingCourseId] = useState(null);
   const [previousSection, setPreviousSection] = useState(null); // Para volver a la sección correcta
+  const [sectionHistory, setSectionHistory] = useState([]);
   const [leisureForumType, setLeisureForumType] = useState(null); // Tipo de foro: "Fiesta" o "Deporte"
   const [selectedThreadId, setSelectedThreadId] = useState(null); // ID del thread seleccionado
   const [selectedGroupId, setSelectedGroupId] = useState(null); // ID del grupo de chat
   const [selectedGroupName, setSelectedGroupName] = useState(null); // Nombre del grupo de chat
   const [roommateInitialTab, setRoommateInitialTab] = useState("discover");
   const [selectedRoommateMatchId, setSelectedRoommateMatchId] = useState(null);
+  const [residentPayoutRouteParams, setResidentPayoutRouteParams] = useState({
+    initialYear: null,
+    initialMonth: null,
+    lockInitialPeriod: false,
+  });
 
   // Determinar sección inicial según el tipo de usuario (primera pestaña = Inicio)
   const getInitialSection = (profile) => {
@@ -185,6 +212,26 @@ export default function DashboardScreen({
   };
 
   const handleSectionChange = (sectionId, params = {}) => {
+    const footerSections = new Set(
+      getFooterConfig(userProfile).map((item) => item.screen)
+    );
+    const isFooterSection = footerSections.has(sectionId);
+    const shouldTrackBack = GENERIC_BACK_SECTIONS.has(sectionId);
+
+    if (sectionId !== currentSection) {
+      if (shouldTrackBack) {
+        const originSection = params.fromSection || currentSection;
+        setSectionHistory((prev) => {
+          if (prev[prev.length - 1] === originSection) {
+            return prev;
+          }
+          return [...prev, originSection];
+        });
+      } else if (isFooterSection) {
+        setSectionHistory([]);
+      }
+    }
+
     setCurrentSection(sectionId);
     // Limpiar selecciones cuando cambiamos de sección
     if (
@@ -277,7 +324,50 @@ export default function DashboardScreen({
       setRoommateInitialTab("discover");
       setSelectedRoommateMatchId(null);
     }
+
+    if (sectionId === "residentPayouts") {
+      setResidentPayoutRouteParams({
+        initialYear: params.initialYear || null,
+        initialMonth: params.initialMonth || null,
+        lockInitialPeriod: Boolean(params.lockInitialPeriod),
+      });
+    } else if (sectionId === "residentPayoutEntry") {
+      setResidentPayoutRouteParams({
+        initialYear: params.initialYear || null,
+        initialMonth: params.initialMonth || null,
+        lockInitialPeriod: Boolean(params.lockInitialPeriod),
+      });
+    } else {
+      setResidentPayoutRouteParams({
+        initialYear: null,
+        initialMonth: null,
+        lockInitialPeriod: false,
+      });
+    }
   };
+
+  const handleBackFromGenericSection = () => {
+    let nextSection = getDefaultSection();
+
+    setSectionHistory((prev) => {
+      if (!prev.length) {
+        return prev;
+      }
+
+      const nextHistory = [...prev];
+      nextSection = nextHistory.pop() || getDefaultSection();
+      return nextHistory;
+    });
+
+    setCurrentSection(nextSection);
+  };
+
+  const renderSectionWithBackButton = (section) => (
+    <View style={styles.sectionShell}>
+      <BackNavigationButton onPress={handleBackFromGenericSection} />
+      <View style={styles.sectionBody}>{section}</View>
+    </View>
+  );
 
   const handleHospitalSelect = (hospital, specialtyId, fromSection = null) => {
     setSelectedHospital(hospital);
@@ -648,6 +738,7 @@ export default function DashboardScreen({
         return (
           <SpecialityQuizScreen
             userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
             onSectionChange={handleSectionChange}
           />
         );
@@ -676,7 +767,7 @@ export default function DashboardScreen({
         return (
           <NotificationsScreen
             userId={userProfile?.id}
-            onBack={() => handleSectionChange("usuario")}
+            onBack={handleBackFromGenericSection}
             onNavigateToEntity={(screenId, entityId) => {
               if (screenId === "reviewDetail") {
                 handleSectionChange("reviewDetail", { reviewId: entityId });
@@ -702,6 +793,7 @@ export default function DashboardScreen({
         return (
           <MenuScreen
             onSectionChange={handleSectionChange}
+            onBack={handleBackFromGenericSection}
             currentSection={currentSection}
             userProfile={userProfile}
             residentHasReview={residentHasReview}
@@ -715,6 +807,7 @@ export default function DashboardScreen({
             currentSection={currentSection}
             userProfile={userProfile}
             onHospitalSelect={handleHospitalSelect}
+            onBack={handleBackFromGenericSection}
           />
         );
 
@@ -733,6 +826,7 @@ export default function DashboardScreen({
             navigation={{ navigate: handleSectionChange }}
             onReviewCreated={onReviewCreated}
             onReviewDeleted={onReviewDeleted}
+            onBack={handleBackFromGenericSection}
           />
         );
 
@@ -742,6 +836,7 @@ export default function DashboardScreen({
           <ResidenceLibraryScreen
             userProfile={userProfile}
             navigation={{ navigate: handleSectionChange }}
+            onBack={handleBackFromGenericSection}
             residentHasReview={residentHasReview}
           />
         );
@@ -752,6 +847,7 @@ export default function DashboardScreen({
           <ArticlesScreen
             onSectionChange={handleSectionChange}
             userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
           />
         );
 
@@ -762,6 +858,7 @@ export default function DashboardScreen({
             onSectionChange={handleSectionChange}
             currentSection={currentSection}
             userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
           />
         );
 
@@ -769,6 +866,7 @@ export default function DashboardScreen({
         return (
           <RoommateScreen
             userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
             initialTab={roommateInitialTab}
             initialMatchId={selectedRoommateMatchId}
           />
@@ -779,6 +877,7 @@ export default function DashboardScreen({
         return (
           <LeisureScreen
             onSectionChange={handleSectionChange}
+            onBack={handleBackFromGenericSection}
             userProfile={userProfile}
           />
         );
@@ -828,6 +927,7 @@ export default function DashboardScreen({
           <ExternalRotationsScreen
             userProfile={userProfile}
             navigation={{ navigate: handleSectionChange }}
+            onBack={handleBackFromGenericSection}
           />
         );
 
@@ -836,6 +936,33 @@ export default function DashboardScreen({
           <LecturesScreen
             userProfile={userProfile}
             navigation={{ navigate: handleSectionChange }}
+            onBack={handleBackFromGenericSection}
+          />
+        );
+
+      case "residentPayouts":
+        return (
+          <ResidentPayoutsScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+            onCreateEntry={(params = {}) =>
+              handleSectionChange("residentPayoutEntry", {
+                initialYear: params.initialYear || new Date().getFullYear(),
+                initialMonth: params.initialMonth || new Date().getMonth() + 1,
+                lockInitialPeriod: Boolean(params.lockInitialPeriod),
+              })
+            }
+          />
+        );
+
+      case "residentPayoutEntry":
+        return (
+          <ResidentPayoutEntryScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+            initialYear={residentPayoutRouteParams.initialYear}
+            initialMonth={residentPayoutRouteParams.initialMonth}
+            lockInitialPeriod={residentPayoutRouteParams.lockInitialPeriod}
           />
         );
 
@@ -900,6 +1027,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  sectionShell: {
+    flex: 1,
+  },
+  sectionBody: {
+    flex: 1,
   },
   loadingText: {
     fontSize: 16,

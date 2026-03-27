@@ -15,6 +15,7 @@ export { DatePickerInput } from "./DatePickerInput";
 export { InfoBanner } from "./InfoBanner";
 export { DatePickerModal } from "./DatePickerModal";
 export { ScreenHeader } from "./ScreenHeader";
+export { ScreenScaffold } from "./ScreenScaffold";
 export { CourseCard } from "./CourseCard";
 export { GoogleLogo } from "./GoogleLogo";
 export { AppleLogo } from "./AppleLogo";

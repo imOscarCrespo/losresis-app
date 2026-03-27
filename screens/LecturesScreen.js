@@ -15,6 +15,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FloatingActionButton } from "../components/FloatingActionButton";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import { useLectures } from "../hooks/useLectures";
 import { useHospitals } from "../hooks/useHospitals";
 import { formatShortDate } from "../utils/dateUtils";
@@ -350,7 +352,7 @@ function CourseListCard({ course, isMine, onPress }) {
   );
 }
 
-export const LecturesScreen = ({ userProfile, navigation }) => {
+export const LecturesScreen = ({ userProfile, navigation, onBack }) => {
   const insets = useSafeAreaInsets();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedHospital, setSelectedHospital] = useState("");
@@ -453,23 +455,23 @@ export const LecturesScreen = ({ userProfile, navigation }) => {
   const courseCountLabel = `${filteredCourses.length} ${
     filteredCourses.length === 1 ? "curso" : "cursos"
   }`;
-
-  return (
-    <View style={styles.container}>
-      <View style={[styles.titleRow, { paddingTop: Math.max(insets.top + 8, 16) }]}>
-        <View>
-          <Text style={styles.screenTitle}>Cursos</Text>
-          <Text style={styles.screenSubtitle}>
-            Formación, talleres y sesiones activas para tu residencia.
-          </Text>
-        </View>
+  const header = (
+    <ScreenHeader
+      title="Cursos"
+      onBack={onBack}
+      compact
+      rightSlot={
         <View style={styles.countBadge}>
           <Text style={styles.countText}>
             {filteredCourses.length} {filteredCourses.length === 1 ? "CURSO" : "CURSOS"}
           </Text>
         </View>
-      </View>
+      }
+    />
+  );
 
+  return (
+    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
       <View style={styles.searchWrap}>
         <Ionicons
           name="search"
@@ -604,7 +606,7 @@ export const LecturesScreen = ({ userProfile, navigation }) => {
                     onPress={handleClearFilters}
                     activeOpacity={0.75}
                   >
-                    <Text style={styles.sectionActionText}>Reset filters</Text>
+                    <Text style={styles.sectionActionText}>Restablecer filtros</Text>
                   </TouchableOpacity>
                 ) : (
                   <Text style={styles.sectionCount}>{courseCountLabel}</Text>
@@ -686,7 +688,7 @@ export const LecturesScreen = ({ userProfile, navigation }) => {
         onSelect={setSelectedSpecialty}
         placeholder="Todas las especialidades"
       />
-    </View>
+    </ScreenScaffold>
   );
 };
 
@@ -695,26 +697,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BG_LIGHT,
   },
-  titleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-  },
-  screenTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: ACCENT,
-    letterSpacing: -0.3,
-  },
-  screenSubtitle: {
-    marginTop: 4,
-    fontSize: 14,
-    color: MUTED,
-    maxWidth: 240,
-    lineHeight: 20,
+  contentSurface: {
+    flex: 1,
+    backgroundColor: BG_LIGHT,
   },
   countBadge: {
     backgroundColor: `${PRIMARY}12`,
@@ -755,7 +740,7 @@ const styles = StyleSheet.create({
   filtersScroll: {
     flexGrow: 0,
     flexShrink: 0,
-    marginTop: 8,
+    marginTop: 6,
     marginBottom: 4,
   },
   filtersRow: {

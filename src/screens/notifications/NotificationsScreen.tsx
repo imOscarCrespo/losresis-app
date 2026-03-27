@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { ScreenHeader } from "../../../components/ScreenHeader";
+import { ScreenScaffold } from "../../../components/ScreenScaffold";
 import {
   fetchNotifications,
   markNotificationAsRead,
@@ -26,11 +28,13 @@ export type NotificationDataPayload = {
 
 type NotificationsScreenProps = {
   userId: string | undefined;
+  onBack?: () => void;
   onNavigateToEntity: (entityType: string, entityId: string | { groupId: string; groupName?: string }) => void;
 };
 
 export default function NotificationsScreen({
   userId,
+  onBack,
   onNavigateToEntity,
 }: NotificationsScreenProps) {
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
@@ -148,35 +152,36 @@ export default function NotificationsScreen({
 
   if (loading && notifications.length === 0) {
     return (
-      <View style={styles.safeArea}>
-        <View style={styles.headerShell}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Notificaciones</Text>
-            <View style={styles.headerIcon}>
-              <Ionicons name="notifications-outline" size={18} color="#670CF5" />
-            </View>
-          </View>
-        </View>
-        <View style={styles.contentSurface}>
+      <ScreenScaffold
+        header={
+          <ScreenHeader
+            title="Notificaciones"
+            onBack={onBack}
+            iconName="notifications-outline"
+            compact
+          />
+        }
+        contentSurfaceStyle={styles.contentSurface}
+      >
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#670CF5" />
           </View>
-        </View>
-      </View>
+      </ScreenScaffold>
     );
   }
 
   return (
-    <View style={styles.safeArea}>
-      <View style={styles.headerShell}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Notificaciones</Text>
-          <View style={styles.headerIcon}>
-            <Ionicons name="notifications-outline" size={18} color="#670CF5" />
-          </View>
-        </View>
-      </View>
-      <View style={styles.contentSurface}>
+    <ScreenScaffold
+      header={
+        <ScreenHeader
+          title="Notificaciones"
+          onBack={onBack}
+          iconName="notifications-outline"
+          compact
+        />
+      }
+      contentSurfaceStyle={styles.contentSurface}
+    >
         <FlatList
           data={notifications}
           renderItem={renderItem}
@@ -197,46 +202,11 @@ export default function NotificationsScreen({
             />
           }
         />
-      </View>
-    </View>
+    </ScreenScaffold>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  headerShell: {
-    backgroundColor: "#FFFFFF",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    gap: 10,
-    backgroundColor: "#FFFFFF",
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1B0977",
-    letterSpacing: -0.2,
-  },
-  headerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(103,12,245,0.07)",
-    borderWidth: 1,
-    borderColor: "rgba(103,12,245,0.12)",
-  },
   contentSurface: {
     flex: 1,
     backgroundColor: "#F8F9FE",

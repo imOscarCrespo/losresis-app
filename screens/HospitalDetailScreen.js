@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
+import { ScreenHeader } from "../components/ScreenHeader";
 import {
   getHospitalSpecialties,
   getDetailedGrades,
@@ -326,13 +327,7 @@ export default function HospitalDetailScreen({
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Back header */}
-      <View style={styles.backHeader}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={22} color={ACCENT} />
-          <Text style={styles.backBtnText}>Hospitales</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader title="Hospitales" onBack={onBack} compact />
 
       <View style={styles.scrollContent}>
         {/* Hospital info card */}
@@ -412,29 +407,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: BG_LIGHT,
-  },
-
-  // ── Back header ──
-  backHeader: {
-    backgroundColor: WHITE,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  backBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    alignSelf: "flex-start",
-    borderRadius: 10,
-  },
-  backBtnText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: ACCENT,
   },
 
   // ── Scroll content ──

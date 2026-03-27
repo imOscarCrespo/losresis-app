@@ -127,9 +127,19 @@ export const MenuGrid = ({
         return true;
       }
 
+      // Ocultar "Reseñas" a perfiles residentes en el menú principal
+      if (item.id === "reseñas" && userProfile.is_resident) {
+        return false;
+      }
+
       // Si es solo para estudiantes
       if (item.studentOnly) {
         return userProfile.is_student;
+      }
+
+      // Si es solo para residentes
+      if (item.residentOnly) {
+        return userProfile.is_resident;
       }
 
       // Si es solo para doctores/residentes
