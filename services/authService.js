@@ -13,6 +13,12 @@ import {
   clearStoredTokens,
 } from "./biometricService";
 import { clearAllFilters } from "./filterStorageService";
+import {
+  cacheUserProfile,
+  clearActiveUserProfileCache,
+  getCachedUserProfile,
+  syncActiveProfileCacheUser,
+} from "./userProfileCacheService";
 
 // Clave para almacenar el userId en AsyncStorage
 const USER_ID_KEY = "@losresis:userId";
@@ -466,8 +472,21 @@ export const getCurrentUser = async () => {
  * @param {string} userId - ID del usuario
  * @returns {Promise<{success: boolean, profile: object|null, error: string|null}>}
  */
-export const getUserProfile = async (userId) => {
+export const getUserProfile = async (userId, options = {}) => {
   try {
+    const { forceRefresh = false } = options;
+
+    if (!forceRefresh) {
+      const cachedProfile = await getCachedUserProfile(userId);
+      if (cachedProfile) {
+        return {
+          success: true,
+          profile: cachedProfile,
+          error: null,
+        };
+      }
+    }
+
     const { data, error } = await supabase
       .from("users")
       .select("*")
@@ -481,6 +500,8 @@ export const getUserProfile = async (userId) => {
         error: error.message,
       };
     }
+
+    await cacheUserProfile(data);
 
     return {
       success: true,
@@ -561,6 +582,10 @@ export const signOut = async () => {
     await clearUserId();
     console.log("🧹 userId eliminado de caché");
 
+    // Limpiar perfil cacheado del usuario activo
+    await clearActiveUserProfileCache();
+    console.log("🧹 Perfil cacheado eliminado");
+
     // Limpiar tokens biométricos guardados
     await clearStoredTokens();
 
@@ -623,6 +648,7 @@ export const getSession = async () => {
  */
 export const saveUserId = async (userId) => {
   try {
+    await syncActiveProfileCacheUser(userId);
     await AsyncStorage.setItem(USER_ID_KEY, userId);
     console.log("💾 userId guardado:", userId);
   } catch (error) {
@@ -650,6 +676,7 @@ export const getCachedUserId = async () => {
 export const clearUserId = async () => {
   try {
     await AsyncStorage.removeItem(USER_ID_KEY);
+    await syncActiveProfileCacheUser(null);
     console.log("🧹 userId eliminado de caché");
   } catch (error) {
     console.error("Error al limpiar userId:", error);

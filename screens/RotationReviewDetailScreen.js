@@ -24,7 +24,6 @@ const SURFACE_CARD = "#FFFFFF";
 const SURFACE_ALT = "#EEF1F6";
 const TEXT = "#111827";
 const TEXT_MUTED = "#667085";
-const BORDER = "#E6E8EC";
 const SUCCESS = "#0F9D7A";
 const WARNING = "#F97316";
 
@@ -419,22 +418,6 @@ export default function RotationReviewDetailScreen({
         )}
       </ScrollView>
 
-      <View style={styles.bottomActions}>
-        <TouchableOpacity
-          style={styles.primaryAction}
-          onPress={() => onContact?.(review)}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.primaryActionText}>Contactar con este residente</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.ghostAction}
-          onPress={onBack}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.ghostActionText}>Ver otras experiencias</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -469,7 +452,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 140,
+    paddingBottom: 32,
     gap: 16,
   },
   heroCard: {
@@ -547,37 +530,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: TEXT_MUTED,
     marginBottom: 4,
-  },
-  primaryAction: {
-    backgroundColor: PRIMARY,
-    borderRadius: 999,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: PRIMARY,
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-  },
-  primaryActionText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  ghostAction: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: BORDER,
-    borderRadius: 999,
-    paddingVertical: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ghostActionText: {
-    color: PRIMARY,
-    fontSize: 15,
-    fontWeight: "800",
   },
   chipsRow: {
     flexDirection: "row",
@@ -687,13 +639,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: PRIMARY,
     fontWeight: "600",
-  },
-  bottomActions: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 24,
-    gap: 10,
   },
   stateContainer: {
     flex: 1,

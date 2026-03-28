@@ -194,24 +194,6 @@ const averageRatingLabel = (review) =>
     ? review.average_rating.toFixed(1)
     : "N/A";
 
-const FeatureTab = ({ active, icon, label, onPress }) => (
-  <TouchableOpacity
-    style={[styles.featureTab, active && styles.featureTabActive]}
-    onPress={onPress}
-    activeOpacity={0.85}
-  >
-    <Ionicons
-      name={icon}
-      size={18}
-      color={active ? PRIMARY : TEXT_MUTED}
-      style={styles.featureTabIcon}
-    />
-    <Text style={[styles.featureTabText, active && styles.featureTabTextActive]}>
-      {label}
-    </Text>
-  </TouchableOpacity>
-);
-
 const PillGroup = ({ options, value, onChange }) => (
   <View style={styles.pillGroup}>
     {options.map((option) => (
@@ -413,7 +395,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   const userId = userProfile?.id;
   const isResident = userProfile?.is_resident;
 
-  const [route, setRoute] = useState({ name: "hub", payload: null });
+  const [route, setRoute] = useState({ name: "home", payload: null });
   const [specialties, setSpecialties] = useState([]);
   const [rotations, setRotations] = useState([]);
   const [userRotations, setUserRotations] = useState([]);
@@ -1019,7 +1001,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           await createRotation(rotationData, userId);
         }
 
-        setRoute({ name: "hub", payload: null });
+        setRoute({ name: "plan", payload: null });
         refreshAll();
       } catch (error) {
         console.error("Error saving rotation:", error);
@@ -1058,7 +1040,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       setSaving(true);
       await deleteRotationReview(reviewToDelete.id, userId);
       setReviewToDelete(null);
-      setRoute({ name: "hub", payload: null });
+      setRoute({ name: "home", payload: null });
       refreshAll();
     } catch (error) {
       console.error("Error deleting review:", error);
@@ -1141,7 +1123,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         await createRotationReview(payload);
       }
 
-      setRoute({ name: "hub", payload: null });
+      setRoute({ name: "home", payload: null });
       refreshAll();
     } catch (error) {
       console.error("Error publishing review:", error);
@@ -1207,14 +1189,16 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
 
   const routeTitle = useMemo(() => {
     switch (route.name) {
+      case "home":
+        return "Rotaciones Externas";
       case "explore":
-        return "Explorar";
-      case "match":
-        return "Conectar";
+        return "Buscar destino";
+      case "plan":
+        return "Ya tengo destino";
       case "rotation":
-        return "Mi futura rotación";
+        return "Publicar mi plan";
       case "publish":
-        return "Mi experiencia";
+        return "Publicar experiencia";
       case "contact":
         return "Contactar";
       default:
@@ -1222,126 +1206,147 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     }
   }, [route.name]);
 
-  const renderHub = () => (
+  const renderHome = () => (
     <ScrollView
       style={styles.scrollView}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
+      <View style={styles.homeHeroCard}>
+        <Text style={styles.homeHeroEyebrow}>Planifica mejor tu rotación externa</Text>
+        <Text style={styles.homeHeroTitle}>
+          Dos caminos claros según el momento en el que estés
+        </Text>
+        <Text style={styles.homeHeroDescription}>
+          Si aún no sabes dónde ir, explora reseñas reales. Si ya tienes destino y
+          fechas, publícalo para encontrar coincidencias con otros residentes.
+        </Text>
+      </View>
+
       <View style={styles.hubGrid}>
         <HubActionCard
-          title="Explorar rotaciones"
-          description="¿Aún no sabes qué rotación externa realizar?"
-          buttonLabel="Explorar"
+          title="Quiero decidir dónde ir"
+          description="Lee reseñas, filtra por hospital o ciudad y guarda favoritas para comparar opciones."
+          buttonLabel="Buscar destino"
           onPress={() => setRoute({ name: "explore", payload: null })}
         />
-        {primaryUserRotation ? (
-          <View style={styles.hubActionCard}>
-            <View>
-              <Text style={styles.hubActionTitle}>Mi futura rotación</Text>
-              <Text style={styles.hubActionDescription}>
-                {[
-                  primaryUserRotation.hospital_name || "Rotación futura",
-                  primaryUserRotation.service_name,
-                  primaryUserRotation.city,
-                  primaryUserRotation.country,
-                  formatDateRange(
-                    primaryUserRotation.start_date,
-                    primaryUserRotation.end_date
-                  ),
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </Text>
-            </View>
-            <View style={styles.hubActionRow}>
-              <TouchableOpacity
-                style={[styles.hubActionButton, styles.hubActionButtonAlt, styles.hubActionButtonSplit]}
-                onPress={() => openRotationForm(primaryUserRotation)}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.hubActionButtonText, styles.hubActionButtonTextAlt]}>
-                  Editar
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.hubDangerButton, styles.hubActionButtonSplit]}
-                onPress={() => setRotationToDelete(primaryUserRotation)}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="trash-outline" size={16} color={COLORS.ERROR} />
-                <Text style={styles.hubDangerButtonText}>Eliminar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <HubActionCard
-            title="Mi futura rotación"
-            description="¿Ya tienes la rotación confirmada?"
-            buttonLabel="Añadir"
-            onPress={() => openRotationForm()}
-          />
-        )}
-        {primaryUserReview ? (
-          <View style={styles.hubActionCard}>
-            <View>
-              <Text style={styles.hubActionTitle}>Mi experiencia</Text>
-              <Text style={styles.hubActionDescription}>
-                {[
-                  primaryUserReview.external_hospital_name || "Experiencia publicada",
-                  primaryUserReview.service_name,
-                  primaryUserReview.city,
-                  primaryUserReview.country,
-                  formatDateRange(
-                    primaryUserReview.start_date,
-                    primaryUserReview.end_date
-                  ),
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </Text>
-            </View>
-            <View style={styles.hubActionRow}>
-              <TouchableOpacity
-                style={[
-                  styles.hubActionButton,
-                  styles.hubActionButtonAlt,
-                  styles.hubActionButtonSplit,
-                ]}
-                onPress={() => openPublish(primaryUserReview)}
-                activeOpacity={0.85}
-              >
-                <Text
-                  style={[
-                    styles.hubActionButtonText,
-                    styles.hubActionButtonTextAlt,
-                  ]}
-                >
-                  Editar
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.hubDangerButton, styles.hubActionButtonSplit]}
-                onPress={() => setReviewToDelete(primaryUserReview)}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="trash-outline" size={16} color={COLORS.ERROR} />
-                <Text style={styles.hubDangerButtonText}>Eliminar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <HubActionCard
-            title="Añadir mi experiencia"
-            description="Cuenta cómo fue tu rotación y ayuda a quien viene detrás."
-            buttonLabel="Escribir reseña"
-            onPress={() => openPublish()}
-          />
-        )}
+        <HubActionCard
+          title="Ya sé dónde voy"
+          description="Publica tu plan futuro para ver quién coincide contigo en fechas y destino."
+          buttonLabel={primaryUserRotation ? "Ver mi plan" : "Publicar mi plan"}
+          onPress={() => setRoute({ name: "plan", payload: null })}
+        />
       </View>
+
+      {primaryUserRotation ? (
+        <View style={styles.hubActionCard}>
+          <Text style={styles.homeSectionLabel}>Tu plan activo</Text>
+          <Text style={styles.hubActionTitle}>
+            {primaryUserRotation.hospital_name || "Rotación futura"}
+          </Text>
+          <Text style={styles.hubActionDescription}>
+            {[
+              primaryUserRotation.service_name,
+              primaryUserRotation.city,
+              primaryUserRotation.country,
+              formatDateRange(
+                primaryUserRotation.start_date,
+                primaryUserRotation.end_date
+              ),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </Text>
+          <View style={styles.inlineStatsRow}>
+            <View style={styles.inlineStatPill}>
+              <Text style={styles.inlineStatValue}>{upcomingMatches.length}</Text>
+              <Text style={styles.inlineStatLabel}>coincidencias</Text>
+            </View>
+            <View style={styles.inlineStatPill}>
+              <Text style={styles.inlineStatValue}>{historicalMatches.length}</Text>
+              <Text style={styles.inlineStatLabel}>experiencias relacionadas</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.hubActionButton}
+            onPress={() => setRoute({ name: "plan", payload: null })}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.hubActionButtonText}>Gestionar plan</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <EmptyState
+          icon="paper-plane-outline"
+          title="Todavía no has publicado tu plan futuro"
+          description="Cuando tengas claro un destino y unas fechas, publícalo para ver si otro residente coincide contigo."
+          actionLabel="Crear mi plan"
+          onAction={() => setRoute({ name: "plan", payload: null })}
+        />
+      )}
+
+      {primaryUserReview ? (
+        <View style={styles.hubActionCard}>
+          <Text style={styles.homeSectionLabel}>Tu experiencia publicada</Text>
+          <Text style={styles.hubActionTitle}>
+            {primaryUserReview.external_hospital_name || "Experiencia publicada"}
+          </Text>
+          <Text style={styles.hubActionDescription}>
+            {[
+              primaryUserReview.service_name,
+              primaryUserReview.city,
+              primaryUserReview.country,
+              formatDateRange(
+                primaryUserReview.start_date,
+                primaryUserReview.end_date
+              ),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </Text>
+          <View style={styles.hubActionRow}>
+            <TouchableOpacity
+              style={[
+                styles.hubActionButton,
+                styles.hubActionButtonAlt,
+                styles.hubActionButtonSplit,
+              ]}
+              onPress={() => openPublish(primaryUserReview)}
+              activeOpacity={0.85}
+            >
+              <Text
+                style={[
+                  styles.hubActionButtonText,
+                  styles.hubActionButtonTextAlt,
+                ]}
+              >
+                Editar reseña
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.hubDangerButton, styles.hubActionButtonSplit]}
+              onPress={() => setReviewToDelete(primaryUserReview)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="trash-outline" size={16} color={COLORS.ERROR} />
+              <Text style={styles.hubDangerButtonText}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <HubActionCard
+          title="Comparte tu experiencia cuando vuelvas"
+          description="Tu reseña servirá a otros residentes para decidir hospital, servicio y logística."
+          buttonLabel="Escribir reseña"
+          onPress={() => openPublish()}
+        />
+      )}
+
       <SectionTitle
         title="Tus favoritas"
         description="Reseñas que has guardado para volver a consultarlas."
+        actionLabel="Ver todas"
+        onAction={() => setRoute({ name: "explore", payload: null })}
       />
       {favoriteReviews.length ? (
         favoriteReviews.map((review) => (
@@ -1349,7 +1354,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
             key={review.id}
             review={review}
             onPress={() =>
-              setRoute({ name: "detail", payload: { review, from: "hub" } })
+              setRoute({ name: "detail", payload: { review, from: "home" } })
             }
           />
         ))
@@ -1371,6 +1376,37 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
+      <SectionTitle
+        eyebrow="Buscar destino"
+        title="Descubre dónde merece la pena rotar"
+        description="Explora reseñas reales, filtra por especialidad o localización y guarda tus opciones favoritas."
+      />
+
+      <View style={styles.searchCard}>
+        <View style={styles.searchInputWrap}>
+          <Ionicons name="search-outline" size={18} color={TEXT_MUTED} />
+          <TextInput
+            style={styles.searchInput}
+            value={exploreFilters.search}
+            onChangeText={(value) =>
+              setExploreFilters((current) => ({ ...current, search: value }))
+            }
+            placeholder="Buscar hospital, ciudad, servicio o especialidad"
+            placeholderTextColor={TEXT_MUTED}
+          />
+          {exploreFilters.search ? (
+            <TouchableOpacity
+              onPress={() =>
+                setExploreFilters((current) => ({ ...current, search: "" }))
+              }
+              activeOpacity={0.75}
+            >
+              <Ionicons name="close-circle" size={18} color={TEXT_MUTED} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -1401,53 +1437,34 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         />
       </ScrollView>
 
-      {upcomingMatches.length ? (
-        <>
-          <Text style={styles.subsectionLabel}>Van en tus fechas</Text>
-          <View style={styles.matchesList}>
-            {upcomingMatches.slice(0, 2).map((match) => (
-              <MatchCard
-                key={match.id}
-                item={match}
-                onContact={() =>
-                  Alert.alert(
-                    match.name,
-                    [match.phone, match.email].filter(Boolean).join("\n") ||
-                      "No hay contacto directo disponible."
-                  )
-                }
-              />
-            ))}
-          </View>
-        </>
-      ) : null}
+      <SectionTitle
+        title="Tus favoritas"
+        description="Guarda reseñas para compararlas después."
+      />
 
-      {historicalMatches.length ? (
-        <>
-          <Text style={styles.subsectionLabel}>Han estado antes</Text>
-          <View style={styles.matchesList}>
-            {historicalMatches.slice(0, 2).map((review) => (
-              <MatchCard
-                key={review.id}
-                item={{
-                  name: `${review.reviewer_name} ${review.reviewer_surname}`.trim(),
-                  meta: review.service_name || review.specialty_name || "Experiencia",
-                  location: [review.city, review.country].filter(Boolean).join(", "),
-                  dateLabel: formatDateRange(review.start_date, review.end_date),
-                }}
-                buttonLabel="Leer reseña"
-                onContact={() =>
-                  setRoute({ name: "detail", payload: { review, from: "explore" } })
-                }
-              />
-            ))}
-          </View>
-        </>
-      ) : null}
+      {favoriteReviews.length ? (
+        <View style={styles.reviewGrid}>
+          {favoriteReviews.map((review) => (
+            <ReviewListCard
+              key={review.id}
+              review={review}
+              onPress={() =>
+                setRoute({ name: "detail", payload: { review, from: "explore" } })
+              }
+            />
+          ))}
+        </View>
+      ) : (
+        <EmptyState
+          icon="heart-outline"
+          title="Aún no tienes favoritas"
+          description="Marca reseñas desde el detalle y las tendrás aquí para revisarlas con calma."
+        />
+      )}
 
       <SectionTitle
-        title="Explorar destinos"
-        description="Reseñas validadas y publicadas por otros residentes."
+        title="Reseñas disponibles"
+        description="Experiencias publicadas por otros residentes para ayudarte a decidir."
       />
 
       <View style={styles.resultsRow}>
@@ -1545,65 +1562,159 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     </ScrollView>
   );
 
-  const renderMatch = () => (
+  const renderPlan = () => (
     <ScrollView
       style={styles.scrollView}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
       <SectionTitle
-        title="No estás solo"
-        description="Conecta con residentes que comparten tu destino o que ya han pasado por él."
+        eyebrow="Ya tengo destino"
+        title="Publica tu plan y mira si alguien coincide contigo"
+        description="Comparte hospital, ciudad y fechas. La app te enseñará residentes que van al mismo lugar y experiencias previas relacionadas."
       />
 
-      <Text style={styles.subsectionLabel}>Van en tus fechas</Text>
-      {upcomingMatches.length ? (
-        upcomingMatches.map((match) => (
-          <MatchCard
-            key={match.id}
-            item={match}
-            onContact={() =>
-              Alert.alert(
-                match.name,
-                [match.phone, match.email].filter(Boolean).join("\n") ||
-                  "No hay datos de contacto disponibles."
-              )
-            }
-          />
-        ))
+      {primaryUserRotation ? (
+        <View style={styles.hubActionCard}>
+          <Text style={styles.homeSectionLabel}>Tu plan activo</Text>
+          <Text style={styles.hubActionTitle}>
+            {primaryUserRotation.hospital_name || "Rotación futura"}
+          </Text>
+          <Text style={styles.hubActionDescription}>
+            {[
+              primaryUserRotation.service_name,
+              primaryUserRotation.city,
+              primaryUserRotation.country,
+              formatDateRange(
+                primaryUserRotation.start_date,
+                primaryUserRotation.end_date
+              ),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </Text>
+          <View style={styles.hubActionRow}>
+            <TouchableOpacity
+              style={[styles.hubActionButton, styles.hubActionButtonAlt, styles.hubActionButtonSplit]}
+              onPress={() => openRotationForm(primaryUserRotation)}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.hubActionButtonText, styles.hubActionButtonTextAlt]}>
+                Editar plan
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.hubDangerButton, styles.hubActionButtonSplit]}
+              onPress={() => setRotationToDelete(primaryUserRotation)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="trash-outline" size={16} color={COLORS.ERROR} />
+              <Text style={styles.hubDangerButtonText}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       ) : (
         <EmptyState
-          icon="people-outline"
-          title="Aún no hay coincidencias"
-          description="Cuando otro residente comparta fechas y destino similares aparecerá aquí."
+          icon="paper-plane-outline"
+          title="Aún no has publicado tu plan futuro"
+          description="Solo necesitas hospital, ciudad y fechas aproximadas para ver si otro residente coincide contigo."
+          actionLabel="Crear mi plan"
+          onAction={() => openRotationForm()}
         />
       )}
 
-      <Text style={styles.subsectionLabel}>Han estado antes</Text>
-      {historicalMatches.length ? (
-        historicalMatches.map((review) => (
-          <MatchCard
-            key={review.id}
-            item={{
-              name: `${review.reviewer_name} ${review.reviewer_surname}`.trim(),
-              meta:
-                review.service_name ||
-                review.specialty_name ||
-                "Experiencia publicada",
-              location: [review.city, review.country].filter(Boolean).join(", "),
-              dateLabel: formatDateRange(review.start_date, review.end_date),
-            }}
-            buttonLabel="Leer reseña"
-            onContact={() =>
-              setRoute({ name: "detail", payload: { review, from: "match" } })
-            }
-          />
-        ))
+      {primaryUserRotation ? (
+        <>
+          <Text style={styles.subsectionLabel}>Coincidencias en mismas fechas</Text>
+          {upcomingMatches.length ? (
+            <View style={styles.matchesList}>
+              {upcomingMatches.map((match) => (
+                <MatchCard
+                  key={match.id}
+                  item={match}
+                  onContact={() =>
+                    Alert.alert(
+                      match.name,
+                      [match.phone, match.email].filter(Boolean).join("\n") ||
+                        "No hay datos de contacto disponibles."
+                    )
+                  }
+                />
+              ))}
+            </View>
+          ) : (
+            <EmptyState
+              icon="people-outline"
+              title="Aún no hay coincidencias"
+              description="Cuando otro residente comparta un destino y fechas similares aparecerá aquí."
+            />
+          )}
+
+          <Text style={styles.subsectionLabel}>Experiencias previas relacionadas</Text>
+          {historicalMatches.length ? (
+            <View style={styles.matchesList}>
+              {historicalMatches.map((review) => (
+                <MatchCard
+                  key={review.id}
+                  item={{
+                    name: `${review.reviewer_name} ${review.reviewer_surname}`.trim(),
+                    meta:
+                      review.service_name ||
+                      review.specialty_name ||
+                      "Experiencia publicada",
+                    location: [review.city, review.country].filter(Boolean).join(", "),
+                    dateLabel: formatDateRange(review.start_date, review.end_date),
+                  }}
+                  buttonLabel="Leer reseña"
+                  onContact={() =>
+                    setRoute({ name: "detail", payload: { review, from: "plan" } })
+                  }
+                />
+              ))}
+            </View>
+          ) : (
+            <EmptyState
+              icon="time-outline"
+              title="Todavía no hay experiencias relacionadas"
+              description="Si otros residentes ya han pasado por ese destino, sus reseñas aparecerán aquí."
+            />
+          )}
+        </>
+      ) : null}
+
+      {primaryUserReview ? (
+        <View style={styles.hubActionCard}>
+          <Text style={styles.homeSectionLabel}>Tu experiencia publicada</Text>
+          <Text style={styles.hubActionTitle}>
+            {primaryUserReview.external_hospital_name || "Experiencia publicada"}
+          </Text>
+          <Text style={styles.hubActionDescription}>
+            {[
+              primaryUserReview.service_name,
+              primaryUserReview.city,
+              primaryUserReview.country,
+              formatDateRange(
+                primaryUserReview.start_date,
+                primaryUserReview.end_date
+              ),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </Text>
+          <TouchableOpacity
+            style={styles.hubActionButton}
+            onPress={() => openPublish(primaryUserReview)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.hubActionButtonText}>Editar experiencia</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
-        <EmptyState
-          icon="time-outline"
-          title="Todavía no hay experiencias relacionadas"
-          description="Las experiencias previas publicadas por otros residentes aparecerán aquí."
+        <HubActionCard
+          title="Cuando vuelvas, publica la reseña"
+          description="Tu experiencia ayudará a quienes aún están decidiendo dónde rotar."
+          buttonLabel="Escribir reseña"
+          onPress={() => openPublish()}
         />
       )}
     </ScrollView>
@@ -2177,43 +2288,18 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       <ScreenHeader
         title={routeTitle}
         onBack={
-          route.name === "hub" || route.name === "explore" || route.name === "match"
+          route.name === "home"
             ? onBack
-            : () => setRoute({ name: "hub", payload: null })
+            : route.name === "explore" || route.name === "plan"
+              ? () => setRoute({ name: "home", payload: null })
+              : () => setRoute({ name: "home", payload: null })
         }
-        centerTitle={
-          route.name === "hub" || route.name === "explore" || route.name === "match"
-        }
+        centerTitle={route.name === "home" || route.name === "explore" || route.name === "plan"}
       />
 
-      {route.name !== "publish" &&
-      route.name !== "contact" &&
-      route.name !== "rotation" ? (
-        <View style={styles.featureTabsRow}>
-          <FeatureTab
-            active={route.name === "hub"}
-            icon="grid"
-            label="Hub"
-            onPress={() => setRoute({ name: "hub", payload: null })}
-          />
-          <FeatureTab
-            active={route.name === "explore"}
-            icon="search"
-            label="Explorar"
-            onPress={() => setRoute({ name: "explore", payload: null })}
-          />
-          <FeatureTab
-            active={route.name === "match"}
-            icon="people"
-            label="Conectar"
-            onPress={() => setRoute({ name: "match", payload: null })}
-          />
-        </View>
-      ) : null}
-
-      {route.name === "hub" && renderHub()}
+      {route.name === "home" && renderHome()}
       {route.name === "explore" && renderExplore()}
-      {route.name === "match" && renderMatch()}
+      {route.name === "plan" && renderPlan()}
       {route.name === "rotation" && renderRotationForm()}
       {route.name === "publish" && renderPublish()}
       {route.name === "contact" && renderContact()}
@@ -2246,35 +2332,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: SURFACE,
   },
-  featureTabsRow: {
-    flexDirection: "row",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  featureTab: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 16,
-    backgroundColor: SURFACE_CARD,
-    paddingVertical: 12,
-  },
-  featureTabActive: {
-    backgroundColor: PRIMARY_SOFT,
-  },
-  featureTabIcon: {
-    marginRight: 6,
-  },
-  featureTabText: {
-    color: TEXT_MUTED,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  featureTabTextActive: {
-    color: PRIMARY,
-  },
   scrollView: {
     flex: 1,
   },
@@ -2282,6 +2339,30 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 120,
     gap: 14,
+  },
+  homeHeroCard: {
+    backgroundColor: PRIMARY,
+    borderRadius: 28,
+    padding: 22,
+    gap: 10,
+  },
+  homeHeroEyebrow: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "rgba(255,255,255,0.78)",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  homeHeroTitle: {
+    fontSize: 28,
+    lineHeight: 32,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  homeHeroDescription: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "rgba(255,255,255,0.88)",
   },
   sectionHeader: {
     gap: 6,
@@ -2357,6 +2438,13 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: TEXT_MUTED,
   },
+  homeSectionLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: PRIMARY,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
   hubActionButton: {
     backgroundColor: PRIMARY,
     borderRadius: 999,
@@ -2399,6 +2487,28 @@ const styles = StyleSheet.create({
     color: COLORS.ERROR,
     fontWeight: "800",
     fontSize: 12,
+  },
+  inlineStatsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  inlineStatPill: {
+    flex: 1,
+    backgroundColor: SURFACE_ALT,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  inlineStatValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: TEXT,
+  },
+  inlineStatLabel: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: TEXT_MUTED,
+    marginTop: 4,
   },
   miniDestinationCard: {
     backgroundColor: SURFACE_CARD,
@@ -2480,6 +2590,28 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 0,
     marginBottom: 14,
+  },
+  searchCard: {
+    backgroundColor: SURFACE_CARD,
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  searchInputWrap: {
+    minHeight: 48,
+    backgroundColor: SURFACE_ALT,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: TEXT,
+    paddingVertical: 0,
   },
   filtersRow: {
     flexDirection: "row",

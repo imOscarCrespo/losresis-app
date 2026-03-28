@@ -3,6 +3,10 @@
  */
 
 import { supabase } from "../config/supabase";
+import {
+  cacheUserProfile,
+  clearCachedUserProfile,
+} from "./userProfileCacheService";
 
 /**
  * Actualizar el perfil de usuario
@@ -13,6 +17,14 @@ import { supabase } from "../config/supabase";
 export const updateUserProfile = async (userId, profileData) => {
   try {
     console.log("🔄 Updating user profile:", userId, profileData);
+
+    const previousProfileResult = await supabase
+      .from("users")
+      .select("id, hospital_id, resident_year")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const previousProfile = previousProfileResult.data || null;
 
     const updateData = {
       id: userId,
@@ -48,6 +60,18 @@ export const updateUserProfile = async (userId, profileData) => {
     }
 
     console.log("✅ Profile updated successfully:", data);
+
+    const hospitalChanged =
+      previousProfile?.hospital_id !== (data?.hospital_id || null);
+    const residentYearChanged =
+      (previousProfile?.resident_year || null) !== (data?.resident_year || null);
+
+    if (hospitalChanged || residentYearChanged) {
+      await clearCachedUserProfile(userId);
+    } else {
+      await cacheUserProfile(data);
+    }
+
     return {
       success: true,
       profile: data,
