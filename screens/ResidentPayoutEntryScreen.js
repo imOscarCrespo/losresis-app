@@ -2,11 +2,14 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -187,116 +190,128 @@ export default function ResidentPayoutEntryScreen({
   );
 
   return (
-    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+    <ScreenScaffold
+      header={header}
+      contentSurfaceStyle={styles.contentSurface}
+      keyboardAvoiding
+    >
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#670CF5" />
           <Text style={styles.loadingText}>Cargando registro...</Text>
         </View>
       ) : (
-        <View style={styles.container}>
-          {lockInitialPeriod && initialYear && initialMonth ? (
-            <View style={styles.lockBanner}>
-              <Ionicons name="time-outline" size={18} color="#670CF5" />
-              <Text style={styles.lockBannerText}>
-                Registro sugerido para {formatPayoutPeriodLabel(formState.periodYear, formState.periodMonth)}.
-              </Text>
-            </View>
-          ) : null}
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollContent}
+          >
+            <View style={styles.container}>
+              {lockInitialPeriod && initialYear && initialMonth ? (
+                <View style={styles.lockBanner}>
+                  <Ionicons name="time-outline" size={18} color="#670CF5" />
+                  <Text style={styles.lockBannerText}>
+                    Registro sugerido para {formatPayoutPeriodLabel(formState.periodYear, formState.periodMonth)}.
+                  </Text>
+                </View>
+              ) : null}
 
-          <View style={styles.card}>
-            <Text style={styles.fieldLabel}>Mes</Text>
-            <TouchableOpacity
-              style={[styles.selectButton, periodLocked && styles.selectButtonDisabled]}
-              onPress={openMonthPicker}
-              disabled={periodLocked}
-              activeOpacity={0.82}
-            >
-              <View style={styles.selectButtonCopy}>
-                <Text style={styles.selectButtonLabel}>
-                  {formatPayoutPeriodLabel(formState.periodYear, formState.periodMonth)}
-                </Text>
-                <Text style={styles.selectButtonHint}>
-                  {editingId
-                    ? "Se actualizará el registro de este mes"
-                    : "Puedes cambiarlo si necesitas cargar otro mes"}
-                </Text>
-              </View>
-              <Ionicons name="chevron-down" size={18} color="#64748B" />
-            </TouchableOpacity>
+              <View style={styles.card}>
+                <Text style={styles.fieldLabel}>Mes</Text>
+                <TouchableOpacity
+                  style={[styles.selectButton, periodLocked && styles.selectButtonDisabled]}
+                  onPress={openMonthPicker}
+                  disabled={periodLocked}
+                  activeOpacity={0.82}
+                >
+                  <View style={styles.selectButtonCopy}>
+                    <Text style={styles.selectButtonLabel}>
+                      {formatPayoutPeriodLabel(formState.periodYear, formState.periodMonth)}
+                    </Text>
+                    <Text style={styles.selectButtonHint}>
+                      {editingId
+                        ? "Se actualizará el registro de este mes"
+                        : "Puedes cambiarlo si necesitas cargar otro mes"}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={18} color="#64748B" />
+                </TouchableOpacity>
 
-            <Text style={styles.fieldLabel}>Total nómina</Text>
-            <TextInput
-              value={formState.grossTotalEur}
-              onChangeText={(value) => setFieldValue("grossTotalEur", value)}
-              keyboardType="decimal-pad"
-              placeholder="Ej. 2350"
-              placeholderTextColor="#94A3B8"
-              style={styles.input}
-            />
-
-            <View style={styles.dualFieldRow}>
-              <View style={styles.dualField}>
-                <Text style={styles.fieldLabel}>Guardias</Text>
+                <Text style={styles.fieldLabel}>Total nómina</Text>
                 <TextInput
-                  value={formState.guardCount}
-                  onChangeText={(value) => setFieldValue("guardCount", value)}
-                  keyboardType="number-pad"
-                  placeholder="0"
+                  value={formState.grossTotalEur}
+                  onChangeText={(value) => setFieldValue("grossTotalEur", value)}
+                  keyboardType="decimal-pad"
+                  placeholder="Ej. 2350"
                   placeholderTextColor="#94A3B8"
                   style={styles.input}
                 />
-              </View>
-              <View style={styles.dualField}>
-                <Text style={styles.fieldLabel}>Huelgas</Text>
-                <TextInput
-                  value={formState.strikeCount}
-                  onChangeText={(value) => setFieldValue("strikeCount", value)}
-                  keyboardType="number-pad"
-                  placeholder="0"
-                  placeholderTextColor="#94A3B8"
-                  style={styles.input}
+
+                <View style={styles.dualFieldRow}>
+                  <View style={styles.dualField}>
+                    <Text style={styles.fieldLabel}>Guardias</Text>
+                    <TextInput
+                      value={formState.guardCount}
+                      onChangeText={(value) => setFieldValue("guardCount", value)}
+                      keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor="#94A3B8"
+                      style={styles.input}
+                    />
+                  </View>
+                  <View style={styles.dualField}>
+                    <Text style={styles.fieldLabel}>Huelgas</Text>
+                    <TextInput
+                      value={formState.strikeCount}
+                      onChangeText={(value) => setFieldValue("strikeCount", value)}
+                      keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor="#94A3B8"
+                      style={styles.input}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.switchRow}>
+                  <View style={styles.switchCopy}>
+                    <Text style={styles.switchTitle}>Paga doble</Text>
+                    <Text style={styles.switchSubtitle}>Marca si este mes ha incluido paga extra.</Text>
+                  </View>
+                  <Switch
+                    value={formState.hasDoublePay}
+                    onValueChange={(value) => setFieldValue("hasDoublePay", value)}
+                    trackColor={{ false: "#CBD5E1", true: "#C4B5FD" }}
+                    thumbColor={formState.hasDoublePay ? "#670CF5" : "#FFFFFF"}
+                  />
+                </View>
+
+                <View style={styles.switchRow}>
+                  <View style={styles.switchCopy}>
+                    <Text style={styles.switchTitle}>Pago pendiente</Text>
+                    <Text style={styles.switchSubtitle}>
+                      Indica si te han abonado importes pendientes de otro mes.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={formState.hasPendingPayment}
+                    onValueChange={(value) => setFieldValue("hasPendingPayment", value)}
+                    trackColor={{ false: "#CBD5E1", true: "#C4B5FD" }}
+                    thumbColor={formState.hasPendingPayment ? "#670CF5" : "#FFFFFF"}
+                  />
+                </View>
+
+                <Button
+                  title={saving ? "Guardando..." : "Guardar nómina"}
+                  onPress={handleSave}
+                  loading={saving}
+                  style={styles.primaryAction}
+                  textStyle={styles.primaryActionText}
                 />
               </View>
             </View>
-
-            <View style={styles.switchRow}>
-              <View style={styles.switchCopy}>
-                <Text style={styles.switchTitle}>Paga doble</Text>
-                <Text style={styles.switchSubtitle}>Marca si este mes ha incluido paga extra.</Text>
-              </View>
-              <Switch
-                value={formState.hasDoublePay}
-                onValueChange={(value) => setFieldValue("hasDoublePay", value)}
-                trackColor={{ false: "#CBD5E1", true: "#C4B5FD" }}
-                thumbColor={formState.hasDoublePay ? "#670CF5" : "#FFFFFF"}
-              />
-            </View>
-
-            <View style={styles.switchRow}>
-              <View style={styles.switchCopy}>
-                <Text style={styles.switchTitle}>Pago pendiente</Text>
-                <Text style={styles.switchSubtitle}>
-                  Indica si te han abonado importes pendientes de otro mes.
-                </Text>
-              </View>
-              <Switch
-                value={formState.hasPendingPayment}
-                onValueChange={(value) => setFieldValue("hasPendingPayment", value)}
-                trackColor={{ false: "#CBD5E1", true: "#C4B5FD" }}
-                thumbColor={formState.hasPendingPayment ? "#670CF5" : "#FFFFFF"}
-              />
-            </View>
-
-            <Button
-              title={saving ? "Guardando..." : "Guardar nómina"}
-              onPress={handleSave}
-              loading={saving}
-              style={styles.primaryAction}
-              textStyle={styles.primaryActionText}
-            />
-          </View>
-        </View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
       )}
     </ScreenScaffold>
   );
@@ -316,8 +331,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#64748B",
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   container: {
-    flex: 1,
     padding: 16,
     gap: 16,
   },
