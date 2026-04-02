@@ -16,6 +16,13 @@ losresis-react-app/
 
 ## Configuración
 
+### Clonar con migraciones compartidas
+
+```bash
+git clone --recurse-submodules git@github.com:imOscarCrespo/losresis-app.git
+git submodule update --init --recursive
+```
+
 ### Variables de Entorno
 
 Crea un archivo `.env` en la raíz del proyecto con:
@@ -30,6 +37,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=tu_clave_anon_de_supabase
 1. Obtén tu URL y clave anónima desde tu proyecto de Supabase
 2. Agrega las variables al archivo `.env`
 3. El connector se inicializará automáticamente
+4. Las migraciones compartidas viven en el submódulo `supabase/migrations`
 
 ## Uso del Connector de Supabase
 

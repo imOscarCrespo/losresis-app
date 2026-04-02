@@ -1,0 +1,3 @@
+[submodule "supabase/migrations"]
+	path = supabase/migrations
+	url = git@github.com:imOscarCrespo/losresis-db.git
