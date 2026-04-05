@@ -223,7 +223,7 @@ export default function RoommateScreen({
     }
 
     if (!lookingFor) {
-      return "Selecciona qué estás buscando.";
+      return "Selecciona qué tipo de vivienda estás buscando.";
     }
 
     if (!preferredGender) {
@@ -312,6 +312,7 @@ export default function RoommateScreen({
       title="Roomies"
       onBack={onBack}
       compact
+      variant="brand"
       rightSlot={
         <TouchableOpacity
           style={styles.headerAction}
@@ -365,8 +366,8 @@ export default function RoommateScreen({
       </View>
       <Text style={styles.emptyTitle}>Crea tu perfil roomie</Text>
       <Text style={styles.emptyDescription}>
-        Completa un onboarding corto con hábitos, presupuesto y lo que buscas en
-        convivencia. Después podrás swipear perfiles y ver matches.
+        Completa un onboarding corto con tu perfil, convivencia básica y
+        presupuesto. Después podrás swipear perfiles y ver matches.
       </Text>
       <TouchableOpacity
         style={styles.primaryButton}
@@ -571,7 +572,11 @@ export default function RoommateScreen({
 
   if (loading) {
     return (
-      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.contentSurface}
+      >
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={ROOMMATE_THEME.PRIMARY} />
           <Text style={styles.loadingText}>Preparando roommate matching...</Text>
@@ -582,7 +587,11 @@ export default function RoommateScreen({
 
   return (
     <>
-      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.contentSurface}
+      >
         <ScrollView
           style={styles.container}
           contentContainerStyle={[styles.content, { paddingBottom: 36 }]}
@@ -697,7 +706,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E9DFFF",
+    borderColor: "rgba(255,255,255,0.28)",
   },
   tabsRow: {
     marginHorizontal: 18,

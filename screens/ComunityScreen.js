@@ -14,7 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityUsers } from "../hooks/useCommunityUsers";
 import { useCities } from "../hooks/useCities";
-import { useResidentReviewCheck } from "../hooks/useResidentReviewCheck";
+import { usePersistedFilters } from "../hooks/usePersistedFilters";
 import { useUnreadNotificationsCount } from "../src/hooks/useUnreadNotificationsCount";
 import posthogLogger from "../services/posthogService";
 
@@ -193,13 +193,38 @@ function ResidentCard({ user }) {
   );
 }
 
-export default function ComunityScreen({ userProfile, navigation }) {
+export default function ComunityScreen({
+  userProfile,
+  navigation,
+  residentReviewGateStatus = "soft",
+}) {
   const insets = useSafeAreaInsets();
   const mapRef = useRef(null);
-  const [selectedCity, setSelectedCity] = useState("");
-  const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [openModal, setOpenModal] = useState(null);
   const [viewMode, setViewMode] = useState(MAP_AVAILABLE ? "map" : "list");
+  const {
+    filters,
+    isLoading: filtersLoading,
+    updateFilter,
+    clearAllFilters: clearPersistedFilters,
+  } = usePersistedFilters(
+    "community",
+    {
+      selectedCity: "",
+      selectedSpecialty: "",
+    },
+    { enableDebounce: true, debounceMs: 500 }
+  );
+  const selectedCity = filters.selectedCity || "";
+  const selectedSpecialty = filters.selectedSpecialty || "";
+  const setSelectedCity = useCallback(
+    (value) => updateFilter("selectedCity", value),
+    [updateFilter]
+  );
+  const setSelectedSpecialty = useCallback(
+    (value) => updateFilter("selectedSpecialty", value),
+    [updateFilter]
+  );
 
   const { count: notificationCount } = useUnreadNotificationsCount(
     userProfile?.id
@@ -211,12 +236,7 @@ export default function ComunityScreen({ userProfile, navigation }) {
     loading: usersLoading,
     error: usersError,
     mapRegion,
-  } = useCommunityUsers(selectedCity, selectedSpecialty);
-  const { hasReview, loading: reviewLoading } = useResidentReviewCheck(
-    userProfile?.id,
-    userProfile
-  );
-
+  } = useCommunityUsers(selectedCity, selectedSpecialty, !filtersLoading);
   useEffect(() => {
     posthogLogger.logScreen("ComunityScreen");
   }, []);
@@ -234,8 +254,7 @@ export default function ComunityScreen({ userProfile, navigation }) {
   const shouldShowReviewPrompt =
     userProfile?.is_resident &&
     !userProfile?.is_super_admin &&
-    !reviewLoading &&
-    hasReview === false;
+    residentReviewGateStatus === "hard";
 
   const specialtyOptions = useMemo(
     () =>
@@ -256,16 +275,13 @@ export default function ComunityScreen({ userProfile, navigation }) {
   );
 
   const hasActiveFilters = Boolean(selectedCity || selectedSpecialty);
-  const isLoadingAccess =
-    usersLoading ||
-    (userProfile?.is_resident && !userProfile?.is_super_admin && reviewLoading);
+  const isLoadingAccess = filtersLoading || usersLoading;
 
   const cityCount = useMemo(() => new Set(users.map((user) => user.city)).size, [users]);
 
   const clearFilters = useCallback(() => {
-    setSelectedCity("");
-    setSelectedSpecialty("");
-  }, []);
+    clearPersistedFilters();
+  }, [clearPersistedFilters]);
 
   const renderMarker = useCallback(
     (user) => {
@@ -615,7 +631,7 @@ export default function ComunityScreen({ userProfile, navigation }) {
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="large" color={PRIMARY} />
               <Text style={styles.loadingText}>
-                {usersLoading ? "Cargando residentes..." : "Verificando acceso..."}
+                Cargando residentes...
               </Text>
             </View>
           ) : null}

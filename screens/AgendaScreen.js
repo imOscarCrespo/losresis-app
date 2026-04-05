@@ -660,7 +660,7 @@ export const AgendaScreen = ({ userProfile }) => {
                   )
                 }
               >
-                <Ionicons name="chevron-back" size={18} color={COLORS.WHITE} />
+                <Ionicons name="chevron-back" size={18} color={COLORS.PRIMARY} />
               </TouchableOpacity>
               <View>
                 <Text style={styles.heroMonthLabel}>Calendario</Text>
@@ -680,7 +680,7 @@ export const AgendaScreen = ({ userProfile }) => {
                   )
                 }
               >
-                <Ionicons name="chevron-forward" size={18} color={COLORS.WHITE} />
+                <Ionicons name="chevron-forward" size={18} color={COLORS.PRIMARY} />
               </TouchableOpacity>
             </View>
           }
@@ -1245,12 +1245,19 @@ const styles = StyleSheet.create({
   heroMonthCard: {
     marginTop: 18,
     borderRadius: 18,
-    backgroundColor: AGENDA_ACCENT_ALT,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    borderWidth: 1,
+    borderColor: "rgba(0,122,255,0.14)",
     paddingHorizontal: 14,
     paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    shadowColor: "#007AFF",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 18,
+    elevation: 2,
   },
   heroArrow: {
     width: 36,
@@ -1258,17 +1265,19 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(0,122,255,0.18)",
   },
   heroMonthLabel: {
-    color: "rgba(255,255,255,0.75)",
+    color: COLORS.TEXT_LIGHT,
     textTransform: "uppercase",
     fontSize: 11,
     letterSpacing: 1.1,
     textAlign: "center",
   },
   heroMonthValue: {
-    color: COLORS.WHITE,
+    color: "#1B3A70",
     fontSize: 18,
     fontWeight: "700",
     marginTop: 2,

@@ -18,6 +18,7 @@ export const ScreenHeader = ({
   onNotificationPress = null,
   centerTitle = false,
   compact = false,
+  variant = "default",
   titleNumberOfLines = 1,
   style = null,
   titleStyle = null,
@@ -26,6 +27,19 @@ export const ScreenHeader = ({
   const [leftWidth, setLeftWidth] = useState(0);
   const [rightWidth, setRightWidth] = useState(0);
   const shouldCenterTitle = centerTitle || Boolean(onBack);
+  const isBrandVariant = variant === "brand";
+  const resolvedIconColor =
+    iconColor === COLORS.PRIMARY || iconColor === "#670CF5"
+      ? isBrandVariant
+        ? COLORS.WHITE
+        : iconColor
+      : iconColor;
+  const resolvedIconBackgroundColor = isBrandVariant
+    ? "rgba(255,255,255,0.16)"
+    : iconBackgroundColor;
+  const resolvedIconBorderColor = isBrandVariant
+    ? "rgba(255,255,255,0.22)"
+    : iconBorderColor;
 
   const renderLeft = () => {
     if (leftSlot) {
@@ -39,13 +53,17 @@ export const ScreenHeader = ({
     return (
       <TouchableOpacity
         onPress={onBack}
-        style={styles.iconButton}
+        style={[styles.iconButton, isBrandVariant && styles.iconButtonBrand]}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel="Volver"
       >
-        <Ionicons name={backIcon} size={22} color="#670CF5" />
+        <Ionicons
+          name={backIcon}
+          size={22}
+          color={isBrandVariant ? COLORS.WHITE : "#670CF5"}
+        />
       </TouchableOpacity>
     );
   };
@@ -58,14 +76,17 @@ export const ScreenHeader = ({
     if (onNotificationPress) {
       return (
         <TouchableOpacity
-          style={styles.notificationButton}
+          style={[
+            styles.notificationButton,
+            isBrandVariant && styles.notificationButtonBrand,
+          ]}
           onPress={onNotificationPress}
           activeOpacity={0.7}
         >
           <Ionicons
             name="notifications-outline"
             size={22}
-            color={COLORS.GRAY_DARK}
+            color={isBrandVariant ? COLORS.WHITE : COLORS.GRAY_DARK}
           />
           {notificationCount > 0 && (
             <View style={styles.notificationBadge}>
@@ -83,13 +104,14 @@ export const ScreenHeader = ({
         <View
           style={[
             styles.headerIcon,
+            isBrandVariant && styles.headerIconBrand,
             {
-              backgroundColor: iconBackgroundColor,
-              borderColor: iconBorderColor,
+              backgroundColor: resolvedIconBackgroundColor,
+              borderColor: resolvedIconBorderColor,
             },
           ]}
         >
-          <Ionicons name={iconName} size={iconSize} color={iconColor} />
+          <Ionicons name={iconName} size={iconSize} color={resolvedIconColor} />
         </View>
       );
     }
@@ -103,7 +125,14 @@ export const ScreenHeader = ({
 
   if (shouldCenterTitle) {
     return (
-      <View style={[styles.header, compact && styles.headerCompact, style]}>
+      <View
+        style={[
+          styles.header,
+          compact && styles.headerCompact,
+          isBrandVariant && styles.headerBrand,
+          style,
+        ]}
+      >
         <View
           style={styles.sideRail}
           onLayout={({ nativeEvent }) => {
@@ -129,6 +158,7 @@ export const ScreenHeader = ({
                 styles.title,
                 styles.titleCentered,
                 compact && styles.titleCompact,
+                isBrandVariant && styles.titleBrand,
                 titleStyle,
               ]}
               numberOfLines={titleNumberOfLines}
@@ -151,7 +181,14 @@ export const ScreenHeader = ({
   }
 
   return (
-    <View style={[styles.header, compact && styles.headerCompact, style]}>
+    <View
+      style={[
+        styles.header,
+        compact && styles.headerCompact,
+        isBrandVariant && styles.headerBrand,
+        style,
+      ]}
+    >
       {leftContent}
 
       <View
@@ -161,7 +198,12 @@ export const ScreenHeader = ({
         ]}
       >
         <Text
-          style={[styles.title, compact && styles.titleCompact, titleStyle]}
+          style={[
+            styles.title,
+            compact && styles.titleCompact,
+            isBrandVariant && styles.titleBrand,
+            titleStyle,
+          ]}
           numberOfLines={titleNumberOfLines}
         >
           {title}
@@ -182,6 +224,9 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 12,
     backgroundColor: COLORS.WHITE,
+  },
+  headerBrand: {
+    backgroundColor: "#670CF5",
   },
   headerCompact: {
     paddingBottom: 10,
@@ -210,6 +255,9 @@ const styles = StyleSheet.create({
     color: "#1B0977",
     letterSpacing: -0.2,
   },
+  titleBrand: {
+    color: COLORS.WHITE,
+  },
   titleCentered: {
     textAlign: "center",
   },
@@ -224,6 +272,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(103,12,245,0.06)",
   },
+  iconButtonBrand: {
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
   headerIcon: {
     width: 36,
     height: 36,
@@ -231,6 +282,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
+  },
+  headerIconBrand: {
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderColor: "rgba(255,255,255,0.22)",
   },
   sideRail: {
     minWidth: 36,
@@ -248,6 +303,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
+  },
+  notificationButtonBrand: {
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
   notificationBadge: {
     position: "absolute",

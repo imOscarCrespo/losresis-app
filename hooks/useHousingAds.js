@@ -8,6 +8,7 @@ import {
   toggleHousingAdStatus,
 } from "../services/housingService";
 import { getCurrentUser } from "../services/authService";
+import { usePersistedFilters } from "./usePersistedFilters";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -37,14 +38,46 @@ export const useHousingAds = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
 
-  // Filtros
-  const [city, setCity] = useState("");
-  const [kind, setKind] = useState("");
-  const [hospitalId, setHospitalId] = useState("");
-  const [maxPrice, setMaxPrice] = useState(null);
-  const [showMyAds, setShowMyAds] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const inFlightRequestRef = useRef(null);
+
+  const {
+    filters,
+    isLoading: filtersLoading,
+    updateFilter,
+    clearAllFilters: clearPersistedFilters,
+  } = usePersistedFilters(
+    "housing",
+    {
+      city: "",
+      kind: "",
+      hospitalId: "",
+      maxPrice: null,
+      showMyAds: false,
+    },
+    { enableDebounce: true, debounceMs: 500 }
+  );
+
+  const city = filters.city || "";
+  const kind = filters.kind || "";
+  const hospitalId = filters.hospitalId || "";
+  const maxPrice = filters.maxPrice || null;
+  const showMyAds = Boolean(filters.showMyAds);
+
+  const setCity = useCallback((value) => updateFilter("city", value), [updateFilter]);
+  const setKind = useCallback((value) => updateFilter("kind", value), [updateFilter]);
+  const setHospitalId = useCallback(
+    (value) => updateFilter("hospitalId", value),
+    [updateFilter]
+  );
+  const setMaxPrice = useCallback(
+    (value) => updateFilter("maxPrice", value),
+    [updateFilter]
+  );
+  const setShowMyAds = useCallback(
+    (value) => updateFilter("showMyAds", Boolean(value)),
+    [updateFilter]
+  );
 
   // Cargar usuario actual
   useEffect(() => {
@@ -129,13 +162,9 @@ export const useHousingAds = () => {
   }, [fetchHousingAds]);
 
   // Limpiar filtros
-  const clearFilters = useCallback(() => {
-    setCity("");
-    setKind("");
-    setHospitalId("");
-    setMaxPrice(null);
-    setShowMyAds(false);
-  }, []);
+  const clearFilters = useCallback(async () => {
+    await clearPersistedFilters();
+  }, [clearPersistedFilters]);
 
   // Obtener un anuncio por ID
   const fetchHousingAdById = useCallback(async (adId) => {
@@ -263,9 +292,12 @@ export const useHousingAds = () => {
 
   // Auto-fetch cuando cambian los filtros
   useEffect(() => {
+    if (filtersLoading) {
+      return;
+    }
     fetchHousingAds(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, kind, hospitalId, maxPrice, showMyAds]);
+  }, [city, kind, hospitalId, maxPrice, showMyAds, filtersLoading]);
 
   return {
     // Data
@@ -274,6 +306,7 @@ export const useHousingAds = () => {
     error,
     hasMore,
     totalCount,
+    filtersLoading,
 
     // Filters
     city,

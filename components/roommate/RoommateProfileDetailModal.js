@@ -9,9 +9,12 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { FALLBACK_ROOMMATE_QUESTIONS } from "../../constants/roommateQuestions";
 import {
   ROOMMATE_THEME,
   getBudgetLabel,
+  getAnswerInputValue,
+  getOptionLabel,
   getRoommateAvatarUrl,
   getRoommateDisplayName,
   getRoommateInitials,
@@ -19,26 +22,52 @@ import {
 } from "../../utils/roommateUtils";
 
 const QUESTION_LABELS = {
-  cleanliness_priority: "Orden",
-  sleep_schedule: "Ritmo",
   weekday_vibe: "Entre semana",
-  shared_spaces: "Espacios compartidos",
   weekend_plan: "Fin de semana",
-  roommate_goal: "Busca en un roomie",
 };
 
-const renderAnswerText = (answer) => {
+const QUESTION_OPTIONS_BY_CODE = FALLBACK_ROOMMATE_QUESTIONS.reduce((acc, question) => {
+  acc[question.code] = question.options || [];
+  return acc;
+}, {});
+
+const getQuestionOptionLabel = (code, value) => {
+  const options = QUESTION_OPTIONS_BY_CODE[code] || [];
+  const selectedOption = options.find((option) => option.value === value);
+  return selectedOption?.label || value || null;
+};
+
+const renderAnswerText = (code, answer) => {
   if (!answer) return null;
+
+  const normalizedValue = getAnswerInputValue(answer);
+  if (normalizedValue === null || normalizedValue === undefined || normalizedValue === "") {
+    return null;
+  }
 
   if (answer.answer_number !== null && answer.answer_number !== undefined) {
     return `${Math.round(Number(answer.answer_number))}/5`;
   }
 
   if (answer.answer_options?.length) {
-    return answer.answer_options.join(", ");
+    return answer.answer_options
+      .map((value) => getQuestionOptionLabel(code, value))
+      .filter(Boolean)
+      .join(", ");
   }
 
-  return answer.answer_text;
+  if (Array.isArray(normalizedValue)) {
+    return normalizedValue
+      .map((value) => getQuestionOptionLabel(code, value))
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (typeof normalizedValue === "number") {
+    return `${Math.round(Number(normalizedValue))}/5`;
+  }
+
+  return getQuestionOptionLabel(code, normalizedValue);
 };
 
 const infoRows = (bundle) => {
@@ -91,7 +120,7 @@ export function RoommateProfileDetailModal({
   const profile = bundle.profile || {};
   const tags = getRoommateTags(profile, bundle.lifestyle);
   const questionEntries = Object.entries(bundle.answers || {}).filter(
-    ([, answer]) => answer
+    ([code, answer]) => answer && QUESTION_LABELS[code]
   );
 
   return (
@@ -195,7 +224,7 @@ export function RoommateProfileDetailModal({
                     <Text style={styles.answerLabel}>
                       {QUESTION_LABELS[code] || code}
                     </Text>
-                    <Text style={styles.answerValue}>{renderAnswerText(answer)}</Text>
+                    <Text style={styles.answerValue}>{renderAnswerText(code, answer)}</Text>
                   </View>
                 ))}
               </View>

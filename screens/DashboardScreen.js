@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Alert } from "react-native";
 import { ScreenLayout } from "../components/ScreenLayout";
 import { BackNavigationButton } from "../components/BackNavigationButton";
 import { PlaceholderScreen } from "../components/PlaceholderScreen";
@@ -39,11 +39,16 @@ import GroupsScreen from "./GroupsScreen";
 import GroupChatScreen from "./GroupChatScreen";
 import RoommateScreen from "./RoommateScreen";
 import ResidentPayoutsScreen from "./ResidentPayoutsScreen";
+import ResidentPayoutDetailScreen from "./ResidentPayoutDetailScreen";
 import ResidentPayoutEntryScreen from "./ResidentPayoutEntryScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
 import { DEV_USER_TYPE } from "../config/devConfig";
+import {
+  isQualifiedResidentSection,
+  registerQualifiedResidentAction,
+} from "../services/residentReviewGateService";
 
 /**
  * Aplica el override de tipo de usuario definido en devConfig.js.
@@ -87,12 +92,15 @@ const GENERIC_BACK_SECTIONS = new Set([
   "rotaciones-externas",
   "cursos",
   "residentPayouts",
+  "residentPayoutDetail",
   "residentPayoutEntry",
 ]);
 
 export default function DashboardScreen({
   onSignOut,
   residentHasReview = true,
+  residentReviewGateState = null,
+  residentReviewGateConfig = null,
   onReviewCreated,
   onReviewDeleted,
 }) {
@@ -117,11 +125,14 @@ export default function DashboardScreen({
   const [selectedGroupName, setSelectedGroupName] = useState(null); // Nombre del grupo de chat
   const [roommateInitialTab, setRoommateInitialTab] = useState("discover");
   const [selectedRoommateMatchId, setSelectedRoommateMatchId] = useState(null);
+  const [myReviewAutoOpenCreate, setMyReviewAutoOpenCreate] = useState(false);
   const [residentPayoutRouteParams, setResidentPayoutRouteParams] = useState({
     initialYear: null,
     initialMonth: null,
     lockInitialPeriod: false,
   });
+  const [localResidentGateState, setLocalResidentGateState] =
+    useState(residentReviewGateState);
 
   // Determinar sección inicial según el tipo de usuario (primera pestaña = Inicio)
   const getInitialSection = (profile) => {
@@ -146,6 +157,10 @@ export default function DashboardScreen({
       setCurrentSection(initialSection);
     }
   }, [userProfile, loadingProfile]);
+
+  useEffect(() => {
+    setLocalResidentGateState(residentReviewGateState);
+  }, [residentReviewGateState]);
 
   // Tracking de pantalla con PostHog
   useEffect(() => {
@@ -186,6 +201,11 @@ export default function DashboardScreen({
           initialTab: "matches",
           matchId: data.entity_id,
         });
+        return;
+      }
+
+      if (data?.entity_type === "course" && data?.entity_id) {
+        handleSectionChange("courseDetail", { courseId: data.entity_id });
       }
     });
 
@@ -211,7 +231,58 @@ export default function DashboardScreen({
     }
   };
 
-  const handleSectionChange = (sectionId, params = {}) => {
+  const residentGateEnabled =
+    userProfile?.is_resident && !userProfile?.is_super_admin && !residentHasReview;
+  const residentGateStatus = localResidentGateState?.status || "soft";
+  const residentGatePromptVisible = Boolean(localResidentGateState?.promptVisible);
+  const residentGateBudget = {
+    qualifiedActionsCount: localResidentGateState?.qualifiedActionsCount || 0,
+    sessionsCount: localResidentGateState?.sessionsCount || 0,
+    hardGateActionLimit: residentReviewGateConfig?.hardGateActionLimit || 8,
+    hardGateSessionLimit: residentReviewGateConfig?.hardGateSessionLimit || 2,
+    promptActionThreshold: residentReviewGateConfig?.promptActionThreshold || 5,
+  };
+  const residentHardGateAllowedSections = new Set([
+    "inicio",
+    "myReview",
+    "usuario",
+    "contacto",
+  ]);
+
+  const showResidentGateAlert = () => {
+    Alert.alert(
+      "Añade tu reseña para seguir",
+      "Ya has explorado bastante la app. Para desbloquear el resto, publica tu reseña como residente.",
+      [
+        {
+          text: "Ir a mi reseña",
+          onPress: () => {
+            posthogLogger.capture("resident_review_gate_prompt_clicked", {
+              source: "hard_gate_alert",
+              status: residentGateStatus,
+            });
+            setCurrentSection("myReview");
+          },
+        },
+        { text: "Más tarde", style: "cancel" },
+      ]
+    );
+  };
+
+  const handleSectionChange = async (sectionId, params = {}) => {
+    if (
+      residentGateEnabled &&
+      residentGateStatus === "hard" &&
+      !residentHardGateAllowedSections.has(sectionId)
+    ) {
+      posthogLogger.capture("resident_review_gate_blocked_navigation", {
+        section: sectionId,
+        current_section: currentSection,
+      });
+      showResidentGateAlert();
+      return;
+    }
+
     const footerSections = new Set(
       getFooterConfig(userProfile).map((item) => item.screen)
     );
@@ -256,7 +327,11 @@ export default function DashboardScreen({
       setEditingHousingAdId(null);
       setCreatingCourse(false);
       setEditingCourseId(null);
+      setMyReviewAutoOpenCreate(false);
       setPreviousSection(null); // Limpiar la sección anterior al cambiar de sección
+    }
+    if (sectionId === "myReview") {
+      setMyReviewAutoOpenCreate(Boolean(params.autoOpenCreateReview));
     }
     // Si es reviewDetail, guardar el reviewId
     if (sectionId === "reviewDetail" && params.reviewId) {
@@ -331,6 +406,12 @@ export default function DashboardScreen({
         initialMonth: params.initialMonth || null,
         lockInitialPeriod: Boolean(params.lockInitialPeriod),
       });
+    } else if (sectionId === "residentPayoutDetail") {
+      setResidentPayoutRouteParams({
+        initialYear: params.initialYear || null,
+        initialMonth: params.initialMonth || null,
+        lockInitialPeriod: false,
+      });
     } else if (sectionId === "residentPayoutEntry") {
       setResidentPayoutRouteParams({
         initialYear: params.initialYear || null,
@@ -343,6 +424,43 @@ export default function DashboardScreen({
         initialMonth: null,
         lockInitialPeriod: false,
       });
+    }
+
+    if (
+      residentGateEnabled &&
+      userProfile?.id &&
+      isQualifiedResidentSection(sectionId)
+    ) {
+      const { state, counted, hardLockedChanged } =
+        await registerQualifiedResidentAction(userProfile.id, {
+          sectionId,
+          actionType: "section_visit",
+        });
+
+      setLocalResidentGateState(state);
+
+      if (counted) {
+        posthogLogger.capture("resident_review_gate_qualified_action", {
+          action_type: "section_visit",
+          current_section: sectionId,
+          budget_count: state.qualifiedActionsCount,
+          sessions_count: state.sessionsCount,
+        });
+      }
+
+      if (state?.promptVisible && !residentGatePromptVisible) {
+        posthogLogger.capture("resident_review_gate_prompt_shown", {
+          budget_count: state.qualifiedActionsCount,
+          sessions_count: state.sessionsCount,
+        });
+      }
+
+      if (hardLockedChanged) {
+        posthogLogger.capture("resident_review_gate_hard_locked", {
+          budget_count: state.qualifiedActionsCount,
+          sessions_count: state.sessionsCount,
+        });
+      }
     }
   };
 
@@ -709,6 +827,9 @@ export default function DashboardScreen({
         return (
           <HomeDashboardScreen
             userProfile={userProfile}
+            residentHasReview={residentHasReview}
+            residentReviewGateStatus={residentGateStatus}
+            residentReviewGateBudget={residentGateBudget}
             onHospitalSelect={handleHospitalSelect}
             onSectionChange={handleSectionChange}
           />
@@ -783,6 +904,8 @@ export default function DashboardScreen({
                   groupId: entityId.groupId,
                   groupName: entityId.groupName,
                 });
+              } else if (screenId === "courseDetail") {
+                handleSectionChange("courseDetail", { courseId: entityId });
               }
             }}
           />
@@ -797,6 +920,7 @@ export default function DashboardScreen({
             currentSection={currentSection}
             userProfile={userProfile}
             residentHasReview={residentHasReview}
+            residentReviewGateStatus={residentGateStatus}
           />
         );
 
@@ -816,6 +940,7 @@ export default function DashboardScreen({
           <ComunityScreen
             userProfile={userProfile}
             navigation={{ navigate: handleSectionChange }}
+            residentReviewGateStatus={residentGateStatus}
           />
         );
 
@@ -826,6 +951,8 @@ export default function DashboardScreen({
             navigation={{ navigate: handleSectionChange }}
             onReviewCreated={onReviewCreated}
             onReviewDeleted={onReviewDeleted}
+            autoOpenCreateReview={myReviewAutoOpenCreate}
+            onAutoOpenCreateReviewHandled={() => setMyReviewAutoOpenCreate(false)}
             onBack={handleBackFromGenericSection}
           />
         );
@@ -838,6 +965,7 @@ export default function DashboardScreen({
             navigation={{ navigate: handleSectionChange }}
             onBack={handleBackFromGenericSection}
             residentHasReview={residentHasReview}
+            residentReviewGateStatus={residentGateStatus}
           />
         );
 
@@ -945,6 +1073,12 @@ export default function DashboardScreen({
           <ResidentPayoutsScreen
             userProfile={userProfile}
             onBack={handleBackFromGenericSection}
+            onOpenDetail={(params = {}) =>
+              handleSectionChange("residentPayoutDetail", {
+                initialYear: params.initialYear || new Date().getFullYear(),
+                initialMonth: params.initialMonth || new Date().getMonth() + 1,
+              })
+            }
             onCreateEntry={(params = {}) =>
               handleSectionChange("residentPayoutEntry", {
                 initialYear: params.initialYear || new Date().getFullYear(),
@@ -952,6 +1086,24 @@ export default function DashboardScreen({
                 lockInitialPeriod: Boolean(params.lockInitialPeriod),
               })
             }
+          />
+        );
+
+      case "residentPayoutDetail":
+        return (
+          <ResidentPayoutDetailScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+            onEdit={(params = {}) =>
+              handleSectionChange("residentPayoutEntry", {
+                initialYear: params.initialYear || residentPayoutRouteParams.initialYear,
+                initialMonth:
+                  params.initialMonth || residentPayoutRouteParams.initialMonth,
+                lockInitialPeriod: Boolean(params.lockInitialPeriod),
+              })
+            }
+            initialYear={residentPayoutRouteParams.initialYear}
+            initialMonth={residentPayoutRouteParams.initialMonth}
           />
         );
 

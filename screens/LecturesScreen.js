@@ -352,12 +352,8 @@ function CourseListCard({ course, isMine, onPress }) {
   );
 }
 
-export const LecturesScreen = ({ userProfile, navigation, onBack }) => {
+export const LecturesScreen = ({ navigation, onBack }) => {
   const insets = useSafeAreaInsets();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedHospital, setSelectedHospital] = useState("");
-  const defaultSpecialtyId = userProfile?.speciality_id || "";
-  const [selectedSpecialty, setSelectedSpecialty] = useState(defaultSpecialtyId);
   const [openModal, setOpenModal] = useState(null);
 
   const {
@@ -365,31 +361,27 @@ export const LecturesScreen = ({ userProfile, navigation, onBack }) => {
     loading,
     error,
     hasMore,
-    setFilters,
+    searchTerm,
+    setSearchTerm,
+    selectedHospital,
+    setSelectedHospital,
+    selectedSpecialty,
+    setSelectedSpecialty,
     loadMoreCourses,
     refreshCourses,
-    showMyCourses,
-    setShowMyCourses,
+    clearFilters,
+    showLikedCourses,
+    setShowLikedCourses,
+    showCreatedCourses,
+    setShowCreatedCourses,
     currentUserId,
+    filtersLoading,
   } = useLectures();
   const { hospitals, specialties } = useHospitals();
 
   useEffect(() => {
     posthogLogger.logScreen("LecturesScreen");
   }, []);
-
-  useEffect(() => {
-    if (defaultSpecialtyId && !selectedSpecialty) {
-      setSelectedSpecialty(defaultSpecialtyId);
-    }
-  }, [defaultSpecialtyId, selectedSpecialty]);
-
-  useEffect(() => {
-    setFilters({
-      hospital_id: selectedHospital,
-      speciality_id: selectedSpecialty,
-    });
-  }, [selectedHospital, selectedSpecialty, setFilters]);
 
   const filteredCourses = useMemo(
     () => filterCoursesBySearch(courses, searchTerm),
@@ -429,20 +421,14 @@ export const LecturesScreen = ({ userProfile, navigation, onBack }) => {
   const hasActiveFilters = Boolean(
     searchTerm ||
       selectedHospital ||
-      showMyCourses ||
-      (selectedSpecialty && selectedSpecialty !== defaultSpecialtyId)
+      selectedSpecialty ||
+      showLikedCourses ||
+      showCreatedCourses
   );
 
   const handleClearFilters = useCallback(() => {
-    setSearchTerm("");
-    setSelectedHospital("");
-    setSelectedSpecialty(defaultSpecialtyId);
-    setShowMyCourses(false);
-    setFilters({
-      hospital_id: "",
-      speciality_id: defaultSpecialtyId,
-    });
-  }, [defaultSpecialtyId, setFilters, setShowMyCourses]);
+    clearFilters();
+  }, [clearFilters]);
 
   const handleCoursePress = useCallback(
     (course) => {
@@ -451,7 +437,7 @@ export const LecturesScreen = ({ userProfile, navigation, onBack }) => {
     [navigation]
   );
 
-  const isInitialLoading = loading && courses.length === 0;
+  const isInitialLoading = (loading || filtersLoading) && courses.length === 0;
   const courseCountLabel = `${filteredCourses.length} ${
     filteredCourses.length === 1 ? "curso" : "cursos"
   }`;
@@ -460,105 +446,133 @@ export const LecturesScreen = ({ userProfile, navigation, onBack }) => {
       title="Cursos"
       onBack={onBack}
       compact
+      variant="brand"
       rightSlot={
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>
-            {filteredCourses.length} {filteredCourses.length === 1 ? "CURSO" : "CURSOS"}
+        <TouchableOpacity
+          style={[
+            styles.myCoursesChip,
+            showCreatedCourses && styles.myCoursesChipActive,
+          ]}
+          onPress={() => setShowCreatedCourses(!showCreatedCourses)}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={showCreatedCourses ? "person" : "person-outline"}
+            size={14}
+            color={showCreatedCourses ? PRIMARY : "#FFFFFF"}
+          />
+          <Text
+            style={[
+              styles.myCoursesChipText,
+              showCreatedCourses && styles.myCoursesChipTextActive,
+            ]}
+          >
+            Creados por mí
           </Text>
-        </View>
+        </TouchableOpacity>
       }
     />
   );
 
   return (
-    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
-      <View style={styles.searchWrap}>
-        <Ionicons
-          name="search"
-          size={20}
-          color={MUTED_LIGHT}
-          style={styles.searchIcon}
-        />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar por título, entidad o sede"
-          placeholderTextColor={MUTED_LIGHT}
-          value={searchTerm}
-          onChangeText={setSearchTerm}
-          returnKeyType="search"
-        />
-        {searchTerm.length > 0 ? (
-          <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={18} color={MUTED_LIGHT} />
+    <ScreenScaffold
+      header={header}
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.contentSurface}
+    >
+      <View style={styles.toolbar}>
+        <View style={styles.searchWrap}>
+          <Ionicons
+            name="search"
+            size={20}
+            color={MUTED_LIGHT}
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar por título, entidad o sede"
+            placeholderTextColor={MUTED_LIGHT}
+            value={searchTerm}
+            onChangeText={setSearchTerm}
+            returnKeyType="search"
+          />
+          {searchTerm.length > 0 ? (
+            <TouchableOpacity onPress={() => setSearchTerm("")}>
+              <Ionicons name="close-circle" size={18} color={MUTED_LIGHT} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filtersScroll}
+          contentContainerStyle={styles.filtersRow}
+        >
+          <TouchableOpacity
+            style={[styles.chip, showLikedCourses && styles.chipActive]}
+            onPress={() => setShowLikedCourses(!showLikedCourses)}
+          >
+            <Ionicons
+              name={showLikedCourses ? "heart" : "heart-outline"}
+              size={16}
+              color={showLikedCourses ? PRIMARY : ACCENT}
+            />
+            <Text
+              style={[
+                styles.chipText,
+                showLikedCourses && styles.chipTextActive,
+              ]}
+            >
+              Mis cursos
+            </Text>
           </TouchableOpacity>
-        ) : null}
+
+          <TouchableOpacity
+            style={[styles.chip, selectedHospital && styles.chipActive]}
+            onPress={() => setOpenModal("hospital")}
+          >
+            <Ionicons
+              name="business-outline"
+              size={16}
+              color={selectedHospital ? PRIMARY : ACCENT}
+            />
+            <Text
+              style={[styles.chipText, selectedHospital && styles.chipTextActive]}
+              numberOfLines={1}
+            >
+              {selectedHospitalName || "Hospital"}
+            </Text>
+            <Ionicons
+              name="chevron-down"
+              size={16}
+              color={selectedHospital ? PRIMARY : ACCENT}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.chip, selectedSpecialty && styles.chipActive]}
+            onPress={() => setOpenModal("specialty")}
+          >
+            <Ionicons
+              name="medkit-outline"
+              size={16}
+              color={selectedSpecialty ? PRIMARY : ACCENT}
+            />
+            <Text
+              style={[styles.chipText, selectedSpecialty && styles.chipTextActive]}
+              numberOfLines={1}
+            >
+              {selectedSpecialtyName || "Especialidad"}
+            </Text>
+            <Ionicons
+              name="chevron-down"
+              size={16}
+              color={selectedSpecialty ? PRIMARY : ACCENT}
+            />
+          </TouchableOpacity>
+        </ScrollView>
       </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filtersScroll}
-        contentContainerStyle={styles.filtersRow}
-      >
-        <TouchableOpacity
-          style={[styles.chip, showMyCourses && styles.chipActive]}
-          onPress={() => setShowMyCourses((value) => !value)}
-        >
-          <Ionicons
-            name={showMyCourses ? "person" : "person-outline"}
-            size={16}
-            color={showMyCourses ? PRIMARY : ACCENT}
-          />
-          <Text style={[styles.chipText, showMyCourses && styles.chipTextActive]}>
-            Mis cursos
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.chip, selectedHospital && styles.chipActive]}
-          onPress={() => setOpenModal("hospital")}
-        >
-          <Ionicons
-            name="business-outline"
-            size={16}
-            color={selectedHospital ? PRIMARY : ACCENT}
-          />
-          <Text
-            style={[styles.chipText, selectedHospital && styles.chipTextActive]}
-            numberOfLines={1}
-          >
-            {selectedHospitalName || "Hospital"}
-          </Text>
-          <Ionicons
-            name="chevron-down"
-            size={16}
-            color={selectedHospital ? PRIMARY : ACCENT}
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.chip, selectedSpecialty && styles.chipActive]}
-          onPress={() => setOpenModal("specialty")}
-        >
-          <Ionicons
-            name="medkit-outline"
-            size={16}
-            color={selectedSpecialty ? PRIMARY : ACCENT}
-          />
-          <Text
-            style={[styles.chipText, selectedSpecialty && styles.chipTextActive]}
-            numberOfLines={1}
-          >
-            {selectedSpecialtyName || "Especialidad"}
-          </Text>
-          <Ionicons
-            name="chevron-down"
-            size={16}
-            color={selectedSpecialty ? PRIMARY : ACCENT}
-          />
-        </TouchableOpacity>
-
-      </ScrollView>
 
       {isInitialLoading ? (
         <View style={styles.loading}>
@@ -701,19 +715,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BG_LIGHT,
   },
-  countBadge: {
-    backgroundColor: `${PRIMARY}12`,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: `${PRIMARY}25`,
-  },
-  countText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: PRIMARY,
-    letterSpacing: 0.8,
+  toolbar: {
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   searchWrap: {
     flexDirection: "row",
@@ -725,7 +729,7 @@ const styles = StyleSheet.create({
     paddingLeft: 44,
     paddingRight: 16,
     position: "relative",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   searchIcon: {
     position: "absolute",
@@ -749,6 +753,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     paddingRight: 24,
+  },
+  myCoursesChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    backgroundColor: "rgba(255,255,255,0.14)",
+  },
+  myCoursesChipActive: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#FFFFFF",
+  },
+  myCoursesChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  myCoursesChipTextActive: {
+    color: PRIMARY,
   },
   chip: {
     flexDirection: "row",

@@ -10,9 +10,14 @@ import { getSpecialties } from "../services/hospitalService";
  * Hook para obtener usuarios de la comunidad con coordenadas
  * @param {string} selectedCity - Ciudad seleccionada como filtro
  * @param {string} selectedSpecialty - Especialidad seleccionada como filtro
+ * @param {boolean} shouldFetch - Si false, no carga usuarios todavía
  * @returns {Object} Estado de usuarios, especialidades y carga
  */
-export const useCommunityUsers = (selectedCity, selectedSpecialty) => {
+export const useCommunityUsers = (
+  selectedCity,
+  selectedSpecialty,
+  shouldFetch = true
+) => {
   const [users, setUsers] = useState([]);
   const [specialties, setSpecialties] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -20,6 +25,10 @@ export const useCommunityUsers = (selectedCity, selectedSpecialty) => {
 
   // Cargar usuarios basado en filtros
   useEffect(() => {
+    if (!shouldFetch) {
+      return;
+    }
+
     const fetchUsers = async () => {
       try {
         setLoading(true);
@@ -96,7 +105,7 @@ export const useCommunityUsers = (selectedCity, selectedSpecialty) => {
     };
 
     fetchUsers();
-  }, [selectedCity, selectedSpecialty]);
+  }, [selectedCity, selectedSpecialty, shouldFetch]);
 
   // Cargar especialidades para el filtro
   useEffect(() => {

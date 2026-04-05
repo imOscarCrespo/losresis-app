@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -17,6 +16,8 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import {
   KeyboardDismissAccessory,
   KEYBOARD_DISMISS_ACCESSORY_ID,
@@ -33,13 +34,22 @@ import { formatShortDate } from "../utils/dateUtils";
 import posthogLogger from "../services/posthogService";
 
 const PRIMARY = "#670CF5";
-const SECONDARY = "#00BD7C";
 const ACCENT = "#1B0977";
 const BG_LIGHT = "#F8F9FE";
 const CARD_BORDER = "#F1F5F9";
 const MUTED = "#64748B";
 const MUTED_LIGHT = "#94A3B8";
 const DANGER = "#EF4444";
+const PUBLISHED_STATUS = "published";
+
+function SectionHeader({ title, subtitle }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {subtitle ? <Text style={styles.sectionText}>{subtitle}</Text> : null}
+    </View>
+  );
+}
 
 const initialFormData = {
   title: "",
@@ -425,6 +435,8 @@ export default function CreateCourseScreen({
         registration_url: formData.registration_url.trim() || null,
         hospital_id: formData.hospital_id?.trim() || null,
         speciality_id: formData.speciality_id?.trim() || null,
+        status: PUBLISHED_STATUS,
+        ...(!isEditMode ? { published_at: new Date().toISOString() } : {}),
       };
 
       if (isEditMode) {
@@ -463,52 +475,28 @@ export default function CreateCourseScreen({
   }, [courseId, formData, isEditMode, onBack, onSuccess, validate]);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <ScreenScaffold
+      keyboardAvoiding
+      keyboardBehavior={Platform.OS === "ios" ? "padding" : undefined}
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.contentSurface}
+      header={
+        <ScreenHeader
+          title={isEditMode ? "Editar curso" : "Nuevo curso"}
+          onBack={onBack}
+          compact
+          variant="brand"
+        />
+      }
     >
       <ScrollView
-        style={styles.container}
+        style={styles.formScroll}
         contentContainerStyle={{
           paddingBottom: Math.max(insets.bottom + 32, 40),
         }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.hero, { paddingTop: Math.max(insets.top + 8, 20) }]}>
-          <View style={styles.topBar}>
-            <TouchableOpacity
-              style={styles.topBarButton}
-              onPress={onBack}
-              disabled={loading}
-            >
-              <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
-            <Text style={styles.topBarTitle}>
-              {isEditMode ? "Editar curso" : "Nuevo curso"}
-            </Text>
-            <View style={styles.topBarSpacer} />
-          </View>
-
-          <View style={styles.heroCard}>
-            <View style={styles.heroBadge}>
-              <Ionicons name="create-outline" size={16} color={PRIMARY} />
-              <Text style={styles.heroBadgeText}>
-                {isEditMode ? "Edición" : "Publicación"}
-              </Text>
-            </View>
-
-            <Text style={styles.heroTitle}>
-              {isEditMode ? "Actualiza la información del curso" : "Comparte una nueva formación"}
-            </Text>
-
-            <Text style={styles.heroText}>
-              Mantén el formato visual de la nueva UX: información clave arriba,
-              secciones limpias y llamadas a la acción claras.
-            </Text>
-          </View>
-        </View>
-
         <View style={styles.content}>
           {loadingCourse ? (
             <View style={styles.loadingContainer}>
@@ -524,12 +512,10 @@ export default function CreateCourseScreen({
                 </View>
               ) : null}
 
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Información principal</Text>
-                <Text style={styles.sectionText}>
-                  Los campos marcados con asterisco son obligatorios.
-                </Text>
-              </View>
+              <SectionHeader
+                title="Información principal"
+                subtitle="Los campos marcados con asterisco son obligatorios."
+              />
 
               <FieldCard label="Título" required>
                 <TextInput
@@ -611,12 +597,10 @@ export default function CreateCourseScreen({
                 />
               </FieldCard>
 
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Ubicación</Text>
-                <Text style={styles.sectionText}>
-                  Completa la sede para que la tarjeta del curso quede consistente con el listado.
-                </Text>
-              </View>
+              <SectionHeader
+                title="Ubicación"
+                subtitle="Completa la sede para que la tarjeta del curso quede consistente con el listado."
+              />
 
               <FieldCard label="Lugar del evento">
                 <TextInput
@@ -658,12 +642,10 @@ export default function CreateCourseScreen({
                 />
               </FieldCard>
 
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Datos complementarios</Text>
-                <Text style={styles.sectionText}>
-                  Añade metadatos y contenido de apoyo para la vista detalle.
-                </Text>
-              </View>
+              <SectionHeader
+                title="Datos complementarios"
+                subtitle="Añade metadatos y contenido de apoyo para la vista detalle."
+              />
 
               <FieldCard label="Código del curso">
                 <TextInput
@@ -825,7 +807,7 @@ export default function CreateCourseScreen({
           </View>
         </View>
       ) : null}
-    </KeyboardAvoidingView>
+    </ScreenScaffold>
   );
 }
 
@@ -834,76 +816,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BG_LIGHT,
   },
-  hero: {
-    backgroundColor: ACCENT,
-    paddingHorizontal: 16,
-    paddingBottom: 26,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+  contentSurface: {
+    flex: 1,
+    backgroundColor: BG_LIGHT,
   },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 18,
-  },
-  topBarButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.14)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  topBarTitle: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  topBarSpacer: {
-    width: 42,
-  },
-  heroCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  heroBadge: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: `${PRIMARY}12`,
-  },
-  heroBadgeText: {
-    color: PRIMARY,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  heroTitle: {
-    marginTop: 14,
-    fontSize: 24,
-    fontWeight: "700",
-    color: ACCENT,
-    lineHeight: 31,
-  },
-  heroText: {
-    marginTop: 8,
-    fontSize: 15,
-    color: MUTED,
-    lineHeight: 22,
+  formScroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 16,
-    paddingTop: 18,
+    paddingTop: 16,
     gap: 14,
   },
   loadingContainer: {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -17,6 +17,12 @@ import { checkResidentReview } from "./services/communityService";
 import posthogLogger from "./services/posthogService";
 import { checkVersionUpdate } from "./services/versionService";
 import {
+  getResidentReviewGateConfig,
+  incrementResidentReviewGateSession,
+  initializeResidentReviewGate,
+  resetResidentReviewGate,
+} from "./services/residentReviewGateService";
+import {
   configureNotificationHandler,
   ensureAndroidNotificationChannel,
 } from "./src/services/push/notificationConfig";
@@ -28,7 +34,9 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [residentHasReview, setResidentHasReview] = useState(true); // Por defecto true para no bloquear
+  const [residentReviewGateState, setResidentReviewGateState] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const gateSessionTrackedRef = useRef(null);
 
   useRegisterPushToken(currentUserId);
 
@@ -61,6 +69,42 @@ export default function App() {
 
     return () => subscription.remove();
   }, []);
+
+  const syncResidentReviewGate = async ({
+    userId,
+    hasReview,
+    isResident,
+    isSuperAdmin,
+    countSession = false,
+  }) => {
+    try {
+      const initializedState = await initializeResidentReviewGate(userId, {
+        hasReview,
+        isResident,
+        isSuperAdmin,
+      });
+
+      if (!userId || hasReview || !isResident || isSuperAdmin) {
+        setResidentReviewGateState(null);
+        gateSessionTrackedRef.current = null;
+        return null;
+      }
+
+      let nextState = initializedState;
+
+      if (countSession && gateSessionTrackedRef.current !== userId) {
+        nextState = await incrementResidentReviewGateSession(userId);
+        gateSessionTrackedRef.current = userId;
+      }
+
+      setResidentReviewGateState(nextState);
+      return nextState;
+    } catch (error) {
+      console.error("Error syncing resident review gate:", error);
+      setResidentReviewGateState(null);
+      return null;
+    }
+  };
 
   const trackAppOpenAndSession = async () => {
     try {
@@ -138,7 +182,6 @@ export default function App() {
               isEmailValid: true, // Asumimos válido en el check inicial
             });
 
-            // Si es residente (y no es super admin), verificar si tiene review
             if (profile.is_resident && !profile.is_super_admin) {
               const { success: reviewCheckSuccess, hasReview } =
                 await checkResidentReview(user.id);
@@ -153,9 +196,23 @@ export default function App() {
                 // En caso de error, asumir que no tiene review para ser restrictivo
                 setResidentHasReview(false);
               }
+
+              await syncResidentReviewGate({
+                userId: user.id,
+                hasReview: reviewCheckSuccess ? hasReview : false,
+                isResident: profile.is_resident,
+                isSuperAdmin: profile.is_super_admin,
+                countSession: true,
+              });
             } else {
               // Si no es residente o es super admin, no aplicar restricción
               setResidentHasReview(true);
+              await syncResidentReviewGate({
+                userId: user.id,
+                hasReview: true,
+                isResident: profile.is_resident,
+                isSuperAdmin: profile.is_super_admin,
+              });
             }
 
             setIsAuthenticated(true);
@@ -173,6 +230,7 @@ export default function App() {
             setIsAuthenticated(true);
             setNeedsOnboarding(true);
             setResidentHasReview(true); // No aplicar restricción si no hay perfil
+            setResidentReviewGateState(null);
             setCurrentUserId(user.id);
             // Identificar usuario en PostHog sin perfil completo
             posthogLogger.identify(user.id, {
@@ -183,12 +241,14 @@ export default function App() {
           setIsAuthenticated(false);
           setNeedsOnboarding(false);
           setResidentHasReview(true);
+          setResidentReviewGateState(null);
           setCurrentUserId(null);
         }
       } else {
         setIsAuthenticated(false);
         setNeedsOnboarding(false);
         setResidentHasReview(true);
+        setResidentReviewGateState(null);
         setCurrentUserId(null);
       }
     } catch (error) {
@@ -196,6 +256,7 @@ export default function App() {
       setIsAuthenticated(false);
       setNeedsOnboarding(false);
       setResidentHasReview(true);
+      setResidentReviewGateState(null);
       setCurrentUserId(null);
     } finally {
       setIsLoading(false);
@@ -226,7 +287,6 @@ export default function App() {
           isEmailValid: true,
         });
 
-        // Si es residente (y no es super admin), verificar si tiene review
         if (profile.is_resident && !profile.is_super_admin) {
           const { success: reviewCheckSuccess, hasReview } =
             await checkResidentReview(user.id);
@@ -240,8 +300,22 @@ export default function App() {
           } else {
             setResidentHasReview(false);
           }
+
+          await syncResidentReviewGate({
+            userId: user.id,
+            hasReview: reviewCheckSuccess ? hasReview : false,
+            isResident: profile.is_resident,
+            isSuperAdmin: profile.is_super_admin,
+            countSession: true,
+          });
         } else {
           setResidentHasReview(true);
+          await syncResidentReviewGate({
+            userId: user.id,
+            hasReview: true,
+            isResident: profile.is_resident,
+            isSuperAdmin: profile.is_super_admin,
+          });
         }
 
         setIsAuthenticated(true);
@@ -259,6 +333,7 @@ export default function App() {
         setIsAuthenticated(true);
         setNeedsOnboarding(true);
         setResidentHasReview(true);
+        setResidentReviewGateState(null);
         setCurrentUserId(user.id);
         // Identificar usuario en PostHog sin perfil completo
         posthogLogger.identify(user.id, {
@@ -269,6 +344,7 @@ export default function App() {
       setIsAuthenticated(true);
       setNeedsOnboarding(true);
       setResidentHasReview(true);
+      setResidentReviewGateState(null);
       setCurrentUserId(null);
     }
   };
@@ -305,6 +381,13 @@ export default function App() {
               hasReview ? "tiene" : "NO tiene"
             } review`
           );
+          if (hasReview) {
+            await resetResidentReviewGate(user.id);
+            setResidentReviewGateState(null);
+            posthogLogger.capture("resident_review_gate_unlocked_by_review", {
+              user_id: user.id,
+            });
+          }
         }
       }
     }
@@ -333,6 +416,18 @@ export default function App() {
               hasReview ? "tiene" : "NO tiene"
             } review`
           );
+          if (!hasReview) {
+            const nextState = await syncResidentReviewGate({
+              userId: user.id,
+              hasReview: false,
+              isResident: profile.is_resident,
+              isSuperAdmin: profile.is_super_admin,
+            });
+            posthogLogger.capture("resident_review_gate_reset_after_review_deleted", {
+              user_id: user.id,
+              status: nextState?.status || "soft",
+            });
+          }
         }
       }
     }
@@ -341,7 +436,9 @@ export default function App() {
   const handleSignOut = async () => {
     // Resetear identificación de usuario en PostHog
     posthogLogger.reset();
+    gateSessionTrackedRef.current = null;
     setCurrentUserId(null);
+    setResidentReviewGateState(null);
     // Forzar que el usuario vuelva a hacer login
     setIsAuthenticated(false);
     setNeedsOnboarding(false);
@@ -369,6 +466,8 @@ export default function App() {
         <DashboardScreen
           onSignOut={handleSignOut}
           residentHasReview={residentHasReview}
+          residentReviewGateState={residentReviewGateState}
+          residentReviewGateConfig={getResidentReviewGateConfig()}
           onReviewCreated={handleReviewCreated}
           onReviewDeleted={handleReviewDeleted}
         />

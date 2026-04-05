@@ -196,6 +196,39 @@ export type Database = {
           },
         ]
       }
+      course_like: {
+        Row: {
+          course_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_like_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_like_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           course_code: string | null
@@ -203,20 +236,26 @@ export type Database = {
           created_at: string
           created_by_id: string | null
           event_dates: string[]
+          featured_until: string | null
           hospital_id: string | null
           id: string
+          is_featured: boolean
           more_info: string | null
           objectives: string | null
+          org_id: string | null
           organization: string | null
           price_text: string | null
+          published_at: string | null
           registration_url: string | null
           seats_available: number | null
           speciality_id: string | null
+          status: string
           teaching_hours: string | null
           title: string
           updated_at: string
           venue_address: string | null
           venue_name: string | null
+          visibility_score: number
         }
         Insert: {
           course_code?: string | null
@@ -224,20 +263,26 @@ export type Database = {
           created_at?: string
           created_by_id?: string | null
           event_dates: string[]
+          featured_until?: string | null
           hospital_id?: string | null
           id?: string
+          is_featured?: boolean
           more_info?: string | null
           objectives?: string | null
+          org_id?: string | null
           organization?: string | null
           price_text?: string | null
+          published_at?: string | null
           registration_url?: string | null
           seats_available?: number | null
           speciality_id?: string | null
+          status?: string
           teaching_hours?: string | null
           title: string
           updated_at?: string
           venue_address?: string | null
           venue_name?: string | null
+          visibility_score?: number
         }
         Update: {
           course_code?: string | null
@@ -245,20 +290,26 @@ export type Database = {
           created_at?: string
           created_by_id?: string | null
           event_dates?: string[]
+          featured_until?: string | null
           hospital_id?: string | null
           id?: string
+          is_featured?: boolean
           more_info?: string | null
           objectives?: string | null
+          org_id?: string | null
           organization?: string | null
           price_text?: string | null
+          published_at?: string | null
           registration_url?: string | null
           seats_available?: number | null
           speciality_id?: string | null
+          status?: string
           teaching_hours?: string | null
           title?: string
           updated_at?: string
           venue_address?: string | null
           venue_name?: string | null
+          visibility_score?: number
         }
         Relationships: [
           {
@@ -1753,42 +1804,60 @@ export type Database = {
       resident_monthly_payouts: {
         Row: {
           created_at: string
+          friday_guard_count: number
           gross_total_eur: number
           guard_count: number
           has_double_pay: boolean
+          holiday_guard_count: number
           has_pending_payment: boolean
           id: string
+          pending_payment_description: string | null
           period_month: number
           period_year: number
+          saturday_guard_count: number
+          sunday_guard_count: number
           strike_count: number
           updated_at: string
           user_id: string
+          weekday_guard_count: number
         }
         Insert: {
           created_at?: string
+          friday_guard_count?: number
           gross_total_eur: number
           guard_count?: number
           has_double_pay?: boolean
+          holiday_guard_count?: number
           has_pending_payment?: boolean
           id?: string
+          pending_payment_description?: string | null
           period_month: number
           period_year: number
+          saturday_guard_count?: number
+          sunday_guard_count?: number
           strike_count?: number
           updated_at?: string
           user_id: string
+          weekday_guard_count?: number
         }
         Update: {
           created_at?: string
+          friday_guard_count?: number
           gross_total_eur?: number
           guard_count?: number
           has_double_pay?: boolean
+          holiday_guard_count?: number
           has_pending_payment?: boolean
           id?: string
+          pending_payment_description?: string | null
           period_month?: number
           period_year?: number
+          saturday_guard_count?: number
+          sunday_guard_count?: number
           strike_count?: number
           updated_at?: string
           user_id?: string
+          weekday_guard_count?: number
         }
         Relationships: [
           {

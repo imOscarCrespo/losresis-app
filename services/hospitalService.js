@@ -4,6 +4,180 @@
 
 import { supabase } from "../config/supabase";
 
+const CACHE_BASE_URL =
+  "https://chgretwxywvaaruwovbb.supabase.co/storage/v1/object/public/cache";
+const HOSPITALS_CACHE_URL = `${CACHE_BASE_URL}/hospitals.json`;
+const HOSPITAL_SPECIALTY_CACHE_URL = `${CACHE_BASE_URL}/hospital_speciality.json`;
+const HOSPITAL_DISCOVERY_RANKINGS_CACHE_URL =
+  `${CACHE_BASE_URL}/hospital_discovery_rankings.json`;
+
+let discoveryRankingSnapshotPromise = null;
+let hospitalSpecialtyCachePromise = null;
+
+const fetchJsonCache = async (url, label) => {
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    const error = new Error(`HTTP error! status: ${response.status}`);
+    error.status = response.status;
+    error.cacheLabel = label;
+    throw error;
+  }
+
+  return response.json();
+};
+
+const normalizeRankingEntry = (entry) => {
+  if (!entry || typeof entry !== "object") return null;
+
+  const hospitalId = entry.hospital_id || entry.hospitalId || entry.id;
+  if (!hospitalId) return null;
+
+  return {
+    hospital_id: hospitalId,
+    speciality_id: entry.speciality_id ?? entry.specialityId ?? null,
+    approved_review_count:
+      entry.approved_review_count ?? entry.approvedReviewCount ?? 0,
+    organic_rank: entry.organic_rank ?? entry.organicRank ?? null,
+    blended_rank: entry.blended_rank ?? entry.blendedRank ?? null,
+    organic_score: entry.organic_score ?? entry.organicScore ?? null,
+    final_score: entry.final_score ?? entry.finalScore ?? null,
+    is_sponsored: Boolean(entry.is_sponsored ?? entry.isSponsored ?? false),
+    sponsorship_label:
+      entry.sponsorship_label ?? entry.sponsorshipLabel ?? null,
+  };
+};
+
+const normalizeRankingScope = (scope) => {
+  if (!scope || typeof scope !== "object") {
+    return {
+      orderedHospitalIds: [],
+      rankingByHospitalId: {},
+    };
+  }
+
+  const orderedHospitalIdsSource =
+    scope.ordered_hospital_ids ||
+    scope.orderedHospitalIds ||
+    scope.ranked_hospital_ids ||
+    scope.rankedHospitalIds ||
+    [];
+
+  const orderedHospitalIds = Array.isArray(orderedHospitalIdsSource)
+    ? [...new Set(orderedHospitalIdsSource.filter(Boolean))]
+    : [];
+
+  const rankingByHospitalId = {};
+  const entriesSource =
+    scope.by_hospital_id || scope.byHospitalId || scope.rankings || null;
+
+  if (entriesSource && typeof entriesSource === "object") {
+    Object.entries(entriesSource).forEach(([hospitalId, rawEntry]) => {
+      const normalized = normalizeRankingEntry({
+        hospital_id: hospitalId,
+        ...rawEntry,
+      });
+      if (normalized) {
+        rankingByHospitalId[normalized.hospital_id] = normalized;
+      }
+    });
+  }
+
+  if (Array.isArray(scope.entries)) {
+    scope.entries.forEach((entry) => {
+      const normalized = normalizeRankingEntry(entry);
+      if (normalized) {
+        rankingByHospitalId[normalized.hospital_id] = normalized;
+      }
+    });
+  }
+
+  return {
+    orderedHospitalIds:
+      orderedHospitalIds.length > 0
+        ? orderedHospitalIds
+        : Object.keys(rankingByHospitalId),
+    rankingByHospitalId,
+  };
+};
+
+const getEmptyRankingScope = () => ({
+  orderedHospitalIds: [],
+  rankingByHospitalId: {},
+});
+
+const getDiscoveryRankingSnapshot = async () => {
+  if (!discoveryRankingSnapshotPromise) {
+    discoveryRankingSnapshotPromise = (async () => {
+      try {
+        const snapshot = await fetchJsonCache(
+          HOSPITAL_DISCOVERY_RANKINGS_CACHE_URL,
+          "hospital discovery rankings"
+        );
+
+        const bySpecialtyRaw =
+          snapshot?.by_specialty || snapshot?.bySpecialty || {};
+        const bySpecialty = {};
+
+        Object.entries(bySpecialtyRaw).forEach(([specialtyId, scope]) => {
+          bySpecialty[specialtyId] = normalizeRankingScope(scope);
+        });
+
+        return {
+          success: true,
+          general: normalizeRankingScope(snapshot?.general),
+          bySpecialty,
+          generatedAt: snapshot?.generated_at ?? snapshot?.generatedAt ?? null,
+          error: null,
+        };
+      } catch (error) {
+        if (error.status === 404) {
+          return {
+            success: true,
+            general: getEmptyRankingScope(),
+            bySpecialty: {},
+            generatedAt: null,
+            error: null,
+          };
+        }
+
+        console.warn(
+          "⚠️ Failed to fetch hospital discovery rankings cache",
+          error
+        );
+        return {
+          success: false,
+          general: getEmptyRankingScope(),
+          bySpecialty: {},
+          generatedAt: null,
+          error: error.message,
+        };
+      }
+    })();
+  }
+
+  return discoveryRankingSnapshotPromise;
+};
+
+const getHospitalSpecialtyCache = async () => {
+  if (!hospitalSpecialtyCachePromise) {
+    hospitalSpecialtyCachePromise = (async () => {
+      try {
+        const data = await fetchJsonCache(
+          HOSPITAL_SPECIALTY_CACHE_URL,
+          "hospital specialty"
+        );
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.warn("⚠️ Failed to fetch hospital specialties cache", error);
+        return [];
+      }
+    })();
+  }
+
+  return hospitalSpecialtyCachePromise;
+};
+
 /**
  * Obtener todos los hospitales desde el JSON cache de Supabase Storage
  * @returns {Promise<{success: boolean, hospitals: array, error: string|null}>}
@@ -11,18 +185,10 @@ import { supabase } from "../config/supabase";
 export const getHospitals = async () => {
   try {
     console.log("🔍 Fetching hospitals from JSON cache...");
-
-    // URL del JSON cache de hospitales
-    const hospitalsUrl =
-      "https://chgretwxywvaaruwovbb.supabase.co/storage/v1/object/public/cache//hospitals.json";
-
-    const response = await fetch(hospitalsUrl);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const hospitalsData = await response.json();
+    const hospitalsData = await fetchJsonCache(
+      HOSPITALS_CACHE_URL,
+      "hospitals"
+    );
 
     if (!hospitalsData || hospitalsData.length === 0) {
       console.warn("⚠️ No hospitals data received from JSON cache");
@@ -33,36 +199,70 @@ export const getHospitals = async () => {
       };
     }
 
-    // Mapear los datos de hospitales al formato esperado
-    const hospitalsMapped = hospitalsData.map((hospital) => ({
-      id: hospital.id,
-      name: hospital.name,
-      city: hospital.city,
-      region: hospital.region,
-      coordinates: hospital.coordinates,
-      salary_r1_fixed_eur: hospital.salary_r1_fixed_eur,
-      salary_r2_fixed_eur: hospital.salary_r2_fixed_eur,
-      salary_r3_fixed_eur: hospital.salary_r3_fixed_eur,
-      salary_r4_fixed_eur: hospital.salary_r4_fixed_eur,
-      email_domain: (() => {
-        if (Array.isArray(hospital.email_domain)) {
-          return hospital.email_domain;
-        }
-        if (
-          typeof hospital.email_domain === "string" &&
-          hospital.email_domain
-        ) {
-          try {
-            const parsed = JSON.parse(hospital.email_domain);
-            return Array.isArray(parsed) ? parsed : [hospital.email_domain];
-          } catch {
-            return [hospital.email_domain];
+    const rankingSnapshot = await getDiscoveryRankingSnapshot();
+    const rankingByHospitalId = rankingSnapshot.general.rankingByHospitalId;
+    const hospitalsMapped = hospitalsData.map((hospital, index) => {
+      const ranking = rankingByHospitalId[hospital.id] || null;
+
+      return {
+        id: hospital.id,
+        name: hospital.name,
+        city: hospital.city,
+        region: hospital.region,
+        coordinates: hospital.coordinates,
+        salary_r1_fixed_eur: hospital.salary_r1_fixed_eur,
+        salary_r2_fixed_eur: hospital.salary_r2_fixed_eur,
+        salary_r3_fixed_eur: hospital.salary_r3_fixed_eur,
+        salary_r4_fixed_eur: hospital.salary_r4_fixed_eur,
+        email_domain: (() => {
+          if (Array.isArray(hospital.email_domain)) {
+            return hospital.email_domain;
           }
+          if (
+            typeof hospital.email_domain === "string" &&
+            hospital.email_domain
+          ) {
+            try {
+              const parsed = JSON.parse(hospital.email_domain);
+              return Array.isArray(parsed) ? parsed : [hospital.email_domain];
+            } catch {
+              return [hospital.email_domain];
+            }
+          }
+          return [];
+        })(),
+        specialtyCount: 0,
+        catalog_order: index,
+        approved_review_count: ranking?.approved_review_count ?? 0,
+        organic_rank: ranking?.organic_rank ?? null,
+        blended_rank: ranking?.blended_rank ?? null,
+        organic_score: ranking?.organic_score ?? null,
+        final_score: ranking?.final_score ?? null,
+        is_sponsored: Boolean(ranking?.is_sponsored ?? false),
+        sponsorship_label: ranking?.sponsorship_label ?? null,
+      };
+    });
+
+    hospitalsMapped.sort((a, b) => {
+      const aRanked = a.final_score !== null || a.blended_rank !== null;
+      const bRanked = b.final_score !== null || b.blended_rank !== null;
+
+      if (aRanked && bRanked) {
+        if ((b.final_score ?? -1) !== (a.final_score ?? -1)) {
+          return (b.final_score ?? -1) - (a.final_score ?? -1);
         }
-        return [];
-      })(),
-      specialtyCount: 0, // Se puede agregar después si es necesario
-    }));
+        if ((b.organic_score ?? -1) !== (a.organic_score ?? -1)) {
+          return (b.organic_score ?? -1) - (a.organic_score ?? -1);
+        }
+        if ((b.approved_review_count ?? 0) !== (a.approved_review_count ?? 0)) {
+          return (b.approved_review_count ?? 0) - (a.approved_review_count ?? 0);
+        }
+      } else if (aRanked !== bRanked) {
+        return aRanked ? -1 : 1;
+      }
+
+      return (a.catalog_order ?? 0) - (b.catalog_order ?? 0);
+    });
 
     console.log("✅ Successfully fetched hospitals:", hospitalsMapped.length);
 
@@ -173,17 +373,7 @@ export const getSpecialtyById = async (specialtyId) => {
 export const getSpecialtyCounts = async () => {
   try {
     console.log("🔍 Fetching specialty counts...");
-
-    const hospitalSpecialtyUrl =
-      "https://chgretwxywvaaruwovbb.supabase.co/storage/v1/object/public/cache//hospital_speciality.json";
-
-    const response = await fetch(hospitalSpecialtyUrl);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const hospitalSpecialtyData = await response.json();
+    const hospitalSpecialtyData = await getHospitalSpecialtyCache();
 
     if (!hospitalSpecialtyData || hospitalSpecialtyData.length === 0) {
       console.log("No hospital specialty data found in JSON cache");
@@ -552,62 +742,83 @@ export const getDetailedGrades = async (hospitalId, specialtyId) => {
 };
 
 /**
- * Filtrar hospitales por especialidad usando el JSON cache
+ * Obtener ranking de hospitales para una especialidad usando snapshots cacheados
  * @param {string} specialtyId - ID de la especialidad
- * @returns {Promise<{success: boolean, hospitalIds: array, error: string|null}>}
+ * @returns {Promise<{success: boolean, orderedHospitalIds: array, rankingByHospitalId: object, error: string|null}>}
  */
-export const getHospitalIdsBySpecialty = async (specialtyId) => {
+export const getHospitalRankingBySpecialty = async (specialtyId) => {
   try {
     if (!specialtyId) {
       return {
         success: true,
-        hospitalIds: [],
+        orderedHospitalIds: [],
+        rankingByHospitalId: {},
         error: null,
       };
     }
 
     console.log("🔍 Fetching hospitals for specialty:", specialtyId);
 
-    const hospitalSpecialtyUrl =
-      "https://chgretwxywvaaruwovbb.supabase.co/storage/v1/object/public/cache//hospital_speciality.json";
+    const rankingSnapshot = await getDiscoveryRankingSnapshot();
+    const specialtyScope = rankingSnapshot.bySpecialty[specialtyId];
 
-    const response = await fetch(hospitalSpecialtyUrl);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (specialtyScope) {
+      return {
+        success: true,
+        orderedHospitalIds: specialtyScope.orderedHospitalIds,
+        rankingByHospitalId: specialtyScope.rankingByHospitalId,
+        error: null,
+      };
     }
 
-    const hospitalSpecialtyData = await response.json();
+    const hospitalSpecialtyData = await getHospitalSpecialtyCache();
 
     if (!hospitalSpecialtyData || hospitalSpecialtyData.length === 0) {
       console.log("No hospital specialty data found in JSON cache");
       return {
         success: true,
-        hospitalIds: [],
+        orderedHospitalIds: [],
+        rankingByHospitalId: {},
         error: null,
       };
     }
 
-    // Filtrar hospitales que ofrecen esta especialidad
-    const hospitalIds = hospitalSpecialtyData
-      .filter((item) => item.speciality_id === specialtyId)
-      .map((item) => item.hospital_id);
+    const orderedHospitalIds = [
+      ...new Set(
+        hospitalSpecialtyData
+          .filter((item) => item.speciality_id === specialtyId)
+          .map((item) => item.hospital_id)
+          .filter(Boolean)
+      ),
+    ];
 
     console.log(
-      `✅ Found ${hospitalIds.length} hospitals for specialty ${specialtyId}`
+      `✅ Found ${orderedHospitalIds.length} hospitals for specialty ${specialtyId}`
     );
 
     return {
       success: true,
-      hospitalIds,
+      orderedHospitalIds,
+      rankingByHospitalId: {},
       error: null,
     };
   } catch (error) {
     console.error("❌ Error fetching hospitals by specialty:", error);
     return {
       success: false,
-      hospitalIds: [],
+      orderedHospitalIds: [],
+      rankingByHospitalId: {},
       error: error.message,
     };
   }
+};
+
+export const getHospitalIdsBySpecialty = async (specialtyId) => {
+  const result = await getHospitalRankingBySpecialty(specialtyId);
+
+  return {
+    success: result.success,
+    hospitalIds: result.orderedHospitalIds,
+    error: result.error,
+  };
 };

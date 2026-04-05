@@ -63,6 +63,12 @@ const NOTIFICATION_OPTIONS: Array<{
     title: "Recordatorios de agenda",
     description: "Cuando se acerque un evento con recordatorio configurado.",
   },
+  {
+    notification_type: "course_published",
+    title: "Cursos de mi especialidad",
+    description:
+      "Cuando se publique un nuevo curso de tu especialidad.",
+  },
 ];
 
 export default function NotificationSettingsScreen({

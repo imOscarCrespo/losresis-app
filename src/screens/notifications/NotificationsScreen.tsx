@@ -22,6 +22,7 @@ export type NotificationDataPayload = {
   entity_id?: string;
   destination_section?: string;
   destination_tab?: string;
+  course_id?: string;
   group_id?: string;
   group_name?: string;
 };
@@ -100,6 +101,8 @@ export default function NotificationsScreen({
           onNavigateToEntity("roomies", entityId);
         } else if (entityType === "group") {
           onNavigateToEntity("groupChat", { groupId: entityId, groupName });
+        } else if (entityType === "course") {
+          onNavigateToEntity("courseDetail", entityId);
         }
       }
     },

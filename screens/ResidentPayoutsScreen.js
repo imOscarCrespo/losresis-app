@@ -95,6 +95,7 @@ export default function ResidentPayoutsScreen({
   userProfile,
   onBack,
   onCreateEntry,
+  onOpenDetail,
 }) {
   const { width } = useWindowDimensions();
   const currentYear = new Date().getFullYear();
@@ -139,6 +140,20 @@ export default function ResidentPayoutsScreen({
   const chartData = useMemo(() => buildPayoutChartData(yearRows), [yearRows]);
   const chartWidth = Math.max(width - 48, 320);
   const handleSelectChartMonth = (month) => {
+    const selectedRow = yearRows.find(
+      (row) =>
+        Number(row.period_year) === Number(selectedYear) &&
+        Number(row.period_month) === Number(month)
+    );
+
+    if (selectedRow) {
+      onOpenDetail?.({
+        initialYear: selectedYear,
+        initialMonth: month,
+      });
+      return;
+    }
+
     onCreateEntry?.({
       initialYear: selectedYear,
       initialMonth: month,
@@ -149,15 +164,20 @@ export default function ResidentPayoutsScreen({
   const header = (
     <ScreenHeader
       title="Nóminas"
-      subtitle="Seguimiento mensual de nómina"
+      subtitle="Controla cuánto cobras cada mes según tus guardias y otros ingresos"
       onBack={onBack}
       compact
       iconName="cash-outline"
+      variant="brand"
     />
   );
 
   return (
-    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+    <ScreenScaffold
+      header={header}
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.contentSurface}
+    >
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#670CF5" />
@@ -195,6 +215,11 @@ export default function ResidentPayoutsScreen({
               <Text style={styles.totalLabel}>Total ganado</Text>
               <Text style={styles.totalValue}>{formatCurrency(summary.total)}</Text>
             </View>
+
+            <Text style={styles.heroSupportText}>
+              Registra tus guardias del mes con contadores rápidos y entiende mejor
+              de dónde salen tus ingresos.
+            </Text>
           </View>
 
           <View style={styles.card}>
@@ -302,6 +327,12 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: "900",
     color: "#1B0977",
+  },
+  heroSupportText: {
+    marginTop: 14,
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#64748B",
   },
   card: {
     backgroundColor: "#FFFFFF",

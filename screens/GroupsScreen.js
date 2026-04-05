@@ -23,6 +23,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
+import { usePersistedFilters } from "../hooks/usePersistedFilters";
 import {
   getGroups,
   getUserMemberships,
@@ -33,7 +34,6 @@ import {
 } from "../services/groupService";
 import { getCurrentUser } from "../services/authService";
 import posthogLogger from "../services/posthogService";
-import { FloatingActionButton } from "../components/FloatingActionButton";
 
 // ── Paleta ───────────────────────────────────────────────────────────
 const PRIMARY = "#6D28D9";
@@ -379,7 +379,6 @@ function FilterChip({ label, active, icon, onPress }) {
 
 // ── GroupsScreen ──────────────────────────────────────────────────────
 export default function GroupsScreen({ onSectionChange, userProfile }) {
-  const insets = useSafeAreaInsets();
   const [groups, setGroups] = useState([]);
   const [memberGroupIds, setMemberGroupIds] = useState(new Set());
   const [persistedResidentGroupIds, setPersistedResidentGroupIds] = useState(
@@ -390,14 +389,34 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
   const [error, setError] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [joiningId, setJoiningId] = useState(null);
-  const [showMyGroups, setShowMyGroups] = useState(false);
   const [relatedGroupCounts, setRelatedGroupCounts] = useState({});
   const [unreadByGroupId, setUnreadByGroupId] = useState({});
-
-  const [cityFilter, setCityFilter] = useState(null);
   const [availableCities, setAvailableCities] = useState([]);
   const [openModal, setOpenModal] = useState(null); // 'city' | null
   const [isExploringAll, setIsExploringAll] = useState(false);
+  const {
+    filters,
+    isLoading: filtersLoading,
+    updateFilter,
+    clearAllFilters: clearPersistedFilters,
+  } = usePersistedFilters(
+    "groups",
+    {
+      cityFilter: null,
+      showMyGroups: false,
+    },
+    { enableDebounce: true, debounceMs: 500 }
+  );
+  const cityFilter = filters.cityFilter || null;
+  const showMyGroups = Boolean(filters.showMyGroups);
+  const setCityFilter = useCallback(
+    (value) => updateFilter("cityFilter", value),
+    [updateFilter]
+  );
+  const setShowMyGroups = useCallback(
+    (value) => updateFilter("showMyGroups", Boolean(value)),
+    [updateFilter]
+  );
 
   const userType = getUserType(userProfile);
   const isResidentUser = !!userProfile?.is_resident;
@@ -419,7 +438,6 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
     }),
     [residentCity, residentCohortYear, residentHospitalId, residentSpecialityId]
   );
-  const canExploreAll = isResidentUser || isStudentUser;
   const shouldShowExploreFilters = isExploringAll;
   const activeQueryFilters = useMemo(() => {
     if (!shouldShowExploreFilters) return {};
@@ -546,6 +564,10 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
 
   // Cargar usuario y después datos
   useEffect(() => {
+    if (filtersLoading) {
+      return undefined;
+    }
+
     let cancelled = false;
     const init = async () => {
       setLoading(true);
@@ -562,26 +584,13 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userType, isExploringAll, cityFilter]);
+  }, [userType, isExploringAll, cityFilter, filtersLoading]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
   }, [loadData]);
-
-  const handleToggleExploreAll = useCallback(() => {
-    setIsExploringAll((prev) => {
-      const nextValue = !prev;
-
-      if (nextValue) {
-        setShowMyGroups(false);
-        setCityFilter(null);
-      }
-
-      return nextValue;
-    });
-  }, []);
 
   const handleGroupPress = useCallback(
     async (group) => {
@@ -816,9 +825,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
         {hasFilters ? (
           <TouchableOpacity
             style={styles.sectionAction}
-            onPress={() => {
-              setCityFilter(null);
-            }}
+            onPress={() => clearPersistedFilters()}
             activeOpacity={0.75}
           >
             <Text style={styles.sectionActionText}>Restablecer filtros</Text>
@@ -928,17 +935,6 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
           />
         )}
       </View>
-
-      {canExploreAll ? (
-        <FloatingActionButton
-          onPress={handleToggleExploreAll}
-          icon={isExploringAll ? "close" : "search"}
-          backgroundColor={isExploringAll ? ACCENT : PRIMARY}
-          bottom={24 + insets.bottom}
-          right={20}
-        />
-      ) : null}
-
       <FilterModal
         visible={shouldShowExploreFilters && openModal === "city"}
         onClose={() => setOpenModal(null)}

@@ -112,6 +112,8 @@ const parseBundleForSave = (bundle) => {
       ? Number(profileFields.max_roommates)
       : null,
     move_in_date: normalizeText(profileFields.move_in_date),
+    home_plan: profileFields.home_plan || "open_to_team_up",
+    looking_for: profileFields.looking_for || "shared_flat",
     hospital_id: profileFields.hospital_id || null,
     speciality_id: profileFields.speciality_id || null,
     avatar_url: normalizeText(profileFields.avatar_url),

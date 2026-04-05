@@ -13,6 +13,8 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import { useHousingAds } from "../hooks/useHousingAds";
 import { formatDateOnly } from "../utils/dateUtils";
 import { getCurrentUser } from "../services/authService";
@@ -187,21 +189,27 @@ export default function HousingAdDetailScreen({
   // ── Loading state ──
   if (loading) {
     return (
-      <View style={styles.container}>
-        <SharedHeader onBack={onBack} />
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.container}
+      >
         <View style={styles.stateContainer}>
           <ActivityIndicator size="large" color={PRIMARY} />
           <Text style={styles.stateText}>Cargando anuncio...</Text>
         </View>
-      </View>
+      </ScreenScaffold>
     );
   }
 
   // ── Error state ──
   if (error || !ad) {
     return (
-      <View style={styles.container}>
-        <SharedHeader onBack={onBack} />
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.container}
+      >
         <View style={styles.stateContainer}>
           <View style={styles.errorIconWrap}>
             <Ionicons name="alert-circle-outline" size={36} color={ERROR} />
@@ -214,7 +222,7 @@ export default function HousingAdDetailScreen({
             <Text style={styles.retryBtnText}>Volver a Vivienda</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScreenScaffold>
     );
   }
 
@@ -224,43 +232,41 @@ export default function HousingAdDetailScreen({
       ? getImageUrl(ad.images[0].object_path)
       : null;
 
-  return (
-    <View style={styles.container}>
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={onBack}
-          activeOpacity={0.7}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="arrow-back" size={22} color={PRIMARY} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          Detalle del anuncio
-        </Text>
-        {isMyAd ? (
+  const header = (
+    <ScreenHeader
+      title="Vivienda"
+      onBack={onBack}
+      compact
+      variant="brand"
+      rightSlot={
+        isMyAd ? (
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.headerIconBtn}
               onPress={handleEdit}
               activeOpacity={0.7}
             >
-              <Ionicons name="pencil-outline" size={18} color={PRIMARY} />
+              <Ionicons name="pencil-outline" size={18} color={WHITE} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.headerIconBtn, { backgroundColor: ERROR + "10" }]}
+              style={[styles.headerIconBtn, styles.headerDangerBtn]}
               onPress={handleDelete}
               activeOpacity={0.7}
             >
-              <Ionicons name="trash-outline" size={18} color={ERROR} />
+              <Ionicons name="trash-outline" size={18} color={WHITE} />
             </TouchableOpacity>
           </View>
-        ) : (
-          <View style={styles.headerRight} />
-        )}
-      </View>
+        ) : null
+      }
+    />
+  );
 
+  return (
+    <ScreenScaffold
+      header={header}
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.container}
+    >
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -505,24 +511,7 @@ export default function HousingAdDetailScreen({
           ) : null}
         </View>
       </Modal>
-    </View>
-  );
-}
-
-// Minimal shared header for loading/error states
-function SharedHeader({ onBack }) {
-  return (
-    <View style={styles.header}>
-      <TouchableOpacity
-        style={styles.backBtn}
-        onPress={onBack}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="arrow-back" size={22} color={PRIMARY} />
-      </TouchableOpacity>
-      <Text style={styles.headerTitle}>Detalle del anuncio</Text>
-      <View style={styles.headerRight} />
-    </View>
+    </ScreenScaffold>
   );
 }
 
@@ -536,37 +525,6 @@ const styles = StyleSheet.create({
     backgroundColor: BG_LIGHT,
   },
 
-  // ── Header ──
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: WHITE,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: PRIMARY + "10",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 17,
-    fontWeight: "700",
-    color: ACCENT,
-    letterSpacing: -0.2,
-    marginHorizontal: 8,
-  },
-  headerRight: {
-    width: 36,
-  },
   headerActions: {
     flexDirection: "row",
     gap: 8,
@@ -575,9 +533,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: PRIMARY + "10",
+    backgroundColor: "rgba(255,255,255,0.14)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerDangerBtn: {
+    backgroundColor: "rgba(239,68,68,0.22)",
   },
 
   // ── Scroll ──

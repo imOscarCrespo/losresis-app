@@ -466,8 +466,10 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
           onBack={onBack}
           iconName="sparkles-outline"
           compact
+          variant="brand"
         />
       }
+      headerShellVariant="brand"
       contentSurfaceStyle={styles.contentSurface}
     >
         <ScrollView
@@ -674,6 +676,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
             title="Test de orientación MIR"
             onBack={handleBackFromQuestions}
             compact
+            variant="brand"
             rightSlot={
               <View style={styles.headerCounter}>
                 <Text style={styles.headerCounterText}>
@@ -683,6 +686,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
             }
           />
         }
+        headerShellVariant="brand"
         contentSurfaceStyle={styles.contentSurface}
       >
           <ScrollView
@@ -792,8 +796,10 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
             onBack={handleBackFromResults}
             iconName="analytics-outline"
             compact
+            variant="brand"
           />
         }
+        headerShellVariant="brand"
         contentSurfaceStyle={styles.contentSurface}
       >
           <ScrollView
@@ -890,12 +896,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#F5F3FF",
+    backgroundColor: "rgba(255,255,255,0.14)",
   },
   headerCounterText: {
     fontSize: 12,
     fontWeight: "800",
-    color: PRIMARY,
+    color: "#FFFFFF",
   },
   contentSurface: {
     flex: 1,

@@ -12,93 +12,55 @@ const CATEGORY_LIBRARY = {
     name: "Consultas",
     icon_name: "medkit-outline",
     color_token: "blue",
-    activities: [
-      { name: "Primera consulta", goal: 50, tracking_mode: "counter" },
-      { name: "Consulta de seguimiento", goal: 100, tracking_mode: "counter" },
-      { name: "Caso comentado", goal: 12, tracking_mode: "note" },
-    ],
+    activities: [],
   },
   ward: {
     name: "Hospitalización",
     icon_name: "business-outline",
     color_token: "emerald",
-    activities: [
-      { name: "Paciente valorado", goal: 120, tracking_mode: "counter" },
-      { name: "Alta elaborada", goal: 40, tracking_mode: "counter" },
-      { name: "Incidencia relevante", goal: 20, tracking_mode: "note" },
-    ],
+    activities: [],
   },
   emergencies: {
     name: "Urgencias",
     icon_name: "pulse-outline",
     color_token: "rose",
-    activities: [
-      { name: "Urgencia atendida", goal: 80, tracking_mode: "counter" },
-      { name: "Procedimiento urgente", goal: 25, tracking_mode: "counter" },
-      { name: "Checklist de guardia", goal: 12, tracking_mode: "checklist" },
-    ],
+    activities: [],
   },
   surgery: {
     name: "Quirófano",
-    icon_name: "medical-outline",
+    icon_name: "cut-outline",
     color_token: "orange",
-    activities: [
-      { name: "Cirugía asistida", goal: 40, tracking_mode: "counter" },
-      { name: "Procedimiento principal", goal: 20, tracking_mode: "counter" },
-      { name: "Caso quirúrgico destacado", goal: 10, tracking_mode: "note" },
-    ],
-  },
-  training: {
-    name: "Formación",
-    icon_name: "school-outline",
-    color_token: "violet",
-    activities: [
-      { name: "Sesión clínica", goal: 24, tracking_mode: "counter" },
-      { name: "Curso o taller", goal: 10, tracking_mode: "counter" },
-      { name: "Apunte de aprendizaje", goal: 20, tracking_mode: "note" },
-    ],
+    activities: [],
   },
   research: {
     name: "Investigación",
     icon_name: "flask-outline",
     color_token: "slate",
-    activities: [
-      { name: "Trabajo científico", goal: 6, tracking_mode: "counter" },
-      { name: "Congreso o póster", goal: 4, tracking_mode: "counter" },
-      { name: "Pendientes del proyecto", goal: 12, tracking_mode: "checklist" },
-    ],
+    activities: [],
   },
   obstetrics: {
     name: "Sala de partos",
     icon_name: "heart-outline",
     color_token: "rose",
-    activities: [
-      { name: "Parto eutócico", goal: 80, tracking_mode: "counter" },
-      { name: "Cesárea", goal: 30, tracking_mode: "counter" },
-      { name: "Episiotomía", goal: 20, tracking_mode: "counter" },
-    ],
+    activities: [],
   },
   procedures: {
     name: "Técnicas",
     icon_name: "build-outline",
     color_token: "orange",
-    activities: [
-      { name: "Procedimiento realizado", goal: 30, tracking_mode: "counter" },
-      { name: "Técnica supervisada", goal: 20, tracking_mode: "counter" },
-      { name: "Checklist de técnica", goal: 12, tracking_mode: "checklist" },
-    ],
+    activities: [],
   },
 };
 
-const DEFAULT_CATEGORY_KEYS = ["consults", "ward", "emergencies", "training"];
+const DEFAULT_CATEGORY_KEYS = ["consults", "ward", "emergencies", "surgery"];
 
 const SPECIALTY_CATEGORY_KEYS = {
-  ginecologia: ["obstetrics", "surgery", "consults", "emergencies", "training"],
-  obstetricia: ["obstetrics", "surgery", "consults", "emergencies", "training"],
+  ginecologia: ["obstetrics", "surgery", "consults", "emergencies"],
+  obstetricia: ["obstetrics", "surgery", "consults", "emergencies"],
   cardiologia: ["consults", "ward", "procedures", "emergencies", "research"],
-  cirugia: ["surgery", "ward", "consults", "procedures", "training"],
-  medicina: ["consults", "ward", "emergencies", "training", "research"],
-  pediatria: ["consults", "ward", "emergencies", "training", "research"],
+  cirugia: ["surgery", "ward", "consults", "procedures"],
+  medicina: ["consults", "ward", "emergencies", "research"],
+  pediatria: ["consults", "ward", "emergencies", "research"],
 };
 
 const normalizeText = (value = "") =>
@@ -144,8 +106,7 @@ export const CATEGORY_ICON_OPTIONS = [
   { id: "medkit-outline", label: "Consulta" },
   { id: "business-outline", label: "Planta" },
   { id: "pulse-outline", label: "Urgencias" },
-  { id: "medical-outline", label: "Quirófano" },
-  { id: "school-outline", label: "Formación" },
+  { id: "cut-outline", label: "Quirófano" },
   { id: "flask-outline", label: "Investigación" },
   { id: "build-outline", label: "Técnicas" },
   { id: "heart-outline", label: "Partos" },

@@ -44,6 +44,8 @@ export default function MyReviewScreen({
   navigation,
   onReviewCreated,
   onReviewDeleted,
+  autoOpenCreateReview = false,
+  onAutoOpenCreateReviewHandled,
   onBack,
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -106,6 +108,7 @@ export default function MyReviewScreen({
       title="Mi Reseña"
       onBack={onBack}
       compact
+      variant="brand"
       rightSlot={headerStatusChip}
     />
   );
@@ -130,6 +133,27 @@ export default function MyReviewScreen({
   useEffect(() => {
     posthogLogger.logScreen("MyReviewScreen");
   }, []);
+
+  useEffect(() => {
+    if (
+      autoOpenCreateReview &&
+      !existingReview &&
+      !loading &&
+      !loadingQuestions &&
+      !isModalOpen
+    ) {
+      onAutoOpenCreateReviewHandled?.();
+      handleStartReview();
+    }
+  }, [
+    autoOpenCreateReview,
+    existingReview,
+    loading,
+    loadingQuestions,
+    isModalOpen,
+    onAutoOpenCreateReviewHandled,
+    handleStartReview,
+  ]);
 
   const handleStartReview = useCallback(() => {
     setAnswers({});
@@ -219,7 +243,11 @@ export default function MyReviewScreen({
   // ── Not a resident ──
   if (!isResident) {
     return (
-      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.contentSurface}
+      >
         <View style={styles.scrollContent}>
           <View style={styles.messageCard}>
             <View style={styles.messageIconWrap}>
@@ -238,7 +266,11 @@ export default function MyReviewScreen({
   // ── Incomplete profile ──
   if (!hospital || !specialty) {
     return (
-      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.contentSurface}
+      >
         <View style={styles.scrollContent}>
           <View style={styles.messageCard}>
             <View style={styles.messageIconWrap}>
@@ -256,7 +288,11 @@ export default function MyReviewScreen({
   }
 
   return (
-    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+    <ScreenScaffold
+      header={header}
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.contentSurface}
+    >
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -692,22 +728,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusChipGreen: {
-    backgroundColor: `${SECONDARY}15`,
-    borderColor: `${SECONDARY}30`,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(255,255,255,0.24)",
   },
   statusChipOrange: {
-    backgroundColor: "#FEF3C7",
-    borderColor: "#FDE68A",
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderColor: "rgba(255,255,255,0.28)",
   },
   statusChipText: {
     fontSize: 12,
     fontWeight: "700",
   },
   statusChipTextGreen: {
-    color: SECONDARY,
+    color: "#FFFFFF",
   },
   statusChipTextOrange: {
-    color: "#D97706",
+    color: "#FFFFFF",
   },
 
   // ── Alerts ──

@@ -8,6 +8,8 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import {
   getRotationReviewWithAnswers,
   isExternalRotationReviewFavorite,
@@ -266,14 +268,14 @@ export default function RotationReviewDetailScreen({
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.headerButton} onPress={onBack}>
-          <Ionicons name="arrow-back" size={22} color={PRIMARY} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Detalle</Text>
-        {canFavorite ? (
+  const header = (
+    <ScreenHeader
+      title="Rotaciones"
+      onBack={onBack}
+      compact
+      variant="brand"
+      rightSlot={
+        canFavorite ? (
           <TouchableOpacity
             style={styles.headerButton}
             onPress={handleToggleFavorite}
@@ -283,14 +285,20 @@ export default function RotationReviewDetailScreen({
             <Ionicons
               name={isFavorite ? "heart" : "heart-outline"}
               size={22}
-              color={isFavorite ? COLORS.ERROR : PRIMARY}
+              color={isFavorite ? COLORS.ERROR : "#FFFFFF"}
             />
           </TouchableOpacity>
-        ) : (
-          <View style={styles.headerButton} />
-        )}
-      </View>
+        ) : null
+      }
+    />
+  );
 
+  return (
+    <ScreenScaffold
+      header={header}
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.container}
+    >
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -417,8 +425,7 @@ export default function RotationReviewDetailScreen({
           </View>
         )}
       </ScrollView>
-
-    </View>
+    </ScreenScaffold>
   );
 }
 
@@ -427,25 +434,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: SURFACE,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    backgroundColor: SURFACE,
-  },
   headerButton: {
     width: 40,
     height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.14)",
     alignItems: "center",
     justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: TEXT,
   },
   scrollView: {
     flex: 1,

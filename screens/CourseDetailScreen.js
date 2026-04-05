@@ -10,7 +10,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getCourseById, deleteCourse } from "../services/lectureService";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
+import {
+  deleteCourse,
+  getCourseById,
+  toggleCourseLike,
+} from "../services/lectureService";
 import { getCurrentUser } from "../services/authService";
 import { formatDateOnly, formatShortDate } from "../utils/dateUtils";
 import { openURL } from "../utils/courseUtils";
@@ -69,6 +75,20 @@ function SectionCard({ title, children }) {
   );
 }
 
+function InfoRow({ icon, label, value }) {
+  return (
+    <View style={styles.infoRow}>
+      <View style={styles.infoIconWrap}>
+        <Ionicons name={icon} size={15} color={PRIMARY} />
+      </View>
+      <View style={styles.infoCopy}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={styles.infoValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function CourseDetailScreen({
   courseId,
   onBack,
@@ -80,6 +100,7 @@ export default function CourseDetailScreen({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
 
   useEffect(() => {
     posthogLogger.logScreen("CourseDetailScreen", { courseId });
@@ -111,7 +132,7 @@ export default function CourseDetailScreen({
       try {
         setLoading(true);
         setError(null);
-        const fetchedCourse = await getCourseById(courseId);
+        const fetchedCourse = await getCourseById(courseId, currentUserId);
         setCourse(fetchedCourse);
       } catch (err) {
         console.error("Error fetching course:", err);
@@ -122,7 +143,7 @@ export default function CourseDetailScreen({
     };
 
     loadCourse();
-  }, [courseId]);
+  }, [courseId, currentUserId]);
 
   const sortedDates = useMemo(
     () => (Array.isArray(course?.event_dates) ? [...course.event_dates].sort() : []),
@@ -204,6 +225,38 @@ export default function CourseDetailScreen({
     );
   }, [course?.id, onDelete]);
 
+  const handleToggleFavorite = useCallback(async () => {
+    if (!course?.id || favoriteLoading) {
+      return;
+    }
+
+    if (!currentUserId) {
+      Alert.alert(
+        "Inicia sesión",
+        "Necesitas haber iniciado sesión para guardar cursos."
+      );
+      return;
+    }
+
+    try {
+      setFavoriteLoading(true);
+      const liked = await toggleCourseLike(currentUserId, course.id);
+      setCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              is_liked: liked,
+            }
+          : prev
+      );
+    } catch (err) {
+      console.error("Error toggling course like:", err);
+      Alert.alert("Error", "No se pudo guardar el curso.");
+    } finally {
+      setFavoriteLoading(false);
+    }
+  }, [course?.id, currentUserId, favoriteLoading]);
+
   if (loading) {
     return (
       <View style={styles.stateContainer}>
@@ -230,84 +283,109 @@ export default function CourseDetailScreen({
     );
   }
 
+  const header = (
+    <ScreenHeader
+      title="Cursos"
+      onBack={onBack}
+      compact
+      variant="brand"
+      rightSlot={
+        canEditCourse ? (
+          <View style={styles.headerActions}>
+            {onEdit ? (
+              <TouchableOpacity
+                style={styles.headerIconButton}
+                onPress={() => onEdit(course.id)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="pencil-outline" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            ) : null}
+            {onDelete ? (
+              <TouchableOpacity
+                style={[styles.headerIconButton, styles.headerDangerButton]}
+                onPress={handleDelete}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null
+      }
+    />
+  );
+
   return (
-    <View style={styles.container}>
+    <ScreenScaffold
+      header={header}
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.container}
+    >
       <ScrollView
-        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 32, 40) }}
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom + 32, 40) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.hero, { paddingTop: Math.max(insets.top + 8, 20) }]}>
-          <View style={styles.topBar}>
-            <TouchableOpacity style={styles.topBarButton} onPress={onBack}>
-              <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
-
-            {canEditCourse ? (
-              <View style={styles.topBarActions}>
-                {onEdit ? (
-                  <TouchableOpacity
-                    style={styles.topBarGhostButton}
-                    onPress={() => onEdit(course.id)}
-                  >
-                    <Ionicons name="pencil-outline" size={18} color="#FFFFFF" />
-                    <Text style={styles.topBarGhostText}>Editar</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {onDelete ? (
-                  <TouchableOpacity
-                    style={styles.topBarGhostButton}
-                    onPress={handleDelete}
-                  >
-                    <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ) : (
-              <View style={styles.topBarSpacer} />
-            )}
-          </View>
-
-          <View style={styles.heroCard}>
+        <View style={styles.heroCard}>
+          <View style={styles.heroTopRow}>
             <View style={styles.heroBadge}>
               <Ionicons name="school-outline" size={16} color={PRIMARY} />
               <Text style={styles.heroBadgeText}>Curso</Text>
             </View>
-
-            <Text style={styles.heroTitle}>{course.title}</Text>
-
-            {course.organization ? (
-              <Text style={styles.heroSubtitle}>{course.organization}</Text>
+            {course.is_liked ? (
+              <View style={styles.savedBadge}>
+                <Ionicons name="heart" size={14} color={SECONDARY} />
+                <Text style={styles.savedBadgeText}>Guardado</Text>
+              </View>
             ) : null}
+          </View>
 
-            <View style={styles.heroMeta}>
-              {course.hospital?.name ? (
-                <View style={styles.heroMetaRow}>
-                  <Ionicons name="business-outline" size={16} color={MUTED} />
-                  <Text style={styles.heroMetaText}>
-                    {course.hospital.name}
-                    {course.hospital.city ? ` · ${course.hospital.city}` : ""}
-                  </Text>
-                </View>
-              ) : null}
+          <Text style={styles.heroTitle}>{course.title}</Text>
 
-              {course.venue_name ? (
-                <View style={styles.heroMetaRow}>
-                  <Ionicons name="location-outline" size={16} color={MUTED} />
-                  <Text style={styles.heroMetaText}>{course.venue_name}</Text>
-                </View>
-              ) : null}
-            </View>
+          {course.organization ? (
+            <Text style={styles.heroSubtitle}>{course.organization}</Text>
+          ) : null}
 
-            <View style={styles.quickStats}>
-              {quickStats.map((item) => (
-                <InfoPill
-                  key={item.key}
-                  icon={item.icon}
-                  text={item.label}
-                  accent={item.accent}
-                />
-              ))}
-            </View>
+          <View style={styles.quickStats}>
+            {quickStats.map((item) => (
+              <InfoPill
+                key={item.key}
+                icon={item.icon}
+                text={item.label}
+                accent={item.accent}
+              />
+            ))}
+          </View>
+
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={[
+                styles.favoriteButton,
+                course.is_liked && styles.favoriteButtonActive,
+                favoriteLoading && styles.favoriteButtonDisabled,
+              ]}
+              onPress={handleToggleFavorite}
+              activeOpacity={0.88}
+              disabled={favoriteLoading}
+            >
+              <Ionicons
+                name={course.is_liked ? "heart" : "heart-outline"}
+                size={18}
+                color={course.is_liked ? "#FFFFFF" : PRIMARY}
+              />
+              <Text
+                style={[
+                  styles.favoriteButtonText,
+                  course.is_liked && styles.favoriteButtonTextActive,
+                ]}
+              >
+                {course.is_liked ? "En mis cursos" : "Guardar"}
+              </Text>
+            </TouchableOpacity>
 
             {course.registration_url ? (
               <TouchableOpacity
@@ -315,7 +393,7 @@ export default function CourseDetailScreen({
                 onPress={handleRegister}
                 activeOpacity={0.88}
               >
-                <Text style={styles.primaryButtonText}>Ir a inscripción</Text>
+                <Text style={styles.primaryButtonText}>Inscribirme</Text>
                 <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
               </TouchableOpacity>
             ) : null}
@@ -323,6 +401,30 @@ export default function CourseDetailScreen({
         </View>
 
         <View style={styles.content}>
+          {(course.hospital?.name || course.venue_name || course.venue_address) && (
+            <SectionCard title="Dónde se imparte">
+              {course.hospital?.name ? (
+                <InfoRow
+                  icon="business-outline"
+                  label="Hospital"
+                  value={`${course.hospital.name}${
+                    course.hospital.city ? ` · ${course.hospital.city}` : ""
+                  }`}
+                />
+              ) : null}
+              {course.venue_name ? (
+                <InfoRow icon="location-outline" label="Sede" value={course.venue_name} />
+              ) : null}
+              {course.venue_address ? (
+                <InfoRow
+                  icon="navigate-outline"
+                  label="Dirección"
+                  value={course.venue_address}
+                />
+              ) : null}
+            </SectionCard>
+          )}
+
           {sortedDates.length > 1 ? (
             <SectionCard title="Calendario">
               {sortedDates.map((date) => (
@@ -334,19 +436,8 @@ export default function CourseDetailScreen({
             </SectionCard>
           ) : null}
 
-          {course.venue_name || course.venue_address ? (
-            <SectionCard title="Ubicación">
-              {course.venue_name ? (
-                <Text style={styles.cardTitle}>{course.venue_name}</Text>
-              ) : null}
-              {course.venue_address ? (
-                <Text style={styles.cardBody}>{course.venue_address}</Text>
-              ) : null}
-            </SectionCard>
-          ) : null}
-
           {course.speciality || course.course_code || course.course_directors ? (
-            <SectionCard title="Datos del curso">
+            <SectionCard title="Ficha del curso">
               {course.speciality ? (
                 <View style={styles.dataRow}>
                   <Text style={styles.dataLabel}>Especialidad</Text>
@@ -368,6 +459,23 @@ export default function CourseDetailScreen({
             </SectionCard>
           ) : null}
 
+          {course.registration_url ? (
+            <SectionCard title="Inscripción">
+              <Text style={styles.cardBody}>
+                Accede al enlace oficial para revisar plazas, requisitos y el
+                formulario de inscripción.
+              </Text>
+              <TouchableOpacity
+                style={styles.secondaryAction}
+                onPress={handleRegister}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.secondaryActionText}>Abrir enlace</Text>
+                <Ionicons name="open-outline" size={16} color={PRIMARY} />
+              </TouchableOpacity>
+            </SectionCard>
+          ) : null}
+
           {course.objectives ? (
             <SectionCard title="Objetivos">
               <Text style={styles.cardBody}>{course.objectives}</Text>
@@ -381,7 +489,7 @@ export default function CourseDetailScreen({
           ) : null}
         </View>
       </ScrollView>
-    </View>
+    </ScreenScaffold>
   );
 }
 
@@ -389,6 +497,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: BG_LIGHT,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerDangerButton: {
+    backgroundColor: "rgba(239,68,68,0.22)",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   stateContainer: {
     flex: 1,
@@ -433,59 +564,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
-  hero: {
-    backgroundColor: ACCENT,
-    paddingHorizontal: 16,
-    paddingBottom: 26,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-  },
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 18,
-  },
-  topBarButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.14)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  topBarActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  topBarGhostButton: {
-    minHeight: 42,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.14)",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-  },
-  topBarGhostText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  topBarSpacer: {
-    width: 42,
-  },
   heroCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     padding: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.08,
     shadowRadius: 16,
-    elevation: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    marginTop: 16,
+  },
+  heroTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
   },
   heroBadge: {
     alignSelf: "flex-start",
@@ -502,6 +598,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
+  savedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: `${SECONDARY}14`,
+  },
+  savedBadgeText: {
+    color: SECONDARY,
+    fontSize: 12,
+    fontWeight: "700",
+  },
   heroTitle: {
     marginTop: 14,
     fontSize: 24,
@@ -515,34 +625,22 @@ const styles = StyleSheet.create({
     color: MUTED,
     lineHeight: 22,
   },
-  heroMeta: {
-    gap: 10,
-    marginTop: 18,
-  },
-  heroMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  heroMetaText: {
-    flex: 1,
-    fontSize: 14,
-    color: MUTED,
-    lineHeight: 20,
-  },
   quickStats: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
     marginTop: 18,
+    alignItems: "flex-start",
   },
   infoPill: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
-    borderRadius: 999,
+    borderRadius: 18,
     paddingHorizontal: 12,
     paddingVertical: 9,
+    maxWidth: "100%",
+    flexShrink: 1,
   },
   infoPillPurple: {
     backgroundColor: `${PRIMARY}10`,
@@ -556,6 +654,8 @@ const styles = StyleSheet.create({
   infoPillText: {
     fontSize: 13,
     fontWeight: "700",
+    flexShrink: 1,
+    lineHeight: 18,
   },
   infoPillTextPurple: {
     color: PRIMARY,
@@ -566,8 +666,37 @@ const styles = StyleSheet.create({
   infoPillTextBlue: {
     color: "#2563EB",
   },
-  primaryButton: {
+  actionsRow: {
     marginTop: 18,
+    gap: 12,
+  },
+  favoriteButton: {
+    minHeight: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}24`,
+    backgroundColor: `${PRIMARY}08`,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  favoriteButtonActive: {
+    backgroundColor: PRIMARY,
+    borderColor: PRIMARY,
+  },
+  favoriteButtonDisabled: {
+    opacity: 0.7,
+  },
+  favoriteButtonText: {
+    color: PRIMARY,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  favoriteButtonTextActive: {
+    color: "#FFFFFF",
+  },
+  primaryButton: {
     backgroundColor: PRIMARY,
     borderRadius: 18,
     paddingVertical: 15,
@@ -582,7 +711,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   content: {
-    paddingHorizontal: 16,
     paddingTop: 18,
     gap: 18,
   },
@@ -608,6 +736,37 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 1,
   },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingVertical: 10,
+  },
+  infoIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: `${PRIMARY}10`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  infoLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: MUTED_LIGHT,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  infoValue: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: ACCENT,
+    fontWeight: "600",
+  },
   timelineRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -624,12 +783,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: ACCENT,
     fontWeight: "600",
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: ACCENT,
-    marginBottom: 4,
   },
   cardBody: {
     fontSize: 15,
@@ -654,5 +807,23 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: ACCENT,
     lineHeight: 22,
+  },
+  secondaryAction: {
+    marginTop: 14,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: `${PRIMARY}10`,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}18`,
+  },
+  secondaryActionText: {
+    color: PRIMARY,
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

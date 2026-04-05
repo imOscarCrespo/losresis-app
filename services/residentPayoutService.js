@@ -40,13 +40,33 @@ const toNumber = (value) => {
 const normalizePayout = (row) => {
   if (!row) return null;
 
+  const weekdayGuardCount = toNumber(
+    row.weekday_guard_count ?? row.guard_count ?? 0
+  );
+  const fridayGuardCount = toNumber(row.friday_guard_count);
+  const saturdayGuardCount = toNumber(row.saturday_guard_count);
+  const sundayGuardCount = toNumber(row.sunday_guard_count);
+  const holidayGuardCount = toNumber(row.holiday_guard_count);
+  const totalGuardCount =
+    weekdayGuardCount +
+    fridayGuardCount +
+    saturdayGuardCount +
+    sundayGuardCount +
+    holidayGuardCount;
+
   return {
     ...row,
     gross_total_eur: toNumber(row.gross_total_eur),
-    guard_count: toNumber(row.guard_count),
+    guard_count: totalGuardCount,
+    friday_guard_count: fridayGuardCount,
+    holiday_guard_count: holidayGuardCount,
     strike_count: toNumber(row.strike_count),
+    pending_payment_description: row.pending_payment_description ?? "",
     period_month: toNumber(row.period_month),
     period_year: toNumber(row.period_year),
+    saturday_guard_count: saturdayGuardCount,
+    sunday_guard_count: sundayGuardCount,
+    weekday_guard_count: weekdayGuardCount,
   };
 };
 
@@ -145,15 +165,35 @@ export const getResidentPayoutForMonth = async (userId, year, month) => {
 };
 
 export const upsertResidentPayout = async (payload) => {
+  const weekdayGuardCount = toNumber(payload.weekday_guard_count);
+  const fridayGuardCount = toNumber(payload.friday_guard_count);
+  const saturdayGuardCount = toNumber(payload.saturday_guard_count);
+  const sundayGuardCount = toNumber(payload.sunday_guard_count);
+  const holidayGuardCount = toNumber(payload.holiday_guard_count);
+  const guardCount =
+    weekdayGuardCount +
+    fridayGuardCount +
+    saturdayGuardCount +
+    sundayGuardCount +
+    holidayGuardCount;
+
   const payoutPayload = {
     user_id: payload.user_id,
     period_year: toNumber(payload.period_year),
     period_month: toNumber(payload.period_month),
     gross_total_eur: toNumber(payload.gross_total_eur),
-    guard_count: toNumber(payload.guard_count),
+    guard_count: guardCount,
+    weekday_guard_count: weekdayGuardCount,
+    friday_guard_count: fridayGuardCount,
+    saturday_guard_count: saturdayGuardCount,
+    sunday_guard_count: sundayGuardCount,
+    holiday_guard_count: holidayGuardCount,
     strike_count: toNumber(payload.strike_count),
     has_double_pay: Boolean(payload.has_double_pay),
     has_pending_payment: Boolean(payload.has_pending_payment),
+    pending_payment_description: payload.has_pending_payment
+      ? String(payload.pending_payment_description || "").trim() || null
+      : null,
   };
 
   const { data, error } = await supabase

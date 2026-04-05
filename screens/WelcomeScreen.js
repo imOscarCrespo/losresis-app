@@ -711,7 +711,7 @@ export default function WelcomeScreen({ onAuthSuccess }) {
               <Button
                 title={
                   signingInProvider === "google"
-                    ? "Verificando perfil..."
+                    ? "Completa la verificación en Google"
                     : "Continuar con Google"
                 }
                 onPress={() => handleSignIn("google")}
@@ -720,6 +720,13 @@ export default function WelcomeScreen({ onAuthSuccess }) {
                 variant="google"
                 style={styles.googleButton}
               />
+
+              {signingInProvider === "google" && (
+                <Text style={styles.authPendingHint}>
+                  Sigue el proceso en Google. Continuaremos automáticamente
+                  cuando termine la verificación.
+                </Text>
+              )}
 
               {/* Apple Sign In Button - Solo en iOS */}
               {isIOS && (
@@ -968,6 +975,13 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 56,
     borderRadius: 16,
+  },
+  authPendingHint: {
+    marginTop: -6,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+    color: "#6B7280",
   },
   dividerContainer: {
     flexDirection: "row",

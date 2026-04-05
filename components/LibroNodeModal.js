@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
+import { ScreenHeader } from "./ScreenHeader";
+import { ScreenScaffold } from "./ScreenScaffold";
 import {
   CATEGORY_ICON_OPTIONS,
   COLOR_TOKEN_MAP,
@@ -71,13 +73,11 @@ export const LibroNodeModal = ({
   const isEditing = !!existingNode;
   const modalTitle = isEditing
     ? isChildNode
-      ? "Editar actividad"
-      : "Editar categoría"
+      ? "Editar procedimiento"
+      : "Editar rotación"
     : isChildNode
-      ? "Nueva actividad"
-      : "Nueva categoría";
-  const entityLabel = isChildNode ? "actividad" : "categoría";
-
+      ? "Nuevo procedimiento"
+      : "Nueva rotación";
   const handleSubmit = () => {
     if (!name.trim()) {
       return;
@@ -136,9 +136,9 @@ export const LibroNodeModal = ({
         {!isChildNode ? (
           <View style={styles.categoryHeroCard}>
             <View style={styles.categoryHeroTextWrap}>
-              <Text style={styles.categoryHeroTitle}>Diseña una categoría clara</Text>
+              <Text style={styles.categoryHeroTitle}>Diseña una rotación clara</Text>
               <Text style={styles.categoryHeroText}>
-                Crea un bloque fácil de reconocer para agrupar después las actividades de tu libro.
+                Crea una rotación fácil de reconocer para agrupar después los procedimientos de tu libro.
               </Text>
             </View>
             <View
@@ -159,7 +159,7 @@ export const LibroNodeModal = ({
         <View style={styles.field}>
           {!isChildNode ? (
             <View style={styles.configBlock}>
-              <Text style={styles.configTitle}>Nombre de la categoría</Text>
+              <Text style={styles.configTitle}>Nombre de la rotación</Text>
               <Text style={styles.configText}>
                 Usa un nombre corto y reconocible, por ejemplo consultas, quirófano o urgencias.
               </Text>
@@ -175,7 +175,7 @@ export const LibroNodeModal = ({
             </View>
           ) : (
             <>
-              <Text style={styles.label}>Nombre *</Text>
+              <Text style={styles.label}>Procedimiento *</Text>
               <TextInput
                 style={styles.input}
                 value={name}
@@ -189,9 +189,9 @@ export const LibroNodeModal = ({
 
         {isChildNode ? (
           <View style={styles.configBlock}>
-            <Text style={styles.configTitle}>Configuración de la actividad</Text>
+            <Text style={styles.configTitle}>Configuración del procedimiento</Text>
             <Text style={styles.configText}>
-              Ajusta el objetivo y cómo quieres registrar esta actividad.
+              Ajusta el objetivo y cómo quieres registrar este procedimiento.
             </Text>
 
             <View style={styles.fieldCompact}>
@@ -207,14 +207,14 @@ export const LibroNodeModal = ({
                 placeholder="Ej: 50"
               />
               <Text style={styles.helperText}>
-                Déjalo vacío si no quieres marcar una meta para esta actividad.
+                Déjalo vacío si no quieres marcar una meta para este procedimiento.
               </Text>
             </View>
 
             <View style={styles.fieldCompact}>
               <Text style={styles.label}>Tipo de registro</Text>
               <Text style={styles.helperTextTop}>
-                Elige si esta actividad se registra como contador, nota o checklist.
+                Elige si este procedimiento se registra como contador, nota o checklist.
               </Text>
               <View style={styles.modeSelectorRow}>
                 {TRACKING_MODE_OPTIONS.map((option) => {
@@ -242,7 +242,7 @@ export const LibroNodeModal = ({
           <View style={styles.configBlock}>
             <Text style={styles.configTitle}>Identidad visual</Text>
             <Text style={styles.configText}>
-              Elige un icono y un color que te permitan localizar esta categoría de un vistazo.
+              Elige un icono y un color que te permitan localizar esta rotación de un vistazo.
             </Text>
 
             <View style={styles.fieldCompact}>
@@ -315,7 +315,7 @@ export const LibroNodeModal = ({
           <View style={styles.helperBanner}>
             <Ionicons name="sparkles-outline" size={16} color={COLORS.PRIMARY} />
             <Text style={styles.helperBannerText}>
-              Después podrás añadir dentro todas las actividades que necesites.
+              Después podrás añadir dentro todos los procedimientos que necesites.
             </Text>
           </View>
         ) : null}
@@ -349,19 +349,23 @@ export const LibroNodeModal = ({
 
   if (asScreen) {
     return (
-      <KeyboardAvoidingView
+      <ScreenScaffold
         style={styles.screenContainer}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        header={
+          <ScreenHeader
+            title={modalTitle}
+            onBack={handleClose}
+            compact
+            variant="brand"
+          />
+        }
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.screenContent}
+        keyboardAvoiding
+        keyboardBehavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={styles.screenHeader}>
-          <TouchableOpacity style={styles.screenBackButton} onPress={handleClose}>
-            <Ionicons name="arrow-back" size={22} color={COLORS.GRAY_DARK} />
-          </TouchableOpacity>
-          <Text style={styles.screenTitle}>{modalTitle}</Text>
-          <View style={styles.screenHeaderSpacer} />
-        </View>
-        <View style={styles.screenContent}>{formBody}</View>
-      </KeyboardAvoidingView>
+        {formBody}
+      </ScreenScaffold>
     );
   }
 
@@ -400,37 +404,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.WHITE,
   },
-  screenHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === "ios" ? 18 : 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
-    backgroundColor: COLORS.WHITE,
-  },
-  screenBackButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  screenTitle: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    textAlign: "center",
-  },
-  screenHeaderSpacer: {
-    width: 36,
-  },
   screenContent: {
     flex: 1,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: "#F8FAFC",
   },
   overlay: {
     flex: 1,

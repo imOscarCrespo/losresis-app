@@ -97,6 +97,7 @@ export const MenuGrid = ({
   userProfile,
   onItemPress,
   residentHasReview = true,
+  residentReviewGateStatus = "soft",
 }) => {
   // Filtrar items según el tipo de usuario y excluir los del footer
   const filteredItems = useMemo(() => {
@@ -132,6 +133,10 @@ export const MenuGrid = ({
         return false;
       }
 
+      if (item.id === "mi-resena" && userProfile.is_resident && residentHasReview) {
+        return false;
+      }
+
       // Si es solo para estudiantes
       if (item.studentOnly) {
         return userProfile.is_student;
@@ -155,7 +160,12 @@ export const MenuGrid = ({
       // Items sin restricciones
       return true;
     });
-  }, [navigationItems, footerItems, userProfile]);
+  }, [
+    navigationItems,
+    footerItems,
+    userProfile,
+    residentHasReview,
+  ]);
 
   // Calcular número de filas necesarias
   const rows = Math.ceil(filteredItems.length / GRID_COLUMNS);
@@ -196,14 +206,13 @@ export const MenuGrid = ({
       return true;
     }
 
-    // Si es residente sin review y no es super admin, deshabilitar todos los botones excepto "mi-resena"
     if (
       userProfile?.is_resident &&
       !userProfile?.is_super_admin &&
-      !residentHasReview
+      !residentHasReview &&
+      residentReviewGateStatus === "hard"
     ) {
-      // Solo permitir acceso a "mi-resena" para que puedan crear su review
-      return item.id !== "mi-resena";
+      return !["mi-resena", "usuario", "contacto"].includes(item.id);
     }
     return false;
   };

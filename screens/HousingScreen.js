@@ -383,6 +383,7 @@ export default function HousingScreen({ onSectionChange, onBack }) {
     error,
     hasMore,
     totalCount,
+    filtersLoading,
     city,
     setCity,
     kind,
@@ -579,6 +580,7 @@ export default function HousingScreen({ onSectionChange, onBack }) {
       title="Vivienda"
       onBack={onBack}
       compact
+      variant="brand"
       rightSlot={
         <TouchableOpacity
           style={[styles.myAdsChip, showMyAds && styles.myAdsChipActive]}
@@ -598,9 +600,13 @@ export default function HousingScreen({ onSectionChange, onBack }) {
     />
   );
 
-  if (loading && housingAds.length === 0) {
+  if ((loading || filtersLoading) && housingAds.length === 0) {
     return (
-      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.contentSurface}
+      >
         <View style={styles.stateContainer}>
           <ActivityIndicator size="large" color={PRIMARY} />
           <Text style={styles.loadingText}>Cargando anuncios...</Text>
@@ -611,7 +617,11 @@ export default function HousingScreen({ onSectionChange, onBack }) {
 
   if (error) {
     return (
-      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.contentSurface}
+      >
         <View style={styles.stateContainer}>
           <Ionicons name="alert-circle" size={48} color={ERROR} />
           <Text style={styles.errorText}>{error}</Text>
@@ -624,7 +634,11 @@ export default function HousingScreen({ onSectionChange, onBack }) {
   }
 
   return (
-    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+    <ScreenScaffold
+      header={header}
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.contentSurface}
+    >
       <FlatList
         data={housingAds}
         keyExtractor={(item) => item.id}
@@ -718,20 +732,20 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#F8FAFC",
+    borderColor: "rgba(255,255,255,0.22)",
+    backgroundColor: "rgba(255,255,255,0.14)",
   },
   myAdsChipActive: {
-    backgroundColor: ACCENT,
-    borderColor: ACCENT,
+    backgroundColor: "#FFFFFF",
+    borderColor: "#FFFFFF",
   },
   myAdsChipText: {
     fontSize: 13,
     fontWeight: "600",
-    color: ACCENT,
+    color: WHITE,
   },
   myAdsChipTextActive: {
-    color: WHITE,
+    color: PRIMARY,
   },
 
   // ── Filter chips — same as HospitalsScreen ──

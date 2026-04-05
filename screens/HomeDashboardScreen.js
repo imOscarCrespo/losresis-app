@@ -28,6 +28,7 @@ import {
   getResidentPayoutForMonth,
   shouldShowPayoutReminder,
 } from "../services/residentPayoutService";
+import posthogLogger from "../services/posthogService";
 
 const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
@@ -184,6 +185,9 @@ function getCourseKindLabel(course) {
 
 export default function HomeDashboardScreen({
   userProfile,
+  residentHasReview = true,
+  residentReviewGateStatus = "soft",
+  residentReviewGateBudget = null,
   onHospitalSelect,
   onSectionChange,
 }) {
@@ -369,55 +373,57 @@ export default function HomeDashboardScreen({
   const residentYearLabel = userProfile?.resident_year
     ? `R${userProfile.resident_year}`
     : "Residente";
+  const residentNeedsReview = userProfile?.is_resident && !residentHasReview;
   const residentMeta = [residentSpecialty?.name, residentYearLabel]
     .filter(Boolean)
     .join(" · ");
   const currentWeekdayIndex = getCurrentWeekdayIndex();
   const residentQuickActions = useMemo(
-    () => [
-      {
-        label: "Libro de residentes",
-        icon: "book-outline",
-        section: "residenceLibrary",
-        tint: "#DBEAFE",
-        color: "#2563EB",
-      },
-      {
-        label: "Cursos / Congresos",
-        icon: "school-outline",
-        section: "cursos",
-        tint: "#FFEDD5",
-        color: "#F97316",
-      },
-      {
-        label: "Mi reseña",
-        icon: "star-outline",
-        section: "myReview",
-        tint: "#F3E8FF",
-        color: "#9333EA",
-      },
-      {
-        label: "Rotaciones externas",
-        icon: "airplane-outline",
-        section: "rotaciones-externas",
-        tint: "#CCFBF1",
-        color: "#0F766E",
-      },
-      {
-        label: "Nóminas",
-        icon: "cash-outline",
-        section: "residentPayouts",
-        tint: "#F4EEFF",
-        color: "#670CF5",
-      },
-      {
-        label: "Vivienda",
-        icon: "home-outline",
-        section: "vivienda",
-        tint: "#E5E7EB",
-        color: "#475569",
-      },
-    ],
+    () =>
+      [
+        {
+          label: "Libro de residentes",
+          icon: "book-outline",
+          section: "residenceLibrary",
+          tint: "#DBEAFE",
+          color: "#2563EB",
+        },
+        {
+          label: "Cursos / Congresos",
+          icon: "school-outline",
+          section: "cursos",
+          tint: "#FFEDD5",
+          color: "#F97316",
+        },
+        {
+          label: "Mi reseña",
+          icon: "star-outline",
+          section: "myReview",
+          tint: "#F3E8FF",
+          color: "#9333EA",
+        },
+        {
+          label: "Rotaciones externas",
+          icon: "airplane-outline",
+          section: "rotaciones-externas",
+          tint: "#CCFBF1",
+          color: "#0F766E",
+        },
+        {
+          label: "Nóminas",
+          icon: "cash-outline",
+          section: "residentPayouts",
+          tint: "#F4EEFF",
+          color: "#670CF5",
+        },
+        {
+          label: "Vivienda",
+          icon: "home-outline",
+          section: "vivienda",
+          tint: "#E5E7EB",
+          color: "#475569",
+        },
+      ].filter(Boolean),
     []
   );
   const residentHeroEvent = useMemo(() => {
@@ -658,6 +664,49 @@ export default function HomeDashboardScreen({
                 {lastQuizTopSpeciality ?? "—"}
               </Text>
             </TouchableOpacity>
+          </View>
+        ) : residentNeedsReview ? (
+          <View style={styles.residentHeroCard}>
+            <View style={styles.residentHeroTopRow}>
+              <Text style={styles.residentHeroEyebrow}>MI RESEÑA</Text>
+              <View style={styles.residentStatusPill}>
+                <Text style={styles.residentStatusPillText}>
+                  {residentReviewGateStatus === "hard" ? "OBLIGATORIO" : "PENDIENTE"}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.residentReviewHeroMain}>
+              <View style={styles.residentReviewHeroHeader}>
+                <View style={styles.residentHeroIconWrap}>
+                  <Ionicons name="star-outline" size={22} color="#FFF" />
+                </View>
+                <View style={styles.residentHeroTextWrap}>
+                  <Text style={styles.residentHeroTitle}>Deja tu reseña</Text>
+                  <Text style={styles.residentHeroSubtitle}>
+                    Cuéntale al resto cómo es {residentHospital?.name || "tu hospital"}.
+                    Mantendremos este acceso destacado hasta que la publiques.
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.residentReviewHeroButton}
+                onPress={() => {
+                  posthogLogger.capture("resident_review_gate_prompt_clicked", {
+                    source: "home_dashboard",
+                    status: residentReviewGateStatus,
+                  });
+                  onSectionChange?.("myReview", {
+                    autoOpenCreateReview: true,
+                  });
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.residentHeroButtonText}>Abrir mi reseña</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.residentHeroFooter}>
+              En cuanto la envíes, este bloque desaparece del inicio.
+            </Text>
           </View>
         ) : (
           <View style={styles.residentHeroCard}>
@@ -1329,6 +1378,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
+  residentReviewHeroMain: {
+    gap: 14,
+  },
+  residentReviewHeroHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
   residentHeroIconWrap: {
     width: 42,
     height: 42,
@@ -1351,6 +1408,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   residentHeroButton: {
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  residentReviewHeroButton: {
+    alignSelf: "flex-start",
     backgroundColor: "#FFF",
     borderRadius: 12,
     paddingHorizontal: 14,

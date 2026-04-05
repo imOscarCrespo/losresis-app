@@ -19,6 +19,7 @@ import { COLORS } from "../constants/colors";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { SelectorModal } from "../components/SelectorModal";
 import { SelectFilter, ConfirmationModal } from "../components";
+import { usePersistedFilters } from "../hooks/usePersistedFilters";
 import {
   createRotation,
   deleteRotation,
@@ -230,13 +231,14 @@ const SectionTitle = ({ eyebrow, title, description, actionLabel, onAction }) =>
   </View>
 );
 
-const HubActionCard = ({ title, description, buttonLabel, onPress }) => (
+const HubActionCard = ({ title, description, buttonLabel, onPress, eyebrow }) => (
   <TouchableOpacity
     style={styles.hubActionCard}
     onPress={onPress}
     activeOpacity={0.85}
   >
     <View>
+      {eyebrow ? <Text style={styles.homeSectionLabel}>{eyebrow}</Text> : null}
       <Text style={styles.hubActionTitle}>{title}</Text>
       <Text style={styles.hubActionDescription}>{description}</Text>
     </View>
@@ -299,15 +301,28 @@ const MatchCard = ({ item, onChat, onContact, buttonLabel = "Ver contacto" }) =>
   </View>
 );
 
-const FilterChip = ({ label, active, icon, onPress }) => (
+const FilterChip = ({ label, active, icon, onPress, disabled = false }) => (
   <TouchableOpacity
-    style={[styles.filterChip, active && styles.filterChipActive]}
+    style={[
+      styles.filterChip,
+      active && styles.filterChipActive,
+      disabled && styles.filterChipDisabled,
+    ]}
     onPress={onPress}
-    activeOpacity={0.75}
+    activeOpacity={disabled ? 1 : 0.75}
+    disabled={disabled}
   >
-    <Ionicons name={icon} size={14} color={active ? PRIMARY : TEXT} />
+    <Ionicons
+      name={icon}
+      size={14}
+      color={disabled ? TEXT_MUTED : active ? PRIMARY : TEXT}
+    />
     <Text
-      style={[styles.filterChipText, active && styles.filterChipTextActive]}
+      style={[
+        styles.filterChipText,
+        active && styles.filterChipTextActive,
+        disabled && styles.filterChipTextDisabled,
+      ]}
       numberOfLines={1}
     >
       {label}
@@ -315,7 +330,7 @@ const FilterChip = ({ label, active, icon, onPress }) => (
     <Ionicons
       name="chevron-down"
       size={14}
-      color={active ? PRIMARY : TEXT_MUTED}
+      color={disabled ? TEXT_MUTED : active ? PRIMARY : TEXT_MUTED}
     />
   </TouchableOpacity>
 );
@@ -408,12 +423,6 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   const [rotationToDelete, setRotationToDelete] = useState(null);
   const [reviewToDelete, setReviewToDelete] = useState(null);
   const [openExploreFilter, setOpenExploreFilter] = useState(null);
-  const [exploreFilters, setExploreFilters] = useState({
-    specialtyId: "",
-    country: "",
-    city: "",
-    search: "",
-  });
   const [rotationForm, setRotationForm] = useState(DEFAULT_ROTATION_FORM);
   const [rotationCountryCode, setRotationCountryCode] = useState("");
   const [showRotationStartDatePicker, setShowRotationStartDatePicker] =
@@ -424,6 +433,19 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   const [publishCountryCode, setPublishCountryCode] = useState("");
   const [showPublishStartDatePicker, setShowPublishStartDatePicker] = useState(false);
   const [showPublishEndDatePicker, setShowPublishEndDatePicker] = useState(false);
+  const {
+    filters: exploreFilters,
+    updateFilters: updateExploreFilters,
+    clearAllFilters: clearPersistedExploreFilters,
+  } = usePersistedFilters(
+    "external-rotations-explore",
+    {
+      specialtyId: "",
+      country: "",
+      city: "",
+    },
+    { enableDebounce: true, debounceMs: 500 }
+  );
 
   useEffect(() => {
     posthogLogger.logScreen("ExternalRotationsScreen");
@@ -510,8 +532,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       Boolean(
         exploreFilters.specialtyId ||
           exploreFilters.country ||
-          exploreFilters.city ||
-          exploreFilters.search.trim()
+          exploreFilters.city
       ),
     [exploreFilters]
   );
@@ -624,8 +645,6 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   );
 
   const filteredReviews = useMemo(() => {
-    const normalizedSearch = exploreFilters.search.trim().toLowerCase();
-
     return publishedReviews.filter((review) => {
       if (
         exploreFilters.specialtyId &&
@@ -645,23 +664,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         return false;
       }
 
-      if (!normalizedSearch) {
-        return true;
-      }
-
-      return [
-        review.external_hospital_name,
-        review.service_name,
-        review.specialty_name,
-        review.city,
-        review.country,
-        review.highlight_summary,
-        review.before_you_go,
-      ]
-        .filter(Boolean)
-        .some((value) =>
-          String(value).toLowerCase().includes(normalizedSearch)
-        );
+      return true;
     });
   }, [exploreFilters, publishedReviews]);
 
@@ -1213,28 +1216,31 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.homeHeroCard}>
-        <Text style={styles.homeHeroEyebrow}>Planifica mejor tu rotación externa</Text>
-        <Text style={styles.homeHeroTitle}>
-          Dos caminos claros según el momento en el que estés
-        </Text>
-        <Text style={styles.homeHeroDescription}>
-          Si aún no sabes dónde ir, explora reseñas reales. Si ya tienes destino y
-          fechas, publícalo para encontrar coincidencias con otros residentes.
-        </Text>
+        <Text style={styles.homeHeroEyebrow}>Rotaciones externas</Text>
+        <Text style={styles.homeHeroTitle}>Tres formas de sacar partido a tu rotación externa</Text>
       </View>
 
       <View style={styles.hubGrid}>
         <HubActionCard
+          eyebrow="Buscar destino"
           title="Quiero decidir dónde ir"
-          description="Lee reseñas, filtra por hospital o ciudad y guarda favoritas para comparar opciones."
+          description="Lee reseñas, filtra por hospital o ciudad y guarda opciones para comparar"
           buttonLabel="Buscar destino"
           onPress={() => setRoute({ name: "explore", payload: null })}
         />
         <HubActionCard
+          eyebrow="Publicar plan"
           title="Ya sé dónde voy"
-          description="Publica tu plan futuro para ver quién coincide contigo en fechas y destino."
-          buttonLabel={primaryUserRotation ? "Ver mi plan" : "Publicar mi plan"}
+          description="Comparte tu destino y fechas para encontrar otros residentes que coincidan contigo"
+          buttonLabel="Publicar mi plan"
           onPress={() => setRoute({ name: "plan", payload: null })}
+        />
+        <HubActionCard
+          eyebrow="Compartir experiencia"
+          title="Comparte tu experiencia"
+          description="Ayuda a otros residentes contando cómo fue tu rotación: hospital, servicio y logística"
+          buttonLabel="Escribir reseña"
+          onPress={() => openPublish()}
         />
       </View>
 
@@ -1275,15 +1281,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
             <Text style={styles.hubActionButtonText}>Gestionar plan</Text>
           </TouchableOpacity>
         </View>
-      ) : (
-        <EmptyState
-          icon="paper-plane-outline"
-          title="Todavía no has publicado tu plan futuro"
-          description="Cuando tengas claro un destino y unas fechas, publícalo para ver si otro residente coincide contigo."
-          actionLabel="Crear mi plan"
-          onAction={() => setRoute({ name: "plan", payload: null })}
-        />
-      )}
+      ) : null}
 
       {primaryUserReview ? (
         <View style={styles.hubActionCard}>
@@ -1333,40 +1331,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
             </TouchableOpacity>
           </View>
         </View>
-      ) : (
-        <HubActionCard
-          title="Comparte tu experiencia cuando vuelvas"
-          description="Tu reseña servirá a otros residentes para decidir hospital, servicio y logística."
-          buttonLabel="Escribir reseña"
-          onPress={() => openPublish()}
-        />
-      )}
-
-      <SectionTitle
-        title="Tus favoritas"
-        description="Reseñas que has guardado para volver a consultarlas."
-        actionLabel="Ver todas"
-        onAction={() => setRoute({ name: "explore", payload: null })}
-      />
-      {favoriteReviews.length ? (
-        favoriteReviews.map((review) => (
-          <MiniDestinationCard
-            key={review.id}
-            review={review}
-            onPress={() =>
-              setRoute({ name: "detail", payload: { review, from: "home" } })
-            }
-          />
-        ))
-      ) : (
-        <EmptyState
-          icon="heart-outline"
-          title="Aún no tienes favoritas"
-          description="Guarda reseñas desde el detalle y aparecerán aquí."
-          actionLabel="Explorar reseñas"
-          onAction={() => setRoute({ name: "explore", payload: null })}
-        />
-      )}
+      ) : null}
     </ScrollView>
   );
 
@@ -1381,31 +1346,6 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         title="Descubre dónde merece la pena rotar"
         description="Explora reseñas reales, filtra por especialidad o localización y guarda tus opciones favoritas."
       />
-
-      <View style={styles.searchCard}>
-        <View style={styles.searchInputWrap}>
-          <Ionicons name="search-outline" size={18} color={TEXT_MUTED} />
-          <TextInput
-            style={styles.searchInput}
-            value={exploreFilters.search}
-            onChangeText={(value) =>
-              setExploreFilters((current) => ({ ...current, search: value }))
-            }
-            placeholder="Buscar hospital, ciudad, servicio o especialidad"
-            placeholderTextColor={TEXT_MUTED}
-          />
-          {exploreFilters.search ? (
-            <TouchableOpacity
-              onPress={() =>
-                setExploreFilters((current) => ({ ...current, search: "" }))
-              }
-              activeOpacity={0.75}
-            >
-              <Ionicons name="close-circle" size={18} color={TEXT_MUTED} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      </View>
 
       <ScrollView
         horizontal
@@ -1429,11 +1369,8 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           label={exploreFilters.city || "Ciudad"}
           active={!!exploreFilters.city}
           icon="business-outline"
-          onPress={() => {
-            if (exploreFilters.country) {
-              setOpenExploreFilter("city");
-            }
-          }}
+          disabled={!exploreFilters.country}
+          onPress={() => setOpenExploreFilter("city")}
         />
       </ScrollView>
 
@@ -1473,19 +1410,14 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
             ? `${exploreVisibleReviews.length} ${
                 exploreVisibleReviews.length === 1 ? "resultado" : "resultados"
               }`
-            : "Reseñas disponibles"}
+            : `${exploreVisibleReviews.length} ${
+                exploreVisibleReviews.length === 1 ? "reseña" : "reseñas"
+              }`}
         </Text>
         {hasActiveExploreFilters ? (
           <TouchableOpacity
             style={styles.resultsAction}
-            onPress={() =>
-              setExploreFilters({
-                specialtyId: "",
-                country: "",
-                city: "",
-                search: "",
-              })
-            }
+            onPress={() => clearPersistedExploreFilters()}
             activeOpacity={0.75}
           >
             <Text style={styles.resultsActionText}>Quitar filtros</Text>
@@ -1522,9 +1454,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           name: option.label,
         }))}
         value={exploreFilters.specialtyId}
-        onSelect={(value) =>
-          setExploreFilters((current) => ({ ...current, specialtyId: value }))
-        }
+        onSelect={(value) => updateExploreFilters({ specialtyId: value })}
         placeholder="Todas las especialidades"
       />
       <SelectorModal
@@ -1536,17 +1466,11 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           name: option.label,
         }))}
         value={exploreFilters.country}
-        onSelect={(value) =>
-          setExploreFilters((current) => ({
-            ...current,
-            country: value,
-            city: "",
-          }))
-        }
+        onSelect={(value) => updateExploreFilters({ country: value, city: "" })}
         placeholder="Todos los países"
       />
       <SelectorModal
-        visible={openExploreFilter === "city"}
+        visible={openExploreFilter === "city" && !!exploreFilters.country}
         onClose={() => setOpenExploreFilter(null)}
         title="Filtrar por ciudad"
         options={cityOptions.map((option) => ({
@@ -1554,9 +1478,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           name: option.label,
         }))}
         value={exploreFilters.city}
-        onSelect={(value) =>
-          setExploreFilters((current) => ({ ...current, city: value }))
-        }
+        onSelect={(value) => updateExploreFilters({ city: value })}
         placeholder="Todas las ciudades"
       />
     </ScrollView>
@@ -2287,6 +2209,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     <View style={styles.container}>
       <ScreenHeader
         title={routeTitle}
+        variant="brand"
         onBack={
           route.name === "home"
             ? onBack
@@ -2591,28 +2514,6 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     marginBottom: 14,
   },
-  searchCard: {
-    backgroundColor: SURFACE_CARD,
-    borderRadius: 20,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  searchInputWrap: {
-    minHeight: 48,
-    backgroundColor: SURFACE_ALT,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: TEXT,
-    paddingVertical: 0,
-  },
   filtersRow: {
     flexDirection: "row",
     gap: 8,
@@ -2634,6 +2535,11 @@ const styles = StyleSheet.create({
     backgroundColor: PRIMARY_SOFT,
     borderColor: PRIMARY + "33",
   },
+  filterChipDisabled: {
+    backgroundColor: SURFACE_ALT,
+    borderColor: BORDER,
+    opacity: 0.7,
+  },
   filterChipText: {
     fontSize: 13,
     fontWeight: "700",
@@ -2642,6 +2548,9 @@ const styles = StyleSheet.create({
   },
   filterChipTextActive: {
     color: PRIMARY,
+  },
+  filterChipTextDisabled: {
+    color: TEXT_MUTED,
   },
   resultsRow: {
     flexDirection: "row",

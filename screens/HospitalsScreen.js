@@ -203,6 +203,10 @@ export default function HospitalsScreen({
     setSelectedCity,
     selectedSpecialty,
     setSelectedSpecialty,
+    sortMode,
+    setSortMode,
+    sponsorshipOnly,
+    setSponsorshipOnly,
     uniqueRegions,
     availableCities,
     loadingHospitals,
@@ -226,17 +230,30 @@ export default function HospitalsScreen({
     () => availableCities.map((c) => ({ id: c, name: c })),
     [availableCities]
   );
+  const sortOptions = useMemo(
+    () => [
+      { id: "ranking", name: "Ranking" },
+      { id: "alphabetical", name: "Alfabético" },
+    ],
+    []
+  );
 
   const selectedSpecialtyName = useMemo(
     () => specialties.find((s) => s.id === selectedSpecialty)?.name ?? null,
     [specialties, selectedSpecialty]
+  );
+  const selectedSortName = useMemo(
+    () => sortOptions.find((option) => option.id === sortMode)?.name ?? "Ranking",
+    [sortMode, sortOptions]
   );
 
   const hasActiveFilters = !!(
     searchTerm ||
     selectedRegion ||
     selectedCity ||
-    selectedSpecialty
+    selectedSpecialty ||
+    sponsorshipOnly ||
+    sortMode !== "ranking"
   );
   const hospitalCountLabel = `${filteredHospitals.length} ${
     filteredHospitals.length === 1 ? "hospital" : "hospitales"
@@ -257,6 +274,11 @@ export default function HospitalsScreen({
           <Text style={styles.cardName} numberOfLines={2}>
             {item.name}
           </Text>
+          {item.is_sponsored && item.sponsorship_label ? (
+            <View style={styles.rankingBadge}>
+              <Text style={styles.rankingBadgeText}>{item.sponsorship_label}</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.cardLocationRow}>
@@ -393,6 +415,45 @@ export default function HospitalsScreen({
           />
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.chip, sortMode !== "ranking" && styles.chipActive]}
+          onPress={() => setOpenModal("sort")}
+        >
+          <Ionicons
+            name="swap-vertical"
+            size={16}
+            color={sortMode !== "ranking" ? PRIMARY : ACCENT}
+          />
+          <Text
+            style={[styles.chipText, sortMode !== "ranking" && styles.chipTextActive]}
+            numberOfLines={1}
+          >
+            {selectedSortName}
+          </Text>
+          <Ionicons
+            name="chevron-down"
+            size={16}
+            color={sortMode !== "ranking" ? PRIMARY : ACCENT}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.chip, sponsorshipOnly && styles.chipActive]}
+          onPress={() => setSponsorshipOnly(!sponsorshipOnly)}
+        >
+          <Ionicons
+            name="megaphone"
+            size={16}
+            color={sponsorshipOnly ? PRIMARY : ACCENT}
+          />
+          <Text
+            style={[styles.chipText, sponsorshipOnly && styles.chipTextActive]}
+            numberOfLines={1}
+          >
+            Patrocinados
+          </Text>
+        </TouchableOpacity>
+
       </ScrollView>
 
       {/* Hospital list */}
@@ -413,7 +474,11 @@ export default function HospitalsScreen({
           ListHeaderComponent={
             <View style={styles.sectionRow}>
               <Text style={styles.sectionLabel}>
-                {hasActiveFilters ? hospitalCountLabel : "Hospitales destacados"}
+                {hasActiveFilters
+                  ? hospitalCountLabel
+                  : sortMode === "ranking"
+                    ? "Ranking de hospitales"
+                    : "Hospitales"}
               </Text>
               {hasActiveFilters ? (
                 <TouchableOpacity
@@ -463,6 +528,15 @@ export default function HospitalsScreen({
         value={selectedCity}
         onSelect={setSelectedCity}
         placeholder="Todas las ciudades"
+      />
+      <FilterModal
+        visible={openModal === "sort"}
+        onClose={() => setOpenModal(null)}
+        title="Ordenar hospitales"
+        options={sortOptions}
+        value={sortMode}
+        onSelect={setSortMode}
+        placeholder="Ranking"
       />
     </View>
   );
@@ -627,6 +701,10 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   cardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
     marginBottom: 6,
   },
   cardName: {
@@ -634,6 +712,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: ACCENT,
     lineHeight: 22,
+    flex: 1,
+  },
+  rankingBadge: {
+    backgroundColor: `${SECONDARY}14`,
+    borderWidth: 1,
+    borderColor: `${SECONDARY}28`,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  rankingBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: SECONDARY,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
   cardLocationRow: {
     flexDirection: "row",

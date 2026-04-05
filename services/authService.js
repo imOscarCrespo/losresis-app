@@ -26,6 +26,37 @@ const USER_ID_KEY = "@losresis:userId";
 // Necesario para que WebBrowser funcione correctamente
 WebBrowser.maybeCompleteAuthSession();
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForOAuthSession = async ({
+  initialDelayMs = 0,
+  attempts = 10,
+  intervalMs = 1000,
+  context = "OAuth",
+} = {}) => {
+  if (initialDelayMs > 0) {
+    await sleep(initialDelayMs);
+  }
+
+  for (let i = 0; i < attempts; i++) {
+    console.log(
+      `🔄 Verificando sesión pendiente de ${context} (intento ${i + 1}/${attempts})...`
+    );
+    const { data: sessionData } = await supabase.auth.getSession();
+
+    if (sessionData?.session) {
+      console.log(`✅ Sesión encontrada durante ${context}`);
+      return sessionData;
+    }
+
+    if (i < attempts - 1) {
+      await sleep(intervalMs);
+    }
+  }
+
+  return null;
+};
+
 /**
  * Función genérica para iniciar sesión con cualquier provider OAuth
  * @param {string} provider - Provider de OAuth ('google' | 'apple')
@@ -92,62 +123,22 @@ const signInWithOAuth = async (provider, redirectUrl) => {
     try {
       console.log("⏳ Esperando respuesta del navegador...");
 
-      // Crear una promesa con timeout más corto (30 segundos) para detectar problemas de Chrome
-      // Usar finalRedirectUrl en lugar de redirectUrl para asegurar consistencia
-      const browserPromise = WebBrowser.openAuthSessionAsync(
-        data.url,
-        finalRedirectUrl
-      );
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error("Timeout esperando respuesta del navegador")),
-          30000 // Reducido a 30 segundos
-        )
-      );
-
-      result = await Promise.race([browserPromise, timeoutPromise]);
+      result = await WebBrowser.openAuthSessionAsync(data.url, finalRedirectUrl);
       console.log("✅ Respuesta recibida del navegador");
     } catch (browserError) {
       console.error("❌ Error al abrir navegador:", browserError);
 
-      // Si hay un timeout, puede ser que Chrome no funcione en el emulador
-      // En ese caso, esperar y verificar si el callback llegó por deep linking
-      if (browserError.message.includes("Timeout")) {
-        console.log(
-          "⏱️ Timeout esperando navegador (posible problema con Chrome en emulador)"
-        );
-        console.log("🔄 Esperando callback por deep linking...");
+      const sessionData = await waitForOAuthSession({
+        initialDelayMs: 2000,
+        attempts: 8,
+        intervalMs: 1000,
+        context: `${providerName} browser error`,
+      });
 
-        // Esperar más tiempo para que el deep linking procese el callback
-        await new Promise((resolve) => setTimeout(resolve, 5000));
-
-        // Verificar múltiples veces si hay sesión
-        for (let i = 0; i < 5; i++) {
-          const { data: sessionData } = await supabase.auth.getSession();
-          if (sessionData?.session) {
-            console.log(
-              "✅ Sesión encontrada después del timeout (callback llegó por deep linking)"
-            );
-            return {
-              success: true,
-              data: sessionData,
-            };
-          }
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-
-        console.error("❌ No se recibió callback por deep linking");
-        console.error(
-          "⚠️ IMPORTANTE: Los intent filters solo funcionan en builds de producción"
-        );
-        console.error(
-          "⚠️ Si estás usando 'yarn run android', necesitas hacer un build de producción:"
-        );
-        console.error("⚠️ eas build --platform android --profile production");
+      if (sessionData?.session) {
         return {
-          success: false,
-          error:
-            "El callback no llegó. Los intent filters solo funcionan en builds de producción. Haz un build con: eas build --platform android --profile production",
+          success: true,
+          data: sessionData,
         };
       }
 
@@ -324,26 +315,18 @@ const signInWithOAuth = async (provider, redirectUrl) => {
     } else if (result.type === "dismiss") {
       console.log("⚠️ Usuario cerró el navegador sin completar el login");
       console.log("🔄 Esperando callback por deep linking (dismiss)...");
-      // En Android, a veces el callback viene después del dismiss por deep linking
-      // Esperar más tiempo y verificar múltiples veces
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const sessionData = await waitForOAuthSession({
+        initialDelayMs: 3000,
+        attempts: 10,
+        intervalMs: 1000,
+        context: `${providerName} dismiss`,
+      });
 
-      // Verificar múltiples veces si hay sesión
-      for (let i = 0; i < 10; i++) {
-        console.log(
-          `🔄 Verificando sesión después de dismiss (intento ${i + 1}/10)...`
-        );
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData?.session) {
-          console.log(
-            "✅ Sesión encontrada después del dismiss (callback llegó por deep linking)"
-          );
-          return {
-            success: true,
-            data: sessionData,
-          };
-        }
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (sessionData?.session) {
+        return {
+          success: true,
+          data: sessionData,
+        };
       }
 
       console.error(
@@ -369,22 +352,18 @@ const signInWithOAuth = async (provider, redirectUrl) => {
       console.log(
         "🔄 Esperando callback por deep linking (tipo inesperado)..."
       );
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const sessionData = await waitForOAuthSession({
+        initialDelayMs: 3000,
+        attempts: 5,
+        intervalMs: 1000,
+        context: `${providerName} resultado inesperado`,
+      });
 
-      // Verificar múltiples veces si hay sesión
-      for (let i = 0; i < 5; i++) {
-        console.log(`🔄 Verificando sesión (intento ${i + 1}/5)...`);
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData?.session) {
-          console.log(
-            "✅ Sesión encontrada después del tipo inesperado (callback llegó por deep linking)"
-          );
-          return {
-            success: true,
-            data: sessionData,
-          };
-        }
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (sessionData?.session) {
+        return {
+          success: true,
+          data: sessionData,
+        };
       }
 
       // Si result es undefined o null, puede ser un problema de deep linking

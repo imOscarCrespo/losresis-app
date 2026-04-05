@@ -8,7 +8,6 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -22,6 +21,7 @@ import {
   ROOMMATE_OPTION_SETS,
   ROOMMATE_THEME,
   getRoommateAvatarUrl,
+  getAnswerInputValue,
   normalizeBundle,
 } from "../../utils/roommateUtils";
 import { SelectorModal } from "../SelectorModal";
@@ -66,14 +66,6 @@ const ChoiceRow = ({ options, value, onChange, multi = false }) => {
   );
 };
 
-const SCALE_OPTIONS = [
-  { value: 1, label: "1" },
-  { value: 2, label: "2" },
-  { value: 3, label: "3" },
-  { value: 4, label: "4" },
-  { value: 5, label: "5" },
-];
-
 const sanitizeCityOptions = (options = []) => {
   const seen = new Set();
 
@@ -95,7 +87,25 @@ const sanitizeCityOptions = (options = []) => {
   });
 };
 
-const buildStepDefinitions = (questions = []) => [
+const getQuestionByCode = (questions = [], code) =>
+  questions.find((question) => question.code === code);
+
+const ALLOWED_ANSWER_CODES = ["weekday_vibe", "weekend_plan"];
+
+const sanitizeEditorBundle = (bundle) => {
+  const normalized = normalizeBundle(bundle);
+
+  return {
+    ...normalized,
+    answers: Object.fromEntries(
+      Object.entries(normalized.answers || {})
+        .filter(([code]) => ALLOWED_ANSWER_CODES.includes(code))
+        .map(([code, answer]) => [code, getAnswerInputValue(answer)])
+    ),
+  };
+};
+
+const buildStepDefinitions = () => [
   {
     title: "Tu plan de piso",
     subtitle: "Lo básico para situarte y activar el matching.",
@@ -193,65 +203,24 @@ const buildStepDefinitions = (questions = []) => [
     ),
   },
   {
-    title: "Rutina diaria",
-    subtitle: "Buscamos afinidad real, no solo una bio bonita.",
-    render: ({ bundle, updateLifestyle, updateAnswer, questions }) => (
+    title: "Convivencia real",
+    subtitle: "Solo lo esencial para detectar afinidad en casa.",
+    render: ({ bundle, updateLifestyle, updateAnswer, weekdayQuestion }) => (
       <>
         <Text style={styles.questionLabel}>
-          {questions[0]?.prompt || "¿Qué nivel de orden necesitas en casa?"}
+          {weekdayQuestion?.prompt ||
+            "Después del hospital o la facultad, ¿qué ambiente prefieres en casa?"}
         </Text>
         <ChoiceRow
-          options={SCALE_OPTIONS}
-          value={bundle.answers[questions[0]?.code] ?? null}
-          onChange={(value) => {
-            updateLifestyle("cleanliness_level", value);
-            updateAnswer(questions[0]?.code, value);
-          }}
-        />
-        <Text style={styles.fieldTitle}>Tu ritmo</Text>
-        <ChoiceRow
-          options={ROOMMATE_OPTION_SETS.sleepSchedule}
-          value={bundle.lifestyle.sleep_schedule}
-          onChange={(value) => {
-            updateLifestyle("sleep_schedule", value);
-            updateAnswer(questions[1]?.code, value);
-          }}
-        />
-        <Text style={styles.fieldTitle}>Trabajo o estudio desde casa</Text>
-        <ChoiceRow
-          options={[
-            { value: "never", label: "Casi nunca" },
-            { value: "sometimes", label: "Algunos días" },
-            { value: "often", label: "Muy a menudo" },
-          ]}
-          value={bundle.lifestyle.work_from_home}
-          onChange={(value) => updateLifestyle("work_from_home", value)}
-        />
-        <Text style={styles.fieldTitle}>Sociabilidad</Text>
-        <ChoiceRow
-          options={SCALE_OPTIONS}
-          value={bundle.lifestyle.sociability_level}
-          onChange={(value) => updateLifestyle("sociability_level", value)}
-        />
-      </>
-    ),
-  },
-  {
-    title: "Convivencia real",
-    subtitle: "Lo que suele romper una convivencia se decide aquí.",
-    render: ({ bundle, updateLifestyle, updateAnswer, questions }) => (
-      <>
-        <Text style={styles.fieldTitle}>Ambiente entre semana</Text>
-        <ChoiceRow
-          options={questions[2]?.options || []}
-          value={bundle.answers[questions[2]?.code]}
-          onChange={(value) => updateAnswer(questions[2]?.code, value)}
-        />
-        <Text style={styles.fieldTitle}>Visitas</Text>
-        <ChoiceRow
-          options={ROOMMATE_OPTION_SETS.guests}
-          value={bundle.lifestyle.guests_frequency}
-          onChange={(value) => updateLifestyle("guests_frequency", value)}
+          options={
+            weekdayQuestion?.options || [
+              { value: "quiet", label: "Tranquilo y silencioso" },
+              { value: "balanced", label: "Algo de charla pero con calma" },
+              { value: "social", label: "Con vida y planes" },
+            ]
+          }
+          value={bundle.answers[weekdayQuestion?.code]}
+          onChange={(value) => updateAnswer(weekdayQuestion?.code, value)}
         />
         <Text style={styles.fieldTitle}>Mascotas</Text>
         <ChoiceRow
@@ -269,38 +238,21 @@ const buildStepDefinitions = (questions = []) => [
     ),
   },
   {
-    title: "Qué te importa en casa",
-    subtitle: "Selecciona las reglas implícitas que para ti no son negociables.",
-    render: ({ bundle, updateProfile, updateAnswer, questions }) => (
-      <>
-        <Text style={styles.fieldTitle}>{questions[3]?.prompt}</Text>
-        <ChoiceRow
-          options={questions[3]?.options || []}
-          value={bundle.answers[questions[3]?.code] || []}
-          onChange={(value) => updateAnswer(questions[3]?.code, value)}
-          multi
-        />
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          multiline
-          placeholder="¿Cómo te gusta que sea la vida en casa?"
-          placeholderTextColor="#94A3B8"
-          value={bundle.profile.about_home}
-          onChangeText={(value) => updateProfile("about_home", value)}
-        />
-      </>
-    ),
-  },
-  {
-    title: "Lo que buscas",
-    subtitle: "Ahora definimos el matching que quieres ver en swipe.",
-    render: ({ bundle, updateProfile, updateSearch, updateAnswer, questions }) => (
+    title: "Preferencias",
+    subtitle: "Cerramos el match con presupuesto y plan ideal.",
+    render: ({ bundle, updateProfile, updateSearch, updateAnswer, weekendQuestion }) => (
       <>
         <Text style={styles.fieldTitle}>Fin de semana ideal</Text>
         <ChoiceRow
-          options={questions[4]?.options || []}
-          value={bundle.answers[questions[4]?.code]}
-          onChange={(value) => updateAnswer(questions[4]?.code, value)}
+          options={
+            weekendQuestion?.options || [
+              { value: "stay_in", label: "Casa, descanso y recados" },
+              { value: "mixed", label: "Un poco de todo" },
+              { value: "go_out", label: "Salir y hacer planes" },
+            ]
+          }
+          value={bundle.answers[weekendQuestion?.code]}
+          onChange={(value) => updateAnswer(weekendQuestion?.code, value)}
         />
         <Text style={styles.fieldTitle}>Presupuesto</Text>
         <View style={styles.doubleRow}>
@@ -329,57 +281,18 @@ const buildStepDefinitions = (questions = []) => [
             onChangeText={(value) => updateProfile("budget_max_eur", value)}
           />
         </View>
+        <Text style={styles.fieldTitle}>Qué estás buscando</Text>
+        <ChoiceRow
+          options={ROOMMATE_OPTION_SETS.lookingFor}
+          value={bundle.profile.looking_for}
+          onChange={(value) => updateProfile("looking_for", value)}
+        />
         <Text style={styles.fieldTitle}>Preferencia de género</Text>
         <ChoiceRow
           options={ROOMMATE_OPTION_SETS.gender}
           value={bundle.search.preferred_gender}
           onChange={(value) => updateSearch("preferred_gender", value)}
         />
-      </>
-    ),
-  },
-  {
-    title: "Activa tu perfil",
-    subtitle: "Un último paso para dejar tu perfil listo.",
-    render: ({ bundle, updateProfile, updateAnswer, questions }) => (
-      <>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          multiline
-          placeholder="Cuéntate en 3-4 líneas. Guardias, hobbies, manías buenas..."
-          placeholderTextColor="#94A3B8"
-          value={bundle.profile.bio}
-          onChangeText={(value) => updateProfile("bio", value)}
-        />
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          multiline
-          placeholder="¿Qué te gustaría encontrar en tu próximo compi?"
-          placeholderTextColor="#94A3B8"
-          value={bundle.answers[questions[5]?.code] || ""}
-          onChangeText={(value) => updateAnswer(questions[5]?.code, value)}
-        />
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          multiline
-          placeholder="Límites o dealbreakers"
-          placeholderTextColor="#94A3B8"
-          value={bundle.profile.dealbreakers}
-          onChangeText={(value) => updateProfile("dealbreakers", value)}
-        />
-        <View style={styles.switchCard}>
-          <View style={styles.switchBody}>
-            <Text style={styles.switchTitle}>Perfil visible</Text>
-            <Text style={styles.switchText}>
-              Si lo desactivas, podrás seguir editando sin salir en swipe.
-            </Text>
-          </View>
-          <Switch
-            value={Boolean(bundle.profile.is_visible)}
-            onValueChange={(value) => updateProfile("is_visible", value)}
-            trackColor={{ true: ROOMMATE_THEME.PRIMARY }}
-          />
-        </View>
       </>
     ),
   },
@@ -398,13 +311,11 @@ export function RoommateProfileEditor({
   const insets = useSafeAreaInsets();
   const [cityModalVisible, setCityModalVisible] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
-  const [bundle, setBundle] = useState(
-    normalizeBundle(initialBundle || ROOMMATE_FORM_DEFAULTS)
-  );
+  const [bundle, setBundle] = useState(sanitizeEditorBundle(initialBundle || ROOMMATE_FORM_DEFAULTS));
 
   React.useEffect(() => {
     if (visible) {
-      setBundle(normalizeBundle(initialBundle || ROOMMATE_FORM_DEFAULTS));
+      setBundle(sanitizeEditorBundle(initialBundle || ROOMMATE_FORM_DEFAULTS));
       setStepIndex(0);
       setCityModalVisible(false);
     }
@@ -484,9 +395,18 @@ export function RoommateProfileEditor({
     ];
   }, [bundle.profile.city, cityOptions]);
 
+  const weekdayQuestion = useMemo(
+    () => getQuestionByCode(questions, "weekday_vibe"),
+    [questions]
+  );
+  const weekendQuestion = useMemo(
+    () => getQuestionByCode(questions, "weekend_plan"),
+    [questions]
+  );
+
   const stepDefinitions = useMemo(
     () =>
-      buildStepDefinitions(questions).map((step) => ({
+      buildStepDefinitions().map((step) => ({
         ...step,
         render: (renderProps) =>
           step.render({
@@ -499,9 +419,18 @@ export function RoommateProfileEditor({
             updateLifestyle,
             updateSearch,
             updateAnswer,
+            weekdayQuestion,
+            weekendQuestion,
           }),
       })),
-    [bundle.profile.avatar_asset, bundle.profile.avatar_url, bundle.profile.city, questions]
+    [
+      bundle.profile.avatar_asset,
+      bundle.profile.avatar_url,
+      bundle.profile.city,
+      questions,
+      weekdayQuestion,
+      weekendQuestion,
+    ]
   );
 
   const currentStep = stepDefinitions[stepIndex];
@@ -575,7 +504,16 @@ export function RoommateProfileEditor({
               <TouchableOpacity
                 style={[styles.primaryButton, saving && styles.buttonDisabled]}
                 disabled={saving}
-                onPress={() => onSave?.(bundle)}
+                onPress={() =>
+                  onSave?.({
+                    ...bundle,
+                    profile: {
+                      ...bundle.profile,
+                      is_active: true,
+                      is_visible: true,
+                    },
+                  })
+                }
               >
                 <Text style={styles.primaryButtonText}>
                   {saving

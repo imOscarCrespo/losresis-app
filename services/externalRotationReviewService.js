@@ -895,63 +895,83 @@ export const getFavoriteExternalRotationReviews = async (userId) => {
       return [];
     }
 
-    const { data, error } = await supabase
+    const { data: favorites, error: favoritesError } = await supabase
       .from("external_rotation_review_favorite")
+      .select("review_id, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (favoritesError) {
+      console.error(
+        "❌ Error fetching favorite rotation reviews:",
+        favoritesError
+      );
+      throw favoritesError;
+    }
+
+    const reviewIds = (favorites || []).map((favorite) => favorite.review_id);
+
+    if (!reviewIds.length) {
+      return [];
+    }
+
+    const { data: reviews, error: reviewsError } = await supabase
+      .from("external_rotation_review")
       .select(
         `
-        created_at,
-        external_rotation_review (
-          *,
-          users!external_rotation_review_user_id_fkey (
-            id,
-            name,
-            surname,
-            work_email,
-            phone,
-            resident_year,
-            specialities (
-              id,
-              name
-            ),
-            hospitals!users_hospital_id_fkey (
-              id,
-              name
-            )
-          ),
+        *,
+        users!external_rotation_review_user_id_fkey (
+          id,
+          name,
+          surname,
+          work_email,
+          phone,
+          resident_year,
           specialities (
             id,
             name
           ),
-          external_rotation_review_answer (
-            question_id,
-            rating_value,
-            text_value
-          ),
-          external_rotation_review_thread (
-            thread_id
-          ),
-          external_rotation (
+          hospitals!users_hospital_id_fkey (
             id,
-            latitude,
-            longitude,
-            start_date,
-            end_date,
-            hospital_name,
-            service_name
+            name
           )
+        ),
+        specialities (
+          id,
+          name
+        ),
+        external_rotation_review_answer (
+          question_id,
+          rating_value,
+          text_value
+        ),
+        external_rotation_review_thread (
+          thread_id
+        ),
+        external_rotation (
+          id,
+          latitude,
+          longitude,
+          start_date,
+          end_date,
+          hospital_name,
+          service_name
         )
       `
       )
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+      .in("id", reviewIds);
 
-    if (error) {
-      console.error("❌ Error fetching favorite rotation reviews:", error);
-      throw error;
+    if (reviewsError) {
+      console.error(
+        "❌ Error fetching favorite rotation reviews:",
+        reviewsError
+      );
+      throw reviewsError;
     }
 
-    const favoriteReviews = (data || [])
-      .map((item) => item.external_rotation_review)
+    const reviewById = new Map((reviews || []).map((review) => [review.id, review]));
+    const favoriteReviews = reviewIds
+      .map((reviewId) => reviewById.get(reviewId))
       .filter(Boolean);
 
     return normalizeReviews(favoriteReviews);

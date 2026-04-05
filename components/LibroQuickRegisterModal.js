@@ -17,7 +17,7 @@ import { SelectFilter } from "./SelectFilter";
 const TRACKING_MODE_COPY = {
   counter: {
     title: "Contador",
-    cta: "Guardar actividad",
+    cta: "Guardar procedimiento",
     notesPlaceholder: "Notas breves o contexto clínico",
   },
   note: {
@@ -126,7 +126,7 @@ export const LibroQuickRegisterModal = ({
             <View>
               <Text style={styles.title}>Registro rápido</Text>
               <Text style={styles.subtitle}>
-                Selecciona actividad y guarda el registro en segundos.
+                Selecciona un procedimiento y guarda el registro en segundos.
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -142,25 +142,25 @@ export const LibroQuickRegisterModal = ({
           >
             {!initialNode ? (
               <SelectFilter
-                label="Categoría"
+                label="Rotación"
                 value={selectedCategoryId}
                 onSelect={(value) => {
                   setSelectedCategoryId(value);
                   setSelectedNodeId("");
                 }}
                 options={categoryOptions}
-                placeholder="Seleccionar categoría"
+                placeholder="Seleccionar rotación"
                 required
               />
             ) : null}
 
             {!initialNode ? (
               <SelectFilter
-                label="Actividad"
+                label="Procedimiento"
                 value={selectedNodeId}
                 onSelect={setSelectedNodeId}
                 options={activityOptions}
-                placeholder="Seleccionar actividad"
+                placeholder="Seleccionar procedimiento"
                 required
                 disabled={!selectedCategory}
               />

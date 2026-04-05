@@ -427,10 +427,60 @@ export const buildAnswerMap = (answers = [], questions = []) => {
   }, {});
 };
 
+const isObject = (value) => Boolean(value) && typeof value === "object";
+
+const maybeParseJson = (value) => {
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+};
+
+export const getAnswerInputValue = (answer) => {
+  if (answer === null || answer === undefined) {
+    return null;
+  }
+
+  if (!isObject(answer)) {
+    return answer;
+  }
+
+  if (answer.answer_number !== null && answer.answer_number !== undefined) {
+    return answer.answer_number;
+  }
+
+  if (Array.isArray(answer.answer_options) && answer.answer_options.length) {
+    return answer.answer_options;
+  }
+
+  if (typeof answer.answer_text === "string") {
+    const parsedAnswerText = maybeParseJson(answer.answer_text);
+    if (parsedAnswerText) {
+      return getAnswerInputValue(parsedAnswerText);
+    }
+  }
+
+  if (answer.answer_text !== null && answer.answer_text !== undefined) {
+    return answer.answer_text;
+  }
+
+  return null;
+};
+
 export const serializeAnswerPayload = (question, rawValue) => {
+  const normalizedValue = getAnswerInputValue(rawValue);
+
   if (question.input_type === "scale") {
     return {
-      answer_number: toNumber(rawValue),
+      answer_number: toNumber(normalizedValue),
       answer_text: null,
       answer_options: [],
     };
@@ -440,21 +490,21 @@ export const serializeAnswerPayload = (question, rawValue) => {
     return {
       answer_number: null,
       answer_text: null,
-      answer_options: Array.isArray(rawValue) ? rawValue : [],
+      answer_options: Array.isArray(normalizedValue) ? normalizedValue : [],
     };
   }
 
   if (question.input_type === "single_choice") {
     return {
       answer_number: null,
-      answer_text: rawValue || null,
+      answer_text: normalizedValue || null,
       answer_options: [],
     };
   }
 
   return {
     answer_number: null,
-    answer_text: rawValue || null,
+    answer_text: normalizedValue || null,
     answer_options: [],
   };
 };

@@ -399,6 +399,7 @@ export default function MyPreferencesScreen({
       title="Mis Preferencias"
       onBack={onBack}
       compact
+      variant="brand"
       rightSlot={
         <View style={styles.countBadge}>
           <Text style={styles.countText}>
@@ -411,7 +412,11 @@ export default function MyPreferencesScreen({
 
   if (loading) {
     return (
-      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.contentSurface}
+      >
         <View style={styles.stateContainer}>
           <ActivityIndicator size="large" color={PRIMARY} />
           <Text style={styles.loadingText}>Cargando preferencias...</Text>
@@ -421,7 +426,11 @@ export default function MyPreferencesScreen({
   }
 
   return (
-    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+    <ScreenScaffold
+      header={header}
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.contentSurface}
+    >
       {/* Editing mode bar */}
       {editingOrder && (
         <View style={styles.editBar}>
@@ -641,17 +650,17 @@ const styles = StyleSheet.create({
   },
 
   countBadge: {
-    backgroundColor: `${PRIMARY}12`,
+    backgroundColor: "rgba(255,255,255,0.14)",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: `${PRIMARY}25`,
+    borderColor: "rgba(255,255,255,0.24)",
   },
   countText: {
     fontSize: 10,
     fontWeight: "700",
-    color: PRIMARY,
+    color: "#FFFFFF",
     letterSpacing: 0.8,
   },
 

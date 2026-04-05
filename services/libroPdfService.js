@@ -23,7 +23,7 @@ const formatDate = (value) => {
 };
 
 const getEntryLabel = (entry, nodeNameMap) => {
-  const nodeName = nodeNameMap.get(entry.node_id) || "Actividad";
+  const nodeName = nodeNameMap.get(entry.node_id) || "Procedimiento";
   const count = entry.count || 0;
   const isNote = entry.kind === "note";
   const isChecklist = entry.kind === "checklist";
@@ -112,20 +112,20 @@ const buildHtml = ({
           <div class="category-header">
             <div>
               <h3>${escapeHtml(category.name)}</h3>
-              <p>${(category.children || []).length} actividades</p>
+              <p>${(category.children || []).length} procedimientos</p>
             </div>
             <div class="category-total">${categoryCount} registros</div>
           </div>
           <table>
             <thead>
               <tr>
-                <th>Actividad</th>
+                <th>Procedimiento</th>
                 <th>Tipo</th>
                 <th>Progreso</th>
               </tr>
             </thead>
             <tbody>
-              ${children || '<tr><td colspan="3">Sin actividades</td></tr>'}
+              ${children || '<tr><td colspan="3">Sin procedimientos</td></tr>'}
             </tbody>
           </table>
         </section>
@@ -286,11 +286,11 @@ const buildHtml = ({
         <table class="stats" cellspacing="12">
           <tr>
             <td>
-              <span class="stat-label">Categorías</span>
+              <span class="stat-label">Rotaciones</span>
               <span class="stat-value">${nodeTree.length}</span>
             </td>
             <td>
-              <span class="stat-label">Actividades</span>
+              <span class="stat-label">Procedimientos</span>
               <span class="stat-value">${totalActivities}</span>
             </td>
             <td>
@@ -300,15 +300,15 @@ const buildHtml = ({
           </tr>
         </table>
 
-        <h2 class="section-title">Resumen por categoría</h2>
-        ${categorySections || '<p class="muted">No hay categorías para exportar.</p>'}
+        <h2 class="section-title">Resumen por rotación</h2>
+        ${categorySections || '<p class="muted">No hay rotaciones para exportar.</p>'}
 
         <h2 class="section-title">Últimos registros</h2>
         <table>
           <thead>
             <tr>
               <th>Fecha</th>
-              <th>Actividad</th>
+              <th>Procedimiento</th>
               <th>Notas</th>
             </tr>
           </thead>
