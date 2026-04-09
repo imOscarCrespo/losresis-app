@@ -51,6 +51,10 @@ import {
   isQualifiedResidentSection,
   registerQualifiedResidentAction,
 } from "../services/residentReviewGateService";
+import {
+  isResidentLockedMissingCorporateEmail,
+  shouldBypassResidentReviewGate,
+} from "../utils/residentAccess";
 
 /**
  * Aplica el override de tipo de usuario definido en devConfig.js.
@@ -105,6 +109,8 @@ export default function DashboardScreen({
   residentReviewGateConfig = null,
   onReviewCreated,
   onReviewDeleted,
+  showUpdateBanner = false,
+  updateUrl = null,
 }) {
   const [userProfile, setUserProfile] = useState(null);
   const [isProfileIncomplete, setIsProfileIncomplete] = useState(false);
@@ -137,6 +143,10 @@ export default function DashboardScreen({
   });
   const [localResidentGateState, setLocalResidentGateState] =
     useState(residentReviewGateState);
+  const screenLayoutProps = {
+    showUpdateBanner,
+    updateUrl,
+  };
 
   // Determinar sección inicial según el tipo de usuario (primera pestaña = Inicio)
   const getInitialSection = (profile) => {
@@ -235,8 +245,12 @@ export default function DashboardScreen({
     }
   };
 
+  const residentReviewGateBypassed = shouldBypassResidentReviewGate(userProfile);
   const residentGateEnabled =
-    userProfile?.is_resident && !userProfile?.is_super_admin && !residentHasReview;
+    userProfile?.is_resident &&
+    !userProfile?.is_super_admin &&
+    !residentReviewGateBypassed &&
+    !residentHasReview;
   const residentGateStatus = localResidentGateState?.status || "soft";
   const residentGatePromptVisible = Boolean(localResidentGateState?.promptVisible);
   const residentGateBudget = {
@@ -274,6 +288,18 @@ export default function DashboardScreen({
   };
 
   const handleSectionChange = async (sectionId, params = {}) => {
+    if (
+      isResidentLockedMissingCorporateEmail(userProfile) &&
+      !["inicio", "usuario", "contacto"].includes(sectionId)
+    ) {
+      Alert.alert(
+        "Correo corporativo requerido",
+        "La ventana temporal MIR ya ha terminado. Añade tu correo corporativo en el perfil para recuperar el acceso completo."
+      );
+      setCurrentSection("usuario");
+      return;
+    }
+
     if (
       residentGateEnabled &&
       residentGateStatus === "hard" &&
@@ -546,6 +572,7 @@ export default function DashboardScreen({
   if (selectedGroupId) {
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection="grupos"
         isProfileIncomplete={isProfileIncomplete}
@@ -568,6 +595,7 @@ export default function DashboardScreen({
   if (selectedThreadId) {
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection="ocio"
         isProfileIncomplete={isProfileIncomplete}
@@ -589,6 +617,7 @@ export default function DashboardScreen({
   if (selectedHospital) {
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -621,6 +650,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -645,6 +675,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -669,6 +700,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -696,6 +728,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -724,6 +757,7 @@ export default function DashboardScreen({
 
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -756,6 +790,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -789,6 +824,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -825,6 +861,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -853,6 +890,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -883,6 +921,7 @@ export default function DashboardScreen({
             userProfile={userProfile}
             residentHasReview={residentHasReview}
             residentReviewGateStatus={residentGateStatus}
+            residentReviewGateBypassed={residentReviewGateBypassed}
             residentReviewGateBudget={residentGateBudget}
             onHospitalSelect={handleHospitalSelect}
             onSectionChange={handleSectionChange}
@@ -975,6 +1014,7 @@ export default function DashboardScreen({
             userProfile={userProfile}
             residentHasReview={residentHasReview}
             residentReviewGateStatus={residentGateStatus}
+            residentReviewGateBypassed={residentReviewGateBypassed}
           />
         );
 
@@ -1207,6 +1247,7 @@ export default function DashboardScreen({
   if (loadingProfile) {
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -1221,6 +1262,7 @@ export default function DashboardScreen({
 
   return (
     <ScreenLayout
+      {...screenLayoutProps}
       userProfile={userProfile}
       activeSection={currentSection === "roomies" ? "vivienda" : currentSection}
       isProfileIncomplete={isProfileIncomplete}

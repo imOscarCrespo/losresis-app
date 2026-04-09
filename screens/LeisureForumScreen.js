@@ -643,12 +643,12 @@ export default function LeisureForumScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: COLORS.BACKGROUND,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.SURFACE,
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#E5E5EA",

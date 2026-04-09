@@ -17,6 +17,7 @@ export { DirectChatButton } from "./DirectChatButton";
 export { DatePickerModal } from "./DatePickerModal";
 export { ScreenHeader } from "./ScreenHeader";
 export { ScreenScaffold } from "./ScreenScaffold";
+export { ForceUpdateScreen } from "./ForceUpdateScreen";
 export { KeyboardAwareScrollView } from "./KeyboardAwareScrollView";
 export { KeyboardAwareTextInput } from "./KeyboardAwareTextInput";
 export { CourseCard } from "./CourseCard";

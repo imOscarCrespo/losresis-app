@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Alert } from "react-native";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { updateUserProfile } from "../services/userService";
+import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
 import {
   validateProfileForm,
   shouldShowEmailReview,
@@ -188,7 +189,11 @@ export const useProfileForm = () => {
           : formData;
 
         // Validación básica
-        const validation = validateProfileForm(normalizedFormData);
+        const { config: residentTransitionConfig } =
+          await getResidentTransitionConfig();
+        const validation = validateProfileForm(normalizedFormData, {
+          residentTransitionConfig,
+        });
         if (!validation.isValid) {
           setMessage({ type: "error", text: validation.error });
           setLoading(false);

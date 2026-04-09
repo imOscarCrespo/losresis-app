@@ -15,11 +15,12 @@ import { ScreenHeader } from "../components/ScreenHeader";
 import { ScreenScaffold } from "../components/ScreenScaffold";
 import { StarRating } from "../components/StarRating";
 import { useMyReview } from "../hooks/useMyReview";
+import { COLORS } from "../constants/colors";
 
 const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
 const ACCENT = "#1B0977";
-const BG_LIGHT = "#F8F9FE";
+const BG_LIGHT = COLORS.BACKGROUND;
 const WHITE = "#FFFFFF";
 const TEXT_MEDIUM = "#64748B";
 const TEXT_LIGHT = "#94A3B8";

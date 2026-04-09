@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -29,11 +30,19 @@ import {
   shouldShowPayoutReminder,
 } from "../services/residentPayoutService";
 import posthogLogger from "../services/posthogService";
+import {
+  formatResidentTransitionDeadline,
+  hasResidentFeatureAccess,
+  isResidentLockedMissingCorporateEmail,
+  isSeasonalResidentPending,
+  shouldBypassResidentReviewGate,
+} from "../utils/residentAccess";
 
 const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
 const ACCENT = "#1B0977";
 const BG_LIGHT = "#F8F9FE";
+const AGENDA_HERO_CACHE_KEY_PREFIX = "@losresis:dashboardAgendaHero:";
 const QUIZ_SPECIALITY_MAP = {
   1: [
     "Medicina Interna",
@@ -183,6 +192,9 @@ function getCourseKindLabel(course) {
   return "Curso";
 }
 
+const getAgendaHeroCacheKey = (userId) =>
+  `${AGENDA_HERO_CACHE_KEY_PREFIX}${userId}`;
+
 export default function HomeDashboardScreen({
   userProfile,
   residentHasReview = true,
@@ -203,6 +215,7 @@ export default function HomeDashboardScreen({
   const [activeAdIndex, setActiveAdIndex] = useState(0);
   const [payoutReminderTarget, setPayoutReminderTarget] = useState(null);
   const [showPayoutReminder, setShowPayoutReminder] = useState(false);
+  const [cachedAgendaHeroSnapshot, setCachedAgendaHeroSnapshot] = useState(null);
 
   const {
     hospitals,
@@ -236,7 +249,7 @@ export default function HomeDashboardScreen({
     let isMounted = true;
 
     const loadResidentCourses = async () => {
-      if (!userProfile?.is_resident || !userProfile?.speciality_id) {
+      if (!hasResidentFeatureAccess(userProfile) || !userProfile?.speciality_id) {
         if (isMounted) {
           setResidentCourses([]);
           setLoadingResidentCourses(false);
@@ -271,7 +284,7 @@ export default function HomeDashboardScreen({
     return () => {
       isMounted = false;
     };
-  }, [userProfile?.is_resident, userProfile?.speciality_id]);
+  }, [userProfile]);
 
   useEffect(() => {
     let isMounted = true;
@@ -303,7 +316,7 @@ export default function HomeDashboardScreen({
     let isMounted = true;
 
     const loadPayoutReminder = async () => {
-      if (!userProfile?.id || !userProfile?.is_resident) {
+      if (!userProfile?.id || !hasResidentFeatureAccess(userProfile)) {
         if (isMounted) {
           setPayoutReminderTarget(null);
           setShowPayoutReminder(false);
@@ -350,7 +363,7 @@ export default function HomeDashboardScreen({
     return () => {
       isMounted = false;
     };
-  }, [userProfile?.id, userProfile?.is_resident]);
+  }, [userProfile]);
 
   const displayName = useMemo(() => {
     const name = userProfile?.name || "";
@@ -370,11 +383,22 @@ export default function HomeDashboardScreen({
     () => specialties.find((specialty) => specialty.id === userProfile?.speciality_id),
     [specialties, userProfile?.speciality_id]
   );
+  const residentHospitalName =
+    userProfile?.hospital?.name || userProfile?.hospital_name || residentHospital?.name;
+  const residentSpecialtyName =
+    userProfile?.speciality?.name ||
+    userProfile?.speciality_name ||
+    residentSpecialty?.name;
   const residentYearLabel = userProfile?.resident_year
     ? `R${userProfile.resident_year}`
     : "Residente";
-  const residentNeedsReview = userProfile?.is_resident && !residentHasReview;
-  const residentMeta = [residentSpecialty?.name, residentYearLabel]
+  const residentInSeasonalGrace = isSeasonalResidentPending(userProfile);
+  const residentEmailLocked = isResidentLockedMissingCorporateEmail(userProfile);
+  const residentNeedsReview =
+    userProfile?.is_resident &&
+    !residentHasReview &&
+    !shouldBypassResidentReviewGate(userProfile);
+  const residentMeta = [residentSpecialtyName, residentYearLabel]
     .filter(Boolean)
     .join(" · ");
   const currentWeekdayIndex = getCurrentWeekdayIndex();
@@ -457,46 +481,48 @@ export default function HomeDashboardScreen({
       event: null,
     };
   }, [agendaEvents]);
-  const residentHeroConfig = getAgendaHeroConfig(residentHeroEvent.event?.event_type);
-  const residentHeroEyebrowText = loadingAgendaEvents
-    ? "CARGANDO"
-    : residentHeroEvent.state === "today"
-      ? "HOY"
-      : residentHeroEvent.state === "upcoming"
+  const agendaHeroSnapshot = useMemo(() => {
+    return {
+      state: residentHeroEvent.state,
+      event: residentHeroEvent.event || null,
+    };
+  }, [residentHeroEvent.event, residentHeroEvent.state]);
+  const effectiveAgendaHeroSnapshot =
+    loadingAgendaEvents && cachedAgendaHeroSnapshot
+      ? cachedAgendaHeroSnapshot
+      : agendaHeroSnapshot;
+  const residentHeroConfig = getAgendaHeroConfig(
+    effectiveAgendaHeroSnapshot.event?.event_type
+  );
+  const residentHeroEyebrowText = effectiveAgendaHeroSnapshot.state === "today"
+    ? "HOY"
+    : effectiveAgendaHeroSnapshot.state === "upcoming"
         ? "PRÓXIMO EVENTO"
         : "AGENDA";
-  const residentHeroStatusText = loadingAgendaEvents
-    ? "..."
-    : residentHeroEvent.state === "today"
+  const residentHeroStatusText = effectiveAgendaHeroSnapshot.state === "today"
       ? "EN CURSO"
-      : residentHeroEvent.state === "upcoming"
+      : effectiveAgendaHeroSnapshot.state === "upcoming"
         ? "PRÓXIMO"
         : "SIN EVENTOS";
-  const showResidentHeroTopRow =
-    loadingAgendaEvents || residentHeroEvent.state !== "empty";
-  const residentHeroTitle = loadingAgendaEvents
-    ? "Cargando agenda..."
-    : residentHeroEvent.event?.title ||
-      agendaEventTypeLabels[residentHeroEvent.event?.event_type] ||
+  const showResidentHeroTopRow = effectiveAgendaHeroSnapshot.state !== "empty";
+  const residentHeroTitle =
+    effectiveAgendaHeroSnapshot.event?.title ||
+      agendaEventTypeLabels[effectiveAgendaHeroSnapshot.event?.event_type] ||
       "Agenda vacía";
-  const residentHeroSubtitle = loadingAgendaEvents
-    ? "Buscando eventos en tu calendario"
-    : residentHeroEvent.state === "today"
-      ? `${formatAgendaHeaderDate(residentHeroEvent.event?.event_date)} · ${formatAgendaHeaderTime(
-          residentHeroEvent.event
+  const residentHeroSubtitle = effectiveAgendaHeroSnapshot.state === "today"
+      ? `${formatAgendaHeaderDate(effectiveAgendaHeroSnapshot.event?.event_date)} · ${formatAgendaHeaderTime(
+          effectiveAgendaHeroSnapshot.event
         )}`
-      : residentHeroEvent.state === "upcoming"
+      : effectiveAgendaHeroSnapshot.state === "upcoming"
         ? `${formatAgendaHeaderDate(
-            residentHeroEvent.event?.event_date
-          )} · ${formatAgendaHeaderTime(residentHeroEvent.event)}`
+            effectiveAgendaHeroSnapshot.event?.event_date
+          )} · ${formatAgendaHeaderTime(effectiveAgendaHeroSnapshot.event)}`
         : "Añade una guardia, curso o recordatorio.";
-  const residentHeroFooter = loadingAgendaEvents
-    ? "Sincronizando tu agenda"
-    : residentHeroEvent.state === "today"
-      ? `${agendaEventTypeLabels[residentHeroEvent.event?.event_type] || "Evento"} en tu agenda de hoy`
-      : residentHeroEvent.state === "upcoming"
+  const residentHeroFooter = effectiveAgendaHeroSnapshot.state === "today"
+      ? `${agendaEventTypeLabels[effectiveAgendaHeroSnapshot.event?.event_type] || "Evento"} en tu agenda de hoy`
+      : effectiveAgendaHeroSnapshot.state === "upcoming"
         ? `Tu siguiente ${
-            agendaEventTypeLabels[residentHeroEvent.event?.event_type]?.toLowerCase() || "evento"
+            agendaEventTypeLabels[effectiveAgendaHeroSnapshot.event?.event_type]?.toLowerCase() || "evento"
           } ya está programado`
         : "";
   const weekOverview = useMemo(() => {
@@ -517,6 +543,61 @@ export default function HomeDashboardScreen({
       };
     });
   }, [agendaEvents]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCachedAgendaHeroSnapshot = async () => {
+      if (!userProfile?.id) {
+        if (isMounted) {
+          setCachedAgendaHeroSnapshot(null);
+        }
+        return;
+      }
+
+      try {
+        const cachedValue = await AsyncStorage.getItem(
+          getAgendaHeroCacheKey(userProfile.id)
+        );
+
+        if (!isMounted) return;
+
+        setCachedAgendaHeroSnapshot(cachedValue ? JSON.parse(cachedValue) : null);
+      } catch (error) {
+        if (isMounted) {
+          setCachedAgendaHeroSnapshot(null);
+        }
+      }
+    };
+
+    loadCachedAgendaHeroSnapshot();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userProfile?.id]);
+
+  useEffect(() => {
+    if (!userProfile?.id || loadingAgendaEvents) {
+      return;
+    }
+
+    const snapshotToCache = {
+      state: residentHeroEvent.state,
+      event: residentHeroEvent.event || null,
+    };
+
+    setCachedAgendaHeroSnapshot(snapshotToCache);
+    AsyncStorage.setItem(
+      getAgendaHeroCacheKey(userProfile.id),
+      JSON.stringify(snapshotToCache)
+    ).catch(() => {});
+  }, [
+    loadingAgendaEvents,
+    residentHeroEvent.event,
+    residentHeroEvent.state,
+    userProfile?.id,
+  ]);
 
   const bestMatchHospitals = useMemo(
     () =>
@@ -603,18 +684,12 @@ export default function HomeDashboardScreen({
             </Text>
             <Text style={styles.headerSubtitle} numberOfLines={1} ellipsizeMode="tail">
               {userProfile?.is_resident
-                ? [residentMeta, residentHospital?.name || "Tu hospital"]
+                ? [residentMeta, residentHospitalName || "Tu hospital"]
                     .filter(Boolean)
                     .join(" · ")
                 : "Tu próxima residencia te espera"}
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.notifButton}
-            onPress={() => onSectionChange?.("notifications")}
-          >
-            <Ionicons name="notifications-outline" size={24} color="#FFF" />
-          </TouchableOpacity>
         </View>
 
         {/* Card puntuación MIR (residentes) / CTA prep MIR (estudiantes) */}
@@ -664,6 +739,72 @@ export default function HomeDashboardScreen({
                 {lastQuizTopSpeciality ?? "—"}
               </Text>
             </TouchableOpacity>
+          </View>
+        ) : residentEmailLocked ? (
+          <View style={styles.residentHeroCard}>
+            <View style={styles.residentHeroTopRow}>
+              <Text style={styles.residentHeroEyebrow}>PERFIL RESIDENTE</Text>
+              <View style={styles.residentStatusPill}>
+                <Text style={styles.residentStatusPillText}>BLOQUEADO</Text>
+              </View>
+            </View>
+            <View style={styles.residentReviewHeroMain}>
+              <View style={styles.residentReviewHeroHeader}>
+                <View style={styles.residentHeroIconWrap}>
+                  <Ionicons name="mail-outline" size={22} color="#FFF" />
+                </View>
+                <View style={styles.residentHeroTextWrap}>
+                  <Text style={styles.residentHeroTitle}>Añade tu correo corporativo</Text>
+                  <Text style={styles.residentHeroSubtitle}>
+                    La ventana MIR temporal ya ha terminado. Completa tu correo
+                    corporativo desde tu perfil para reactivar el acceso.
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.residentReviewHeroButton}
+                onPress={() => onSectionChange?.("usuario")}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.residentHeroButtonText}>Ir a mi perfil</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : residentInSeasonalGrace ? (
+          <View style={styles.residentHeroCard}>
+            <View style={styles.residentHeroTopRow}>
+              <Text style={styles.residentHeroEyebrow}>ALTA TEMPORAL MIR</Text>
+              <View style={styles.residentStatusPill}>
+                <Text style={styles.residentStatusPillText}>ACTIVA</Text>
+              </View>
+            </View>
+            <View style={styles.residentReviewHeroMain}>
+              <View style={styles.residentReviewHeroHeader}>
+                <View style={styles.residentHeroIconWrap}>
+                  <Ionicons name="time-outline" size={22} color="#FFF" />
+                </View>
+                <View style={styles.residentHeroTextWrap}>
+                  <Text style={styles.residentHeroTitle}>Ya puedes usar el modo residente</Text>
+                  <Text style={styles.residentHeroSubtitle}>
+                    Tienes acceso temporal mientras llega tu correo
+                    corporativo. Fecha límite:{" "}
+                    {formatResidentTransitionDeadline(
+                      userProfile?.resident_transition_expires_at
+                    ) || "pendiente de configurar"}.
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.residentReviewHeroButton}
+                onPress={() => onSectionChange?.("usuario")}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.residentHeroButtonText}>Completar perfil</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.residentHeroFooter}>
+              Durante este periodo no podrás publicar tu reseña del hospital.
+            </Text>
           </View>
         ) : residentNeedsReview ? (
           <View style={styles.residentHeroCard}>
@@ -984,9 +1125,6 @@ export default function HomeDashboardScreen({
           activeOpacity={0.9}
         >
           <View style={styles.roomiesBannerContent}>
-            <View style={styles.roomiesBadge}>
-              <Ionicons name="heart" size={18} color={PRIMARY} />
-            </View>
             <View style={styles.roomiesTextWrap}>
               <Text style={styles.roomiesBrandTitle}>RoomiesMIR</Text>
               <Text style={styles.roomiesTitle}>Nuevo: matching de convivencia</Text>
@@ -1009,11 +1147,10 @@ export default function HomeDashboardScreen({
         >
           <View style={styles.specialityQuizBannerGlow} />
           <View style={styles.specialityQuizBannerContent}>
-            <View style={styles.specialityQuizBadge}>
-              <Text style={styles.specialityQuizBadgeText}>TEST MIR</Text>
-            </View>
-
             <View style={styles.specialityQuizTextWrap}>
+              <View style={styles.specialityQuizBadge}>
+                <Text style={styles.specialityQuizBadgeText}>TEST MIR</Text>
+              </View>
               <Text style={styles.specialityQuizTitle}>
                 Descubre tus especialidades MIR más afines
               </Text>
@@ -1289,15 +1426,6 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.9)",
     marginTop: 2,
   },
-  notifButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: -6,
-  },
   mirCard: {
     backgroundColor: "rgba(27,9,119,0.4)",
     borderRadius: 16,
@@ -1351,6 +1479,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.18)",
+    minHeight: 136,
   },
   residentHeroTopRow: {
     flexDirection: "row",
@@ -1382,6 +1511,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    minHeight: 72,
   },
   residentReviewHeroMain: {
     gap: 14,
@@ -1723,64 +1853,61 @@ const styles = StyleSheet.create({
   roomiesBanner: {
     borderRadius: 24,
     backgroundColor: "#F4EEFF",
-    padding: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
     marginBottom: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 16,
+    gap: 12,
     borderWidth: 1,
     borderColor: "rgba(103,12,245,0.10)",
   },
   roomiesBannerContent: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
-  roomiesBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
   },
   roomiesTextWrap: {
     flex: 1,
   },
   roomiesBrandTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "900",
     color: PRIMARY,
-    marginBottom: 2,
+    lineHeight: 22,
+    marginBottom: 4,
     letterSpacing: 0.2,
   },
   roomiesTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
     color: ACCENT,
-    marginBottom: 4,
+    lineHeight: 16,
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   roomiesText: {
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 19,
     color: "rgba(27,9,119,0.75)",
   },
   roomiesArrow: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: PRIMARY,
+    alignSelf: "center",
   },
   specialityQuizBanner: {
     position: "relative",
     overflow: "hidden",
     borderRadius: 24,
     backgroundColor: "#ECFEFF",
-    padding: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
     marginBottom: 20,
     borderWidth: 1,
     borderColor: "rgba(13,148,136,0.14)",
@@ -1797,7 +1924,7 @@ const styles = StyleSheet.create({
   specialityQuizBannerContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: 12,
   },
   specialityQuizBadge: {
     alignSelf: "flex-start",
@@ -1840,12 +1967,13 @@ const styles = StyleSheet.create({
     color: "#0F766E",
   },
   specialityQuizArrow: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#0F766E",
+    alignSelf: "center",
   },
   section: {
     marginBottom: 24,

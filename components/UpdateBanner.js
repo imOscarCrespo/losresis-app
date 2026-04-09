@@ -4,12 +4,9 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Linking,
-  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { APP_STORE_URL_IOS, PLAY_STORE_URL_ANDROID } from "../config/versionConfig";
-import posthogLogger from "../services/posthogService";
+import { openAppUpdateStore } from "../services/appUpdateService";
 
 const APP_NAME = "LosResis";
 
@@ -23,50 +20,10 @@ const APP_NAME = "LosResis";
  */
 export const UpdateBanner = ({ updateUrl }) => {
   const handleUpdatePress = async () => {
-    try {
-      // Usar URL de la base de datos si está disponible, sino usar fallback
-      const url = updateUrl || (Platform.OS === 'ios' ? APP_STORE_URL_IOS : PLAY_STORE_URL_ANDROID);
-
-      // Tracking del clic en el botón de actualización
-      posthogLogger.capture("App Update Clicked", {
-        platform: Platform.OS,
-        has_custom_update_url: !!updateUrl,
-        target_url: url || null,
-      });
-      
-      if (!url) {
-        console.error("No hay URL de actualización disponible");
-        return;
-      }
-
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-      } else {
-        console.error("No se puede abrir la URL:", url);
-        // Para iOS, intentar con el esquema nativo alternativo
-        if (Platform.OS === 'ios' && url.startsWith('https://')) {
-          const nativeUrl = url.replace("https://", "itms-apps://");
-          try {
-            await Linking.openURL(nativeUrl);
-          } catch (nativeErr) {
-            console.error("Error con esquema nativo:", nativeErr);
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Error opening store:", err);
-      // Fallback: intentar abrir directamente la tienda
-      try {
-        if (Platform.OS === 'ios') {
-          await Linking.openURL("itms-apps://apps.apple.com");
-        } else {
-          await Linking.openURL("market://details?id=com.losresis.app");
-        }
-      } catch (fallbackErr) {
-        console.error("Error al abrir tienda:", fallbackErr);
-      }
-    }
+    await openAppUpdateStore({
+      updateUrl,
+      source: "update_banner",
+    });
   };
 
   return (

@@ -3,9 +3,11 @@
 ## Database Source Of Truth
 
 - La source of truth de la base de datos y de todas las migraciones compartidas es `~/code/losresis-shared/losresis-db`.
+- Todas las migraciones SQL nuevas deben crearse siempre en `~/code/losresis-shared/losresis-db`, nunca en `losresis-app/supabase/migrations`.
 - Nunca crear, editar ni considerar definitivas migraciones SQL dentro de `losresis-app` o sus submódulos locales si el cambio no existe también en `~/code/losresis-shared/losresis-db`.
 - Cuando una tarea afecte al esquema, migraciones, funciones SQL, RLS, triggers, seeds o tipos derivados de la base de datos, trabajar primero en `~/code/losresis-shared/losresis-db`.
 - Tratar `losresis-app` como consumidor de ese repo compartido, no como fuente de verdad para cambios de base de datos.
+- Después de añadir o modificar una migración en `losresis-db`, el siguiente paso en `losresis-app` es actualizar el puntero del submódulo o reflejar el cambio consumido, no recrear la migración localmente.
 
 ## User Deletion Safety
 

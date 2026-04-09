@@ -11,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "../../../components/ScreenHeader";
 import { ScreenScaffold } from "../../../components/ScreenScaffold";
+import { COLORS } from "../../../constants/colors";
 import * as Notifications from "expo-notifications";
 import { supabase } from "../../../config/supabase";
 
@@ -347,7 +348,7 @@ export default function NotificationSettingsScreen({
 const styles = StyleSheet.create({
   contentSurface: {
     flex: 1,
-    backgroundColor: "#F8F9FE",
+    backgroundColor: COLORS.BACKGROUND,
   },
   countBadge: {
     backgroundColor: "rgba(103,12,245,0.07)",

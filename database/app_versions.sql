@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS app_versions (
   platform VARCHAR(10) NOT NULL CHECK (platform IN ('ios', 'android', 'all')),
   min_required_version VARCHAR(20) NOT NULL,
   update_url TEXT,
+  is_force_update BOOLEAN NOT NULL DEFAULT false,
   is_active BOOLEAN DEFAULT true,
   description TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -25,6 +26,16 @@ BEGIN
     WHERE table_name = 'app_versions' AND column_name = 'update_url'
   ) THEN
     ALTER TABLE app_versions ADD COLUMN update_url TEXT;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'app_versions' AND column_name = 'is_force_update'
+  ) THEN
+    ALTER TABLE app_versions ADD COLUMN is_force_update BOOLEAN NOT NULL DEFAULT false;
   END IF;
 END $$;
 
@@ -85,10 +96,10 @@ CREATE POLICY "Allow public read access to app_versions"
 -- ============================================================================
 
 -- Insertar versión inicial para iOS y Android con URLs de actualización
-INSERT INTO app_versions (platform, min_required_version, update_url, is_active, description)
+INSERT INTO app_versions (platform, min_required_version, update_url, is_force_update, is_active, description)
 VALUES 
-  ('ios', '1.0.4', 'https://apps.apple.com/es/app/losresis/id6756607831?l=en-GB', true, 'Versión inicial - iOS'),
-  ('android', '1.0.4', 'https://play.google.com/store/apps/details?id=com.losresis.app', true, 'Versión inicial - Android')
+  ('ios', '1.0.4', 'https://apps.apple.com/es/app/losresis/id6756607831?l=en-GB', false, true, 'Versión inicial - iOS'),
+  ('android', '1.0.4', 'https://play.google.com/store/apps/details?id=com.losresis.app', false, true, 'Versión inicial - Android')
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
@@ -103,13 +114,14 @@ ON CONFLICT DO NOTHING;
 --    WHERE platform = 'ios' AND is_active = true;
 --
 -- 2. Insertar nueva versión:
---    INSERT INTO app_versions (platform, min_required_version, is_active, description)
---    VALUES ('ios', '1.0.5', true, 'Nueva versión con mejoras');
+--    INSERT INTO app_versions (platform, min_required_version, update_url, is_force_update, is_active, description)
+--    VALUES ('ios', '1.0.5', 'https://apps.apple.com/es/app/losresis/id6756607831?l=en-GB', true, true, 'Nueva versión obligatoria');
 --
 -- O simplemente actualizar la existente:
 --    UPDATE app_versions 
 --    SET min_required_version = '1.0.5', 
 --        update_url = 'https://apps.apple.com/es/app/losresis/id6756607831?l=en-GB',
+--        is_force_update = true,
 --        description = 'Nueva versión con mejoras',
 --        updated_at = NOW()
 --    WHERE platform = 'ios' AND is_active = true;

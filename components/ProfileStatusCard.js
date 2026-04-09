@@ -1,11 +1,12 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { COLORS } from "../constants/colors";
 
 /**
  * Componente que muestra avisos accionables sobre el estado del perfil.
  */
-export const ProfileStatusCard = ({ status }) => {
+export const ProfileStatusCard = ({ status, deadlineLabel = "" }) => {
   if (status === "hidden" || !status) {
     return null;
   }
@@ -19,6 +20,27 @@ export const ProfileStatusCard = ({ status }) => {
           titleColor: "#D97706",
           subtitle:
             "Tu perfil está pendiente de revisión manual. En cuanto validemos tu email del hospital, no tendrás que hacer nada más.",
+          subtitleColor: "#B45309",
+        }
+      : status === "resident_transition_pending"
+      ? {
+          icon: "time",
+          iconColor: "#2563EB",
+          title: "Acceso temporal MIR activo",
+          titleColor: "#2563EB",
+          subtitle: deadlineLabel
+            ? `Puedes usar el modo residente mientras llega tu correo corporativo. Completa el perfil antes del ${deadlineLabel}.`
+            : "Puedes usar el modo residente mientras llega tu correo corporativo.",
+          subtitleColor: "#1D4ED8",
+        }
+      : status === "resident_transition_locked"
+      ? {
+          icon: "mail-open",
+          iconColor: "#D97706",
+          title: "Correo corporativo requerido",
+          titleColor: "#D97706",
+          subtitle:
+            "La ventana temporal MIR ya ha terminado. Añade y valida tu correo corporativo para recuperar el acceso completo.",
           subtitleColor: "#B45309",
         }
       : {
@@ -58,9 +80,9 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     padding: 16,
     borderRadius: 12,
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.SURFACE,
     borderWidth: 1,
-    borderColor: "#E5E5EA",
+    borderColor: COLORS.BORDER,
   },
   content: {
     flexDirection: "row",

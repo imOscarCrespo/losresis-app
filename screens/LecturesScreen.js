@@ -22,11 +22,12 @@ import { useHospitals } from "../hooks/useHospitals";
 import { formatShortDate } from "../utils/dateUtils";
 import { filterCoursesBySearch, openURL } from "../utils/courseUtils";
 import posthogLogger from "../services/posthogService";
+import { COLORS } from "../constants/colors";
 
 const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
 const ACCENT = "#1B0977";
-const BG_LIGHT = "#F8F9FE";
+const BG_LIGHT = COLORS.BACKGROUND;
 const CARD_BORDER = "#F1F5F9";
 const MUTED = "#64748B";
 const MUTED_LIGHT = "#94A3B8";

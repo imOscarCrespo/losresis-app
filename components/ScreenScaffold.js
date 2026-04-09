@@ -1,5 +1,6 @@
 import React from "react";
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
+import { COLORS } from "../constants/colors";
 
 export const ScreenScaffold = ({
   header,
@@ -48,20 +49,20 @@ export const ScreenScaffold = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.BACKGROUND,
   },
   headerShell: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.SURFACE,
     position: "relative",
     zIndex: 2,
     elevation: 2,
   },
   headerShellBrand: {
-    backgroundColor: "#670CF5",
+    backgroundColor: COLORS.PRIMARY,
   },
   contentSurface: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.BACKGROUND,
     position: "relative",
     zIndex: 1,
   },

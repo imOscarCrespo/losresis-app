@@ -137,7 +137,7 @@ export default function LeisureScreen({ onSectionChange, onBack, userProfile }) 
 
 const styles = StyleSheet.create({
   contentSurface: {
-    backgroundColor: "#F5F5F5",
+    backgroundColor: COLORS.BACKGROUND,
   },
   content: {
     flex: 1,

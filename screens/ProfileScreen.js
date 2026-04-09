@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
 import { ScreenHeader } from "../components/ScreenHeader";
@@ -53,6 +54,11 @@ import {
 } from "../utils/profileOptions";
 import posthogLogger from "../services/posthogService";
 import Constants from "expo-constants";
+import {
+  RESIDENT_STATE,
+  formatResidentTransitionDeadline,
+  getResidentState,
+} from "../utils/residentAccess";
 
 const getProfileType = (profile) => {
   if (profile?.is_resident) return "resident";
@@ -73,13 +79,26 @@ const hasRequiredFieldsForType = (profile, type) => {
   }
 
   if (type === "resident") {
-    return !!(
+    const hasResidentCoreFields = !!(
       hasBasicProfileInfo(profile) &&
-      profile?.work_email?.trim() &&
       profile?.hospital_id &&
       profile?.speciality_id &&
       profile?.resident_year
     );
+
+    if (!hasResidentCoreFields) {
+      return false;
+    }
+
+    const residentState = getResidentState(profile);
+    if (
+      residentState === RESIDENT_STATE.PENDING_CORPORATE_EMAIL_SEASONAL ||
+      residentState === RESIDENT_STATE.LOCKED_MISSING_CORPORATE_EMAIL
+    ) {
+      return true;
+    }
+
+    return !!profile?.work_email?.trim();
   }
 
   if (type === "doctor") {
@@ -124,6 +143,7 @@ export default function ProfileScreen({
     handleWorkEmailChange,
     handleSubmit: originalHandleSubmit,
   } = useProfileForm();
+  const insets = useSafeAreaInsets();
 
   // Estado para controlar el loading durante el proceso completo (en modo onboarding)
   const [isCompletingOnboarding, setIsCompletingOnboarding] = useState(false);
@@ -647,6 +667,10 @@ export default function ProfileScreen({
         (userProfile.resident_year?.toString() || "")
     );
   }, [formData, userProfile]);
+  const floatingUnsavedBottomOffset = Math.max(insets.bottom + 16, 24);
+  const profileScrollBottomPadding = hasUnsavedChanges
+    ? floatingUnsavedBottomOffset + 120
+    : 32;
 
   const profileUiState = useMemo(() => {
     const draftType = getProfileType(formData);
@@ -667,6 +691,16 @@ export default function ProfileScreen({
     const savedType = getProfileType(userProfile);
     if (!savedType || !hasRequiredFieldsForType(userProfile, savedType)) {
       return "incomplete";
+    }
+
+    const residentState = getResidentState(userProfile);
+
+    if (savedType === "resident" && residentState === RESIDENT_STATE.PENDING_CORPORATE_EMAIL_SEASONAL) {
+      return "resident_transition_pending";
+    }
+
+    if (savedType === "resident" && residentState === RESIDENT_STATE.LOCKED_MISSING_CORPORATE_EMAIL) {
+      return "resident_transition_locked";
     }
 
     if (savedType === "resident" && emailReviewRequest?.status === "PENDING") {
@@ -757,7 +791,7 @@ export default function ProfileScreen({
         <KeyboardAwareScrollView
           style={[styles.scrollView, !isOnboarding && styles.scrollViewWithHero]}
           contentContainerStyle={styles.scrollViewContent}
-          bottomPadding={32}
+          bottomPadding={profileScrollBottomPadding}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.contentInner}>
@@ -771,25 +805,12 @@ export default function ProfileScreen({
               </View>
             ) : null}
 
-            <ProfileStatusCard status={profileUiState} />
-
-            {hasUnsavedChanges ? (
-              <View style={styles.unsavedChangesCard}>
-                <Ionicons
-                  name="save-outline"
-                  size={20}
-                  color={COLORS.PRIMARY}
-                />
-                <View style={styles.unsavedChangesTextBlock}>
-                  <Text style={styles.unsavedChangesTitle}>
-                    Tienes cambios sin guardar
-                  </Text>
-                  <Text style={styles.unsavedChangesText}>
-                    Pulsa en guardar cambios para actualizar tu perfil.
-                  </Text>
-                </View>
-              </View>
-            ) : null}
+          <ProfileStatusCard
+            status={profileUiState}
+            deadlineLabel={formatResidentTransitionDeadline(
+              userProfile?.resident_transition_expires_at
+            )}
+          />
 
             {showReferralApplySection && (loadingActiveRaffle || activeRaffle) && (
               <View style={styles.referralSection}>
@@ -1277,6 +1298,31 @@ export default function ProfileScreen({
             </View>
           </View>
         </KeyboardAwareScrollView>
+      {hasUnsavedChanges ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.unsavedChangesFloatingWrap,
+            { bottom: floatingUnsavedBottomOffset },
+          ]}
+        >
+          <View style={styles.unsavedChangesCard}>
+            <Ionicons
+              name="save-outline"
+              size={20}
+              color={COLORS.PRIMARY}
+            />
+            <View style={styles.unsavedChangesTextBlock}>
+              <Text style={styles.unsavedChangesTitle}>
+                Tienes cambios sin guardar
+              </Text>
+              <Text style={styles.unsavedChangesText}>
+                Pulsa en guardar cambios para actualizar tu perfil.
+              </Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
       <Modal
         visible={showReferralCodeModal}
         transparent
@@ -1361,7 +1407,7 @@ const styles = StyleSheet.create({
   },
   contentSurface: {
     flex: 1,
-    backgroundColor: "#F8F9FE",
+    backgroundColor: COLORS.BACKGROUND,
   },
   scrollView: {
     flex: 1,
@@ -1426,6 +1472,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
+    shadowColor: "#1D4ED8",
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  unsavedChangesFloatingWrap: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    zIndex: 5,
   },
   unsavedChangesTextBlock: {
     flex: 1,

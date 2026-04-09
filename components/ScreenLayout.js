@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Footer } from "./Footer";
 import { UpdateBanner } from "./UpdateBanner";
-import { useVersionCheck } from "../hooks/useVersionCheck";
+import { COLORS } from "../constants/colors";
 
 /**
  * Componente Layout que envuelve las pantallas con Footer fijo de navegación
@@ -24,24 +24,19 @@ export const ScreenLayout = ({
   onSectionChange,
   style,
   hideFooter = false,
+  showUpdateBanner = false,
+  updateUrl = null,
 }) => {
-  const { needsUpdate, updateUrl, currentVersion, isLoading } =
-    useVersionCheck();
-  const showUpdateBanner = needsUpdate; // Mostrar en iOS y Android
-
   // Debug log
   if (__DEV__) {
     console.log("🎨 [ScreenLayout] Estado del banner:", {
-      needsUpdate,
       showUpdateBanner,
-      currentVersion,
       updateUrl,
-      isLoading,
     });
   }
 
   return (
-    <SafeAreaView style={[styles.container, style]}>
+    <SafeAreaView edges={["top", "left", "right"]} style={[styles.container, style]}>
       <StatusBar style="auto" />
       <View style={styles.content}>{children}</View>
       {!hideFooter ? (
@@ -66,13 +61,14 @@ export const ScreenLayout = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.BACKGROUND,
   },
   content: {
     flex: 1,
+    backgroundColor: COLORS.BACKGROUND,
   },
   footerWrapper: {
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.SURFACE,
     position: "relative",
   },
   bannerWrapper: {

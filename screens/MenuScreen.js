@@ -7,6 +7,7 @@ import { NAVIGATION_ITEMS } from "../constants/navigationItems";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
 import { useUnreadNotificationBuckets } from "../src/hooks/useUnreadNotificationBuckets";
+import { COLORS } from "../constants/colors";
 
 /**
  * Pantalla de Menú con grid de opciones
@@ -19,6 +20,7 @@ export default function MenuScreen({
   userProfile,
   residentHasReview = true,
   residentReviewGateStatus = "soft",
+  residentReviewGateBypassed = false,
 }) {
   // Obtener items del footer para excluirlos
   const footerItems = getFooterConfig(userProfile);
@@ -61,6 +63,7 @@ export default function MenuScreen({
           onItemPress={handleItemPress}
           residentHasReview={residentHasReview}
           residentReviewGateStatus={residentReviewGateStatus}
+          residentReviewGateBypassed={residentReviewGateBypassed}
           showNotificationsBadge={hasOtherUnread}
         />
       </ScrollView>
@@ -70,7 +73,7 @@ export default function MenuScreen({
 
 const styles = StyleSheet.create({
   contentSurface: {
-    backgroundColor: "#F5F5F5",
+    backgroundColor: COLORS.BACKGROUND,
   },
   content: {
     flex: 1,

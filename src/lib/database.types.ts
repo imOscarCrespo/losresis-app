@@ -20,6 +20,7 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean | null
+          is_force_update: boolean | null
           min_required_version: string
           platform: string
           update_url: string | null
@@ -30,6 +31,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          is_force_update?: boolean | null
           min_required_version: string
           platform: string
           update_url?: string | null
@@ -40,6 +42,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          is_force_update?: boolean | null
           min_required_version?: string
           platform?: string
           update_url?: string | null
@@ -2550,6 +2553,36 @@ export type Database = {
           },
         ]
       }
+      resident_transition_config: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          ends_at: string
+          key: string
+          starts_at: string
+          target_resident_year: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          ends_at: string
+          key: string
+          starts_at: string
+          target_resident_year?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          ends_at?: string
+          key?: string
+          starts_at?: string
+          target_resident_year?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_email_review_requests: {
         Row: {
           created_at: string
@@ -2672,6 +2705,11 @@ export type Database = {
           is_super_admin: boolean
           name: string | null
           phone: string | null
+          resident_state:
+            | Database["public"]["Enums"]["resident_lifecycle_state"]
+            | null
+          resident_transition_expires_at: string | null
+          resident_transition_started_at: string | null
           referral_code: string | null
           resident_year: number | null
           speciality_id: string | null
@@ -2689,6 +2727,11 @@ export type Database = {
           is_super_admin?: boolean
           name?: string | null
           phone?: string | null
+          resident_state?:
+            | Database["public"]["Enums"]["resident_lifecycle_state"]
+            | null
+          resident_transition_expires_at?: string | null
+          resident_transition_started_at?: string | null
           referral_code?: string | null
           resident_year?: number | null
           speciality_id?: string | null
@@ -2706,6 +2749,11 @@ export type Database = {
           is_super_admin?: boolean
           name?: string | null
           phone?: string | null
+          resident_state?:
+            | Database["public"]["Enums"]["resident_lifecycle_state"]
+            | null
+          resident_transition_expires_at?: string | null
+          resident_transition_started_at?: string | null
           referral_code?: string | null
           resident_year?: number | null
           speciality_id?: string | null
@@ -2802,6 +2850,10 @@ export type Database = {
         | "congress_attendance"
         | "workshop_attendance"
       ownership_type: "public" | "private" | "concertado" | "mixed" | "unknown"
+      resident_lifecycle_state:
+        | "active"
+        | "pending_corporate_email_seasonal"
+        | "locked_missing_corporate_email"
       review_question_type: "rating" | "text"
       user_email_review_status: "PENDING" | "APPROVED" | "REJECTED"
       work_mode: "onsite" | "hybrid" | "remote"
@@ -2965,6 +3017,11 @@ export const Constants = {
         "workshop_attendance",
       ],
       ownership_type: ["public", "private", "concertado", "mixed", "unknown"],
+      resident_lifecycle_state: [
+        "active",
+        "pending_corporate_email_seasonal",
+        "locked_missing_corporate_email",
+      ],
       review_question_type: ["rating", "text"],
       user_email_review_status: ["PENDING", "APPROVED", "REJECTED"],
       work_mode: ["onsite", "hybrid", "remote"],

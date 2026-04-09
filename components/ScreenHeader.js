@@ -11,7 +11,7 @@ export const ScreenHeader = ({
   rightSlot = null,
   iconName = null,
   iconSize = 18,
-  iconColor = COLORS.PRIMARY || "#670CF5",
+  iconColor = COLORS.PRIMARY,
   iconBackgroundColor = "rgba(103,12,245,0.07)",
   iconBorderColor = "rgba(103,12,245,0.12)",
   notificationCount = 0,
@@ -28,12 +28,7 @@ export const ScreenHeader = ({
   const [rightWidth, setRightWidth] = useState(0);
   const shouldCenterTitle = centerTitle || Boolean(onBack);
   const isBrandVariant = variant === "brand";
-  const resolvedIconColor =
-    iconColor === COLORS.PRIMARY || iconColor === "#670CF5"
-      ? isBrandVariant
-        ? COLORS.WHITE
-        : iconColor
-      : iconColor;
+  const resolvedIconColor = isBrandVariant ? COLORS.WHITE : iconColor;
   const resolvedIconBackgroundColor = isBrandVariant
     ? "rgba(255,255,255,0.16)"
     : iconBackgroundColor;
@@ -62,7 +57,7 @@ export const ScreenHeader = ({
         <Ionicons
           name={backIcon}
           size={22}
-          color={isBrandVariant ? COLORS.WHITE : "#670CF5"}
+          color={isBrandVariant ? COLORS.WHITE : COLORS.PRIMARY}
         />
       </TouchableOpacity>
     );
@@ -223,10 +218,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
-    backgroundColor: COLORS.WHITE,
+    backgroundColor: COLORS.SURFACE,
   },
   headerBrand: {
-    backgroundColor: "#670CF5",
+    backgroundColor: COLORS.PRIMARY,
   },
   headerCompact: {
     paddingBottom: 10,

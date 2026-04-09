@@ -34,7 +34,6 @@ import posthogLogger from "../services/posthogService";
 // ============================================================================
 
 const PRIMARY = "#670CF5";
-const SECONDARY = "#00BD7C";
 const ACCENT = "#1B0977";
 const BG_LIGHT = "#F7F5FB";
 const WHITE = "#FFFFFF";

@@ -11,6 +11,7 @@ import { SearchFilter } from "./SearchFilter";
 import { SelectFilter } from "./SelectFilter";
 import { FilterCountBadge } from "./FilterCountBadge";
 import { countActiveFilters } from "../utils/filterUtils";
+import { COLORS } from "../constants/colors";
 
 /**
  * Componente genérico de filtros
@@ -43,7 +44,7 @@ export const Filters = ({
     <View style={[styles.container, style]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="filter" size={20} color="#007AFF" />
+          <Ionicons name="filter" size={20} color={COLORS.PRIMARY} />
           <Text style={styles.headerTitle}>Filtros</Text>
           {showCount && (
             <FilterCountBadge count={activeFiltersCount} variant={countVariant} />
@@ -99,10 +100,10 @@ export const Filters = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#f5f5f5",
+    backgroundColor: COLORS.BACKGROUND,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    borderBottomColor: COLORS.BORDER,
   },
   header: {
     flexDirection: "row",
@@ -118,7 +119,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: COLORS.TEXT_DARK,
     marginLeft: 8,
   },
   clearButton: {
@@ -127,7 +128,7 @@ const styles = StyleSheet.create({
   },
   clearButtonText: {
     fontSize: 14,
-    color: "#007AFF",
+    color: COLORS.PRIMARY,
     fontWeight: "600",
   },
   filtersScroll: {

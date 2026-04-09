@@ -10,6 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "../../../components/ScreenHeader";
 import { ScreenScaffold } from "../../../components/ScreenScaffold";
+import { COLORS } from "../../../constants/colors";
 import {
   fetchNotifications,
   markNotificationAsRead,
@@ -212,7 +213,7 @@ export default function NotificationsScreen({
 const styles = StyleSheet.create({
   contentSurface: {
     flex: 1,
-    backgroundColor: "#F8F9FE",
+    backgroundColor: COLORS.BACKGROUND,
   },
   titleRow: {
     flexDirection: "row",

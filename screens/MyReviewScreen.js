@@ -16,6 +16,12 @@ import { useMyReview } from "../hooks/useMyReview";
 import { useHospitals } from "../hooks/useHospitals";
 import { formatShortDate } from "../utils/dateUtils";
 import posthogLogger from "../services/posthogService";
+import { COLORS } from "../constants/colors";
+import {
+  canWriteResidentHospitalReview,
+  formatResidentTransitionDeadline,
+  isResidentLockedMissingCorporateEmail,
+} from "../utils/residentAccess";
 
 // ============================================================================
 // COLORS
@@ -24,7 +30,7 @@ import posthogLogger from "../services/posthogService";
 const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
 const ACCENT = "#1B0977";
-const BG_LIGHT = "#F8F9FE";
+const BG_LIGHT = COLORS.BACKGROUND;
 const WHITE = "#FFFFFF";
 const TEXT_MEDIUM = "#64748B";
 const TEXT_LIGHT = "#94A3B8";
@@ -69,6 +75,7 @@ export default function MyReviewScreen({
   );
 
   const isResident = userProfile?.is_resident;
+  const reviewWritingDisabled = !canWriteResidentHospitalReview(userProfile);
   const headerStatusChip = existingReview ? (
     <View
       style={[
@@ -183,6 +190,39 @@ export default function MyReviewScreen({
             <Text style={styles.messageText}>
               Para crear una reseña necesitas tener asignado un hospital y una
               especialidad en tu perfil.
+            </Text>
+          </View>
+        </View>
+      </ScreenScaffold>
+    );
+  }
+
+  if (reviewWritingDisabled) {
+    const isLocked = isResidentLockedMissingCorporateEmail(userProfile);
+    return (
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.contentSurface}
+      >
+        <View style={styles.scrollContent}>
+          <View style={styles.messageCard}>
+            <View style={styles.messageIconWrap}>
+              <Ionicons
+                name={isLocked ? "mail-outline" : "time-outline"}
+                size={36}
+                color={WARNING}
+              />
+            </View>
+            <Text style={styles.messageTitle}>
+              {isLocked ? "Correo corporativo requerido" : "Reseña temporalmente bloqueada"}
+            </Text>
+            <Text style={styles.messageText}>
+              {isLocked
+                ? "La ventana MIR temporal ya ha terminado. Añade tu correo corporativo en tu perfil para continuar."
+                : `Mientras estás en alta temporal MIR puedes usar el resto de funciones de residente, pero no publicar la reseña del hospital. Fecha límite actual: ${formatResidentTransitionDeadline(
+                    userProfile?.resident_transition_expires_at
+                  ) || "pendiente de configurar"}.`}
             </Text>
           </View>
         </View>

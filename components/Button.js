@@ -8,6 +8,7 @@ import {
 import { GoogleLogo } from "./GoogleLogo";
 import { AppleLogo } from "./AppleLogo";
 import { MotionPressable } from "./MotionPressable";
+import { COLORS } from "../constants/colors";
 
 /**
  * Componente Button reutilizable
@@ -99,15 +100,17 @@ const styles = StyleSheet.create({
     minHeight: 50,
   },
   primary: {
-    backgroundColor: "#007AFF",
+    backgroundColor: COLORS.PRIMARY,
   },
   secondary: {
-    backgroundColor: "#6c757d",
+    backgroundColor: COLORS.WHITE,
+    borderWidth: 1,
+    borderColor: "#D8B4FE",
   },
   google: {
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.WHITE,
     borderWidth: 2,
-    borderColor: "#e0e0e0",
+    borderColor: COLORS.BORDER,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -126,16 +129,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   primaryText: {
-    color: "#ffffff",
+    color: COLORS.WHITE,
   },
   secondaryText: {
-    color: "#ffffff",
+    color: COLORS.PRIMARY,
   },
   googleText: {
-    color: "#1a1a1a",
+    color: COLORS.TEXT_DARK,
   },
   appleText: {
-    color: "#ffffff",
+    color: COLORS.WHITE,
   },
   disabledText: {
     opacity: 0.7,

@@ -468,7 +468,11 @@ export const getUserProfile = async (userId, options = {}) => {
 
     const { data, error } = await supabase
       .from("users")
-      .select("*")
+      .select(`
+        *,
+        hospital:hospital_id(id, name),
+        speciality:speciality_id(id, name)
+      `)
       .eq("id", userId)
       .single();
 

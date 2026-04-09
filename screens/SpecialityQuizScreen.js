@@ -905,7 +905,7 @@ const styles = StyleSheet.create({
   },
   contentSurface: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.BACKGROUND,
   },
   content: {
     flex: 1,

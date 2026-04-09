@@ -23,6 +23,7 @@ import { useHospitals } from "../hooks/useHospitals";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { ScreenScaffold } from "../components/ScreenScaffold";
+import { COLORS } from "../constants/colors";
 import { formatDateOnly } from "../utils/dateUtils";
 import posthogLogger from "../services/posthogService";
 
@@ -31,9 +32,9 @@ import posthogLogger from "../services/posthogService";
 // ============================================================================
 
 const PRIMARY = "#670CF5";
-const SECONDARY = "#00BD7C";
+const SECONDARY = PRIMARY;
 const ACCENT = "#1B0977";
-const BG_LIGHT = "#F8F9FE";
+const BG_LIGHT = COLORS.BACKGROUND;
 const WHITE = "#FFFFFF";
 const TEXT_MEDIUM = "#64748B";
 const TEXT_LIGHT = "#94A3B8";

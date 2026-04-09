@@ -7,6 +7,10 @@ import {
   cacheUserProfile,
   clearCachedUserProfile,
 } from "./userProfileCacheService";
+import {
+  isSeasonalResidentPending,
+  isResidentLockedMissingCorporateEmail,
+} from "../utils/residentAccess";
 
 /**
  * Actualizar el perfil de usuario
@@ -20,7 +24,7 @@ export const updateUserProfile = async (userId, profileData) => {
 
     const previousProfileResult = await supabase
       .from("users")
-      .select("id, hospital_id, resident_year")
+      .select("id, hospital_id, speciality_id, resident_year")
       .eq("id", userId)
       .maybeSingle();
 
@@ -63,10 +67,12 @@ export const updateUserProfile = async (userId, profileData) => {
 
     const hospitalChanged =
       previousProfile?.hospital_id !== (data?.hospital_id || null);
+    const specialityChanged =
+      previousProfile?.speciality_id !== (data?.speciality_id || null);
     const residentYearChanged =
       (previousProfile?.resident_year || null) !== (data?.resident_year || null);
 
-    if (hospitalChanged || residentYearChanged) {
+    if (hospitalChanged || specialityChanged || residentYearChanged) {
       await clearCachedUserProfile(userId);
     } else {
       await cacheUserProfile(data);
@@ -151,22 +157,26 @@ export const isProfileComplete = (
   }
 
   if (profile.is_resident) {
-    // Para residentes, el perfil está completo si:
-    // 1. Tiene toda la información básica requerida
-    // 2. Tiene work_email definido
-    // 3. Tiene hospital_id, speciality_id y resident_year
-    // 4. Y (el email es válido O tiene una solicitud de revisión activa)
-    const hasAllRequiredFields = !!(
+    const hasResidentCoreFields = !!(
       hasRequiredBasicInfo &&
-      profile.work_email &&
       profile.hospital_id &&
       profile.speciality_id &&
       profile.resident_year
     );
 
-    if (!hasAllRequiredFields) return false;
+    if (!hasResidentCoreFields) return false;
 
-    // El perfil está completo si el email es válido O tiene solicitud activa
+    if (isSeasonalResidentPending(profile)) {
+      return true;
+    }
+
+    if (isResidentLockedMissingCorporateEmail(profile)) {
+      return false;
+    }
+
+    const hasCorporateEmail = !!profile.work_email;
+    if (!hasCorporateEmail) return false;
+
     return isEmailValid || hasActiveEmailReview;
   }
 

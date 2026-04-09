@@ -4,7 +4,7 @@ import Svg, { Path } from "react-native-svg";
 export const FaceIdLogo = ({
   width = 24,
   height = 24,
-  color = "#007AFF",
+  color = "#670CF5",
   style,
 }) => {
   return (

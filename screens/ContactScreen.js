@@ -13,6 +13,7 @@ import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { ScreenScaffold } from "../components/ScreenScaffold";
 import posthogLogger from "../services/posthogService";
+import { COLORS } from "../constants/colors";
 
 const CONTACT_TOPICS = [
   {
@@ -354,7 +355,7 @@ ${formData.message}`;
 const styles = StyleSheet.create({
   contentSurface: {
     flex: 1,
-    backgroundColor: "#F8F9FE",
+    backgroundColor: COLORS.BACKGROUND,
   },
   scrollView: {
     flex: 1,

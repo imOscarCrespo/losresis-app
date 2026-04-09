@@ -311,11 +311,11 @@ export default function ArticlesScreen({ onSectionChange, userProfile, onBack })
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: COLORS.BACKGROUND,
   },
   contentSurface: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: COLORS.BACKGROUND,
   },
   content: {
     flex: 1,

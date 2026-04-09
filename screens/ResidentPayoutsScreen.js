@@ -11,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Line, Rect, Text as SvgText } from "react-native-svg";
 import { ScreenHeader, ScreenScaffold } from "../components";
+import { COLORS } from "../constants/colors";
 import {
   buildPayoutChartData,
   getResidentPayoutsByYear,
@@ -251,7 +252,7 @@ export default function ResidentPayoutsScreen({
 
 const styles = StyleSheet.create({
   contentSurface: {
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.BACKGROUND,
   },
   loadingContainer: {
     flex: 1,

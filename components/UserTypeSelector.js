@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { MotionPressable } from "./MotionPressable";
+import { COLORS } from "../constants/colors";
 
 const USER_TYPES = [
   {
@@ -16,7 +17,7 @@ const USER_TYPES = [
     label: "Residente",
     subtitle: "Médico residente",
     icon: "person",
-    color: "#007AFF",
+    color: COLORS.PRIMARY,
   },
 ];
 
@@ -86,7 +87,7 @@ export const UserTypeSelector = ({ selectedType, onTypeChange }) => {
       </View>
       {isResidentSelected ? (
         <View style={styles.helperCard}>
-          <Ionicons name="sparkles-outline" size={18} color="#1B0977" />
+          <Ionicons name="sparkles-outline" size={18} color={COLORS.PRIMARY_DARK} />
           <Text style={styles.helperText}>
             Te pediremos hospital, especialidad, año y email corporativo para
             activar tu perfil de residente.
@@ -104,13 +105,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "800",
-    color: "#1B0977",
+    color: COLORS.PRIMARY_DARK,
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 14,
     lineHeight: 20,
-    color: "#64748B",
+    color: COLORS.TEXT_LIGHT,
     marginBottom: 16,
   },
   optionsContainer: {
@@ -122,27 +123,27 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF",
+    borderColor: COLORS.BORDER,
+    backgroundColor: COLORS.SURFACE,
   },
   optionCardActive: {
-    borderColor: "#C7D2FE",
-    backgroundColor: "#F8FAFF",
-    shadowColor: "#1B0977",
+    borderColor: "#D8B4FE",
+    backgroundColor: COLORS.PRIMARY_SOFT,
+    shadowColor: COLORS.PRIMARY_DARK,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.06,
     shadowRadius: 18,
     elevation: 2,
   },
   optionCardPressed: {
-    backgroundColor: "#F8FAFC",
-    borderColor: "#CBD5E1",
+    backgroundColor: COLORS.SURFACE_SUBTLE,
+    borderColor: COLORS.GRAY_MEDIUM,
   },
   optionIconWrap: {
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: "#EEF2F7",
+    backgroundColor: COLORS.GRAY_LIGHT,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 14,
@@ -154,12 +155,12 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0F172A",
+    color: COLORS.TEXT_DARK,
     marginBottom: 4,
   },
   optionSubtitle: {
     fontSize: 13,
-    color: "#64748B",
+    color: COLORS.TEXT_LIGHT,
     lineHeight: 18,
   },
   optionCheck: {
@@ -167,18 +168,18 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: "#CBD5E1",
+    borderColor: COLORS.GRAY_MEDIUM,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.SURFACE,
   },
   helperCard: {
     marginTop: 14,
     padding: 14,
     borderRadius: 16,
-    backgroundColor: "#EEF4FF",
+    backgroundColor: COLORS.PRIMARY_SOFT,
     borderWidth: 1,
-    borderColor: "#D9E4FF",
+    borderColor: "#D8B4FE",
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
@@ -187,6 +188,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 19,
-    color: "#334155",
+    color: COLORS.TEXT_MEDIUM,
   },
 });

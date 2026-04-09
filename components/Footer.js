@@ -1,16 +1,18 @@
 import React, { useMemo, memo, useCallback, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { getFooterConfig } from "../constants/footerConfig";
-import { useUnreadNotificationBuckets } from "../src/hooks/useUnreadNotificationBuckets";
+import { useUnreadChatsCount } from "../src/hooks/useUnreadChatsCount";
+import { COLORS } from "../constants/colors";
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
-const COLORS = {
+const FOOTER_COLORS = {
   ACTIVE: "#670CF5",
-  INACTIVE: "#8E8E93",
+  INACTIVE: "#64748B",
 };
 
 const ICON_SIZE = 24;
@@ -37,7 +39,7 @@ const FooterItem = memo(({ item, isActive, onPress, showBadge = false }) => {
         <Ionicons
           name={item.icon}
           size={ICON_SIZE}
-          color={isActive ? COLORS.ACTIVE : COLORS.INACTIVE}
+          color={isActive ? FOOTER_COLORS.ACTIVE : FOOTER_COLORS.INACTIVE}
         />
         {showBadge ? <View style={styles.unreadBadge} /> : null}
       </View>
@@ -75,11 +77,12 @@ export const Footer = ({
   onSectionChange,
   style,
 }) => {
+  const insets = useSafeAreaInsets();
   // Obtener configuración del footer según el tipo de usuario
   const footerItems = useMemo(() => {
     return getFooterConfig(userProfile);
   }, [userProfile]);
-  const { hasChatUnread, refresh } = useUnreadNotificationBuckets(userProfile?.id);
+  const { hasChatUnread, refresh } = useUnreadChatsCount(userProfile?.id);
 
   useEffect(() => {
     refresh();
@@ -95,20 +98,22 @@ export const Footer = ({
   );
 
   return (
-    <View style={[styles.footerContainer, style]}>
-      {footerItems.map((item) => {
-        const isActive =
-          activeSection === item.screen || activeSection === item.id;
-        return (
-          <FooterItem
-            key={item.id}
-            item={item}
-            isActive={isActive}
-            showBadge={item.id === "grupos" && hasChatUnread}
-            onPress={() => handleItemPress(item.screen)}
-          />
-        );
-      })}
+    <View style={[styles.footerShell, { paddingBottom: insets.bottom }, style]}>
+      <View style={styles.footerContainer}>
+        {footerItems.map((item) => {
+          const isActive =
+            activeSection === item.screen || activeSection === item.id;
+          return (
+            <FooterItem
+              key={item.id}
+              item={item}
+              isActive={isActive}
+              showBadge={item.id === "grupos" && hasChatUnread}
+              onPress={() => handleItemPress(item.screen)}
+            />
+          );
+        })}
+      </View>
     </View>
   );
 };
@@ -118,13 +123,16 @@ export const Footer = ({
 // ============================================================================
 
 const styles = StyleSheet.create({
+  footerShell: {
+    backgroundColor: COLORS.SURFACE,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.BORDER,
+  },
   footerContainer: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderTopWidth: 1,
-    borderTopColor: "#E5E5EA",
+    backgroundColor: COLORS.SURFACE,
     paddingVertical: 8,
     paddingHorizontal: 4,
     minHeight: 60,
@@ -142,20 +150,20 @@ const styles = StyleSheet.create({
   },
   footerLabel: {
     fontSize: TEXT_SIZE,
-    color: COLORS.INACTIVE,
+    color: FOOTER_COLORS.INACTIVE,
     marginTop: 4,
     fontWeight: "500",
     textAlign: "center",
   },
   footerLabelActive: {
-    color: COLORS.ACTIVE,
+    color: FOOTER_COLORS.ACTIVE,
     fontWeight: "700",
   },
   activeDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: COLORS.ACTIVE,
+    backgroundColor: FOOTER_COLORS.ACTIVE,
     marginTop: 4,
   },
   unreadBadge: {
@@ -167,6 +175,6 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: "#FF3B30",
     borderWidth: 2,
-    borderColor: "#FFFFFF",
+    borderColor: COLORS.WHITE,
   },
 });

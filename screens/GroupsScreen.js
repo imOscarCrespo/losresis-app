@@ -538,6 +538,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
   const [groups, setGroups] = useState([]);
   const [directChats, setDirectChats] = useState([]);
   const [memberGroupIds, setMemberGroupIds] = useState(new Set());
+  const [isScopeBannerCollapsed, setIsScopeBannerCollapsed] = useState(true);
   const [persistedResidentGroupIds, setPersistedResidentGroupIds] = useState(
     new Set()
   );
@@ -1117,24 +1118,35 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
   ]);
   const ListHeader = (
     <View style={styles.listHeader}>
-      {showResidentScopeNote ? (
-        <View style={styles.scopeBanner}>
-          <Ionicons name="information-circle-outline" size={16} color={PRIMARY} />
-          <Text style={styles.scopeBannerText}>
-            Mostramos los grupos a los que ya te has unido, los de tu ciudad y
-            los de tu hospital, además del grupo de tu especialidad y cohorte.
-            Usa el botón flotante para buscar más grupos.
-          </Text>
-        </View>
-      ) : showStudentScopeNote ? (
-        <View style={styles.scopeBanner}>
-          <Ionicons name="information-circle-outline" size={16} color={PRIMARY} />
-          <Text style={styles.scopeBannerText}>
-            Mostramos tus grupos y el de la ciudad vinculada a tu perfil. Usa
-            el botón flotante para buscar otras ciudades y unirte a varios
-            grupos a la vez.
-          </Text>
-        </View>
+      {showResidentScopeNote || showStudentScopeNote ? (
+        <TouchableOpacity
+          style={styles.scopeBanner}
+          onPress={() => setIsScopeBannerCollapsed((current) => !current)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.scopeBannerHeader}>
+            <View style={styles.scopeBannerTitleWrap}>
+              <Ionicons
+                name="information-circle-outline"
+                size={16}
+                color={PRIMARY}
+              />
+              <Text style={styles.scopeBannerTitle}>Cómo mostramos los chats</Text>
+            </View>
+            <Ionicons
+              name={isScopeBannerCollapsed ? "chevron-down" : "chevron-up"}
+              size={16}
+              color={TEXT_MEDIUM}
+            />
+          </View>
+          {!isScopeBannerCollapsed ? (
+            <Text style={styles.scopeBannerText}>
+              {showResidentScopeNote
+                ? "Mostramos los grupos a los que ya te has unido, los de tu ciudad y los de tu hospital, además del grupo de tu especialidad y cohorte. Usa el botón flotante para buscar más grupos."
+                : "Mostramos tus grupos y el de la ciudad vinculada a tu perfil. Usa el botón flotante para buscar otras ciudades y unirte a varios grupos a la vez."}
+            </Text>
+          ) : null}
+        </TouchableOpacity>
       ) : (
         <ScrollView
           horizontal
@@ -1524,9 +1536,6 @@ const styles = StyleSheet.create({
     paddingRight: 24,
   },
   scopeBanner: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
     backgroundColor: WHITE,
     borderWidth: 1,
     borderColor: BORDER,
@@ -1535,12 +1544,30 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 12,
   },
-  scopeBannerText: {
+  scopeBannerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  scopeBannerTitleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     flex: 1,
+  },
+  scopeBannerTitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: ACCENT,
+    fontWeight: "700",
+  },
+  scopeBannerText: {
     fontSize: 13,
     lineHeight: 18,
     color: TEXT_MEDIUM,
     fontWeight: "500",
+    marginTop: 10,
   },
   chip: {
     flexDirection: "row",

@@ -24,6 +24,7 @@ import {
   KeyboardDismissAccessory,
   KEYBOARD_DISMISS_ACCESSORY_ID,
 } from "../components/KeyboardDismissAccessory";
+import { COLORS } from "../constants/colors";
 import { useHospitals } from "../hooks/useHospitals";
 import {
   getCourseById,
@@ -36,7 +37,7 @@ import posthogLogger from "../services/posthogService";
 
 const PRIMARY = "#670CF5";
 const ACCENT = "#1B0977";
-const BG_LIGHT = "#F8F9FE";
+const BG_LIGHT = COLORS.BACKGROUND;
 const CARD_BORDER = "#F1F5F9";
 const MUTED = "#64748B";
 const MUTED_LIGHT = "#94A3B8";

@@ -30,6 +30,10 @@ import {
 } from "../data/libroOnboardingTemplates";
 import { getSpecialtyById } from "../services/hospitalService";
 import posthogLogger from "../services/posthogService";
+import {
+  isResidentLockedMissingCorporateEmail,
+  shouldBypassResidentReviewGate,
+} from "../utils/residentAccess";
 
 const SECTION = "clinical_practice";
 const ONBOARDING_STEPS = ["intro", "categories", "activities", "preview"];
@@ -333,8 +337,11 @@ export default function ResidenceLibraryScreen({
   const shouldShowReviewPrompt =
     userProfile?.is_resident &&
     !userProfile?.is_super_admin &&
+    !shouldBypassResidentReviewGate(userProfile) &&
     !residentHasReview &&
     residentReviewGateStatus === "hard";
+  const shouldShowCorporateEmailLock =
+    isResidentLockedMissingCorporateEmail(userProfile);
 
   const {
     books,
@@ -728,6 +735,21 @@ export default function ResidenceLibraryScreen({
   };
 
   const handleProtectedAction = (callback, { requiresEditable = false } = {}) => {
+    if (shouldShowCorporateEmailLock) {
+      Alert.alert(
+        "Correo corporativo requerido",
+        "La ventana temporal MIR ya ha terminado. Añade tu correo corporativo en el perfil para seguir usando el libro de residente.",
+        [
+          {
+            text: "Ir a mi perfil",
+            onPress: () => navigation?.navigate?.("usuario"),
+          },
+          { text: "Cancelar", style: "cancel" },
+        ]
+      );
+      return;
+    }
+
     if (shouldShowReviewPrompt) {
       Alert.alert(
         "Reseña requerida",
@@ -1605,7 +1627,26 @@ export default function ResidenceLibraryScreen({
           </View>
         </ScrollView>
 
-      {shouldShowReviewPrompt ? (
+      {shouldShowCorporateEmailLock ? (
+        <View style={styles.reviewPromptOverlay}>
+          <View style={styles.reviewPromptCard}>
+            <View style={styles.reviewPromptIcon}>
+              <Ionicons name="mail-outline" size={28} color="#FFFFFF" />
+            </View>
+            <Text style={styles.reviewPromptTitle}>Activa tu perfil de residente</Text>
+            <Text style={styles.reviewPromptText}>
+              La ventana temporal MIR ha terminado. Añade y valida tu correo
+              corporativo desde tu perfil para seguir registrando actividad.
+            </Text>
+            <TouchableOpacity
+              style={styles.reviewPromptButton}
+              onPress={() => navigation?.navigate?.("usuario")}
+            >
+              <Text style={styles.reviewPromptButtonText}>Ir a mi perfil</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : shouldShowReviewPrompt ? (
         <View style={styles.reviewPromptOverlay}>
           <View style={styles.reviewPromptCard}>
             <View style={styles.reviewPromptIcon}>

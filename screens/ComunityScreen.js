@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityUsers } from "../hooks/useCommunityUsers";
 import { useCities } from "../hooks/useCities";
 import { usePersistedFilters } from "../hooks/usePersistedFilters";
-import { useUnreadNotificationsCount } from "../src/hooks/useUnreadNotificationsCount";
 import posthogLogger from "../services/posthogService";
 
 const PRIMARY = "#670CF5";
@@ -226,9 +225,6 @@ export default function ComunityScreen({
     [updateFilter]
   );
 
-  const { count: notificationCount } = useUnreadNotificationsCount(
-    userProfile?.id
-  );
   const { cityOptions } = useCities();
   const {
     users,
@@ -424,19 +420,6 @@ export default function ComunityScreen({
               </TouchableOpacity>
             ) : null}
 
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => navigation?.navigate?.("notifications")}
-            >
-              <Ionicons name="notifications-outline" size={22} color={ACCENT} />
-              {notificationCount > 0 ? (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationBadgeText}>
-                    {notificationCount > 99 ? "99+" : notificationCount}
-                  </Text>
-                </View>
-              ) : null}
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -711,34 +694,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: PRIMARY,
-  },
-  notificationButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-  notificationBadge: {
-    position: "absolute",
-    top: -3,
-    right: -3,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: DANGER,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  notificationBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "700",
   },
   metricsRow: {
     flexDirection: "row",

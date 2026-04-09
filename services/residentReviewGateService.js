@@ -102,9 +102,15 @@ export const resetResidentReviewGate = async (userId) => {
 
 export const initializeResidentReviewGate = async (
   userId,
-  { hasReview, isResident, isSuperAdmin }
+  { hasReview, isResident, isSuperAdmin, bypassReviewRequirement = false }
 ) => {
-  if (!userId || hasReview || !isResident || isSuperAdmin) {
+  if (
+    !userId ||
+    hasReview ||
+    !isResident ||
+    isSuperAdmin ||
+    bypassReviewRequirement
+  ) {
     await resetResidentReviewGate(userId);
     return withDerivedState();
   }

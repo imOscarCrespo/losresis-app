@@ -2,6 +2,11 @@ import React, { useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
+import {
+  canWriteResidentHospitalReview,
+  hasResidentFeatureAccess,
+  isResidentLockedMissingCorporateEmail,
+} from "../utils/residentAccess";
 
 const GRID_COLUMNS = 2;
 const ICON_SIZE = 40;
@@ -104,6 +109,7 @@ export const MenuGrid = ({
   onItemPress,
   residentHasReview = true,
   residentReviewGateStatus = "soft",
+  residentReviewGateBypassed = false,
   showNotificationsBadge = false,
 }) => {
   // Filtrar items según el tipo de usuario y excluir los del footer
@@ -144,6 +150,14 @@ export const MenuGrid = ({
         return false;
       }
 
+      if (
+        item.id === "mi-resena" &&
+        userProfile.is_resident &&
+        !canWriteResidentHospitalReview(userProfile)
+      ) {
+        return false;
+      }
+
       // Si es solo para estudiantes
       if (item.studentOnly) {
         return userProfile.is_student;
@@ -151,12 +165,12 @@ export const MenuGrid = ({
 
       // Si es solo para residentes
       if (item.residentOnly) {
-        return userProfile.is_resident;
+        return hasResidentFeatureAccess(userProfile);
       }
 
       // Si es solo para doctores/residentes
       if (item.doctorOnly) {
-        return userProfile.is_doctor || userProfile.is_resident;
+        return userProfile.is_doctor || hasResidentFeatureAccess(userProfile);
       }
 
       // Si es solo para super admin
@@ -172,6 +186,7 @@ export const MenuGrid = ({
     footerItems,
     userProfile,
     residentHasReview,
+    residentReviewGateBypassed,
   ]);
 
   // Calcular número de filas necesarias
@@ -216,10 +231,15 @@ export const MenuGrid = ({
     if (
       userProfile?.is_resident &&
       !userProfile?.is_super_admin &&
+      !residentReviewGateBypassed &&
       !residentHasReview &&
       residentReviewGateStatus === "hard"
     ) {
       return !["mi-resena", "usuario", "contacto"].includes(item.id);
+    }
+
+    if (isResidentLockedMissingCorporateEmail(userProfile)) {
+      return !["inicio", "usuario", "contacto"].includes(item.id);
     }
     return false;
   };

@@ -13,13 +13,11 @@ import appJson from "../app.json";
 // export const MIN_REQUIRED_VERSION = appJson.expo.version;
 
 /**
- * URL del App Store para iOS
- * TESTING: Usando WhatsApp como ejemplo para probar el redireccionamiento
- * Cuando tengas tu App ID real, reemplázalo con: "https://apps.apple.com/app/idTU_APP_ID"
- * O usa el esquema nativo: "itms-apps://apps.apple.com/app/idTU_APP_ID"
+ * URL del App Store para iOS.
+ * Debe apuntar siempre a la ficha real de LosResis.
  */
-export const APP_STORE_URL_IOS = "https://apps.apple.com/app/id310633997"; // TESTING: WhatsApp para probar redireccionamiento
-// export const APP_STORE_URL_IOS = "itms-apps://apps.apple.com/app/id310633997"; // Alternativa con esquema nativo
+export const APP_STORE_URL_IOS =
+  "https://apps.apple.com/es/app/losresis/id6756607831?l=en-GB";
 
 /**
  * URL de Google Play para Android
@@ -27,3 +25,12 @@ export const APP_STORE_URL_IOS = "https://apps.apple.com/app/id310633997"; // TE
  */
 export const PLAY_STORE_URL_ANDROID =
   "https://play.google.com/store/apps/details?id=com.losresis.app";
+
+/**
+ * Override local para testear la pantalla bloqueante de actualización.
+ * Desactívalo poniendo `enabled: false` cuando termines la prueba.
+ */
+export const DEV_FORCE_UPDATE_OVERRIDE = {
+  enabled: false,
+  minVersion: "999.0.0",
+};

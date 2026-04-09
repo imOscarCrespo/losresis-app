@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Button, ScreenHeader, ScreenScaffold } from "../components";
+import { COLORS } from "../constants/colors";
 import {
   formatPayoutPeriodLabel,
   getPayoutMonthLabel,
@@ -444,7 +445,7 @@ export default function ResidentPayoutEntryScreen({
 
 const styles = StyleSheet.create({
   contentSurface: {
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.BACKGROUND,
   },
   loadingContainer: {
     flex: 1,
