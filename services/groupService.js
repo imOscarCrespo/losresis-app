@@ -4,6 +4,12 @@
 
 import { supabase } from "../config/supabase";
 
+const GROUP_SELECT = `
+  *,
+  speciality:speciality_id(id, name),
+  hospital:hospital_id(id, name, city)
+`;
+
 const GROUPS_CACHE_URL =
   "https://chgretwxywvaaruwovbb.supabase.co/storage/v1/object/public/cache/groups.json";
 
@@ -91,7 +97,31 @@ export const getGroupById = async (groupId) => {
     const group = allGroups.find((item) => item?.id === groupId) || null;
 
     if (!group) {
-      return { success: false, group: null, error: "Grupo no encontrado" };
+      const { data, error } = await supabase
+        .from("groups")
+        .select(GROUP_SELECT)
+        .eq("id", groupId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error fetching group by id from db:", error);
+        return { success: false, group: null, error: error.message };
+      }
+
+      if (!data) {
+        return { success: false, group: null, error: "Grupo no encontrado" };
+      }
+
+      return {
+        success: true,
+        group: {
+          ...data,
+          member_count: Number.isFinite(data.member_count)
+            ? data.member_count
+            : 0,
+        },
+        error: null,
+      };
     }
 
     return {

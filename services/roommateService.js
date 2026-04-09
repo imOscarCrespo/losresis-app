@@ -9,7 +9,7 @@ import {
 
 const PROFILE_SELECT = `
   *,
-  user:users!roommate_profile_user_id_fkey(id, name, surname, city, hospital_id, speciality_id, resident_year),
+  user:users!roommate_profile_user_id_fkey(id, name, surname, city, hospital_id, speciality_id, resident_year, is_resident, is_student),
   hospital:hospitals!roommate_profile_hospital_id_fkey(id, name, city),
   speciality:specialities!roommate_profile_speciality_id_fkey(id, name)
 `;
@@ -265,6 +265,13 @@ export const saveRoommateBundle = async (userId, rawBundle) => {
       };
     }
 
+    if (!bundle.profile.hospital_id) {
+      return {
+        success: false,
+        error: "El hospital más cercano es obligatorio para activar tu perfil roomie.",
+      };
+    }
+
     if (avatarAsset?.uri) {
       const uploadResult = await uploadRoommateAvatar(
         userId,
@@ -430,16 +437,10 @@ const applyCandidateFilters = (query, filters = {}, configuredCity = null) => {
 
 export const getRoommateCandidates = async (userId, filters = {}) => {
   try {
-    const [{ bundle: myBundle }, { questions }, swipesResponse] = await Promise.all([
+    const [{ bundle: myBundle }, { questions }] = await Promise.all([
       getMyRoommateBundle(userId),
       getRoommateQuestions(),
-      supabase
-        .from("roommate_swipe")
-        .select("target_user_id")
-        .eq("actor_user_id", userId),
     ]);
-
-    const swipedIds = (swipesResponse.data || []).map((item) => item.target_user_id);
 
     let query = supabase
       .from("roommate_profile")
@@ -450,11 +451,6 @@ export const getRoommateCandidates = async (userId, filters = {}) => {
       .order("updated_at", { ascending: false });
 
     query = applyCandidateFilters(query, filters, myBundle?.profile?.city);
-
-    if (swipedIds.length) {
-      const idsClause = `(${swipedIds.map((id) => `"${id}"`).join(",")})`;
-      query = query.not("user_id", "in", idsClause);
-    }
 
     const { data: profiles, error: profilesError } = await query;
 

@@ -18,7 +18,7 @@ import { supabase } from "../config/supabase";
 import { COLORS } from "../constants/colors";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { SelectorModal } from "../components/SelectorModal";
-import { SelectFilter, ConfirmationModal } from "../components";
+import { SelectFilter, ConfirmationModal, DirectChatButton } from "../components";
 import { usePersistedFilters } from "../hooks/usePersistedFilters";
 import {
   createRotation,
@@ -31,16 +31,17 @@ import {
 import {
   createRotationReview,
   deleteRotationReview,
-  ensureReviewContactThread,
   getFavoriteExternalRotationReviews,
   getAllExternalRotationReviews,
   getRotationReviewQuestions,
   updateRotationReview,
 } from "../services/externalRotationReviewService";
+import { openDirectChat } from "../services/directChatsService";
 import RotationReviewDetailScreen from "./RotationReviewDetailScreen";
 import posthogLogger from "../services/posthogService";
 
 const PRIMARY = "#670CF5";
+const ACCENT = "#1B0977";
 const PRIMARY_SOFT = "#F2EBFF";
 const PRIMARY_LIGHT = "#EEE8FF";
 const SURFACE = "#F5F7FA";
@@ -49,6 +50,8 @@ const SURFACE_ALT = "#EEF1F6";
 const TEXT = "#111827";
 const TEXT_MUTED = "#667085";
 const BORDER = "#E6E8EC";
+const CARD_BORDER = "#F1F5F9";
+const MUTED_LIGHT = "#94A3B8";
 const SUCCESS = "#0F9D7A";
 const SUCCESS_SOFT = "#E7FBF4";
 const WARNING = "#F97316";
@@ -195,6 +198,32 @@ const averageRatingLabel = (review) =>
     ? review.average_rating.toFixed(1)
     : "N/A";
 
+const normalizeReviewResidentData = (review) => {
+  const firstName = review?.users?.name || review?.reviewer_name || "";
+  const surname = review?.users?.surname || review?.reviewer_surname || "";
+  const residentName = [firstName, surname ? `${surname[0]}.` : ""]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || "Residente";
+
+  return {
+    residentName,
+    specialtyName:
+      review?.specialities?.name ||
+      review?.users?.specialities?.name ||
+      review?.reviewer_specialty_name ||
+      review?.specialty_name ||
+      "Residente",
+    hospitalName:
+      review?.users?.hospitals?.name ||
+      review?.reviewer_hospital_name ||
+      "",
+    email: review?.users?.work_email || review?.reviewer_email || "",
+    phone: review?.users?.phone || review?.reviewer_phone || "",
+    userId: review?.user_id || review?.users?.id || null,
+  };
+};
+
 const PillGroup = ({ options, value, onChange }) => (
   <View style={styles.pillGroup}>
     {options.map((option) => (
@@ -270,7 +299,13 @@ const MiniDestinationCard = ({ review, onPress }) => (
   </TouchableOpacity>
 );
 
-const MatchCard = ({ item, onChat, onContact, buttonLabel = "Ver contacto" }) => (
+const MatchCard = ({
+  item,
+  onChat,
+  onContact,
+  buttonLabel = "Ver contacto",
+  chatLoading = false,
+}) => (
   <View style={styles.matchCard}>
     <View style={styles.matchCardHeader}>
       <View>
@@ -278,9 +313,7 @@ const MatchCard = ({ item, onChat, onContact, buttonLabel = "Ver contacto" }) =>
         <Text style={styles.matchMeta}>{item.meta}</Text>
       </View>
       {onChat ? (
-        <TouchableOpacity style={styles.chatBadge} onPress={onChat}>
-          <Text style={styles.chatBadgeText}>Hablar</Text>
-        </TouchableOpacity>
+        <DirectChatButton onPress={onChat} loading={chatLoading} size="sm" />
       ) : null}
     </View>
     <View style={styles.matchBody}>
@@ -425,14 +458,10 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   const [openExploreFilter, setOpenExploreFilter] = useState(null);
   const [rotationForm, setRotationForm] = useState(DEFAULT_ROTATION_FORM);
   const [rotationCountryCode, setRotationCountryCode] = useState("");
-  const [showRotationStartDatePicker, setShowRotationStartDatePicker] =
-    useState(false);
-  const [showRotationEndDatePicker, setShowRotationEndDatePicker] =
-    useState(false);
   const [publishForm, setPublishForm] = useState(DEFAULT_PUBLISH_FORM);
   const [publishCountryCode, setPublishCountryCode] = useState("");
-  const [showPublishStartDatePicker, setShowPublishStartDatePicker] = useState(false);
-  const [showPublishEndDatePicker, setShowPublishEndDatePicker] = useState(false);
+  const [activeDateField, setActiveDateField] = useState(null);
+  const [tempSelectedDate, setTempSelectedDate] = useState(null);
   const {
     filters: exploreFilters,
     updateFilters: updateExploreFilters,
@@ -695,6 +724,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       .slice(0, 4)
       .map((rotation) => ({
         id: rotation.id,
+        userId: rotation.user_id,
         name: `${rotation.user_name} ${rotation.user_surname}`.trim(),
         meta: `${rotation.specialty_name || "Residente"}${
           rotation.user_resident_year ? ` · R${rotation.user_resident_year}` : ""
@@ -885,63 +915,96 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     [rotationCountryCode]
   );
 
-  const handleRotationStartDateChange = useCallback((event, selectedDate) => {
-    setShowRotationStartDatePicker(Platform.OS === "ios");
+  const resetDatePickerState = useCallback(() => {
+    setActiveDateField(null);
+    setTempSelectedDate(null);
+  }, []);
 
-    if (!selectedDate) {
+  const openDatePicker = useCallback((field, value) => {
+    setActiveDateField(field);
+    setTempSelectedDate(parseStoredDate(value));
+  }, []);
+
+  const applySelectedDate = useCallback((field, selectedDate) => {
+    if (!field || !selectedDate) {
       return;
     }
 
-    const nextStartDate = formatDateForInput(selectedDate);
+    if (field === "rotationStartDate") {
+      const nextStartDate = formatDateForInput(selectedDate);
 
-    setRotationForm((current) => ({
-      ...current,
-      startDate: nextStartDate,
-      endDate: formatDateForInput(addMonthsToDate(selectedDate)),
-    }));
-  }, []);
-
-  const handleRotationEndDateChange = useCallback((event, selectedDate) => {
-    setShowRotationEndDatePicker(Platform.OS === "ios");
-
-    if (!selectedDate) {
+      setRotationForm((current) => ({
+        ...current,
+        startDate: nextStartDate,
+        endDate: formatDateForInput(addMonthsToDate(selectedDate)),
+      }));
       return;
     }
 
-    setRotationForm((current) => ({
-      ...current,
-      endDate: formatDateForInput(selectedDate),
-    }));
-  }, []);
-
-  const handlePublishStartDateChange = useCallback((event, selectedDate) => {
-    setShowPublishStartDatePicker(Platform.OS === "ios");
-
-    if (!selectedDate) {
+    if (field === "rotationEndDate") {
+      setRotationForm((current) => ({
+        ...current,
+        endDate: formatDateForInput(selectedDate),
+      }));
       return;
     }
 
-    const nextStartDate = formatDateForInput(selectedDate);
+    if (field === "publishStartDate") {
+      const nextStartDate = formatDateForInput(selectedDate);
 
-    setPublishForm((current) => ({
-      ...current,
-      startDate: nextStartDate,
-      endDate: formatDateForInput(addMonthsToDate(selectedDate)),
-    }));
-  }, []);
-
-  const handlePublishEndDateChange = useCallback((event, selectedDate) => {
-    setShowPublishEndDatePicker(Platform.OS === "ios");
-
-    if (!selectedDate) {
+      setPublishForm((current) => ({
+        ...current,
+        startDate: nextStartDate,
+        endDate: formatDateForInput(addMonthsToDate(selectedDate)),
+      }));
       return;
     }
 
-    setPublishForm((current) => ({
-      ...current,
-      endDate: formatDateForInput(selectedDate),
-    }));
+    if (field === "publishEndDate") {
+      setPublishForm((current) => ({
+        ...current,
+        endDate: formatDateForInput(selectedDate),
+      }));
+    }
   }, []);
+
+  const handleDateChange = useCallback(
+    (event, selectedDate) => {
+      if (Platform.OS === "android") {
+        if (event.type === "set" && selectedDate) {
+          applySelectedDate(activeDateField, selectedDate);
+        }
+        resetDatePickerState();
+        return;
+      }
+
+      if (selectedDate) {
+        setTempSelectedDate(selectedDate);
+      }
+    },
+    [activeDateField, applySelectedDate, resetDatePickerState]
+  );
+
+  const handleConfirmDate = useCallback(() => {
+    if (!activeDateField || !tempSelectedDate) {
+      return;
+    }
+
+    applySelectedDate(activeDateField, tempSelectedDate);
+    resetDatePickerState();
+  }, [activeDateField, applySelectedDate, resetDatePickerState, tempSelectedDate]);
+
+  const activeDateMinimum = useMemo(() => {
+    if (activeDateField === "rotationEndDate") {
+      return parseStoredDate(rotationForm.startDate);
+    }
+
+    if (activeDateField === "publishEndDate") {
+      return parseStoredDate(publishForm.startDate);
+    }
+
+    return new Date();
+  }, [activeDateField, publishForm.startDate, rotationForm.startDate]);
 
   const refreshAll = useCallback(() => {
     setRefreshKey((current) => current + 1);
@@ -1177,14 +1240,39 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   const handleOpenAppChat = useCallback(
     async (review) => {
       try {
-        const threadId = await ensureReviewContactThread(review.id);
-        navigation?.navigate("threadDetail", {
-          threadId,
-          fromSection: "rotaciones-externas",
+        const resident = normalizeReviewResidentData(review);
+        const response = await openDirectChat({
+          otherUserId: resident.userId,
+          otherUserName: resident.residentName,
+          onSectionChange: navigation?.navigate,
         });
+
+        if (!response.success || !response.chat?.group_id) {
+          throw new Error(response.error || "No se pudo abrir el chat");
+        }
       } catch (error) {
         console.error("Error opening app chat:", error);
         Alert.alert("Error", "No se pudo abrir el chat de la experiencia.");
+      }
+    },
+    [navigation]
+  );
+
+  const handleOpenResidentMatchChat = useCallback(
+    async (match) => {
+      try {
+        const response = await openDirectChat({
+          otherUserId: match.userId,
+          otherUserName: match.name,
+          onSectionChange: navigation?.navigate,
+        });
+
+        if (!response.success || !response.chat?.group_id) {
+          throw new Error(response.error || "No se pudo abrir el chat");
+        }
+      } catch (error) {
+        console.error("Error opening resident match chat:", error);
+        Alert.alert("Error", "No se pudo abrir el chat con este residente.");
       }
     },
     [navigation]
@@ -1228,110 +1316,110 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           buttonLabel="Buscar destino"
           onPress={() => setRoute({ name: "explore", payload: null })}
         />
-        <HubActionCard
-          eyebrow="Publicar plan"
-          title="Ya sé dónde voy"
-          description="Comparte tu destino y fechas para encontrar otros residentes que coincidan contigo"
-          buttonLabel="Publicar mi plan"
-          onPress={() => setRoute({ name: "plan", payload: null })}
-        />
-        <HubActionCard
-          eyebrow="Compartir experiencia"
-          title="Comparte tu experiencia"
-          description="Ayuda a otros residentes contando cómo fue tu rotación: hospital, servicio y logística"
-          buttonLabel="Escribir reseña"
-          onPress={() => openPublish()}
-        />
-      </View>
-
-      {primaryUserRotation ? (
-        <View style={styles.hubActionCard}>
-          <Text style={styles.homeSectionLabel}>Tu plan activo</Text>
-          <Text style={styles.hubActionTitle}>
-            {primaryUserRotation.hospital_name || "Rotación futura"}
-          </Text>
-          <Text style={styles.hubActionDescription}>
-            {[
-              primaryUserRotation.service_name,
-              primaryUserRotation.city,
-              primaryUserRotation.country,
-              formatDateRange(
-                primaryUserRotation.start_date,
-                primaryUserRotation.end_date
-              ),
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </Text>
-          <View style={styles.inlineStatsRow}>
-            <View style={styles.inlineStatPill}>
-              <Text style={styles.inlineStatValue}>{upcomingMatches.length}</Text>
-              <Text style={styles.inlineStatLabel}>coincidencias</Text>
+        {primaryUserRotation ? (
+          <View style={styles.hubActionCard}>
+            <Text style={styles.homeSectionLabel}>Tu plan activo</Text>
+            <Text style={styles.hubActionTitle}>
+              {primaryUserRotation.hospital_name || "Rotación futura"}
+            </Text>
+            <Text style={styles.hubActionDescription}>
+              {[
+                primaryUserRotation.service_name,
+                primaryUserRotation.city,
+                primaryUserRotation.country,
+                formatDateRange(
+                  primaryUserRotation.start_date,
+                  primaryUserRotation.end_date
+                ),
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </Text>
+            <View style={styles.inlineStatsRow}>
+              <View style={styles.inlineStatPill}>
+                <Text style={styles.inlineStatValue}>{upcomingMatches.length}</Text>
+                <Text style={styles.inlineStatLabel}>coincidencias</Text>
+              </View>
+              <View style={styles.inlineStatPill}>
+                <Text style={styles.inlineStatValue}>{historicalMatches.length}</Text>
+                <Text style={styles.inlineStatLabel}>experiencias relacionadas</Text>
+              </View>
             </View>
-            <View style={styles.inlineStatPill}>
-              <Text style={styles.inlineStatValue}>{historicalMatches.length}</Text>
-              <Text style={styles.inlineStatLabel}>experiencias relacionadas</Text>
-            </View>
+            <TouchableOpacity
+              style={styles.hubActionButton}
+              onPress={() => setRoute({ name: "plan", payload: null })}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.hubActionButtonText}>Gestionar plan</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.hubActionButton}
+        ) : (
+          <HubActionCard
+            eyebrow="Publicar plan"
+            title="Ya sé dónde voy"
+            description="Comparte tu destino y fechas para encontrar otros residentes que coincidan contigo"
+            buttonLabel="Publicar mi plan"
             onPress={() => setRoute({ name: "plan", payload: null })}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.hubActionButtonText}>Gestionar plan</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      {primaryUserReview ? (
-        <View style={styles.hubActionCard}>
-          <Text style={styles.homeSectionLabel}>Tu experiencia publicada</Text>
-          <Text style={styles.hubActionTitle}>
-            {primaryUserReview.external_hospital_name || "Experiencia publicada"}
-          </Text>
-          <Text style={styles.hubActionDescription}>
-            {[
-              primaryUserReview.service_name,
-              primaryUserReview.city,
-              primaryUserReview.country,
-              formatDateRange(
-                primaryUserReview.start_date,
-                primaryUserReview.end_date
-              ),
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </Text>
-          <View style={styles.hubActionRow}>
-            <TouchableOpacity
-              style={[
-                styles.hubActionButton,
-                styles.hubActionButtonAlt,
-                styles.hubActionButtonSplit,
-              ]}
-              onPress={() => openPublish(primaryUserReview)}
-              activeOpacity={0.85}
-            >
-              <Text
+          />
+        )}
+        {primaryUserReview ? (
+          <View style={styles.hubActionCard}>
+            <Text style={styles.homeSectionLabel}>Tu experiencia publicada</Text>
+            <Text style={styles.hubActionTitle}>
+              {primaryUserReview.external_hospital_name || "Experiencia publicada"}
+            </Text>
+            <Text style={styles.hubActionDescription}>
+              {[
+                primaryUserReview.service_name,
+                primaryUserReview.city,
+                primaryUserReview.country,
+                formatDateRange(
+                  primaryUserReview.start_date,
+                  primaryUserReview.end_date
+                ),
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </Text>
+            <View style={styles.hubActionRow}>
+              <TouchableOpacity
                 style={[
-                  styles.hubActionButtonText,
-                  styles.hubActionButtonTextAlt,
+                  styles.hubActionButton,
+                  styles.hubActionButtonAlt,
+                  styles.hubActionButtonSplit,
                 ]}
+                onPress={() => openPublish(primaryUserReview)}
+                activeOpacity={0.85}
               >
-                Editar reseña
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.hubDangerButton, styles.hubActionButtonSplit]}
-              onPress={() => setReviewToDelete(primaryUserReview)}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="trash-outline" size={16} color={COLORS.ERROR} />
-              <Text style={styles.hubDangerButtonText}>Eliminar</Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.hubActionButtonText,
+                    styles.hubActionButtonTextAlt,
+                  ]}
+                >
+                  Editar reseña
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.hubDangerButton, styles.hubActionButtonSplit]}
+                onPress={() => setReviewToDelete(primaryUserReview)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="trash-outline" size={16} color={COLORS.ERROR} />
+                <Text style={styles.hubDangerButtonText}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      ) : null}
+        ) : (
+          <HubActionCard
+            eyebrow="Compartir experiencia"
+            title="Ya he vuelto de mi rotación"
+            description="Ayuda a otros residentes contando cómo fue tu rotación: hospital, servicio y logística. Te llevará menos de 2 minutos."
+            buttonLabel="Escribir reseña"
+            onPress={() => openPublish()}
+          />
+        )}
+      </View>
     </ScrollView>
   );
 
@@ -1554,13 +1642,9 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
                 <MatchCard
                   key={match.id}
                   item={match}
-                  onContact={() =>
-                    Alert.alert(
-                      match.name,
-                      [match.phone, match.email].filter(Boolean).join("\n") ||
-                        "No hay datos de contacto disponibles."
-                    )
-                  }
+                  onChat={() => handleOpenResidentMatchChat(match)}
+                  buttonLabel="Contactar"
+                  onContact={() => handleOpenResidentMatchChat(match)}
                 />
               ))}
             </View>
@@ -1587,6 +1671,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
                     location: [review.city, review.country].filter(Boolean).join(", "),
                     dateLabel: formatDateRange(review.start_date, review.end_date),
                   }}
+                  onChat={() => handleOpenAppChat(review)}
                   buttonLabel="Leer reseña"
                   onContact={() =>
                     setRoute({ name: "detail", payload: { review, from: "plan" } })
@@ -1716,32 +1801,41 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
             <Text style={styles.inputLabel}>Fecha de inicio</Text>
             <TouchableOpacity
               style={styles.dateButton}
-              onPress={() => setShowPublishStartDatePicker(true)}
+              onPress={() =>
+                openDatePicker("publishStartDate", publishForm.startDate)
+              }
               activeOpacity={0.8}
             >
-              <Text style={styles.dateButtonText}>
+              <Text
+                style={[
+                  styles.dateButtonText,
+                  !publishForm.startDate && styles.dateButtonPlaceholder,
+                ]}
+              >
                 {formatDateForDisplay(publishForm.startDate)}
               </Text>
               <Ionicons name="calendar-outline" size={20} color={TEXT_MUTED} />
             </TouchableOpacity>
-            {showPublishStartDatePicker ? (
-              <DateTimePicker
-                value={parseStoredDate(publishForm.startDate)}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={handlePublishStartDateChange}
-              />
-            ) : null}
           </View>
 
           <View style={styles.formColumn}>
             <Text style={styles.inputLabel}>Fecha de fin</Text>
             <TouchableOpacity
               style={styles.dateButton}
-              onPress={() => setShowPublishEndDatePicker(true)}
+              onPress={() =>
+                openDatePicker(
+                  "publishEndDate",
+                  publishForm.endDate || publishForm.startDate
+                )
+              }
               activeOpacity={0.8}
             >
-              <Text style={styles.dateButtonText}>
+              <Text
+                style={[
+                  styles.dateButtonText,
+                  !publishForm.endDate && styles.dateButtonPlaceholder,
+                ]}
+              >
                 {formatDateForDisplay(publishForm.endDate)}
               </Text>
               <Ionicons
@@ -1750,17 +1844,6 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
                 color={TEXT_MUTED}
               />
             </TouchableOpacity>
-            {showPublishEndDatePicker ? (
-              <DateTimePicker
-                value={parseStoredDate(
-                  publishForm.endDate || publishForm.startDate
-                )}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={handlePublishEndDateChange}
-                minimumDate={parseStoredDate(publishForm.startDate)}
-              />
-            ) : null}
           </View>
 
           <Text style={styles.inputLabel}>Dificultad para conseguirla</Text>
@@ -2002,45 +2085,45 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           <Text style={styles.inputLabel}>Fecha de inicio</Text>
           <TouchableOpacity
             style={styles.dateButton}
-            onPress={() => setShowRotationStartDatePicker(true)}
+            onPress={() =>
+              openDatePicker("rotationStartDate", rotationForm.startDate)
+            }
             activeOpacity={0.8}
           >
-            <Text style={styles.dateButtonText}>
+            <Text
+              style={[
+                styles.dateButtonText,
+                !rotationForm.startDate && styles.dateButtonPlaceholder,
+              ]}
+            >
               {formatDateForDisplay(rotationForm.startDate)}
             </Text>
             <Ionicons name="calendar-outline" size={20} color={TEXT_MUTED} />
           </TouchableOpacity>
-          {showRotationStartDatePicker ? (
-            <DateTimePicker
-              value={parseStoredDate(rotationForm.startDate)}
-              mode="date"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={handleRotationStartDateChange}
-            />
-          ) : null}
         </View>
 
         <View style={styles.formColumn}>
           <Text style={styles.inputLabel}>Fecha de fin</Text>
           <TouchableOpacity
             style={styles.dateButton}
-            onPress={() => setShowRotationEndDatePicker(true)}
+            onPress={() =>
+              openDatePicker(
+                "rotationEndDate",
+                rotationForm.endDate || rotationForm.startDate
+              )
+            }
             activeOpacity={0.8}
           >
-            <Text style={styles.dateButtonText}>
+            <Text
+              style={[
+                styles.dateButtonText,
+                !rotationForm.endDate && styles.dateButtonPlaceholder,
+              ]}
+            >
               {formatDateForDisplay(rotationForm.endDate)}
             </Text>
             <Ionicons name="calendar-outline" size={20} color={TEXT_MUTED} />
           </TouchableOpacity>
-          {showRotationEndDatePicker ? (
-            <DateTimePicker
-              value={parseStoredDate(rotationForm.endDate || rotationForm.startDate)}
-              mode="date"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={handleRotationEndDateChange}
-              minimumDate={parseStoredDate(rotationForm.startDate)}
-            />
-          ) : null}
         </View>
       </View>
 
@@ -2091,9 +2174,10 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       return null;
     }
 
-    const residentName = `${review.reviewer_name} ${
-      review.reviewer_surname ? `${review.reviewer_surname[0]}.` : ""
-    }`.trim();
+    const resident = normalizeReviewResidentData(review);
+    const residentMeta = [resident.specialtyName, resident.hospitalName]
+      .filter(Boolean)
+      .join(" · ");
 
     return (
       <ScrollView
@@ -2105,29 +2189,26 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           <View style={styles.contactAvatar}>
             <Ionicons name="person" size={42} color={PRIMARY} />
           </View>
-          <Text style={styles.contactResidentName}>{residentName}</Text>
-          <Text style={styles.contactResidentMeta}>
-            {review.specialty_name || "Residente"}
-            {review.reviewer_hospital_name
-              ? ` · ${review.reviewer_hospital_name}`
-              : ""}
-          </Text>
+          <Text style={styles.contactResidentName}>{resident.residentName}</Text>
+          {residentMeta ? (
+            <Text style={styles.contactResidentMeta}>{residentMeta}</Text>
+          ) : null}
         </View>
 
         <View style={styles.contactCardShell}>
           <Text style={styles.contactCardTitle}>
-            Elige cómo quieres contactar con {residentName}
+            Elige cómo quieres contactar con {resident.residentName}
           </Text>
 
           <View style={styles.contactOptionsList}>
-            {review.reviewer_phone ? (
+            {resident.phone ? (
               <ContactOptionCard
                 icon="logo-whatsapp"
                 color="#25D366"
                 backgroundColor="#E8F8EE"
                 title="WhatsApp"
                 subtitle="Enviar mensaje por WhatsApp"
-                onPress={() => handleOpenWhatsApp(review)}
+                onPress={() => handleOpenWhatsApp({ ...review, reviewer_phone: resident.phone })}
               />
             ) : null}
 
@@ -2136,19 +2217,19 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
               color="#FFFFFF"
               backgroundColor="rgba(255,255,255,0.18)"
               title="Chat de la app"
-              subtitle="Abrir hilo de preguntas en la app"
+              subtitle="Abrir conversación privada en la app"
               onPress={() => handleOpenAppChat(review)}
               primary
             />
 
-            {review.reviewer_email ? (
+            {resident.email ? (
               <ContactOptionCard
                 icon="mail"
                 color={PRIMARY}
                 backgroundColor={PRIMARY_SOFT}
                 title="Email"
                 subtitle="Enviar correo electrónico"
-                onPress={() => handleOpenEmail(review)}
+                onPress={() => handleOpenEmail({ ...review, reviewer_email: resident.email })}
               />
             ) : null}
           </View>
@@ -2199,7 +2280,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         onBack={() =>
           setRoute({ name: route.payload?.from || "explore", payload: null })
         }
-        onContact={(review) => handleOpenContact(review)}
+        onContact={handleOpenAppChat}
         onFavoriteChanged={refreshAll}
       />
     );
@@ -2246,6 +2327,43 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         confirmText="Eliminar"
         cancelText="Cancelar"
       />
+
+      {activeDateField ? (
+        <View style={styles.dateOverlay}>
+          <TouchableOpacity style={styles.dateOverlayTouch} onPress={resetDatePickerState} />
+          <View style={styles.dateSheet}>
+            {Platform.OS === "ios" ? (
+              <>
+                <View style={styles.dateSheetHeader}>
+                  <TouchableOpacity onPress={resetDatePickerState}>
+                    <Text style={styles.dateSheetCancel}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleConfirmDate}>
+                    <Text style={styles.dateSheetConfirm}>Seleccionar</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={tempSelectedDate || new Date()}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDateChange}
+                  locale="es-ES"
+                  minimumDate={activeDateMinimum}
+                />
+              </>
+            ) : (
+              <DateTimePicker
+                value={tempSelectedDate || new Date()}
+                mode="date"
+                display="default"
+                onChange={handleDateChange}
+                locale="es-ES"
+                minimumDate={activeDateMinimum}
+              />
+            )}
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -2768,18 +2886,61 @@ const styles = StyleSheet.create({
   },
   dateButton: {
     minHeight: 52,
-    backgroundColor: SURFACE_ALT,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    backgroundColor: "#F8FAFC",
     borderRadius: 16,
     paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingVertical: 13,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
   },
   dateButtonText: {
+    flex: 1,
     fontSize: 15,
-    color: TEXT,
+    color: ACCENT,
+    fontWeight: "600",
+  },
+  dateButtonPlaceholder: {
+    color: MUTED_LIGHT,
     fontWeight: "500",
+  },
+  dateOverlay: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.28)",
+    justifyContent: "flex-end",
+  },
+  dateOverlayTouch: {
+    flex: 1,
+  },
+  dateSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: Platform.OS === "ios" ? 28 : 12,
+  },
+  dateSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingTop: 16,
+  },
+  dateSheetCancel: {
+    color: TEXT_MUTED,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  dateSheetConfirm: {
+    color: PRIMARY,
+    fontSize: 15,
+    fontWeight: "700",
   },
   textArea: {
     minHeight: 110,

@@ -88,8 +88,30 @@ const getInitials = (name, surname) => {
 const getDisplayName = (user) =>
   `${user?.name || ""} ${user?.surname || ""}`.trim() || "Usuario";
 
-const getGroupInfoItems = (group, membersCount) => {
+const getConversationInfoItems = ({
+  group,
+  membersCount,
+  isDirectChat,
+  otherMember,
+}) => {
   if (!group) return [];
+
+  if (isDirectChat) {
+    return [
+      {
+        key: "participants",
+        icon: "people-outline",
+        label: "Participantes",
+        value: String(membersCount || 2),
+      },
+      {
+        key: "other-user",
+        icon: "person-outline",
+        label: "Conversas con",
+        value: getDisplayName(otherMember?.user),
+      },
+    ];
+  }
 
   const items = [
     { key: "members", icon: "people-outline", label: "Miembros", value: String(membersCount) },
@@ -627,10 +649,32 @@ export default function GroupChatScreen({
 
   const composerBottomInset = 0;
   const TAP_SLOP = 8;
+  const isDirectChat = groupDetails?.kind === "direct";
+  const otherMember = useMemo(
+    () =>
+      members.find(
+        (member) => member.user_id && member.user_id !== currentUserId
+      ) || null,
+    [members, currentUserId]
+  );
   const membersCount = members.length || groupDetails?.member_count || 0;
+  const conversationTitle = isDirectChat
+    ? [
+        otherMember?.user?.name || "",
+        otherMember?.user?.surname || "",
+      ]
+        .join(" ")
+        .trim() || groupName || "Chat directo"
+    : groupName || groupDetails?.name || "Grupo";
   const groupInfoItems = useMemo(
-    () => getGroupInfoItems(groupDetails, membersCount),
-    [groupDetails, membersCount]
+    () =>
+      getConversationInfoItems({
+        group: groupDetails,
+        membersCount,
+        isDirectChat,
+        otherMember,
+      }),
+    [groupDetails, membersCount, isDirectChat, otherMember]
   );
 
   const displayData = useMemo(
@@ -683,12 +727,18 @@ export default function GroupChatScreen({
             activeOpacity={0.75}
           >
             <View style={styles.headerAvatar}>
-              <Ionicons name="people" size={18} color={WHITE} />
+              <Ionicons
+                name={isDirectChat ? "person" : "people"}
+                size={18}
+                color={WHITE}
+              />
             </View>
             <View style={styles.headerText}>
-              <Text style={styles.headerEyebrow}>Grupo</Text>
+              <Text style={styles.headerEyebrow}>
+                {isDirectChat ? "Chat directo" : "Grupo"}
+              </Text>
               <Text style={styles.headerName} numberOfLines={1}>
-                {groupName || "Grupo"}
+                {conversationTitle}
               </Text>
               <View style={styles.headerStatusRow}>
                 <View
@@ -726,13 +776,15 @@ export default function GroupChatScreen({
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.headerIconBtn, styles.leaveBtn]}
-              onPress={handleLeaveGroup}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="exit-outline" size={18} color={ERROR} />
-            </TouchableOpacity>
+            {!isDirectChat ? (
+              <TouchableOpacity
+                style={[styles.headerIconBtn, styles.leaveBtn]}
+                onPress={handleLeaveGroup}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="exit-outline" size={18} color={ERROR} />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </View>
@@ -830,11 +882,14 @@ export default function GroupChatScreen({
                       />
                     </View>
                     <Text style={styles.emptyChatTitle}>
-                      Empieza la conversación
+                      {isDirectChat
+                        ? "Abre la conversación"
+                        : "Empieza la conversación"}
                     </Text>
                     <Text style={styles.emptyChatSubtitle}>
-                      Este grupo todavía no tiene mensajes. Rompe el hielo con una
-                      primera pregunta o comparte algo util.
+                      {isDirectChat
+                        ? "Todavía no hay mensajes en este chat directo. Envía el primero."
+                        : "Este grupo todavía no tiene mensajes. Rompe el hielo con una primera pregunta o comparte algo util."}
                     </Text>
                   </View>
                 }
@@ -891,10 +946,12 @@ export default function GroupChatScreen({
             <View style={styles.membersModalHeader}>
               <View>
                 <Text style={styles.membersModalTitle}>
-                  {groupDetails?.name || groupName || "Grupo"}
+                  {conversationTitle}
                 </Text>
                 <Text style={styles.membersModalSubtitle}>
-                  Información y miembros del grupo
+                  {isDirectChat
+                    ? "Información del chat directo"
+                    : "Información y miembros del grupo"}
                 </Text>
               </View>
 
@@ -926,7 +983,11 @@ export default function GroupChatScreen({
                 contentContainerStyle={styles.membersListContent}
                 ListHeaderComponent={
                   <View style={styles.groupInfoCard}>
-                    <Text style={styles.groupInfoTitle}>Información del grupo</Text>
+                    <Text style={styles.groupInfoTitle}>
+                      {isDirectChat
+                        ? "Información del chat"
+                        : "Información del grupo"}
+                    </Text>
                     {groupInfoItems.map((item) => (
                       <View key={item.key} style={styles.groupInfoRow}>
                         <View style={styles.groupInfoLabelWrap}>
@@ -937,7 +998,9 @@ export default function GroupChatScreen({
                       </View>
                     ))}
 
-                    <Text style={styles.groupInfoMembersTitle}>Miembros dentro del grupo</Text>
+                    <Text style={styles.groupInfoMembersTitle}>
+                      {isDirectChat ? "Participantes" : "Miembros dentro del grupo"}
+                    </Text>
                   </View>
                 }
                 ListEmptyComponent={

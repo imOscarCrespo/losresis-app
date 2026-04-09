@@ -1,5 +1,7 @@
 import { supabase } from "../../config/supabase";
 
+export const CHAT_NOTIFICATION_TYPES = ["group_message"] as const;
+
 export type NotificationRow = {
   id: string;
   user_id: string;
@@ -76,4 +78,45 @@ export async function getUnreadNotificationsCount(
     return 0;
   }
   return count ?? 0;
+}
+
+export type UnreadNotificationBuckets = {
+  chatCount: number;
+  otherCount: number;
+};
+
+/**
+ * Splits unread notifications between chat notifications and everything else.
+ */
+export async function getUnreadNotificationBuckets(
+  userId: string
+): Promise<UnreadNotificationBuckets> {
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("type")
+    .eq("user_id", userId)
+    .eq("is_read", false);
+
+  if (error) {
+    console.error("[Notifications] getUnreadBuckets error:", error.message);
+    return { chatCount: 0, otherCount: 0 };
+  }
+
+  return (data ?? []).reduce<UnreadNotificationBuckets>(
+    (acc, notification) => {
+      if (
+        notification?.type &&
+        CHAT_NOTIFICATION_TYPES.includes(
+          notification.type as (typeof CHAT_NOTIFICATION_TYPES)[number]
+        )
+      ) {
+        acc.chatCount += 1;
+      } else {
+        acc.otherCount += 1;
+      }
+
+      return acc;
+    },
+    { chatCount: 0, otherCount: 0 }
+  );
 }

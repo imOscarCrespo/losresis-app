@@ -748,18 +748,24 @@ export type Database = {
           group_id: string
           id: string
           joined_at: string | null
+          last_read_at: string | null
+          notifications_muted: boolean | null
           user_id: string
         }
         Insert: {
           group_id: string
           id?: string
           joined_at?: string | null
+          last_read_at?: string | null
+          notifications_muted?: boolean | null
           user_id: string
         }
         Update: {
           group_id?: string
           id?: string
           joined_at?: string | null
+          last_read_at?: string | null
+          notifications_muted?: boolean | null
           user_id?: string
         }
         Relationships: [
@@ -829,10 +835,13 @@ export type Database = {
           city: string | null
           cohort_year: number | null
           created_at: string | null
+          created_by_user_id: string | null
           description: string | null
+          direct_pair_key: string | null
           hospital_id: string | null
           id: string
           is_active: boolean | null
+          kind: string
           member_count: number | null
           name: string
           speciality_id: string | null
@@ -842,10 +851,13 @@ export type Database = {
           city?: string | null
           cohort_year?: number | null
           created_at?: string | null
+          created_by_user_id?: string | null
           description?: string | null
+          direct_pair_key?: string | null
           hospital_id?: string | null
           id?: string
           is_active?: boolean | null
+          kind?: string
           member_count?: number | null
           name: string
           speciality_id?: string | null
@@ -855,16 +867,26 @@ export type Database = {
           city?: string | null
           cohort_year?: number | null
           created_at?: string | null
+          created_by_user_id?: string | null
           description?: string | null
+          direct_pair_key?: string | null
           hospital_id?: string | null
           id?: string
           is_active?: boolean | null
+          kind?: string
           member_count?: number | null
           name?: string
           speciality_id?: string | null
           user_type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "groups_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "groups_hospital_id_fkey"
             columns: ["hospital_id"]
@@ -1253,6 +1275,47 @@ export type Database = {
           },
         ]
       }
+      libro_book: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          id: string
+          residency_year: number
+          section: Database["public"]["Enums"]["libro_section_code"]
+          status: Database["public"]["Enums"]["libro_book_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          residency_year: number
+          section: Database["public"]["Enums"]["libro_section_code"]
+          status?: Database["public"]["Enums"]["libro_book_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          residency_year?: number
+          section?: Database["public"]["Enums"]["libro_section_code"]
+          status?: Database["public"]["Enums"]["libro_book_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "libro_book_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       libro_entry: {
         Row: {
           count: number
@@ -1363,6 +1426,7 @@ export type Database = {
       }
       libro_node: {
         Row: {
+          book_id: string
           created_at: string | null
           goal: number | null
           id: string
@@ -1374,6 +1438,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          book_id: string
           created_at?: string | null
           goal?: number | null
           id?: string
@@ -1385,6 +1450,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          book_id?: string
           created_at?: string | null
           goal?: number | null
           id?: string
@@ -1396,6 +1462,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "libro_node_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "libro_book"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "libro_node_parent_node_id_fkey"
             columns: ["parent_node_id"]
@@ -2670,7 +2743,32 @@ export type Database = {
           speciality_name: string
         }[]
       }
+      ensure_direct_group: {
+        Args: { p_other_user_id: string }
+        Returns: {
+          group_id: string
+          group_name: string
+          other_user_id: string
+        }[]
+      }
       generate_referral_code: { Args: never; Returns: string }
+      get_direct_groups: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          group_id: string
+          kind: string
+          last_message_at: string
+          last_message_preview: string
+          notifications_muted: boolean
+          other_user_city: string
+          other_user_hospital_name: string
+          other_user_id: string
+          other_user_name: string
+          other_user_speciality_name: string
+          other_user_surname: string
+          unread_count: number
+        }[]
+      }
       unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
@@ -2695,6 +2793,7 @@ export type Database = {
         | "training"
         | "other"
       job_status: "draft" | "published" | "closed" | "archived"
+      libro_book_status: "active" | "archived"
       libro_entry_kind: "counter" | "event"
       libro_section_code:
         | "clinical_practice"
@@ -2856,6 +2955,7 @@ export const Constants = {
         "other",
       ],
       job_status: ["draft", "published", "closed", "archived"],
+      libro_book_status: ["active", "archived"],
       libro_entry_kind: ["counter", "event"],
       libro_section_code: [
         "clinical_practice",

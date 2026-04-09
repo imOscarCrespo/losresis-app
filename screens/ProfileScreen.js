@@ -1,21 +1,20 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  TextInput,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
   Share,
   Modal,
   Pressable,
-  Platform,
   Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
+import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
+import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { ScreenScaffold } from "../components/ScreenScaffold";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
@@ -552,42 +551,6 @@ export default function ProfileScreen({
   const [referralAlreadyApplied, setReferralAlreadyApplied] = useState(false);
   const [showReferralCodeModal, setShowReferralCodeModal] = useState(false);
 
-  // Refs para inputs y scroll
-  const scrollViewRef = useRef(null);
-  const nameInputRef = useRef(null);
-  const surnameInputRef = useRef(null);
-  const phoneInputRef = useRef(null);
-  const workEmailInputRef = useRef(null);
-  const referralCodeInputRef = useRef(null);
-
-  // Función helper para hacer scroll a un input cuando recibe foco
-  const scrollToInput = (inputRef, offset = 100) => {
-    if (!inputRef.current || !scrollViewRef.current) return;
-
-    setTimeout(
-      () => {
-        inputRef.current?.measureLayout(
-          scrollViewRef.current,
-          (x, y, width, height) => {
-            // Scroll para que el input quede visible con un padding adicional
-            scrollViewRef.current?.scrollTo({
-              y: Math.max(0, y - offset),
-              animated: true,
-            });
-          },
-          () => {
-            // Fallback: si measureLayout falla, hacer scroll incremental
-            scrollViewRef.current?.scrollTo({
-              y: offset,
-              animated: true,
-            });
-          }
-        );
-      },
-      Platform.OS === "ios" ? 250 : 100
-    );
-  };
-
   // Cargar raffle activo y comprobar si ya aplicó código (solo si sección visible)
   useEffect(() => {
     if (!showReferralApplySection || !user?.id) return;
@@ -774,7 +737,6 @@ export default function ProfileScreen({
 
   return (
     <ScreenScaffold
-      keyboardAvoiding
       style={styles.safeArea}
       header={
         isOnboarding ? (
@@ -792,13 +754,11 @@ export default function ProfileScreen({
       }
       contentSurfaceStyle={styles.contentSurface}
     >
-        <ScrollView
-          ref={scrollViewRef}
+        <KeyboardAwareScrollView
           style={[styles.scrollView, !isOnboarding && styles.scrollViewWithHero]}
           contentContainerStyle={styles.scrollViewContent}
+          bottomPadding={32}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
         >
           <View style={styles.contentInner}>
             {isOnboarding ? (
@@ -857,8 +817,7 @@ export default function ProfileScreen({
                 ) : (
                   <View style={styles.referralInputRow}>
                     <View style={styles.referralInputContainer}>
-                      <TextInput
-                        ref={referralCodeInputRef}
+                      <KeyboardAwareTextInput
                         style={styles.referralCodeInput}
                         placeholder="ABCDE"
                         placeholderTextColor="#94A3B8"
@@ -875,7 +834,7 @@ export default function ProfileScreen({
                         autoCapitalize="characters"
                         autoCorrect={false}
                         editable={!applyingReferralCode}
-                        onFocus={() => scrollToInput(referralCodeInputRef, 150)}
+                        keyboardAwareOptions={{ extraScrollSpace: 36 }}
                       />
                     </View>
                     <Button
@@ -937,13 +896,11 @@ export default function ProfileScreen({
                     color="#999"
                     style={styles.inputIcon}
                   />
-                  <TextInput
-                    ref={nameInputRef}
+                  <KeyboardAwareTextInput
                     style={styles.input}
                     placeholder="Tu nombre"
                     value={formData.name}
                     onChangeText={(text) => updateField("name", text)}
-                    onFocus={() => scrollToInput(nameInputRef, 120)}
                   />
                 </View>
               </View>
@@ -957,13 +914,11 @@ export default function ProfileScreen({
                     color="#999"
                     style={styles.inputIcon}
                   />
-                  <TextInput
-                    ref={surnameInputRef}
+                  <KeyboardAwareTextInput
                     style={styles.input}
                     placeholder="Tus apellidos"
                     value={formData.surname}
                     onChangeText={(text) => updateField("surname", text)}
-                    onFocus={() => scrollToInput(surnameInputRef, 120)}
                   />
                 </View>
               </View>
@@ -979,14 +934,12 @@ export default function ProfileScreen({
                     color="#999"
                     style={styles.inputIcon}
                   />
-                  <TextInput
-                    ref={phoneInputRef}
+                  <KeyboardAwareTextInput
                     style={styles.input}
                     placeholder="+34 600 000 000"
                     value={formData.phone}
                     onChangeText={(text) => updateField("phone", text)}
                     keyboardType="phone-pad"
-                    onFocus={() => scrollToInput(phoneInputRef, 120)}
                   />
                 </View>
               </View>
@@ -1077,8 +1030,7 @@ export default function ProfileScreen({
                     color={isEmailInputDisabled ? "#CCC" : "#999"}
                     style={styles.inputIcon}
                   />
-                  <TextInput
-                    ref={workEmailInputRef}
+                  <KeyboardAwareTextInput
                     style={[
                       styles.input,
                       isEmailInputDisabled && styles.inputDisabled,
@@ -1093,7 +1045,7 @@ export default function ProfileScreen({
                     keyboardType="email-address"
                     autoCapitalize="none"
                     editable={!isEmailInputDisabled}
-                    onFocus={() => scrollToInput(workEmailInputRef, 150)}
+                    keyboardAwareOptions={{ extraScrollSpace: 36 }}
                   />
                 </View>
               </View>
@@ -1192,6 +1144,26 @@ export default function ProfileScreen({
               </View>
               <TouchableOpacity
                 style={styles.settingsRow}
+                onPress={() => onSectionChange("myReview")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingsRowContent}>
+                  <Ionicons
+                    name="star-outline"
+                    size={24}
+                    color={COLORS.PRIMARY}
+                    style={styles.securityIcon}
+                  />
+                  <Text style={styles.settingsRowTitle}>Mi reseña</Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={COLORS.TEXT_LIGHT}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.settingsRow, styles.settingsRowSecond]}
                 onPress={() => onSectionChange("notificationSettings")}
                 activeOpacity={0.7}
               >
@@ -1203,26 +1175,6 @@ export default function ProfileScreen({
                     style={styles.securityIcon}
                   />
                   <Text style={styles.settingsRowTitle}>Notificaciones</Text>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={COLORS.TEXT_LIGHT}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.settingsRow, styles.settingsRowSecond]}
-                onPress={() => onSectionChange("notifications")}
-                activeOpacity={0.7}
-              >
-                <View style={styles.settingsRowContent}>
-                  <Ionicons
-                    name="list-outline"
-                    size={24}
-                    color={COLORS.PRIMARY}
-                    style={styles.securityIcon}
-                  />
-                  <Text style={styles.settingsRowTitle}>Ver notificaciones</Text>
                 </View>
                 <Ionicons
                   name="chevron-forward"
@@ -1324,7 +1276,7 @@ export default function ProfileScreen({
             </View>
             </View>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       <Modal
         visible={showReferralCodeModal}
         transparent

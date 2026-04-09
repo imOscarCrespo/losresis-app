@@ -20,8 +20,8 @@ import {
   ROOMMATE_FORM_DEFAULTS,
   ROOMMATE_OPTION_SETS,
   ROOMMATE_THEME,
-  getRoommateAvatarUrl,
   getAnswerInputValue,
+  getRoommateAvatarUrl,
   normalizeBundle,
 } from "../../utils/roommateUtils";
 import { SelectorModal } from "../SelectorModal";
@@ -66,7 +66,7 @@ const ChoiceRow = ({ options, value, onChange, multi = false }) => {
   );
 };
 
-const sanitizeCityOptions = (options = []) => {
+const sanitizeSelectorOptions = (options = []) => {
   const seen = new Set();
 
   return options.filter((option) => {
@@ -113,7 +113,8 @@ const buildStepDefinitions = () => [
       bundle,
       updateProfile,
       cityLabel,
-      onOpenCityModal,
+      hospitalLabel,
+      onOpenHospitalModal,
       onPickAvatar,
     }) => (
       <>
@@ -134,7 +135,11 @@ const buildStepDefinitions = () => [
               />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Ionicons name="camera-outline" size={24} color={ROOMMATE_THEME.PRIMARY} />
+                <Ionicons
+                  name="camera-outline"
+                  size={24}
+                  color={ROOMMATE_THEME.PRIMARY}
+                />
               </View>
             )}
           </View>
@@ -152,6 +157,7 @@ const buildStepDefinitions = () => [
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
+
         <TextInput
           style={styles.input}
           placeholder="Titular breve. Ej: R2 tranquila buscando piso"
@@ -159,6 +165,7 @@ const buildStepDefinitions = () => [
           value={bundle.profile.headline}
           onChangeText={(value) => updateProfile("headline", value)}
         />
+
         <View style={styles.doubleRow}>
           <TextInput
             style={[styles.input, styles.flexOne]}
@@ -169,31 +176,48 @@ const buildStepDefinitions = () => [
             onChangeText={(value) => updateProfile("age", value)}
           />
           <TouchableOpacity
-            style={[styles.citySelectorButton, styles.flexOne]}
-            onPress={onOpenCityModal}
+            style={[styles.selectorButton, styles.flexOne]}
+            onPress={onOpenHospitalModal}
             activeOpacity={0.8}
           >
             <Ionicons
               name="business"
               size={16}
-              color={bundle.profile.city ? ROOMMATE_THEME.PRIMARY : ROOMMATE_THEME.ACCENT}
+              color={
+                bundle.profile.hospital_id
+                  ? ROOMMATE_THEME.PRIMARY
+                  : ROOMMATE_THEME.ACCENT
+              }
             />
             <Text
               style={[
-                styles.citySelectorText,
-                !bundle.profile.city && styles.citySelectorPlaceholder,
+                styles.selectorText,
+                !bundle.profile.hospital_id && styles.selectorPlaceholder,
               ]}
               numberOfLines={1}
             >
-              {cityLabel}
+              {hospitalLabel}
             </Text>
             <Ionicons
               name="chevron-down"
               size={16}
-              color={bundle.profile.city ? ROOMMATE_THEME.PRIMARY : ROOMMATE_THEME.ACCENT}
+              color={
+                bundle.profile.hospital_id
+                  ? ROOMMATE_THEME.PRIMARY
+                  : ROOMMATE_THEME.ACCENT
+              }
             />
           </TouchableOpacity>
         </View>
+
+        <View style={styles.citySummaryCard}>
+          <Text style={styles.citySummaryLabel}>Ciudad del perfil</Text>
+          <Text style={styles.citySummaryValue}>{cityLabel}</Text>
+          <Text style={styles.citySummaryHint}>
+            Se rellena automáticamente a partir del hospital seleccionado.
+          </Text>
+        </View>
+
         <ChoiceRow
           options={ROOMMATE_OPTION_SETS.homePlan}
           value={bundle.profile.home_plan}
@@ -281,12 +305,6 @@ const buildStepDefinitions = () => [
             onChangeText={(value) => updateProfile("budget_max_eur", value)}
           />
         </View>
-        <Text style={styles.fieldTitle}>Qué estás buscando</Text>
-        <ChoiceRow
-          options={ROOMMATE_OPTION_SETS.lookingFor}
-          value={bundle.profile.looking_for}
-          onChange={(value) => updateProfile("looking_for", value)}
-        />
         <Text style={styles.fieldTitle}>Preferencia de género</Text>
         <ChoiceRow
           options={ROOMMATE_OPTION_SETS.gender}
@@ -296,6 +314,22 @@ const buildStepDefinitions = () => [
       </>
     ),
   },
+  {
+    title: "Cuéntanos un poco más sobre ti",
+    subtitle:
+      "Este campo es opcional, pero te ayudará a encontrar compañeros más afines",
+    render: ({ bundle, updateProfile }) => (
+      <TextInput
+        style={[styles.input, styles.textArea]}
+        placeholder="Cuéntanos cómo eres, qué tipo de convivencia buscas o cualquier detalle importante (horarios, orden, hobbies, etc.)"
+        placeholderTextColor="#94A3B8"
+        multiline
+        textAlignVertical="top"
+        value={bundle.profile.bio || ""}
+        onChangeText={(value) => updateProfile("bio", value)}
+      />
+    ),
+  },
 ];
 
 export function RoommateProfileEditor({
@@ -303,21 +337,24 @@ export function RoommateProfileEditor({
   mode = "create",
   questions = [],
   initialBundle,
-  cityOptions = [],
+  hospitalOptions = [],
+  hospitals = [],
   onClose,
   onSave,
   saving = false,
 }) {
   const insets = useSafeAreaInsets();
-  const [cityModalVisible, setCityModalVisible] = useState(false);
+  const [hospitalModalVisible, setHospitalModalVisible] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
-  const [bundle, setBundle] = useState(sanitizeEditorBundle(initialBundle || ROOMMATE_FORM_DEFAULTS));
+  const [bundle, setBundle] = useState(
+    sanitizeEditorBundle(initialBundle || ROOMMATE_FORM_DEFAULTS)
+  );
 
   React.useEffect(() => {
     if (visible) {
       setBundle(sanitizeEditorBundle(initialBundle || ROOMMATE_FORM_DEFAULTS));
       setStepIndex(0);
-      setCityModalVisible(false);
+      setHospitalModalVisible(false);
     }
   }, [visible, initialBundle]);
 
@@ -374,26 +411,49 @@ export function RoommateProfileEditor({
     updateProfile("avatar_asset", result.assets[0]);
   };
 
-  const resolvedCityOptions = useMemo(() => {
-    const cleanedOptions = sanitizeCityOptions(cityOptions);
+  const hospitalsById = useMemo(
+    () =>
+      (hospitals || []).reduce((acc, hospital) => {
+        acc[hospital.id] = hospital;
+        return acc;
+      }, {}),
+    [hospitals]
+  );
 
-    if (!bundle.profile.city) {
+  const resolvedHospitalOptions = useMemo(() => {
+    const cleanedOptions = sanitizeSelectorOptions(hospitalOptions);
+
+    if (!bundle.profile.hospital_id) {
       return cleanedOptions;
     }
 
-    const cityExists = cleanedOptions.some(
-      (option) => (option.id || option.value) === bundle.profile.city
+    const hospitalExists = cleanedOptions.some(
+      (option) => (option.id || option.value) === bundle.profile.hospital_id
     );
 
-    if (cityExists) {
+    if (hospitalExists) {
       return cleanedOptions;
     }
 
+    const selectedHospital = hospitalsById[bundle.profile.hospital_id];
     return [
-      { id: bundle.profile.city, name: bundle.profile.city },
+      {
+        id: bundle.profile.hospital_id,
+        name: selectedHospital
+          ? `${selectedHospital.name} - ${selectedHospital.city}`
+          : bundle.profile.hospital_id,
+      },
       ...cleanedOptions,
     ];
-  }, [bundle.profile.city, cityOptions]);
+  }, [bundle.profile.hospital_id, hospitalOptions, hospitalsById]);
+
+  const selectedHospital = bundle.profile.hospital_id
+    ? hospitalsById[bundle.profile.hospital_id]
+    : null;
+  const hospitalLabel = selectedHospital
+    ? `${selectedHospital.name} - ${selectedHospital.city}`
+    : "Hospital más cercano";
+  const cityLabel = bundle.profile.city || "Selecciona un hospital";
 
   const weekdayQuestion = useMemo(
     () => getQuestionByCode(questions, "weekday_vibe"),
@@ -412,8 +472,9 @@ export function RoommateProfileEditor({
           step.render({
             ...renderProps,
             questions,
-            cityLabel: bundle.profile.city || "Ciudad",
-            onOpenCityModal: () => setCityModalVisible(true),
+            cityLabel,
+            hospitalLabel,
+            onOpenHospitalModal: () => setHospitalModalVisible(true),
             onPickAvatar: handlePickAvatar,
             updateProfile,
             updateLifestyle,
@@ -427,7 +488,10 @@ export function RoommateProfileEditor({
       bundle.profile.avatar_asset,
       bundle.profile.avatar_url,
       bundle.profile.city,
+      bundle.profile.hospital_id,
       questions,
+      cityLabel,
+      hospitalLabel,
       weekdayQuestion,
       weekendQuestion,
     ]
@@ -539,17 +603,20 @@ export function RoommateProfileEditor({
         </KeyboardAvoidingView>
 
         <SelectorModal
-          visible={cityModalVisible}
-          onClose={() => setCityModalVisible(false)}
-          title="Filtrar por ciudad"
-          options={resolvedCityOptions}
-          value={bundle.profile.city}
+          visible={hospitalModalVisible}
+          onClose={() => setHospitalModalVisible(false)}
+          title="Hospital más cercano"
+          options={resolvedHospitalOptions}
+          value={bundle.profile.hospital_id}
           onSelect={(value) => {
             Keyboard.dismiss();
-            updateProfile("city", value);
+            const hospital = hospitalsById[value];
+            updateProfile("hospital_id", value);
+            updateProfile("city", hospital?.city || bundle.profile.city || "");
           }}
-          placeholder="Todas las ciudades"
+          placeholder="Selecciona el hospital más cercano"
           allowClear={false}
+          enableSearch
           accentColor={ROOMMATE_THEME.ACCENT}
           primaryColor={ROOMMATE_THEME.PRIMARY}
         />
@@ -645,8 +712,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   textArea: {
-    minHeight: 110,
-    textAlignVertical: "top",
+    minHeight: 180,
+    paddingTop: 16,
+    lineHeight: 22,
   },
   doubleRow: {
     flexDirection: "row",
@@ -709,7 +777,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
   },
-  citySelectorButton: {
+  selectorButton: {
     minHeight: 52,
     borderRadius: 999,
     backgroundColor: "#FFFFFF",
@@ -720,14 +788,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  citySelectorText: {
+  selectorText: {
     flex: 1,
     color: ROOMMATE_THEME.ACCENT,
     fontSize: 14,
     fontWeight: "700",
   },
-  citySelectorPlaceholder: {
+  selectorPlaceholder: {
     color: ROOMMATE_THEME.ACCENT,
+  },
+  citySummaryCard: {
+    borderRadius: 20,
+    backgroundColor: "#F4F0FF",
+    padding: 16,
+    gap: 4,
+  },
+  citySummaryLabel: {
+    color: ROOMMATE_THEME.MUTED,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  citySummaryValue: {
+    color: ROOMMATE_THEME.ACCENT,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  citySummaryHint: {
+    color: ROOMMATE_THEME.MUTED,
+    fontSize: 12,
+    lineHeight: 18,
   },
   fieldTitle: {
     marginTop: 4,
@@ -762,29 +852,6 @@ const styles = StyleSheet.create({
   },
   choiceTextActive: {
     color: "#FFFFFF",
-  },
-  switchCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 16,
-    borderRadius: 18,
-    backgroundColor: ROOMMATE_THEME.BACKGROUND,
-    padding: 16,
-  },
-  switchBody: {
-    flex: 1,
-  },
-  switchTitle: {
-    color: ROOMMATE_THEME.ACCENT,
-    fontSize: 15,
-    fontWeight: "900",
-  },
-  switchText: {
-    marginTop: 6,
-    color: ROOMMATE_THEME.MUTED,
-    fontSize: 13,
-    lineHeight: 20,
   },
   footer: {
     position: "absolute",
@@ -823,132 +890,5 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.55,
-  },
-  pickerModalContainer: {
-    flex: 1,
-    backgroundColor: "#FFF",
-  },
-  pickerHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#E2E8F0",
-  },
-  pickerBackBtn: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pickerTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 20,
-    fontWeight: "800",
-    color: ROOMMATE_THEME.ACCENT,
-  },
-  pickerSearchWrap: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  pickerSearchInner: {
-    minHeight: 48,
-    borderRadius: 16,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  pickerSearchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: ROOMMATE_THEME.TEXT,
-  },
-  pickerListContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  pickerOption: {
-    minHeight: 58,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  pickerOptionSelected: {
-    backgroundColor: "#F8FAFF",
-  },
-  pickerOptionClear: {
-    marginBottom: 8,
-    backgroundColor: "#FFF7ED",
-  },
-  pickerOptionBody: {
-    flex: 1,
-    paddingVertical: 14,
-  },
-  pickerOptionName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: ROOMMATE_THEME.ACCENT,
-  },
-  pickerOptionNameSelected: {
-    color: ROOMMATE_THEME.PRIMARY,
-  },
-  pickerOptionNameClear: {
-    color: "#C2410C",
-  },
-  pickerEmpty: {
-    paddingVertical: 40,
-    alignItems: "center",
-  },
-  pickerEmptyText: {
-    fontSize: 14,
-    color: ROOMMATE_THEME.MUTED,
-  },
-  pickerFooter: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#E2E8F0",
-    backgroundColor: "#FFF",
-  },
-  pickerConfirmBtn: {
-    minHeight: 52,
-    borderRadius: 16,
-    backgroundColor: ROOMMATE_THEME.PRIMARY,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pickerConfirmText: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#FFF",
-  },
-  radioDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  radioDotSelected: {
-    borderColor: ROOMMATE_THEME.PRIMARY,
-  },
-  radioDotUnselected: {
-    borderColor: "#CBD5E1",
-  },
-  radioDotInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: ROOMMATE_THEME.PRIMARY,
   },
 });

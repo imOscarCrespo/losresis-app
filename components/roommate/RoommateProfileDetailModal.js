@@ -18,7 +18,6 @@ import {
   getRoommateAvatarUrl,
   getRoommateDisplayName,
   getRoommateInitials,
-  getRoommateTags,
 } from "../../utils/roommateUtils";
 
 const QUESTION_LABELS = {
@@ -73,8 +72,19 @@ const renderAnswerText = (code, answer) => {
 const infoRows = (bundle) => {
   const profile = bundle?.profile || {};
   const lifestyle = bundle?.lifestyle || {};
+  const search = bundle?.search || {};
 
   return [
+    {
+      icon: "briefcase-outline",
+      label: "Trabajo",
+      value: profile.speciality?.name || profile.occupation_label,
+    },
+    {
+      icon: "people-circle-outline",
+      label: "Preferencia de género",
+      value: getOptionLabel("gender", search.preferred_gender),
+    },
     {
       icon: "business-outline",
       label: "Plan de piso",
@@ -89,6 +99,11 @@ const infoRows = (bundle) => {
       icon: "people-outline",
       label: "Visitas",
       value: getOptionLabel("guests", lifestyle.guests_frequency),
+    },
+    {
+      icon: "ban-outline",
+      label: "Tabaco",
+      value: getOptionLabel("smoking", lifestyle.smoking_habit),
     },
     {
       icon: "paw-outline",
@@ -118,7 +133,6 @@ export function RoommateProfileDetailModal({
   if (!bundle) return null;
 
   const profile = bundle.profile || {};
-  const tags = getRoommateTags(profile, bundle.lifestyle);
   const questionEntries = Object.entries(bundle.answers || {}).filter(
     ([code, answer]) => answer && QUESTION_LABELS[code]
   );
@@ -160,17 +174,6 @@ export function RoommateProfileDetailModal({
               <Text style={styles.subtitleMuted}>
                 {profile.hospital?.name || profile.city}
               </Text>
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Quick read</Text>
-            <View style={styles.tagsRow}>
-              {tags.map((tag) => (
-                <View key={tag} style={styles.tag}>
-                  <Text style={styles.tagText}>{tag}</Text>
-                </View>
-              ))}
             </View>
           </View>
 
@@ -327,22 +330,6 @@ const styles = StyleSheet.create({
     color: ROOMMATE_THEME.ACCENT,
     fontSize: 18,
     fontWeight: "900",
-  },
-  tagsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  tag: {
-    backgroundColor: "#F5EEFF",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  tagText: {
-    color: ROOMMATE_THEME.PRIMARY,
-    fontSize: 12,
-    fontWeight: "800",
   },
   grid: {
     flexDirection: "row",

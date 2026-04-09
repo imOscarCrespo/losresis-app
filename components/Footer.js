@@ -1,7 +1,8 @@
-import React, { useMemo, memo, useCallback } from "react";
+import React, { useMemo, memo, useCallback, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { getFooterConfig } from "../constants/footerConfig";
+import { useUnreadNotificationBuckets } from "../src/hooks/useUnreadNotificationBuckets";
 
 // ============================================================================
 // CONSTANTS
@@ -22,7 +23,7 @@ const TEXT_SIZE = 10;
 /**
  * Item individual del footer (v2: icono + texto + punto activo en púrpura)
  */
-const FooterItem = memo(({ item, isActive, onPress }) => {
+const FooterItem = memo(({ item, isActive, onPress, showBadge = false }) => {
   return (
     <TouchableOpacity
       style={styles.footerItem}
@@ -32,11 +33,14 @@ const FooterItem = memo(({ item, isActive, onPress }) => {
       accessibilityRole="button"
       accessibilityState={{ selected: isActive }}
     >
-      <Ionicons
-        name={item.icon}
-        size={ICON_SIZE}
-        color={isActive ? COLORS.ACTIVE : COLORS.INACTIVE}
-      />
+      <View style={styles.iconWrapper}>
+        <Ionicons
+          name={item.icon}
+          size={ICON_SIZE}
+          color={isActive ? COLORS.ACTIVE : COLORS.INACTIVE}
+        />
+        {showBadge ? <View style={styles.unreadBadge} /> : null}
+      </View>
       <Text
         style={[styles.footerLabel, isActive && styles.footerLabelActive]}
         numberOfLines={1}
@@ -75,6 +79,11 @@ export const Footer = ({
   const footerItems = useMemo(() => {
     return getFooterConfig(userProfile);
   }, [userProfile]);
+  const { hasChatUnread, refresh } = useUnreadNotificationBuckets(userProfile?.id);
+
+  useEffect(() => {
+    refresh();
+  }, [activeSection, refresh]);
 
   const handleItemPress = useCallback(
     (screenId) => {
@@ -95,6 +104,7 @@ export const Footer = ({
             key={item.id}
             item={item}
             isActive={isActive}
+            showBadge={item.id === "grupos" && hasChatUnread}
             onPress={() => handleItemPress(item.screen)}
           />
         );
@@ -127,6 +137,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     minHeight: 52,
   },
+  iconWrapper: {
+    position: "relative",
+  },
   footerLabel: {
     fontSize: TEXT_SIZE,
     color: COLORS.INACTIVE,
@@ -144,5 +157,16 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: COLORS.ACTIVE,
     marginTop: 4,
+  },
+  unreadBadge: {
+    position: "absolute",
+    top: -2,
+    right: -6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FF3B30",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
 });

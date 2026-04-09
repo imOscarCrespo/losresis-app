@@ -3,15 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
+import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { ScreenScaffold } from "../components/ScreenScaffold";
 import posthogLogger from "../services/posthogService";
@@ -160,15 +158,11 @@ ${formData.message}`;
       }
       contentSurfaceStyle={styles.contentSurface}
     >
-        <KeyboardAvoidingView
-          style={styles.keyboardView}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <ScrollView
+          <KeyboardAwareScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
+            bottomPadding={32}
             showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
           >
             <View style={styles.contentInner}>
               <View style={styles.heroCard}>
@@ -263,7 +257,7 @@ ${formData.message}`;
                         color="#64748B"
                         style={styles.inputIcon}
                       />
-                      <TextInput
+                      <KeyboardAwareTextInput
                         style={styles.input}
                         value={formData.name}
                         onChangeText={(text) => updateField("name", text)}
@@ -282,7 +276,7 @@ ${formData.message}`;
                         color="#64748B"
                         style={styles.inputIcon}
                       />
-                      <TextInput
+                      <KeyboardAwareTextInput
                         style={styles.input}
                         value={formData.email}
                         onChangeText={(text) => updateField("email", text)}
@@ -304,7 +298,7 @@ ${formData.message}`;
                       color="#64748B"
                       style={styles.inputIcon}
                     />
-                    <TextInput
+                    <KeyboardAwareTextInput
                       style={styles.input}
                       value={formData.subject}
                       onChangeText={(text) => updateField("subject", text)}
@@ -316,7 +310,7 @@ ${formData.message}`;
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Mensaje *</Text>
-                  <TextInput
+                  <KeyboardAwareTextInput
                     style={[styles.textarea, styles.inputWrap]}
                     value={formData.message}
                     onChangeText={(text) => updateField("message", text)}
@@ -325,6 +319,7 @@ ${formData.message}`;
                     multiline
                     numberOfLines={7}
                     textAlignVertical="top"
+                    keyboardAwareOptions={{ extraScrollSpace: 40 }}
                   />
                 </View>
 
@@ -351,8 +346,7 @@ ${formData.message}`;
                 </TouchableOpacity>
               </View>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          </KeyboardAwareScrollView>
     </ScreenScaffold>
   );
 }
@@ -361,9 +355,6 @@ const styles = StyleSheet.create({
   contentSurface: {
     flex: 1,
     backgroundColor: "#F8F9FE",
-  },
-  keyboardView: {
-    flex: 1,
   },
   scrollView: {
     flex: 1,

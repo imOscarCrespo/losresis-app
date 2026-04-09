@@ -15,9 +15,11 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { ScreenScaffold } from "../components/ScreenScaffold";
+import { DirectChatButton } from "../components";
 import { useHousingAds } from "../hooks/useHousingAds";
 import { formatDateOnly } from "../utils/dateUtils";
 import { getCurrentUser } from "../services/authService";
+import { openDirectChat } from "../services/directChatsService";
 import posthogLogger from "../services/posthogService";
 
 // ============================================================================
@@ -94,6 +96,7 @@ export default function HousingAdDetailScreen({
   onBack,
   onEdit,
   onDelete,
+  onSectionChange,
 }) {
   const { fetchHousingAdById, deleteHousingAd } = useHousingAds();
   const [ad, setAd] = useState(null);
@@ -101,6 +104,7 @@ export default function HousingAdDetailScreen({
   const [error, setError] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [openingChat, setOpeningChat] = useState(false);
 
   useEffect(() => {
     posthogLogger.logScreen("HousingAdDetailScreen", { adId });
@@ -110,7 +114,9 @@ export default function HousingAdDetailScreen({
     const loadCurrentUser = async () => {
       try {
         const { success, user } = await getCurrentUser();
-        if (success && user) setCurrentUserId(user.id);
+        if (!success || !user) return;
+
+        setCurrentUserId(user.id);
       } catch (err) {
         // silent
       }
@@ -148,10 +154,54 @@ export default function HousingAdDetailScreen({
     [currentUserId, ad]
   );
 
+  const canOpenAppChat = useMemo(
+    () => Boolean(!isMyAd && ad?.user?.id),
+    [ad?.user?.id, isMyAd]
+  );
+
   const handleContact = useCallback((type, value) => {
     if (type === "email" && value) Linking.openURL(`mailto:${value}`);
     else if (type === "phone" && value) Linking.openURL(`tel:${value}`);
   }, []);
+
+  const handleOpenChat = useCallback(async () => {
+    if (!ad?.user?.id) {
+      Alert.alert("Error", "No se pudo identificar al residente del anuncio.");
+      return;
+    }
+
+    try {
+      setOpeningChat(true);
+
+      const otherUserName =
+        `${ad.user.name || ""} ${ad.user.surname || ""}`.trim() || "Usuario";
+      const response = await openDirectChat({
+        otherUserId: ad.user.id,
+        otherUserName,
+        onSectionChange,
+      });
+
+      if (!response.success || !response.chat?.group_id) {
+        Alert.alert(
+          "Error",
+          response.error || "No se pudo abrir la conversación privada."
+        );
+        return;
+      }
+    } catch (error) {
+      Alert.alert(
+        "Error",
+        error?.message || "No se pudo abrir la conversación privada."
+      );
+    } finally {
+      setOpeningChat(false);
+    }
+  }, [
+    ad?.user?.id,
+    ad?.user?.name,
+    ad?.user?.surname,
+    onSectionChange,
+  ]);
 
   const handleEdit = useCallback(() => {
     if (onEdit && adId) onEdit(adId);
@@ -413,10 +463,10 @@ export default function HousingAdDetailScreen({
         ) : null}
 
         {/* ── Contactar ── */}
-        {!isMyAd && (ad.contact_email || ad.contact_phone) ? (
+        {!isMyAd && (canOpenAppChat || ad.contact_email || ad.contact_phone) ? (
           <View style={styles.block}>
             <SectionHeader icon="call-outline" title="Contactar" />
-            {ad.preferred_contact ? (
+            {!canOpenAppChat && ad.preferred_contact ? (
               <Text style={styles.preferredLabel}>
                 Método preferido:{" "}
                 <Text style={styles.preferredValue}>
@@ -425,9 +475,21 @@ export default function HousingAdDetailScreen({
               </Text>
             ) : null}
             <View style={styles.contactBtns}>
+              {canOpenAppChat ? (
+                <DirectChatButton
+                  style={styles.contactBtnPrimary}
+                  onPress={handleOpenChat}
+                  disabled={openingChat}
+                  loading={openingChat}
+                />
+              ) : null}
               {ad.contact_email ? (
                 <TouchableOpacity
-                  style={styles.contactBtnPrimary}
+                  style={
+                    canOpenAppChat
+                      ? styles.contactBtnSecondary
+                      : styles.contactBtnPrimary
+                  }
                   onPress={() => handleContact("email", ad.contact_email)}
                   activeOpacity={0.85}
                 >

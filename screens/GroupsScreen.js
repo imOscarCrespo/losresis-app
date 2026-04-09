@@ -18,11 +18,13 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
+import { FloatingActionButton } from "../components/FloatingActionButton";
 import { usePersistedFilters } from "../hooks/usePersistedFilters";
 import {
   getGroups,
@@ -32,6 +34,7 @@ import {
   joinGroup,
   getGroupCities,
 } from "../services/groupService";
+import { getDirectChats } from "../services/directChatsService";
 import { getCurrentUser } from "../services/authService";
 import posthogLogger from "../services/posthogService";
 
@@ -46,6 +49,8 @@ const TEXT_LIGHT = "#94A3B8";
 const BORDER = "#EDE9FE";
 const ERROR = "#EF4444";
 const DEFAULT_RESIDENT_GROUPS_KEY_PREFIX = "@losresis:resident-default-groups:";
+const TELEGRAM_BLUE = "#4C8DFF";
+const TELEGRAM_GREEN = "#22C55E";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 const getUserType = (userProfile) => {
@@ -158,6 +163,111 @@ const getCompactGroupName = (groupName) => {
   }
 
   return `${hospitalName.slice(0, 16).trimEnd()}... - ${specialityName}`;
+};
+
+const isCityOnlyGroup = (group) =>
+  !!group?.city && !group?.speciality_id && !group?.hospital_id;
+
+const formatChatTimestamp = (value) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const now = new Date();
+  const isSameDay = date.toDateString() === now.toDateString();
+
+  if (isSameDay) {
+    return date.toLocaleTimeString("es-ES", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  const diffMs =
+    new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() -
+    new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const diffDays = Math.round(diffMs / 86400000);
+
+  if (diffDays < 7) {
+    return date.toLocaleDateString("es-ES", { weekday: "short" });
+  }
+
+  return date.toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+};
+
+const buildInitials = (label) => {
+  if (!label || typeof label !== "string") return "C";
+
+  const parts = label
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+
+  if (!parts.length) return "C";
+
+  return parts.map((part) => part[0]?.toUpperCase() || "").join("");
+};
+
+const getGroupSubtitle = (group, isMember) => {
+  if (!group) return "Grupo";
+
+  const metaParts = [];
+
+  if (group.speciality?.name) {
+    metaParts.push(group.speciality.name);
+  }
+
+  if (group.hospital?.name) {
+    metaParts.push(group.hospital.name);
+  } else if (group.city) {
+    metaParts.push(group.city);
+  }
+
+  if (isMember) {
+    return metaParts.join(" · ") || "Grupo";
+  }
+
+  if (metaParts.length) {
+    return `Únete a ${metaParts.join(" · ")}`;
+  }
+
+  return "Únete para empezar a chatear";
+};
+
+const getGroupPreview = (group, isMember) => {
+  if (isMember) {
+    return Number(group.unread_count || 0) > 0
+      ? "Tienes mensajes sin leer"
+      : "Abrir conversación";
+  }
+
+  return "Toca para unirte al grupo";
+};
+
+const getAvatarTone = (item) => {
+  if (item.kind === "direct") {
+    return {
+      backgroundColor: "#DBEAFE",
+      color: TELEGRAM_BLUE,
+    };
+  }
+
+  if (item.isMember) {
+    return {
+      backgroundColor: "#DCFCE7",
+      color: "#15803D",
+    };
+  }
+
+  return {
+    backgroundColor: "#EDE9FE",
+    color: PRIMARY,
+  };
 };
 
 // ── RadioDot ─────────────────────────────────────────────────────────
@@ -300,51 +410,96 @@ function FilterModal({ visible, onClose, title, options, value, onSelect, placeh
   );
 }
 
-// ── GroupCard ─────────────────────────────────────────────────────────
-function GroupCard({ group, isMember, joiningId, onPress }) {
-  const isJoining = joiningId === group.id;
-  const unreadCount = Number(group.unread_count || 0);
-  const displayName = getCompactGroupName(group.name);
+function ChatListRow({ item, joiningId, onPress }) {
+  const unreadCount = Number(item.unread_count || 0);
+  const isJoinableGroup = item.kind === "group" && !item.isMember;
+  const isJoining = isJoinableGroup && joiningId === item.id;
+  const avatarTone = getAvatarTone(item);
+  const timestampLabel = formatChatTimestamp(item.sortTimestamp);
 
   return (
     <TouchableOpacity
-      style={[styles.card, isMember && styles.cardJoined]}
-      onPress={() => onPress(group)}
-      activeOpacity={0.85}
+      style={styles.chatRow}
+      onPress={() => onPress(item)}
+      activeOpacity={0.78}
     >
-      <View style={styles.cardBody}>
-        <View style={styles.cardTitleRow}>
-          <Text style={styles.cardName} numberOfLines={1}>
-            {displayName}
+      <View
+        style={[
+          styles.chatAvatar,
+          { backgroundColor: avatarTone.backgroundColor },
+        ]}
+      >
+        {item.kind === "group" ? (
+          <Ionicons name="people" size={20} color={avatarTone.color} />
+        ) : (
+          <Text style={[styles.chatAvatarText, { color: avatarTone.color }]}>
+            {buildInitials(item.title)}
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.chatMain}>
+        <View style={styles.chatTopRow}>
+          <Text
+            style={[
+              styles.chatTitle,
+              unreadCount > 0 && styles.chatTitleUnread,
+            ]}
+            numberOfLines={1}
+          >
+            {item.title}
           </Text>
 
-          {isMember && unreadCount > 0 ? (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </Text>
-            </View>
-          ) : null}
+          <Text
+            style={[
+              styles.chatTime,
+              unreadCount > 0 && styles.chatTimeUnread,
+            ]}
+          >
+            {timestampLabel}
+          </Text>
+        </View>
 
-          <View style={styles.cardActionWrap}>
-          {isMember ? (
-            <View style={styles.joinedBadge}>
-              <Ionicons name="chatbubble" size={12} color={GREEN} />
-              <Text style={styles.joinedBadgeText}>Entrar</Text>
-            </View>
-          ) : (
-            <View style={[styles.joinBtn, isJoining && styles.joinBtnLoading]}>
+        <View style={styles.chatMetaRow}>
+          <Text style={styles.chatSubtitle} numberOfLines={1}>
+            {item.subtitle}
+          </Text>
+        </View>
+
+        <View style={styles.chatBottomRow}>
+          <Text
+            style={[
+              styles.chatPreview,
+              unreadCount > 0 && styles.chatPreviewUnread,
+            ]}
+            numberOfLines={1}
+          >
+            {item.preview}
+          </Text>
+
+          {isJoinableGroup ? (
+            <View
+              style={[
+                styles.chatJoinPill,
+                isJoining && styles.chatJoinPillLoading,
+              ]}
+            >
               {isJoining ? (
                 <ActivityIndicator size="small" color={WHITE} />
               ) : (
                 <>
                   <Ionicons name="add" size={14} color={WHITE} />
-                  <Text style={styles.joinBtnText}>Unirse</Text>
+                  <Text style={styles.chatJoinPillText}>Unirse</Text>
                 </>
               )}
             </View>
-          )}
-          </View>
+          ) : unreadCount > 0 ? (
+            <View style={styles.chatUnreadBadge}>
+              <Text style={styles.chatUnreadBadgeText}>
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
     </TouchableOpacity>
@@ -379,7 +534,9 @@ function FilterChip({ label, active, icon, onPress }) {
 
 // ── GroupsScreen ──────────────────────────────────────────────────────
 export default function GroupsScreen({ onSectionChange, userProfile }) {
+  const insets = useSafeAreaInsets();
   const [groups, setGroups] = useState([]);
+  const [directChats, setDirectChats] = useState([]);
   const [memberGroupIds, setMemberGroupIds] = useState(new Set());
   const [persistedResidentGroupIds, setPersistedResidentGroupIds] = useState(
     new Set()
@@ -394,6 +551,11 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
   const [availableCities, setAvailableCities] = useState([]);
   const [openModal, setOpenModal] = useState(null); // 'city' | null
   const [isExploringAll, setIsExploringAll] = useState(false);
+  const [cityExplorerVisible, setCityExplorerVisible] = useState(false);
+  const [cityExplorerSearch, setCityExplorerSearch] = useState("");
+  const [cityExplorerGroups, setCityExplorerGroups] = useState([]);
+  const [cityExplorerLoading, setCityExplorerLoading] = useState(false);
+  const [chatSearch, setChatSearch] = useState("");
   const {
     filters,
     isLoading: filtersLoading,
@@ -466,13 +628,14 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
       const uid = userId ?? currentUserId;
       let nextPersistedResidentGroupIds = new Set();
 
-      const [groupsResult, membershipsResult, citiesResult] =
+      const [groupsResult, membershipsResult, citiesResult, directChatsResult] =
         await Promise.all([
           getGroups(userType, activeQueryFilters),
           uid
             ? getUserMemberships(uid)
             : Promise.resolve({ success: true, memberships: [] }),
           getGroupCities(userType),
+          uid ? getDirectChats() : Promise.resolve({ success: true, chats: [] }),
         ]);
 
       if (!groupsResult.success) {
@@ -551,6 +714,11 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
       }
 
       if (citiesResult.success) setAvailableCities(citiesResult.cities);
+      if (directChatsResult.success) {
+        setDirectChats(directChatsResult.chats || []);
+      } else {
+        setDirectChats([]);
+      }
     },
     [
       userType,
@@ -591,6 +759,48 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
     await loadData();
     setRefreshing(false);
   }, [loadData]);
+
+  const handleDirectChatPress = useCallback(
+    (chat) => {
+      if (!chat?.group_id) return;
+
+      onSectionChange?.("groupChat", {
+        groupId: chat.group_id,
+        groupName: chat.display_name || "Chat privado",
+      });
+    },
+    [onSectionChange]
+  );
+
+  const openCityExplorer = useCallback(async () => {
+    setCityExplorerVisible(true);
+    setCityExplorerSearch("");
+    setCityExplorerLoading(true);
+
+    try {
+      const groupsResult = await getGroups(userType, {});
+
+      if (!groupsResult.success) {
+        Alert.alert(
+          "Error",
+          groupsResult.error || "No se pudieron cargar los grupos de ciudad"
+        );
+        setCityExplorerVisible(false);
+        return;
+      }
+
+      setCityExplorerGroups(
+        (groupsResult.groups || []).filter((group) => isCityOnlyGroup(group))
+      );
+    } finally {
+      setCityExplorerLoading(false);
+    }
+  }, [userType]);
+
+  const closeCityExplorer = useCallback(() => {
+    setCityExplorerVisible(false);
+    setCityExplorerSearch("");
+  }, []);
 
   const handleGroupPress = useCallback(
     async (group) => {
@@ -679,8 +889,27 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
     ]
   );
 
+  const handleCityExplorerGroupPress = useCallback(
+    async (group) => {
+      closeCityExplorer();
+      await handleGroupPress(group);
+    },
+    [closeCityExplorer, handleGroupPress]
+  );
+
+  const handleChatItemPress = useCallback(
+    async (item) => {
+      if (item.kind === "direct") {
+        handleDirectChatPress(item);
+        return;
+      }
+
+      await handleGroupPress(item);
+    },
+    [handleDirectChatPress, handleGroupPress]
+  );
+
   const hasFilters = !!cityFilter;
-  const userTypeLabel = userType === "student" ? "Estudiantes" : "Residentes";
   const showResidentScopeNote = isResidentUser && !isExploringAll;
   const showStudentScopeNote = isStudentUser && !isExploringAll;
 
@@ -771,10 +1000,121 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
     () => availableCities.map((c) => ({ id: c, name: c })),
     [availableCities]
   );
-  const groupCountLabel = `${displayGroups.length} ${
-    displayGroups.length === 1 ? "grupo" : "grupos"
-  }`;
+  const cityExplorerSections = useMemo(() => {
+    const normalizedSearch = cityExplorerSearch.trim().toLowerCase();
+    const filteredGroups = cityExplorerGroups.filter((group) => {
+      if (!normalizedSearch) return true;
 
+      return (
+        group.name?.toLowerCase().includes(normalizedSearch) ||
+        group.city?.toLowerCase().includes(normalizedSearch)
+      );
+    });
+
+    const groupedByCity = filteredGroups.reduce((acc, group) => {
+      const cityName = group.city?.trim() || "Otras ciudades";
+
+      if (!acc[cityName]) {
+        acc[cityName] = [];
+      }
+
+      acc[cityName].push(group);
+      return acc;
+    }, {});
+
+    return Object.entries(groupedByCity)
+      .sort(([cityA], [cityB]) => cityA.localeCompare(cityB, "es"))
+      .map(([cityName, groupsInCity]) => ({
+        cityName,
+        groups: groupsInCity.sort((a, b) => a.name.localeCompare(b.name, "es")),
+      }));
+  }, [cityExplorerGroups, cityExplorerSearch]);
+  const normalizedChatSearch = chatSearch.trim().toLowerCase();
+  const mergedChatItems = useMemo(() => {
+    const directItems = directChats.map((chat) => {
+      const metaParts = [
+        chat.other_user_speciality_name,
+        chat.other_user_hospital_name || chat.other_user_city,
+      ].filter(Boolean);
+
+      return {
+        ...chat,
+        id: chat.group_id,
+        key: `direct-${chat.group_id}`,
+        title: chat.display_name || "Chat privado",
+        subtitle: metaParts.join(" · ") || "Conversación privada",
+        preview: chat.last_message_preview || "Abrir chat directo",
+        sortTimestamp: chat.last_message_at || null,
+        isMember: true,
+        rank: 0,
+        searchableText: [
+          chat.display_name,
+          chat.other_user_speciality_name,
+          chat.other_user_hospital_name,
+          chat.other_user_city,
+          chat.last_message_preview,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase(),
+      };
+    });
+
+    const groupItems = displayGroups.map((group) => {
+      const isMember = memberGroupIds.has(group.id);
+
+      return {
+        ...group,
+        kind: "group",
+        key: `group-${group.id}`,
+        title: getCompactGroupName(group.name),
+        subtitle: getGroupSubtitle(group, isMember),
+        preview: getGroupPreview(group, isMember),
+        sortTimestamp: unreadByGroupId[group.id]?.lastMessageAt || null,
+        isMember,
+        rank: isMember ? 0 : 2,
+        searchableText: [
+          group.name,
+          group.city,
+          group.speciality?.name,
+          group.hospital?.name,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase(),
+      };
+    });
+
+    return [...directItems, ...groupItems]
+      .filter((item) =>
+        normalizedChatSearch ? item.searchableText.includes(normalizedChatSearch) : true
+      )
+      .sort((a, b) => {
+        if (a.rank !== b.rank) {
+          return a.rank - b.rank;
+        }
+
+        const aUnread = Number(a.unread_count || 0);
+        const bUnread = Number(b.unread_count || 0);
+        if (aUnread !== bUnread) {
+          return bUnread - aUnread;
+        }
+
+        const aTime = a.sortTimestamp ? new Date(a.sortTimestamp).getTime() : 0;
+        const bTime = b.sortTimestamp ? new Date(b.sortTimestamp).getTime() : 0;
+        if (aTime !== bTime) {
+          return bTime - aTime;
+        }
+
+        return a.title.localeCompare(b.title, "es");
+      });
+  }, [
+    directChats,
+    displayGroups,
+    memberGroupIds,
+    unreadByGroupId,
+    normalizedChatSearch,
+  ]);
   const ListHeader = (
     <View style={styles.listHeader}>
       {showResidentScopeNote ? (
@@ -811,16 +1151,27 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
         </ScrollView>
       )}
 
-      {/* Contador */}
+      <View style={styles.telegramSearchWrap}>
+        <Ionicons name="search" size={18} color={TEXT_LIGHT} />
+        <TextInput
+          style={styles.telegramSearchInput}
+          value={chatSearch}
+          onChangeText={setChatSearch}
+          placeholder="Buscar chats o grupos"
+          placeholderTextColor={TEXT_LIGHT}
+          autoCapitalize="none"
+          returnKeyType="search"
+        />
+        {chatSearch ? (
+          <TouchableOpacity onPress={() => setChatSearch("")} activeOpacity={0.7}>
+            <Ionicons name="close-circle" size={18} color={TEXT_LIGHT} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
       <View style={styles.sectionRow}>
         <Text style={styles.sectionLabel}>
-          {hasFilters
-            ? groupCountLabel
-            : showMyGroups
-            ? "Mis grupos"
-            : showResidentScopeNote || showStudentScopeNote
-            ? "Grupos para ti"
-            : "Grupos disponibles"}
+          {showMyGroups ? "Mis chats" : "Todos los chats"}
         </Text>
         {hasFilters ? (
           <TouchableOpacity
@@ -831,7 +1182,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
             <Text style={styles.sectionActionText}>Restablecer filtros</Text>
           </TouchableOpacity>
         ) : (
-          <Text style={styles.sectionCount}>{groupCountLabel}</Text>
+          <View />
         )}
       </View>
     </View>
@@ -843,13 +1194,17 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
         <Ionicons name="people-outline" size={40} color={PRIMARY} />
       </View>
       <Text style={styles.emptyTitle}>
-        {showMyGroups
-          ? "Aún no te has unido a ningún grupo"
-          : "No hay grupos disponibles"}
+        {normalizedChatSearch
+          ? "No hemos encontrado resultados"
+          : showMyGroups && directChats.length === 0
+          ? "Aún no tienes chats"
+          : "No hay chats disponibles"}
       </Text>
       <Text style={styles.emptySubtitle}>
-        {showMyGroups
-          ? "Únete a un grupo para chatear con otros compañeros"
+        {normalizedChatSearch
+          ? "Prueba con otro nombre, ciudad o especialidad"
+          : showMyGroups && directChats.length === 0
+          ? "Únete a un grupo o abre un chat directo para empezar"
           : shouldShowExploreFilters && hasFilters
           ? "Prueba con otros filtros"
           : showResidentScopeNote || showStudentScopeNote
@@ -864,7 +1219,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
       <View style={styles.heroShell}>
         <BottomMenuHeroHeader
           title="Chats"
-          subtitle="Encuentra los chats clave de tu ciudad, hospital y especialidad."
+          subtitle="Conversaciones y grupos en una sola bandeja."
           rightSlot={
             <TouchableOpacity
               style={[styles.myGroupsChip, showMyGroups && styles.myGroupsChipActive]}
@@ -882,7 +1237,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
                   showMyGroups && styles.myGroupsChipTextActive,
                 ]}
               >
-                Mis grupos
+                Solo míos
               </Text>
             </TouchableOpacity>
           }
@@ -909,14 +1264,13 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
           </View>
         ) : (
           <FlatList
-            data={displayGroups}
-            keyExtractor={(item) => item.id}
+            data={mergedChatItems}
+            keyExtractor={(item) => item.key}
             renderItem={({ item }) => (
-              <GroupCard
-                group={item}
-                isMember={memberGroupIds.has(item.id)}
+              <ChatListRow
+                item={item}
                 joiningId={joiningId}
-                onPress={handleGroupPress}
+                onPress={handleChatItemPress}
               />
             )}
             ListHeaderComponent={ListHeader}
@@ -944,6 +1298,143 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
         onSelect={(v) => setCityFilter(v || null)}
         placeholder="Todas las ciudades"
       />
+      <FloatingActionButton
+        onPress={openCityExplorer}
+        icon="search"
+        backgroundColor={PRIMARY}
+        bottom={24 + insets.bottom}
+        right={20}
+        style={styles.cityExplorerFab}
+      />
+      <Modal
+        visible={cityExplorerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeCityExplorer}
+      >
+        <Pressable style={styles.cityExplorerBackdrop} onPress={closeCityExplorer}>
+          <Pressable style={styles.cityExplorerSheet} onPress={() => {}}>
+            <View style={styles.cityExplorerHandle} />
+            <View style={styles.cityExplorerHeader}>
+              <View style={styles.cityExplorerHeaderTextWrap}>
+                <Text style={styles.cityExplorerTitle}>Grupos por ciudad</Text>
+                <Text style={styles.cityExplorerSubtitle}>
+                  Busca una ciudad y únete al grupo que quieras.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.cityExplorerClose}
+                onPress={closeCityExplorer}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={18} color={TEXT_MEDIUM} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.cityExplorerSearchWrap}>
+              <Ionicons name="search" size={18} color={TEXT_LIGHT} />
+              <TextInput
+                style={styles.cityExplorerSearchInput}
+                value={cityExplorerSearch}
+                onChangeText={setCityExplorerSearch}
+                placeholder="Buscar ciudad o grupo"
+                placeholderTextColor={TEXT_LIGHT}
+                autoCapitalize="none"
+                returnKeyType="search"
+              />
+              {cityExplorerSearch ? (
+                <TouchableOpacity
+                  onPress={() => setCityExplorerSearch("")}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="close-circle" size={18} color={TEXT_LIGHT} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {cityExplorerLoading ? (
+              <View style={styles.cityExplorerState}>
+                <ActivityIndicator size="small" color={PRIMARY} />
+                <Text style={styles.cityExplorerStateText}>
+                  Cargando grupos de ciudad...
+                </Text>
+              </View>
+            ) : (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.cityExplorerContent}
+              >
+                {cityExplorerSections.length ? (
+                  cityExplorerSections.map((section) => (
+                    <View key={section.cityName} style={styles.cityExplorerSection}>
+                      {section.groups.map((group) => {
+                        const isMember = memberGroupIds.has(group.id);
+                        const isJoining = joiningId === group.id;
+
+                        return (
+                          <TouchableOpacity
+                            key={group.id}
+                            style={styles.cityExplorerGroupRow}
+                            onPress={() => handleCityExplorerGroupPress(group)}
+                            activeOpacity={0.85}
+                          >
+                            <View style={styles.cityExplorerGroupInfo}>
+                              <Text
+                                style={styles.cityExplorerGroupName}
+                                numberOfLines={1}
+                              >
+                                {group.name}
+                              </Text>
+                            </View>
+
+                            {isMember ? (
+                              <View style={styles.cityExplorerJoinedBadge}>
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={14}
+                                  color={GREEN}
+                                />
+                                <Text style={styles.cityExplorerJoinedBadgeText}>
+                                  Unido
+                                </Text>
+                              </View>
+                            ) : (
+                              <View
+                                style={[
+                                  styles.cityExplorerJoinBadge,
+                                  isJoining && styles.cityExplorerJoinBadgeLoading,
+                                ]}
+                              >
+                                {isJoining ? (
+                                  <ActivityIndicator size="small" color={WHITE} />
+                                ) : (
+                                  <>
+                                    <Ionicons name="add" size={14} color={WHITE} />
+                                    <Text style={styles.cityExplorerJoinBadgeText}>
+                                      Unirse
+                                    </Text>
+                                  </>
+                                )}
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ))
+                ) : (
+                  <View style={styles.cityExplorerState}>
+                    <Ionicons name="search-outline" size={28} color={TEXT_LIGHT} />
+                    <Text style={styles.cityExplorerStateText}>
+                      No hemos encontrado grupos para esa búsqueda.
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -972,6 +1463,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 24,
     paddingBottom: 4,
+  },
+  telegramSearchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#EEF2F6",
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 14,
+  },
+  telegramSearchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: ACCENT,
+    paddingVertical: 0,
+  },
+  directSection: {
+    marginBottom: 20,
+    gap: 12,
+  },
+  directChatsList: {
+    gap: 12,
   },
   myGroupsChip: {
     flexDirection: "row",
@@ -1104,90 +1618,110 @@ const styles = StyleSheet.create({
   },
 
   // Card
-  card: {
-    backgroundColor: WHITE,
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    shadowColor: ACCENT,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  cardJoined: {
-    borderColor: GREEN + "40",
-    borderWidth: 1.5,
-  },
-  cardBody: {
-    width: "100%",
-  },
-  cardTitleRow: {
+  chatRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    marginHorizontal: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: WHITE,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF2F6",
   },
-  cardName: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "700",
-    color: ACCENT,
-    lineHeight: 20,
-  },
-  unreadBadge: {
-    minWidth: 24,
-    height: 24,
-    paddingHorizontal: 7,
-    borderRadius: 12,
+  chatAvatar: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: ERROR,
-    alignSelf: "flex-start",
+    marginRight: 12,
   },
-  unreadBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: WHITE,
+  chatAvatarText: {
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 0.2,
   },
-  cardActionWrap: {
-    marginLeft: "auto",
+  chatMain: {
+    flex: 1,
+    minWidth: 0,
   },
-  joinedBadge: {
+  chatTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    backgroundColor: GREEN + "15",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: GREEN + "30",
+    marginBottom: 2,
+    gap: 12,
   },
-  joinedBadgeText: {
-    fontSize: 12,
+  chatTitle: {
+    flex: 1,
+    fontSize: 16,
     fontWeight: "700",
-    color: GREEN,
+    color: ACCENT,
+    lineHeight: 21,
   },
-  joinBtn: {
+  chatTitleUnread: {
+    fontWeight: "800",
+  },
+  chatTime: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: TEXT_LIGHT,
+  },
+  chatTimeUnread: {
+    color: TELEGRAM_GREEN,
+  },
+  chatMetaRow: {
+    marginBottom: 4,
+  },
+  chatSubtitle: {
+    fontSize: 13,
+    color: TEXT_MEDIUM,
+    fontWeight: "500",
+  },
+  chatBottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  chatPreview: {
+    flex: 1,
+    fontSize: 14,
+    color: TEXT_LIGHT,
+    fontWeight: "500",
+  },
+  chatPreviewUnread: {
+    color: TEXT_MEDIUM,
+    fontWeight: "600",
+  },
+  chatUnreadBadge: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 7,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: TELEGRAM_GREEN,
+  },
+  chatUnreadBadgeText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: WHITE,
+  },
+  chatJoinPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: PRIMARY,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    backgroundColor: TELEGRAM_BLUE,
     borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
-  joinBtnLoading: {
-    opacity: 0.7,
-    paddingHorizontal: 16,
+  chatJoinPillLoading: {
+    minWidth: 78,
+    justifyContent: "center",
   },
-  joinBtnText: {
+  chatJoinPillText: {
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
     color: WHITE,
   },
 
@@ -1247,6 +1781,153 @@ const styles = StyleSheet.create({
     color: TEXT_MEDIUM,
     textAlign: "center",
     lineHeight: 20,
+  },
+  cityExplorerBackdrop: {
+    flex: 1,
+    backgroundColor: "#0F172A66",
+    justifyContent: "flex-end",
+  },
+  cityExplorerFab: {
+    zIndex: 20,
+    elevation: 20,
+  },
+  cityExplorerSheet: {
+    height: "82%",
+    backgroundColor: WHITE,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+  },
+  cityExplorerHandle: {
+    width: 46,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: "#CBD5E1",
+    alignSelf: "center",
+    marginBottom: 14,
+  },
+  cityExplorerHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 14,
+  },
+  cityExplorerHeaderTextWrap: {
+    flex: 1,
+    gap: 4,
+  },
+  cityExplorerTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: ACCENT,
+  },
+  cityExplorerSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: TEXT_MEDIUM,
+  },
+  cityExplorerClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  cityExplorerSearchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 14,
+  },
+  cityExplorerSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: ACCENT,
+    paddingVertical: 0,
+  },
+  cityExplorerContent: {
+    paddingBottom: 20,
+    gap: 16,
+    flexGrow: 1,
+  },
+  cityExplorerSection: {
+    gap: 10,
+  },
+  cityExplorerGroupRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#FAFAFF",
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  cityExplorerGroupInfo: {
+    flex: 1,
+  },
+  cityExplorerGroupName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: ACCENT,
+  },
+  cityExplorerJoinBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: PRIMARY,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  cityExplorerJoinBadgeLoading: {
+    minWidth: 78,
+    justifyContent: "center",
+  },
+  cityExplorerJoinBadgeText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: WHITE,
+  },
+  cityExplorerJoinedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: GREEN + "15",
+    borderWidth: 1,
+    borderColor: GREEN + "30",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  cityExplorerJoinedBadgeText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: GREEN,
+  },
+  cityExplorerState: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 32,
+  },
+  cityExplorerStateText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: TEXT_MEDIUM,
+    textAlign: "center",
   },
 });
 

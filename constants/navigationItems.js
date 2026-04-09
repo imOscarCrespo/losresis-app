@@ -97,6 +97,14 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#EDE9FE",
   },
   {
+    id: "notifications",
+    name: "Notificaciones",
+    icon: "notifications",
+    description: "Consulta avisos de actividad, recordatorios y novedades",
+    color: "#EF4444",
+    lightColor: "#FEE2E2",
+  },
+  {
     id: "reseñas",
     name: "Reseñas",
     icon: "document-text",
@@ -209,6 +217,7 @@ export const IMPLEMENTED_SECTIONS = [
   "groupChat",
   "agenda",
   "residentPayouts",
+  "notifications",
 ];
 
 /**

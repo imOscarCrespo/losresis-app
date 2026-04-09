@@ -13,6 +13,188 @@ const COURSE_SELECT = `
 `;
 
 const PUBLISHED_STATUS = "published";
+const RESIDENT_FALLBACK_ORG_NAME = "losresis_app";
+const COURSE_MUTABLE_FIELDS = [
+  "title",
+  "event_dates",
+  "teaching_hours",
+  "price_text",
+  "course_directors",
+  "organization",
+  "venue_name",
+  "venue_address",
+  "seats_available",
+  "course_code",
+  "more_info",
+  "objectives",
+  "registration_url",
+  "hospital_id",
+  "speciality_id",
+];
+
+const buildCourseMutationPayload = (courseData = {}) => {
+  const payload = {};
+
+  COURSE_MUTABLE_FIELDS.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(courseData, field)) {
+      payload[field] = courseData[field] ?? null;
+    }
+  });
+
+  return payload;
+};
+
+const buildEmployerDisplayName = (userProfile) => {
+  const fullName = [userProfile?.name, userProfile?.surname]
+    .map((value) => value?.trim())
+    .filter(Boolean)
+    .join(" ");
+
+  return fullName || RESIDENT_FALLBACK_ORG_NAME;
+};
+
+const getActiveEmployerAccountForUser = async (userId) => {
+  if (!userId) return null;
+
+  const { data, error } = await supabase
+    .from("employer_account")
+    .select("id, org_id, is_active")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("❌ Error resolving active employer account for user:", error);
+    throw error;
+  }
+
+  return data || null;
+};
+
+const getResidentPublisherProfile = async (userId) => {
+  if (!userId) return null;
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, name, surname, is_resident")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("❌ Error fetching user profile for course publication:", error);
+    throw error;
+  }
+
+  return data || null;
+};
+
+const getResidentFallbackOrg = async () => {
+  const { data, error } = await supabase
+    .from("employer_org")
+    .select("id, name")
+    .eq("name", RESIDENT_FALLBACK_ORG_NAME)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("❌ Error fetching resident fallback org:", error);
+    throw error;
+  }
+
+  return data || null;
+};
+
+const ensureResidentFallbackEmployerAccount = async (userId) => {
+  const userProfile = await getResidentPublisherProfile(userId);
+
+  if (!userProfile?.is_resident) {
+    return null;
+  }
+
+  const fallbackOrg = await getResidentFallbackOrg();
+
+  if (!fallbackOrg?.id) {
+    throw {
+      code: "RESIDENT_FALLBACK_ORG_MISSING",
+      message:
+        "Falta configurar la organización temporal losresis_app para publicar cursos.",
+    };
+  }
+
+  const { data: existingAccount, error: existingAccountError } = await supabase
+    .from("employer_account")
+    .select("id, org_id, is_active")
+    .eq("user_id", userId)
+    .eq("org_id", fallbackOrg.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingAccountError) {
+    console.error("❌ Error fetching resident fallback employer account:", existingAccountError);
+    throw existingAccountError;
+  }
+
+  if (existingAccount?.is_active) {
+    return existingAccount.org_id;
+  }
+
+  const displayName = buildEmployerDisplayName(userProfile);
+
+  if (existingAccount?.id) {
+    const { data: updatedAccount, error: updateError } = await supabase
+      .from("employer_account")
+      .update({
+        is_active: true,
+        role: "owner",
+        display_name: displayName,
+      })
+      .eq("id", existingAccount.id)
+      .select("org_id")
+      .single();
+
+    if (updateError) {
+      console.error("❌ Error reactivating resident fallback employer account:", updateError);
+      throw updateError;
+    }
+
+    return updatedAccount?.org_id || fallbackOrg.id;
+  }
+
+  const { data: insertedAccount, error: insertError } = await supabase
+    .from("employer_account")
+    .insert({
+      user_id: userId,
+      org_id: fallbackOrg.id,
+      role: "owner",
+      is_active: true,
+      display_name: displayName,
+    })
+    .select("org_id")
+    .single();
+
+  if (insertError) {
+    console.error("❌ Error creating resident fallback employer account:", insertError);
+    throw insertError;
+  }
+
+  return insertedAccount?.org_id || fallbackOrg.id;
+};
+
+const getEmployerOrgIdForUser = async (userId) => {
+  if (!userId) return null;
+
+  const activeAccount = await getActiveEmployerAccountForUser(userId);
+  if (activeAccount?.org_id) {
+    console.log("🏢 Using active employer org for course publication:", activeAccount.org_id);
+    return activeAccount.org_id;
+  }
+
+  const fallbackOrgId = await ensureResidentFallbackEmployerAccount(userId);
+  console.log("🏢 Using resident fallback org for course publication:", fallbackOrgId);
+  return fallbackOrgId;
+};
 
 const mapLikedCourses = (courses = [], likedCourseIds = []) => {
   const likedSet = new Set(likedCourseIds);
@@ -239,28 +421,33 @@ export const createCourse = async (courseData) => {
 
     const finalStatus = courseData.status || PUBLISHED_STATUS;
     const shouldPublish = finalStatus === PUBLISHED_STATUS;
+    const resolvedOrgId =
+      courseData.org_id ||
+      (shouldPublish ? await getEmployerOrgIdForUser(courseData.created_by_id) : null);
+
+    console.log("🏢 Resolved org_id for createCourse:", {
+      created_by_id: courseData.created_by_id,
+      resolvedOrgId,
+      shouldPublish,
+    });
+
+    if (shouldPublish && !resolvedOrgId) {
+      throw {
+        code: "COURSE_ORG_REQUIRED",
+        message: "No se puede publicar el curso sin org_id",
+      };
+    }
 
     const courseToInsert = {
-      title: courseData.title,
-      event_dates: courseData.event_dates,
-      teaching_hours: courseData.teaching_hours || null,
-      price_text: courseData.price_text || null,
-      course_directors: courseData.course_directors || null,
-      organization: courseData.organization || null,
-      venue_name: courseData.venue_name || null,
-      venue_address: courseData.venue_address || null,
-      seats_available: courseData.seats_available || null,
-      course_code: courseData.course_code || null,
-      more_info: courseData.more_info || null,
-      objectives: courseData.objectives || null,
-      registration_url: courseData.registration_url || null,
-      hospital_id: courseData.hospital_id || null,
-      speciality_id: courseData.speciality_id || null,
+      ...buildCourseMutationPayload(courseData),
       status: finalStatus,
       published_at:
         courseData.published_at || (shouldPublish ? new Date().toISOString() : null),
+      ...(resolvedOrgId ? { org_id: resolvedOrgId } : {}),
       ...(courseData.created_by_id && { created_by_id: courseData.created_by_id }),
     };
+
+    console.log("🧾 Final createCourse payload:", courseToInsert);
 
     const { data, error } = await supabase
       .from("courses")
@@ -295,11 +482,16 @@ export const updateCourse = async (courseId, courseData) => {
     console.log("🔄 Updating course:", courseId);
 
     let publishedAt = courseData.published_at;
+    let resolvedOrgId = courseData.org_id;
+    let currentCourse = null;
 
-    if (courseData.status === PUBLISHED_STATUS && publishedAt === undefined) {
-      const { data: currentCourse, error: currentCourseError } = await supabase
+    if (
+      courseData.status === PUBLISHED_STATUS &&
+      (publishedAt === undefined || !resolvedOrgId)
+    ) {
+      const { data, error: currentCourseError } = await supabase
         .from("courses")
-        .select("status, published_at")
+        .select("status, published_at, org_id, created_by_id")
         .eq("id", courseId)
         .maybeSingle();
 
@@ -308,30 +500,44 @@ export const updateCourse = async (courseId, courseData) => {
         throw currentCourseError;
       }
 
+      currentCourse = data;
+
       if (currentCourse?.status !== PUBLISHED_STATUS || !currentCourse?.published_at) {
         publishedAt = new Date().toISOString();
       }
+
+      if (!resolvedOrgId && currentCourse?.org_id) {
+        resolvedOrgId = currentCourse.org_id;
+      }
+
+      if (!resolvedOrgId) {
+        resolvedOrgId = await getEmployerOrgIdForUser(
+          courseData.created_by_id || currentCourse?.created_by_id
+        );
+      }
+    }
+
+    console.log("🏢 Resolved org_id for updateCourse:", {
+      courseId,
+      created_by_id: courseData.created_by_id || currentCourse?.created_by_id,
+      resolvedOrgId,
+    });
+
+    if (courseData.status === PUBLISHED_STATUS && !resolvedOrgId) {
+      throw {
+        code: "COURSE_ORG_REQUIRED",
+        message: "No se puede publicar el curso sin org_id",
+      };
     }
 
     const courseToUpdate = {
-      title: courseData.title,
-      event_dates: courseData.event_dates,
-      teaching_hours: courseData.teaching_hours || null,
-      price_text: courseData.price_text || null,
-      course_directors: courseData.course_directors || null,
-      organization: courseData.organization || null,
-      venue_name: courseData.venue_name || null,
-      venue_address: courseData.venue_address || null,
-      seats_available: courseData.seats_available || null,
-      course_code: courseData.course_code || null,
-      more_info: courseData.more_info || null,
-      objectives: courseData.objectives || null,
-      registration_url: courseData.registration_url || null,
-      hospital_id: courseData.hospital_id || null,
-      speciality_id: courseData.speciality_id || null,
+      ...buildCourseMutationPayload(courseData),
       ...(courseData.status ? { status: courseData.status } : {}),
       ...(publishedAt !== undefined ? { published_at: publishedAt } : {}),
+      ...(resolvedOrgId ? { org_id: resolvedOrgId } : {}),
     };
+
+    console.log("🧾 Final updateCourse payload:", courseToUpdate);
 
     const { data, error } = await supabase
       .from("courses")

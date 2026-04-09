@@ -61,7 +61,7 @@ export const getHousingAds = async (
       .select(
         `
         *,
-        user:users!housing_ad_user_id_fkey(id, name, surname),
+        user:users!housing_ad_user_id_fkey(id, name, surname, is_resident),
         images:housing_ad_image(*)
       `
       )
@@ -150,7 +150,7 @@ export const getHousingAdById = async (adId) => {
       .select(
         `
         *,
-        user:users!housing_ad_user_id_fkey(id, name, surname),
+        user:users!housing_ad_user_id_fkey(id, name, surname, is_resident),
         images:housing_ad_image(*),
         hospital:hospitals!housing_ad_hospital_id_fkey(id, name, city)
       `
@@ -325,13 +325,13 @@ export const createHousingAd = async (adData) => {
     // 4. Obtener el anuncio completo con imágenes y usuario
     const { data: finalAd, error: fetchError } = await supabase
       .from("housing_ad")
-      .select(
+        .select(
+          `
+          *,
+          user:users!housing_ad_user_id_fkey(id, name, surname, is_resident),
+          hospital:hospitals!housing_ad_hospital_id_fkey(id, name, city),
+          images:housing_ad_image(*)
         `
-        *,
-        user:users!housing_ad_user_id_fkey(id, name, surname),
-        hospital:hospitals!housing_ad_hospital_id_fkey(id, name, city),
-        images:housing_ad_image(*)
-      `
       )
       .eq("id", adId)
       .single();
@@ -420,12 +420,12 @@ export const updateHousingAd = async (adId, adData) => {
       .from("housing_ad")
       .update(updateData)
       .eq("id", adId)
-      .select(
+        .select(
+          `
+          *,
+          user:users!housing_ad_user_id_fkey(id, name, surname, is_resident),
+          images:housing_ad_image(*)
         `
-        *,
-        user:users!housing_ad_user_id_fkey(id, name, surname),
-        images:housing_ad_image(*)
-      `
       )
       .single();
 

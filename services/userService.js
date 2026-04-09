@@ -216,6 +216,13 @@ export const deleteUserAccount = async (userId) => {
         deleteProfileError.code,
         deleteProfileError.message
       );
+      console.warn("⚠️ Detalle completo del error al eliminar usuario:", {
+        code: deleteProfileError.code,
+        message: deleteProfileError.message,
+        details: deleteProfileError.details,
+        hint: deleteProfileError.hint,
+        userId,
+      });
 
       // Verificar si el registro todavía existe
       // Si el error es del trigger pero el DELETE se ejecutó, el registro no debería existir
@@ -243,10 +250,19 @@ export const deleteUserAccount = async (userId) => {
         );
         return {
           success: false,
-          error:
-            "No se pudo eliminar el usuario debido a un error en el trigger de la base de datos. " +
-            "Por favor, contacta con el administrador o corrige el trigger en Supabase que intenta " +
-            "llamar a 'supabase_functions.http_request' cuando se elimina un usuario.",
+          error: (() => {
+            if (deleteProfileError.code === "23503") {
+              return (
+                "No se pudo eliminar el usuario porque sigue referenciado por otros registros en la base de datos. " +
+                `Detalle: ${deleteProfileError.message}`
+              );
+            }
+
+            return (
+              "No se pudo eliminar el usuario debido a un error en la base de datos. " +
+              `Detalle: ${deleteProfileError.message}`
+            );
+          })(),
         };
       }
     }

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,79 +11,75 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHospitals } from "../hooks/useHospitals";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { ScreenScaffold } from "../components/ScreenScaffold";
+import { DirectChatButton } from "../components";
 import {
   getMyRoommateBundle,
   getRoommateCandidates,
-  getRoommateMatches,
   getRoommateQuestions,
   getRoommateSavedFilter,
   saveRoommateBundle,
   saveRoommateSavedFilter,
-  saveRoommateSwipe,
 } from "../services/roommateService";
-import { RoommateSwipeDeck } from "../components/roommate/RoommateSwipeDeck";
+import { openDirectChat } from "../services/directChatsService";
 import { RoommateProfileDetailModal } from "../components/roommate/RoommateProfileDetailModal";
 import { RoommateFiltersModal } from "../components/roommate/RoommateFiltersModal";
 import { RoommateProfileEditor } from "../components/roommate/RoommateProfileEditor";
+import { RoommateProfileListCard } from "../components/roommate/RoommateProfileListCard";
 import {
   ROOMMATE_FORM_DEFAULTS,
   ROOMMATE_THEME,
-  getRoommateAvatarUrl,
   getBudgetLabel,
+  getRoommateAvatarUrl,
   getRoommateDisplayName,
   getRoommateInitials,
   getRoommateTags,
 } from "../utils/roommateUtils";
+import { prepareHospitalOptions } from "../utils/profileOptions";
 
 const TABS = [
-  { id: "discover", label: "Swipe", icon: "sparkles-outline" },
-  { id: "matches", label: "Matches", icon: "heart-outline" },
+  { id: "browse", label: "Perfiles", icon: "people-outline" },
   { id: "profile", label: "Mi perfil", icon: "person-outline" },
 ];
+
+const normalizeInitialTab = (tab) => {
+  if (tab === "profile") return "profile";
+  return "browse";
+};
 
 export default function RoommateScreen({
   userProfile,
   onBack,
-  initialTab = "discover",
-  initialMatchId = null,
+  onSectionChange,
+  initialTab = "browse",
 }) {
-  const insets = useSafeAreaInsets();
-  const { uniqueCities } = useHospitals();
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const { hospitals } = useHospitals();
+  const [activeTab, setActiveTab] = useState(normalizeInitialTab(initialTab));
   const [questions, setQuestions] = useState([]);
   const [myBundle, setMyBundle] = useState(null);
   const [savedFilters, setSavedFilters] = useState(ROOMMATE_FORM_DEFAULTS.filters);
   const [candidates, setCandidates] = useState([]);
-  const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [savingBundle, setSavingBundle] = useState(false);
+  const [openingChat, setOpeningChat] = useState(false);
   const [editorVisible, setEditorVisible] = useState(false);
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [selectedBundle, setSelectedBundle] = useState(null);
   const [selectedCompatibility, setSelectedCompatibility] = useState(0);
   const [filtersVisible, setFiltersVisible] = useState(false);
-  const [lastMatchBundle, setLastMatchBundle] = useState(null);
-  const [matchModalVisible, setMatchModalVisible] = useState(false);
-  const pendingMatchNavigationRef = useRef(initialMatchId);
 
   const hasProfile = Boolean(myBundle?.profile?.user_id);
-  const hospitalCityOptions = useMemo(
-    () => uniqueCities.map((city) => ({ id: city, name: city })),
-    [uniqueCities]
+  const hospitalOptions = useMemo(
+    () => prepareHospitalOptions(hospitals),
+    [hospitals]
   );
 
   useEffect(() => {
-    setActiveTab(initialTab || "discover");
+    setActiveTab(normalizeInitialTab(initialTab));
   }, [initialTab]);
-
-  useEffect(() => {
-    pendingMatchNavigationRef.current = initialMatchId;
-  }, [initialMatchId]);
 
   const loadBase = useCallback(async () => {
     setLoading(true);
@@ -116,7 +112,7 @@ export default function RoommateScreen({
     }
   }, [userProfile.id]);
 
-  const loadDiscovery = useCallback(
+  const loadCandidates = useCallback(
     async (bundle = myBundle, filters = savedFilters) => {
       if (!bundle?.profile?.user_id) {
         setCandidates([]);
@@ -131,49 +127,17 @@ export default function RoommateScreen({
     [myBundle, savedFilters, userProfile.id]
   );
 
-  const loadMatches = useCallback(async () => {
-    if (!myBundle?.profile?.user_id) {
-      setMatches([]);
-      return;
-    }
-
-    const response = await getRoommateMatches(userProfile.id);
-    if (response.success) {
-      setMatches(response.matches || []);
-    }
-  }, [myBundle, userProfile.id]);
-
   useEffect(() => {
     loadBase();
   }, [loadBase]);
 
   useEffect(() => {
     if (myBundle?.profile?.user_id) {
-      loadDiscovery();
-      loadMatches();
+      loadCandidates();
     } else {
       setCandidates([]);
-      setMatches([]);
     }
-  }, [myBundle?.profile?.user_id, savedFilters, loadDiscovery, loadMatches]);
-
-  useEffect(() => {
-    if (!pendingMatchNavigationRef.current || !matches.length) {
-      return;
-    }
-
-    const matchToOpen = matches.find(
-      (match) => match.id === pendingMatchNavigationRef.current
-    );
-
-    if (!matchToOpen) {
-      return;
-    }
-
-    setActiveTab("matches");
-    openBundle(matchToOpen.bundle, matchToOpen.compatibility);
-    pendingMatchNavigationRef.current = null;
-  }, [matches]);
+  }, [myBundle?.profile?.user_id, savedFilters, loadCandidates]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -187,43 +151,25 @@ export default function RoommateScreen({
     setProfileModalVisible(true);
   };
 
-  const handleSwipe = async (decision) => {
-    const activeCandidate = candidates[0];
-    if (!activeCandidate) return;
-
-    setCandidates((current) => current.slice(1));
-    const response = await saveRoommateSwipe(
-      userProfile.id,
-      activeCandidate.profile.user_id,
-      decision
-    );
-
-    if (response.success && response.isMatch) {
-      setLastMatchBundle(activeCandidate);
-      setMatchModalVisible(true);
-      loadMatches();
-    }
-  };
-
   const validateBundleBeforeSave = (bundleToValidate) => {
     const city = bundleToValidate?.profile?.city?.trim();
+    const hospitalId = bundleToValidate?.profile?.hospital_id?.trim();
     const age = bundleToValidate?.profile?.age;
     const budgetMin = bundleToValidate?.profile?.budget_min_eur;
     const budgetMax = bundleToValidate?.profile?.budget_max_eur;
     const homePlan = bundleToValidate?.profile?.home_plan;
-    const lookingFor = bundleToValidate?.profile?.looking_for;
     const preferredGender = bundleToValidate?.search?.preferred_gender;
 
+    if (!hospitalId) {
+      return "Selecciona el hospital más cercano para tu perfil.";
+    }
+
     if (!city) {
-      return "Selecciona una ciudad para tu perfil.";
+      return "No se pudo determinar la ciudad desde el hospital seleccionado.";
     }
 
     if (!homePlan) {
       return "Selecciona tu plan de piso.";
-    }
-
-    if (!lookingFor) {
-      return "Selecciona qué tipo de vivienda estás buscando.";
     }
 
     if (!preferredGender) {
@@ -276,11 +222,8 @@ export default function RoommateScreen({
 
       setMyBundle(response.bundle);
       setEditorVisible(false);
-      setActiveTab("discover");
-      await Promise.all([
-        loadDiscovery(response.bundle, savedFilters),
-        loadMatches(),
-      ]);
+      setActiveTab("browse");
+      await loadCandidates(response.bundle, savedFilters);
       Alert.alert("Éxito", "Tu perfil roomie se ha guardado correctamente.");
     } catch (error) {
       Alert.alert(
@@ -303,10 +246,47 @@ export default function RoommateScreen({
     }
   };
 
+  const handleOpenChat = async (bundle = selectedBundle) => {
+    const otherUserId = bundle?.profile?.user_id;
+
+    if (!otherUserId) {
+      Alert.alert("Error", "No se pudo identificar el perfil para abrir el chat.");
+      return;
+    }
+
+    try {
+      setOpeningChat(true);
+      const response = await openDirectChat({
+        otherUserId,
+        otherUserName: getRoommateDisplayName(bundle.profile),
+        onSectionChange,
+      });
+
+      if (!response.success || !response.chat?.group_id) {
+        Alert.alert(
+          "Error",
+          response.error || "No se pudo abrir la conversación privada."
+        );
+        return;
+      }
+
+      setProfileModalVisible(false);
+    } catch (error) {
+      Alert.alert(
+        "Error",
+        error?.message || "No se pudo abrir la conversación privada."
+      );
+    } finally {
+      setOpeningChat(false);
+    }
+  };
+
   const candidateCountLabel = useMemo(() => {
-    if (!candidates.length) return "Sin perfiles pendientes";
-    return `${candidates.length} perfiles por descubrir`;
+    if (!candidates.length) return "Sin perfiles disponibles en tu ciudad";
+    if (candidates.length === 1) return "1 perfil compatible cerca de ti";
+    return `${candidates.length} perfiles compatibles en tu ciudad`;
   }, [candidates.length]);
+
   const header = (
     <ScreenHeader
       title="Roomies"
@@ -314,13 +294,19 @@ export default function RoommateScreen({
       compact
       variant="brand"
       rightSlot={
-        <TouchableOpacity
-          style={styles.headerAction}
-          onPress={() => setFiltersVisible(true)}
-          activeOpacity={0.75}
-        >
-          <Ionicons name="options-outline" size={18} color={ROOMMATE_THEME.PRIMARY} />
-        </TouchableOpacity>
+        hasProfile ? (
+          <TouchableOpacity
+            style={styles.headerAction}
+            onPress={() => setFiltersVisible(true)}
+            activeOpacity={0.75}
+          >
+            <Ionicons
+              name="options-outline"
+              size={18}
+              color={ROOMMATE_THEME.PRIMARY}
+            />
+          </TouchableOpacity>
+        ) : null
       }
     />
   );
@@ -328,9 +314,10 @@ export default function RoommateScreen({
   const renderHero = () => (
     <View style={styles.hero}>
       <Text style={styles.heroEyebrow}>ROOMIES LOSRESIS</Text>
-      <Text style={styles.heroTitle}>Encuentra tu match de convivencia</Text>
+      <Text style={styles.heroTitle}>Encuentra compañeros de piso afines</Text>
       <Text style={styles.heroText}>
-        Descubre perfiles compatibles, revisa matches y ajusta tus filtros desde el mismo flujo.
+        Descubre compañeros de piso cerca de tu hospital, ordenados según
+        afinidad y estilo de vida
       </Text>
     </View>
   );
@@ -364,122 +351,72 @@ export default function RoommateScreen({
       <View style={styles.emptyBadge}>
         <Ionicons name="home-outline" size={28} color={ROOMMATE_THEME.PRIMARY} />
       </View>
-      <Text style={styles.emptyTitle}>Crea tu perfil roomie</Text>
+      <Text style={styles.emptyTitle}>Crea tu perfil RoomieMIR</Text>
       <Text style={styles.emptyDescription}>
-        Completa un onboarding corto con tu perfil, convivencia básica y
-        presupuesto. Después podrás swipear perfiles y ver matches.
+        Completa tu perfil con tu hospital, presupuesto y preferencias de
+        convivencia. Te mostraremos residentes compatibles ordenados por
+        afinidad y cercanía
       </Text>
       <TouchableOpacity
         style={styles.primaryButton}
         onPress={() => setEditorVisible(true)}
       >
-        <Text style={styles.primaryButtonText}>Empezar onboarding</Text>
+        <Text style={styles.primaryButtonText}>Crear mi perfil</Text>
       </TouchableOpacity>
     </View>
   );
 
-  const renderDiscover = () => {
+  const renderBrowse = () => {
     if (!hasProfile) {
       return renderNoProfile();
     }
 
     return (
-      <View style={styles.discoverWrap}>
+      <View style={styles.listSection}>
         <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>Descubrir perfiles</Text>
+          <View style={styles.sectionCopy}>
+            <Text style={styles.sectionTitle}>Perfiles recomendados</Text>
             <Text style={styles.sectionSubtitle}>{candidateCountLabel}</Text>
           </View>
           <TouchableOpacity
             style={styles.subtleAction}
             onPress={() => setFiltersVisible(true)}
           >
-            <Ionicons name="options-outline" size={16} color={ROOMMATE_THEME.PRIMARY} />
+            <Ionicons
+              name="options-outline"
+              size={16}
+              color={ROOMMATE_THEME.PRIMARY}
+            />
             <Text style={styles.subtleActionText}>Filtros</Text>
           </TouchableOpacity>
         </View>
 
-        <RoommateSwipeDeck
-          candidates={candidates}
-          onSwipe={handleSwipe}
-          onOpenFilters={() => setFiltersVisible(true)}
-          onOpenProfile={(bundle) => openBundle(bundle, bundle.compatibility)}
-        />
-      </View>
-    );
-  };
-
-  const renderMatches = () => {
-    if (!hasProfile) {
-      return renderNoProfile();
-    }
-
-    if (!matches.length) {
-      return (
-        <View style={styles.emptyCard}>
-          <View style={styles.emptyBadge}>
-            <Ionicons name="heart-outline" size={28} color={ROOMMATE_THEME.SECONDARY} />
+        {candidates.length ? (
+          <View style={styles.cardsList}>
+            {candidates.map((candidate) => (
+              <RoommateProfileListCard
+                key={candidate.profile.user_id}
+                candidate={candidate}
+                onPress={(item) => openBundle(item, item.compatibility)}
+              />
+            ))}
           </View>
-          <Text style={styles.emptyTitle}>Todavía no hay matches</Text>
-          <Text style={styles.emptyDescription}>
-            Cuando dos personas se dan like mutuamente, aparecerán aquí para que
-            revises sus perfiles con calma.
-          </Text>
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => setActiveTab("discover")}
-          >
-            <Text style={styles.primaryButtonText}>Ir al swipe</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.listWrap}>
-        {matches.map((match) => (
-          <TouchableOpacity
-            key={match.id}
-            style={styles.matchCard}
-            onPress={() => openBundle(match.bundle, match.compatibility)}
-          >
-            <View style={styles.matchAvatar}>
-              {getRoommateAvatarUrl(match.bundle.profile.avatar_url) ? (
-                <Image
-                  source={{ uri: getRoommateAvatarUrl(match.bundle.profile.avatar_url) }}
-                  style={styles.matchAvatarImage}
-                />
-              ) : (
-                <Text style={styles.matchAvatarText}>
-                  {getRoommateInitials(match.bundle.profile)}
-                </Text>
-              )}
-            </View>
-            <View style={styles.matchInfo}>
-              <Text style={styles.matchName}>
-                {getRoommateDisplayName(match.bundle.profile)}
-              </Text>
-              <Text style={styles.matchMeta}>
-                {match.bundle.profile.speciality?.name ||
-                  match.bundle.profile.occupation_label ||
-                  match.bundle.profile.city}
-              </Text>
-              <Text style={styles.matchMeta}>
-                {getBudgetLabel(match.bundle.profile)}
-              </Text>
-            </View>
-            <View style={styles.matchRight}>
-              <View style={styles.matchPill}>
-                <Text style={styles.matchPillText}>{match.compatibility}%</Text>
-              </View>
+        ) : (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyBadge}>
               <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={ROOMMATE_THEME.MUTED}
+                name="people-outline"
+                size={28}
+                color={ROOMMATE_THEME.SECONDARY}
               />
             </View>
-          </TouchableOpacity>
-        ))}
+            <Text style={styles.emptyTitle}>No hay perfiles ahora mismo</Text>
+            <Text style={styles.emptyDescription}>
+              Cuando entren más personas en {myBundle?.profile?.city || "tu ciudad"},
+              aparecerán aquí ordenadas por probabilidad de match.
+            </Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -534,21 +471,21 @@ export default function RoommateScreen({
           </Text>
           <View style={styles.summaryGrid}>
             <View style={styles.summaryBox}>
+              <Text style={styles.summaryLabel}>Hospital</Text>
+              <Text style={styles.summaryValue}>
+                {myBundle.profile.hospital?.name || "Sin hospital"}
+              </Text>
+            </View>
+            <View style={styles.summaryBox}>
+              <Text style={styles.summaryLabel}>Ciudad</Text>
+              <Text style={styles.summaryValue}>
+                {myBundle.profile.city || "Sin ciudad"}
+              </Text>
+            </View>
+            <View style={styles.summaryBox}>
               <Text style={styles.summaryLabel}>Presupuesto</Text>
               <Text style={styles.summaryValue}>
                 {getBudgetLabel(myBundle.profile)}
-              </Text>
-            </View>
-            <View style={styles.summaryBox}>
-              <Text style={styles.summaryLabel}>Entrada</Text>
-              <Text style={styles.summaryValue}>
-                {myBundle.profile.move_in_date || "Flexible"}
-              </Text>
-            </View>
-            <View style={styles.summaryBox}>
-              <Text style={styles.summaryLabel}>Visible</Text>
-              <Text style={styles.summaryValue}>
-                {myBundle.profile.is_visible ? "Sí" : "No"}
               </Text>
             </View>
             <View style={styles.summaryBox}>
@@ -579,7 +516,7 @@ export default function RoommateScreen({
       >
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={ROOMMATE_THEME.PRIMARY} />
-          <Text style={styles.loadingText}>Preparando roommate matching...</Text>
+          <Text style={styles.loadingText}>Preparando perfiles roomie...</Text>
         </View>
       </ScreenScaffold>
     );
@@ -594,7 +531,7 @@ export default function RoommateScreen({
       >
         <ScrollView
           style={styles.container}
-          contentContainerStyle={[styles.content, { paddingBottom: 36 }]}
+          contentContainerStyle={styles.content}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -606,10 +543,7 @@ export default function RoommateScreen({
         >
           {renderHero()}
           {renderTabs()}
-
-          {activeTab === "discover" && renderDiscover()}
-          {activeTab === "matches" && renderMatches()}
-          {activeTab === "profile" && renderProfile()}
+          {activeTab === "browse" ? renderBrowse() : renderProfile()}
         </ScrollView>
       </ScreenScaffold>
 
@@ -618,7 +552,8 @@ export default function RoommateScreen({
         mode={hasProfile ? "edit" : "create"}
         questions={questions}
         initialBundle={myBundle || ROOMMATE_FORM_DEFAULTS}
-        cityOptions={hospitalCityOptions}
+        hospitalOptions={hospitalOptions}
+        hospitals={hospitals}
         onClose={() => setEditorVisible(false)}
         onSave={handleSaveProfile}
         saving={savingBundle}
@@ -636,23 +571,12 @@ export default function RoommateScreen({
         onClose={() => setProfileModalVisible(false)}
         bundle={selectedBundle}
         compatibility={selectedCompatibility}
-      />
-
-      <RoommateProfileDetailModal
-        visible={matchModalVisible}
-        onClose={() => setMatchModalVisible(false)}
-        bundle={lastMatchBundle}
-        compatibility={lastMatchBundle?.compatibility || 0}
         actions={
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => {
-              setMatchModalVisible(false);
-              setActiveTab("matches");
-            }}
-          >
-            <Text style={styles.primaryButtonText}>Ver matches</Text>
-          </TouchableOpacity>
+          <DirectChatButton
+            style={[styles.primaryButton, openingChat && styles.buttonDisabled]}
+            onPress={() => handleOpenChat(selectedBundle)}
+            loading={openingChat}
+          />
         }
       />
     </>
@@ -670,6 +594,7 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: 18,
+    paddingBottom: 36,
   },
   hero: {
     paddingHorizontal: 18,
@@ -737,7 +662,7 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: ROOMMATE_THEME.PRIMARY,
   },
-  discoverWrap: {
+  listSection: {
     paddingHorizontal: 18,
     gap: 16,
   },
@@ -746,6 +671,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     gap: 16,
+  },
+  sectionCopy: {
+    flex: 1,
   },
   sectionTitle: {
     color: ROOMMATE_THEME.ACCENT,
@@ -762,130 +690,78 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    borderRadius: 999,
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 999,
   },
   subtleActionText: {
     color: ROOMMATE_THEME.PRIMARY,
     fontWeight: "800",
+    fontSize: 13,
+  },
+  cardsList: {
+    gap: 14,
   },
   emptyCard: {
     marginHorizontal: 18,
-    backgroundColor: "#FFFFFF",
     borderRadius: 28,
+    backgroundColor: "#FFFFFF",
     padding: 24,
     alignItems: "center",
-    gap: 14,
+    gap: 12,
   },
   emptyBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#F3EEFF",
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    backgroundColor: ROOMMATE_THEME.SURFACE,
     alignItems: "center",
     justifyContent: "center",
   },
   emptyTitle: {
     color: ROOMMATE_THEME.ACCENT,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "900",
     textAlign: "center",
   },
   emptyDescription: {
     color: ROOMMATE_THEME.MUTED,
-    fontSize: 15,
+    fontSize: 14,
     lineHeight: 22,
     textAlign: "center",
   },
   primaryButton: {
-    alignSelf: "stretch",
+    width: "100%",
+    borderRadius: 18,
+    backgroundColor: ROOMMATE_THEME.PRIMARY,
+    paddingVertical: 15,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: ROOMMATE_THEME.PRIMARY,
-    paddingVertical: 16,
-    borderRadius: 18,
   },
   primaryButtonText: {
     color: "#FFFFFF",
-    fontWeight: "900",
     fontSize: 15,
-  },
-  listWrap: {
-    paddingHorizontal: 18,
-    gap: 14,
-  },
-  matchCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
-  matchAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: ROOMMATE_THEME.PRIMARY,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  matchAvatarImage: {
-    width: "100%",
-    height: "100%",
-  },
-  matchAvatarText: {
-    color: "#FFFFFF",
-    fontSize: 20,
     fontWeight: "900",
   },
-  matchInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  matchName: {
-    color: ROOMMATE_THEME.TEXT,
-    fontSize: 17,
-    fontWeight: "800",
-  },
-  matchMeta: {
-    color: ROOMMATE_THEME.MUTED,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  matchRight: {
-    alignItems: "flex-end",
-    gap: 10,
-  },
-  matchPill: {
-    backgroundColor: "#E3FBF2",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  matchPillText: {
-    color: ROOMMATE_THEME.SECONDARY,
-    fontSize: 12,
-    fontWeight: "900",
+  buttonDisabled: {
+    opacity: 0.7,
   },
   profileWrap: {
     paddingHorizontal: 18,
     gap: 16,
   },
   profileHero: {
-    backgroundColor: "#FFFFFF",
     borderRadius: 28,
+    backgroundColor: "#FFFFFF",
     padding: 24,
     alignItems: "center",
     gap: 10,
   },
   profileAvatar: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
+    width: 96,
+    height: 96,
+    borderRadius: 32,
     backgroundColor: ROOMMATE_THEME.PRIMARY,
     alignItems: "center",
     justifyContent: "center",
@@ -897,54 +773,55 @@ const styles = StyleSheet.create({
   },
   profileAvatarText: {
     color: "#FFFFFF",
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: "900",
   },
   profileName: {
     color: ROOMMATE_THEME.ACCENT,
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "900",
-    marginTop: 4,
+    textAlign: "center",
   },
   profileMeta: {
     color: ROOMMATE_THEME.TEXT,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
+    textAlign: "center",
   },
   profileMetaMuted: {
     color: ROOMMATE_THEME.MUTED,
     fontSize: 14,
     fontWeight: "600",
+    textAlign: "center",
   },
   profileTagsRow: {
+    marginTop: 6,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
     gap: 8,
-    marginTop: 6,
   },
   profileTag: {
-    backgroundColor: "#F3EEFF",
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: ROOMMATE_THEME.BACKGROUND,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
   profileTagText: {
-    color: ROOMMATE_THEME.PRIMARY,
+    color: ROOMMATE_THEME.ACCENT,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   profileInfoCard: {
-    backgroundColor: "#FFFFFF",
     borderRadius: 28,
+    backgroundColor: "#FFFFFF",
     padding: 22,
     gap: 16,
   },
   profileText: {
     color: ROOMMATE_THEME.TEXT,
-    fontSize: 15,
-    lineHeight: 23,
-    fontWeight: "500",
+    fontSize: 14,
+    lineHeight: 22,
   },
   summaryGrid: {
     flexDirection: "row",
@@ -953,8 +830,8 @@ const styles = StyleSheet.create({
   },
   summaryBox: {
     width: "47%",
-    borderRadius: 18,
-    backgroundColor: "#F6F1FF",
+    borderRadius: 20,
+    backgroundColor: ROOMMATE_THEME.BACKGROUND,
     padding: 14,
     gap: 6,
   },
@@ -965,20 +842,19 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   summaryValue: {
-    color: ROOMMATE_THEME.TEXT,
-    fontSize: 15,
+    color: ROOMMATE_THEME.ACCENT,
+    fontSize: 14,
     fontWeight: "800",
   },
   loadingWrap: {
     flex: 1,
-    backgroundColor: ROOMMATE_THEME.BACKGROUND,
-    justifyContent: "center",
     alignItems: "center",
-    gap: 16,
+    justifyContent: "center",
+    gap: 14,
   },
   loadingText: {
     color: ROOMMATE_THEME.MUTED,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
   },
 });

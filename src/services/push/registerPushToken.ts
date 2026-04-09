@@ -17,6 +17,27 @@ export async function registerPushToken(userId: string): Promise<void> {
       return;
     }
 
+    const { data: profile, error: profileError } = await supabase
+      .from("users")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.warn(
+        "[Push] registerPushToken: could not verify public.users profile, skipping",
+        profileError.message
+      );
+      return;
+    }
+
+    if (!profile) {
+      console.warn(
+        "[Push] registerPushToken: public.users row missing, skipping registration"
+      );
+      return;
+    }
+
     if (!Device.isDevice) {
       console.log("[Push] Skipping registration: not a physical device (simulator/emulator)");
       return;

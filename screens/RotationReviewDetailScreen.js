@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { DirectChatButton } from "../components";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { ScreenScaffold } from "../components/ScreenScaffold";
 import {
@@ -52,6 +53,23 @@ const scoreIconByLabel = {
   "Nivel práctico": "medkit-outline",
   Ambiente: "people-outline",
   Recomendación: "thumbs-up-outline",
+};
+
+const normalizeReviewResidentData = (review) => {
+  const firstName = review?.users?.name || review?.reviewer_name || "";
+  const surname = review?.users?.surname || review?.reviewer_surname || "";
+
+  return {
+    residentName:
+      [firstName, surname ? `${surname[0]}.` : ""].filter(Boolean).join(" ").trim() ||
+      "Residente",
+    specialtyName:
+      review?.specialities?.name ||
+      review?.users?.specialities?.name ||
+      review?.reviewer_specialty_name ||
+      "Especialidad",
+    hospitalName: review?.users?.hospitals?.name || review?.reviewer_hospital_name || "",
+  };
 };
 
 const ScoreCard = ({ label, value }) => {
@@ -134,6 +152,7 @@ export default function RotationReviewDetailScreen({
   const [error, setError] = useState(null);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
     posthogLogger.logScreen("RotationReviewDetailScreen", { reviewId });
@@ -199,15 +218,21 @@ export default function RotationReviewDetailScreen({
   }, [review]);
 
   const reviewerName = useMemo(() => {
-    if (!review?.users) {
-      return "Residente";
-    }
+    return normalizeReviewResidentData(review).residentName;
+  }, [review]);
 
-    const firstName = review.users.name || "";
-    const lastNameInitial = review.users.surname
-      ? `${review.users.surname[0]}.`
-      : "";
-    return `${firstName} ${lastNameInitial}`.trim() || "Residente";
+  const reviewerMeta = useMemo(() => {
+    const resident = normalizeReviewResidentData(review);
+
+    return {
+      specialtyLine: [
+        resident.specialtyName,
+        review?.users?.resident_year ? `R${review.users.resident_year}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      hospitalLine: resident.hospitalName,
+    };
   }, [review]);
 
   const durationLabel = useMemo(() => {
@@ -225,6 +250,7 @@ export default function RotationReviewDetailScreen({
   }, [review]);
 
   const canFavorite = Boolean(userId && review?.user_id && review.user_id !== userId);
+  const canContact = Boolean(userId && review?.user_id && review.user_id !== userId);
 
   const handleToggleFavorite = async () => {
     if (!canFavorite || favoriteLoading) {
@@ -243,6 +269,19 @@ export default function RotationReviewDetailScreen({
       setFavoriteLoading(false);
     }
   };
+
+  const handleOpenChat = useCallback(async () => {
+    if (!canContact || chatLoading) {
+      return;
+    }
+
+    try {
+      setChatLoading(true);
+      await onContact?.(review);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [canContact, chatLoading, onContact, review]);
 
   if (loading) {
     return (
@@ -324,22 +363,17 @@ export default function RotationReviewDetailScreen({
             <View style={styles.profileCopy}>
               <View style={styles.profileTitleRow}>
                 <Text style={styles.profileName}>{reviewerName}</Text>
-                <View style={styles.responseBadge}>
-                  <Text style={styles.responseBadgeText}>Responde dudas</Text>
-                </View>
+                {canContact ? (
+                  <View style={styles.responseBadge}>
+                    <Text style={styles.responseBadgeText}>Responde dudas</Text>
+                  </View>
+                ) : null}
               </View>
-              <Text style={styles.profileMeta}>
-                {review.specialities?.name ||
-                  review.users?.specialities?.name ||
-                  "Especialidad"}
-                {review.users?.resident_year
-                  ? ` · R${review.users.resident_year}`
-                  : ""}
-              </Text>
-              {review.users?.hospitals?.name ? (
-                <Text style={styles.profileMeta}>
-                  {review.users.hospitals.name}
-                </Text>
+              {reviewerMeta.specialtyLine ? (
+                <Text style={styles.profileMeta}>{reviewerMeta.specialtyLine}</Text>
+              ) : null}
+              {reviewerMeta.hospitalLine ? (
+                <Text style={styles.profileMeta}>{reviewerMeta.hospitalLine}</Text>
               ) : null}
               <Text style={styles.profileMeta}>
                 Publicada el {formatLongDate(review.created_at)}
@@ -347,13 +381,15 @@ export default function RotationReviewDetailScreen({
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.primaryAction}
-            onPress={() => onContact?.(review)}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.primaryActionText}>Contactar</Text>
-          </TouchableOpacity>
+          {canContact ? (
+            <DirectChatButton
+              style={styles.primaryAction}
+              onPress={handleOpenChat}
+              loading={chatLoading}
+              label="Abrir chat"
+              loadingLabel="Abriendo chat..."
+            />
+          ) : null}
         </View>
 
         <View style={styles.chipsRow}>
@@ -525,6 +561,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: TEXT_MUTED,
     marginBottom: 4,
+  },
+  primaryAction: {
+    width: "100%",
   },
   chipsRow: {
     flexDirection: "row",

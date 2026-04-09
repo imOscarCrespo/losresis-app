@@ -6,6 +6,7 @@ import { ScreenScaffold } from "../components/ScreenScaffold";
 import { NAVIGATION_ITEMS } from "../constants/navigationItems";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
+import { useUnreadNotificationBuckets } from "../src/hooks/useUnreadNotificationBuckets";
 
 /**
  * Pantalla de Menú con grid de opciones
@@ -21,6 +22,7 @@ export default function MenuScreen({
 }) {
   // Obtener items del footer para excluirlos
   const footerItems = getFooterConfig(userProfile);
+  const { hasOtherUnread } = useUnreadNotificationBuckets(userProfile?.id);
 
   const handleItemPress = (item) => {
     if (onSectionChange) {
@@ -59,6 +61,7 @@ export default function MenuScreen({
           onItemPress={handleItemPress}
           residentHasReview={residentHasReview}
           residentReviewGateStatus={residentReviewGateStatus}
+          showNotificationsBadge={hasOtherUnread}
         />
       </ScrollView>
     </ScreenScaffold>

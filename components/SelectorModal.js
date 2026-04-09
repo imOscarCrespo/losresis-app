@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -52,12 +53,37 @@ export function SelectorModal({
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState("");
   const [tempValue, setTempValue] = useState(value);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setTempValue(value);
     }
   }, [value, visible]);
+
+  useEffect(() => {
+    if (!visible) {
+      setKeyboardVisible(false);
+      return undefined;
+    }
+
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSubscription = Keyboard.addListener(showEvent, () => {
+      setKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [visible]);
 
   const handleClose = () => {
     setSearch("");
@@ -194,7 +220,16 @@ export function SelectorModal({
           }
         />
 
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <View
+          style={[
+            styles.footer,
+            {
+              paddingBottom: keyboardVisible
+                ? 12
+                : Math.max(insets.bottom, 16),
+            },
+          ]}
+        >
           <MotionPressable
             style={[styles.confirmBtn, { backgroundColor: primaryColor }]}
             onPress={handleConfirm}

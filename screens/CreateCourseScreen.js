@@ -16,12 +16,13 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
+import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { ScreenScaffold } from "../components/ScreenScaffold";
 import {
   KeyboardDismissAccessory,
   KEYBOARD_DISMISS_ACCESSORY_ID,
-  KEYBOARD_DISMISS_ACCESSORY_ID_2,
 } from "../components/KeyboardDismissAccessory";
 import { useHospitals } from "../hooks/useHospitals";
 import {
@@ -54,18 +55,10 @@ function SectionHeader({ title, subtitle }) {
 const initialFormData = {
   title: "",
   event_dates: [],
-  teaching_hours: "",
   price_text: "",
-  course_directors: "",
-  organization: "",
   venue_name: "",
-  venue_address: "",
-  seats_available: "",
-  course_code: "",
   more_info: "",
-  objectives: "",
   registration_url: "",
-  hospital_id: "",
   speciality_id: "",
 };
 
@@ -225,7 +218,6 @@ export default function CreateCourseScreen({
   onBack,
   onSuccess,
 }) {
-  const insets = useSafeAreaInsets();
   const isEditMode = Boolean(courseId);
   const [formData, setFormData] = useState(initialFormData);
   const [loading, setLoading] = useState(false);
@@ -236,7 +228,7 @@ export default function CreateCourseScreen({
   const [tempSelectedDate, setTempSelectedDate] = useState(null);
   const [openModal, setOpenModal] = useState(null);
 
-  const { hospitals, specialties } = useHospitals();
+  const { specialties } = useHospitals();
 
   useEffect(() => {
     const name = isEditMode
@@ -255,19 +247,10 @@ export default function CreateCourseScreen({
         setFormData({
           title: course.title || "",
           event_dates: Array.isArray(course.event_dates) ? [...course.event_dates] : [],
-          teaching_hours: course.teaching_hours ?? "",
           price_text: course.price_text ?? "",
-          course_directors: course.course_directors ?? "",
-          organization: course.organization ?? "",
           venue_name: course.venue_name ?? "",
-          venue_address: course.venue_address ?? "",
-          seats_available:
-            course.seats_available != null ? String(course.seats_available) : "",
-          course_code: course.course_code ?? "",
           more_info: course.more_info ?? "",
-          objectives: course.objectives ?? "",
           registration_url: course.registration_url ?? "",
-          hospital_id: course.hospital_id ?? "",
           speciality_id: course.speciality_id ?? "",
         });
       } catch (err) {
@@ -281,13 +264,6 @@ export default function CreateCourseScreen({
     loadCourse();
   }, [courseId, isEditMode]);
 
-  const hospitalOptions = useMemo(
-    () =>
-      hospitals
-        .filter((hospital) => hospital?.id && hospital?.name)
-        .map((hospital) => ({ id: hospital.id, name: hospital.name })),
-    [hospitals]
-  );
   const specialtyOptions = useMemo(
     () =>
       specialties
@@ -296,10 +272,6 @@ export default function CreateCourseScreen({
     [specialties]
   );
 
-  const selectedHospitalName = useMemo(
-    () => hospitalOptions.find((item) => item.id === formData.hospital_id)?.name,
-    [formData.hospital_id, hospitalOptions]
-  );
   const selectedSpecialtyName = useMemo(
     () => specialtyOptions.find((item) => item.id === formData.speciality_id)?.name,
     [formData.speciality_id, specialtyOptions]
@@ -405,9 +377,25 @@ export default function CreateCourseScreen({
       return false;
     }
 
+    if (!formData.venue_name.trim()) {
+      setError("El lugar del evento es obligatorio");
+      return false;
+    }
+
+    if (!formData.registration_url.trim()) {
+      setError("La URL de inscripción es obligatoria");
+      return false;
+    }
+
     setError("");
     return true;
-  }, [formData.event_dates.length, formData.speciality_id, formData.title]);
+  }, [
+    formData.event_dates.length,
+    formData.registration_url,
+    formData.speciality_id,
+    formData.title,
+    formData.venue_name,
+  ]);
 
   const handleSubmit = useCallback(async () => {
     if (!validate()) return;
@@ -416,24 +404,15 @@ export default function CreateCourseScreen({
     setError("");
 
     try {
-      const rawSeats = formData.seats_available.trim();
       const createdBy = !isEditMode ? await getCachedUserId() : undefined;
       const payload = {
         ...(createdBy ? { created_by_id: createdBy } : {}),
         title: formData.title.trim(),
         event_dates: formData.event_dates,
-        teaching_hours: formData.teaching_hours.trim() || null,
         price_text: formData.price_text.trim() || null,
-        course_directors: formData.course_directors.trim() || null,
-        organization: formData.organization.trim() || null,
         venue_name: formData.venue_name.trim() || null,
-        venue_address: formData.venue_address.trim() || null,
-        seats_available: rawSeats ? parseInt(rawSeats, 10) : null,
-        course_code: formData.course_code.trim() || null,
         more_info: formData.more_info.trim() || null,
-        objectives: formData.objectives.trim() || null,
         registration_url: formData.registration_url.trim() || null,
-        hospital_id: formData.hospital_id?.trim() || null,
         speciality_id: formData.speciality_id?.trim() || null,
         status: PUBLISHED_STATUS,
         ...(!isEditMode ? { published_at: new Date().toISOString() } : {}),
@@ -441,7 +420,7 @@ export default function CreateCourseScreen({
 
       if (isEditMode) {
         await updateCourse(courseId, payload);
-        Alert.alert("Curso actualizado", "Los cambios se han guardado correctamente.", [
+        Alert.alert("Publicación actualizada", "Los cambios se han guardado correctamente.", [
           {
             text: "OK",
             onPress: () => {
@@ -452,7 +431,7 @@ export default function CreateCourseScreen({
         ]);
       } else {
         await createCourse(payload);
-        Alert.alert("Curso creado", "El curso se ha publicado correctamente.", [
+        Alert.alert("Publicación creada", "El curso o congreso se ha publicado correctamente.", [
           {
             text: "OK",
             onPress: () => {
@@ -464,11 +443,14 @@ export default function CreateCourseScreen({
       }
     } catch (err) {
       console.error("Error saving course:", err);
-      setError(
-        isEditMode
-          ? "No se pudo actualizar el curso. Inténtalo de nuevo."
-          : "No se pudo crear el curso. Inténtalo de nuevo."
-      );
+      const fallbackMessage =
+        err?.code === "RESIDENT_FALLBACK_ORG_MISSING" && err?.message
+          ? err.message
+          : isEditMode
+            ? "No se pudo actualizar el curso. Inténtalo de nuevo."
+            : "No se pudo crear el curso. Inténtalo de nuevo.";
+
+      setError(fallbackMessage);
     } finally {
       setLoading(false);
     }
@@ -476,25 +458,21 @@ export default function CreateCourseScreen({
 
   return (
     <ScreenScaffold
-      keyboardAvoiding
-      keyboardBehavior={Platform.OS === "ios" ? "padding" : undefined}
       headerShellVariant="brand"
       contentSurfaceStyle={styles.contentSurface}
       header={
         <ScreenHeader
-          title={isEditMode ? "Editar curso" : "Nuevo curso"}
+          title={isEditMode ? "Editar curso o congreso" : "Nuevo curso o congreso"}
           onBack={onBack}
           compact
           variant="brand"
         />
       }
     >
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.formScroll}
-        contentContainerStyle={{
-          paddingBottom: Math.max(insets.bottom + 32, 40),
-        }}
-        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.formScrollContent}
+        bottomPadding={40}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
@@ -514,15 +492,15 @@ export default function CreateCourseScreen({
 
               <SectionHeader
                 title="Información principal"
-                subtitle="Los campos marcados con asterisco son obligatorios."
+                subtitle="Solo te pedimos lo esencial para publicar rápido."
               />
 
               <FieldCard label="Título" required>
-                <TextInput
+                <KeyboardAwareTextInput
                   style={styles.input}
                   value={formData.title}
                   onChangeText={(text) => updateField("title", text)}
-                  placeholder="Ej. Curso de Radiología Intervencionista"
+                  placeholder="Ej. Curso de Radiología Intervencionista o Congreso SEMI"
                   placeholderTextColor={MUTED_LIGHT}
                 />
               </FieldCard>
@@ -530,7 +508,7 @@ export default function CreateCourseScreen({
               <FieldCard
                 label="Fechas"
                 required
-                hint="Añade una o varias fechas. Puedes reordenarlas editando la lista."
+                hint="Añade una o varias fechas. Si dura varios días, incorpora todas."
               >
                 {formData.event_dates.length > 0 ? (
                   <View style={styles.dateList}>
@@ -577,109 +555,25 @@ export default function CreateCourseScreen({
                 </TouchableOpacity>
               </FieldCard>
 
-              <FieldCard label="Organización">
-                <TextInput
-                  style={styles.input}
-                  value={formData.organization}
-                  onChangeText={(text) => updateField("organization", text)}
-                  placeholder="Entidad organizadora"
-                  placeholderTextColor={MUTED_LIGHT}
-                />
-              </FieldCard>
-
-              <FieldCard label="Duración">
-                <TextInput
-                  style={styles.input}
-                  value={formData.teaching_hours}
-                  onChangeText={(text) => updateField("teaching_hours", text)}
-                  placeholder="Ej. 20 horas · 3 jornadas"
-                  placeholderTextColor={MUTED_LIGHT}
-                />
-              </FieldCard>
-
-              <SectionHeader
-                title="Ubicación"
-                subtitle="Completa la sede para que la tarjeta del curso quede consistente con el listado."
-              />
-
-              <FieldCard label="Lugar del evento">
-                <TextInput
+              <FieldCard
+                label="Lugar del evento"
+                required
+                hint="Indica ciudad, sede o ambos. Ej. Madrid · Hospital La Paz"
+              >
+                <KeyboardAwareTextInput
                   style={styles.input}
                   value={formData.venue_name}
                   onChangeText={(text) => updateField("venue_name", text)}
-                  placeholder="Nombre de la sede"
+                  placeholder="Ciudad y/o sede"
                   placeholderTextColor={MUTED_LIGHT}
                 />
               </FieldCard>
 
-              <FieldCard label="Hospital asociado">
-                <TouchableOpacity
-                  style={styles.selector}
-                  onPress={() => setOpenModal("hospital")}
-                >
-                  <Text
-                    style={[
-                      styles.selectorText,
-                      !selectedHospitalName && styles.selectorPlaceholder,
-                    ]}
-                  >
-                    {selectedHospitalName || "Seleccionar hospital"}
-                  </Text>
-                  <Ionicons name="chevron-down" size={18} color={MUTED_LIGHT} />
-                </TouchableOpacity>
-              </FieldCard>
-
-              <FieldCard label="Dirección">
-                <TextInput
-                  style={[styles.input, styles.inputMultiline]}
-                  value={formData.venue_address}
-                  onChangeText={(text) => updateField("venue_address", text)}
-                  placeholder="Dirección completa"
-                  placeholderTextColor={MUTED_LIGHT}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
-              </FieldCard>
-
-              <SectionHeader
-                title="Datos complementarios"
-                subtitle="Añade metadatos y contenido de apoyo para la vista detalle."
-              />
-
-              <FieldCard label="Código del curso">
-                <TextInput
-                  style={styles.input}
-                  value={formData.course_code}
-                  onChangeText={(text) => updateField("course_code", text)}
-                  placeholder="Ej. AC1318"
-                  placeholderTextColor={MUTED_LIGHT}
-                />
-              </FieldCard>
-
-              <FieldCard label="Dirección académica">
-                <TextInput
-                  style={styles.input}
-                  value={formData.course_directors}
-                  onChangeText={(text) => updateField("course_directors", text)}
-                  placeholder="Personas responsables"
-                  placeholderTextColor={MUTED_LIGHT}
-                />
-              </FieldCard>
-
-              <FieldCard label="Plazas disponibles">
-                <TextInput
-                  style={styles.input}
-                  value={formData.seats_available}
-                  onChangeText={(text) => updateField("seats_available", text)}
-                  placeholder="Ej. 50"
-                  placeholderTextColor={MUTED_LIGHT}
-                  keyboardType="numeric"
-                />
-              </FieldCard>
-
-              <FieldCard label="Precio">
-                <TextInput
+              <FieldCard
+                label="Precio"
+                hint="Opcional"
+              >
+                <KeyboardAwareTextInput
                   style={styles.input}
                   value={formData.price_text}
                   onChangeText={(text) => updateField("price_text", text)}
@@ -688,8 +582,8 @@ export default function CreateCourseScreen({
                 />
               </FieldCard>
 
-              <FieldCard label="URL de inscripción">
-                <TextInput
+              <FieldCard label="URL de inscripción" required>
+                <KeyboardAwareTextInput
                   style={styles.input}
                   value={formData.registration_url}
                   onChangeText={(text) => updateField("registration_url", text)}
@@ -701,23 +595,9 @@ export default function CreateCourseScreen({
                 />
               </FieldCard>
 
-              <FieldCard label="Objetivos">
-                <TextInput
+              <FieldCard label="Más información" hint="Opcional">
+                <KeyboardAwareTextInput
                   inputAccessoryViewID={KEYBOARD_DISMISS_ACCESSORY_ID}
-                  style={[styles.input, styles.inputMultiline]}
-                  value={formData.objectives}
-                  onChangeText={(text) => updateField("objectives", text)}
-                  placeholder="Describe los objetivos del curso"
-                  placeholderTextColor={MUTED_LIGHT}
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                />
-              </FieldCard>
-
-              <FieldCard label="Más información">
-                <TextInput
-                  inputAccessoryViewID={KEYBOARD_DISMISS_ACCESSORY_ID_2}
                   style={[styles.input, styles.inputMultiline]}
                   value={formData.more_info}
                   onChangeText={(text) => updateField("more_info", text)}
@@ -726,6 +606,7 @@ export default function CreateCourseScreen({
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
+                  keyboardAwareOptions={{ extraScrollSpace: 40 }}
                 />
               </FieldCard>
 
@@ -748,19 +629,10 @@ export default function CreateCourseScreen({
             </>
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <KeyboardDismissAccessory />
 
-      <SelectionModal
-        visible={openModal === "hospital"}
-        onClose={() => setOpenModal(null)}
-        title="Seleccionar hospital"
-        options={hospitalOptions}
-        value={formData.hospital_id}
-        onSelect={(value) => updateField("hospital_id", value)}
-        placeholder="Sin hospital"
-      />
       <SelectionModal
         visible={openModal === "speciality"}
         onClose={() => setOpenModal(null)}
@@ -822,6 +694,9 @@ const styles = StyleSheet.create({
   },
   formScroll: {
     flex: 1,
+  },
+  formScrollContent: {
+    paddingBottom: 0,
   },
   content: {
     paddingHorizontal: 16,

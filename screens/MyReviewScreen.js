@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,10 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Modal,
-  TextInput,
   ActivityIndicator,
-  Switch,
-  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { StarRating } from "../components/StarRating";
@@ -46,29 +43,22 @@ export default function MyReviewScreen({
   onReviewDeleted,
   autoOpenCreateReview = false,
   onAutoOpenCreateReviewHandled,
+  onCreateReview,
+  onEditReview,
   onBack,
 }) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
-  const [answers, setAnswers] = useState({});
-  const [freeComment, setFreeComment] = useState("");
-  const [isAnonymous, setIsAnonymous] = useState(false);
 
   const { hospitals, specialties } = useHospitals();
   const hospital = hospitals.find((h) => h.id === userProfile?.hospital_id);
   const specialty = specialties.find((s) => s.id === userProfile?.speciality_id);
 
   const {
-    reviewQuestions,
     existingReview,
     loading,
     loadingQuestions,
     error,
     success,
-    fetchReviewQuestions,
-    handleCreateReview,
-    handleUpdateReview,
     handleDeleteReview,
     clearError,
     clearSuccess,
@@ -114,33 +104,23 @@ export default function MyReviewScreen({
   );
 
   useEffect(() => {
-    if (existingReview && existingReview.review_answer) {
-      const existingAnswers = {};
-      existingReview.review_answer.forEach((answer) => {
-        if (answer.question_id) {
-          existingAnswers[answer.question_id] = {
-            rating: answer.rating_value || undefined,
-            textValue: answer.text_value || undefined,
-          };
-        }
-      });
-      setAnswers(existingAnswers);
-      setFreeComment(existingReview.free_comment || "");
-      setIsAnonymous(existingReview.is_anonymous || false);
-    }
-  }, [existingReview]);
-
-  useEffect(() => {
     posthogLogger.logScreen("MyReviewScreen");
   }, []);
+
+  const handleStartReview = useCallback(() => {
+    onCreateReview?.();
+  }, [onCreateReview]);
+
+  const handleEditReview = useCallback(() => {
+    onEditReview?.();
+  }, [onEditReview]);
 
   useEffect(() => {
     if (
       autoOpenCreateReview &&
       !existingReview &&
       !loading &&
-      !loadingQuestions &&
-      !isModalOpen
+      !loadingQuestions
     ) {
       onAutoOpenCreateReviewHandled?.();
       handleStartReview();
@@ -150,92 +130,15 @@ export default function MyReviewScreen({
     existingReview,
     loading,
     loadingQuestions,
-    isModalOpen,
     onAutoOpenCreateReviewHandled,
     handleStartReview,
   ]);
-
-  const handleStartReview = useCallback(() => {
-    setAnswers({});
-    setFreeComment("");
-    setIsAnonymous(false);
-    fetchReviewQuestions();
-    setIsModalOpen(true);
-    setIsEditing(false);
-  }, [fetchReviewQuestions]);
-
-  const handleEditReview = useCallback(() => {
-    fetchReviewQuestions();
-    setIsModalOpen(true);
-    setIsEditing(true);
-  }, [fetchReviewQuestions]);
-
-  const handleRatingChange = useCallback((questionId, rating) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: { ...prev[questionId], rating },
-    }));
-  }, []);
-
-  const handleTextChange = useCallback((questionId, textValue) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: { ...prev[questionId], textValue },
-    }));
-  }, []);
-
-  const handleSubmit = useCallback(async () => {
-    const unansweredRequired = reviewQuestions.filter((q) => {
-      if (q.is_optional) return false;
-      const answer = answers[q.id];
-      if (q.type === "rating") return !answer?.rating;
-      if (q.type === "text") return !answer?.textValue || answer.textValue.trim() === "";
-      return true;
-    });
-
-    if (unansweredRequired.length > 0) {
-      Alert.alert(
-        "Preguntas obligatorias",
-        "Por favor, responde todas las preguntas obligatorias antes de enviar la reseña"
-      );
-      return;
-    }
-
-    const formattedAnswers = Object.entries(answers).map(([questionId, answer]) => ({
-      questionId,
-      rating: answer.rating,
-      textValue: answer.textValue,
-    }));
-
-    let ok = false;
-    if (existingReview) {
-      ok = await handleUpdateReview(existingReview.id, formattedAnswers, freeComment, isAnonymous);
-    } else {
-      const result = await handleCreateReview(formattedAnswers, freeComment, isAnonymous);
-      ok = !!result;
-    }
-
-    if (ok) {
-      setIsModalOpen(false);
-      if (!existingReview && onReviewCreated) onReviewCreated();
-    }
-  }, [reviewQuestions, answers, freeComment, isAnonymous, existingReview, handleCreateReview, handleUpdateReview, onReviewCreated]);
-
-  const handleCancel = useCallback(() => {
-    setIsModalOpen(false);
-    setIsEditing(false);
-    clearError();
-    clearSuccess();
-  }, [clearError, clearSuccess]);
 
   const handleDelete = useCallback(async () => {
     if (!existingReview) return;
     const ok = await handleDeleteReview(existingReview.id);
     if (ok) {
       setShowDeleteConfirmation(false);
-      setAnswers({});
-      setFreeComment("");
-      setIsAnonymous(false);
       if (onReviewDeleted) onReviewDeleted();
     }
   }, [existingReview, handleDeleteReview, onReviewDeleted]);
@@ -303,11 +206,9 @@ export default function MyReviewScreen({
           <View style={styles.alertSuccess}>
             <Ionicons name="checkmark-circle" size={18} color={SECONDARY} />
             <Text style={styles.alertText}>
-              {!existingReview
+              {existingReview
                 ? "Reseña eliminada correctamente."
-                : isEditing
-                ? "Reseña actualizada correctamente."
-                : "Reseña enviada. Pendiente de moderación."}
+                : "Operación completada correctamente."}
             </Text>
             <TouchableOpacity onPress={clearSuccess}>
               <Ionicons name="close" size={18} color={SECONDARY} />
@@ -496,163 +397,6 @@ export default function MyReviewScreen({
           )}
         </View>
       </ScrollView>
-
-      {/* ── Review form modal ── */}
-      <Modal
-        visible={isModalOpen}
-        animationType="slide"
-        onRequestClose={handleCancel}
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.modalContainer}>
-          {/* Modal header */}
-          <View style={styles.modalHeader}>
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={handleCancel}>
-              <Ionicons name="close" size={22} color={ACCENT} />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>
-              {isEditing ? "Editar reseña" : "Nueva reseña"}
-            </Text>
-            <TouchableOpacity
-              style={[styles.modalSubmitBtn, loading && styles.modalSubmitBtnDisabled]}
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color={WHITE} />
-              ) : (
-                <Text style={styles.modalSubmitText}>
-                  {isEditing ? "Actualizar" : "Enviar"}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {loadingQuestions ? (
-            <View style={styles.loadingInCard}>
-              <ActivityIndicator size="large" color={PRIMARY} />
-              <Text style={styles.loadingText}>Cargando preguntas...</Text>
-            </View>
-          ) : (
-            <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={styles.modalScrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Anonymous toggle */}
-              <View style={styles.anonCard}>
-                <View style={styles.anonCardRow}>
-                  <View style={styles.anonCardIcon}>
-                    <Ionicons name="eye-off-outline" size={20} color={WHITE} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.anonCardTitle}>Reseña Anónima</Text>
-                    <Text style={styles.anonCardSubtitle}>
-                      Tu nombre no será visible para otros usuarios
-                    </Text>
-                  </View>
-                  <Switch
-                    value={isAnonymous}
-                    onValueChange={setIsAnonymous}
-                    trackColor={{ false: "#D1D5DB", true: PRIMARY }}
-                    thumbColor={WHITE}
-                  />
-                </View>
-                {isAnonymous && (
-                  <View style={styles.anonInfo}>
-                    <Text style={styles.anonInfoText}>
-                      <Text style={{ fontWeight: "700" }}>Nota: </Text>
-                      Los administradores pueden ver tu identidad para moderación.
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Questions */}
-              <View style={styles.questionsSection}>
-                <View style={styles.sectionLabelRow}>
-                  <View style={styles.sectionBar} />
-                  <Text style={styles.sectionLabelText}>
-                    Evalúa los siguientes aspectos
-                  </Text>
-                </View>
-
-                {reviewQuestions.map((question) => (
-                  <View key={question.id} style={styles.questionCard}>
-                    <View style={styles.questionHeaderRow}>
-                      <View style={{ flex: 1, marginRight: 10 }}>
-                        <Text style={styles.questionText}>{question.text}</Text>
-                        {question.is_optional && (
-                          <Text style={styles.optionalText}>
-                            Pregunta opcional
-                          </Text>
-                        )}
-                      </View>
-                      <View
-                        style={[
-                          styles.typeBadge,
-                          question.type === "rating"
-                            ? styles.typeBadgeRating
-                            : styles.typeBadgeText,
-                        ]}
-                      >
-                        <Text style={styles.typeBadgeLabel}>
-                          {question.type === "rating" ? "Rating" : "Texto"}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {question.type === "rating" ? (
-                      <View style={styles.ratingRow}>
-                        <StarRating
-                          rating={answers[question.id]?.rating || 0}
-                          onRatingChange={(rating) =>
-                            handleRatingChange(question.id, rating)
-                          }
-                          size={28}
-                        />
-                        <Text style={styles.ratingValue}>
-                          {answers[question.id]?.rating
-                            ? `${answers[question.id].rating}/5`
-                            : "Sin calificar"}
-                        </Text>
-                      </View>
-                    ) : (
-                      <TextInput
-                        style={styles.textInput}
-                        multiline
-                        numberOfLines={3}
-                        value={answers[question.id]?.textValue || ""}
-                        onChangeText={(text) => handleTextChange(question.id, text)}
-                        placeholder="Escribe tu respuesta aquí..."
-                        placeholderTextColor={TEXT_LIGHT}
-                      />
-                    )}
-                  </View>
-                ))}
-              </View>
-
-              {/* Free comment */}
-              <View style={styles.freeCommentFormBlock}>
-                <View style={styles.sectionLabelRow}>
-                  <View style={[styles.sectionBar, { backgroundColor: SECONDARY }]} />
-                  <Text style={styles.sectionLabelText}>
-                    Comentario adicional (opcional)
-                  </Text>
-                </View>
-                <TextInput
-                  style={[styles.textInput, { minHeight: 90 }]}
-                  multiline
-                  value={freeComment}
-                  onChangeText={setFreeComment}
-                  placeholder="Comparte detalles adicionales sobre tu experiencia..."
-                  placeholderTextColor={TEXT_LIGHT}
-                />
-              </View>
-            </ScrollView>
-          )}
-        </View>
-      </Modal>
 
       {/* ── Delete confirmation modal ── */}
       <Modal

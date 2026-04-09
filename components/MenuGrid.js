@@ -13,7 +13,12 @@ const ICON_SIZE = 40;
 /**
  * Item individual del grid con diseño moderno
  */
-const MenuGridItem = ({ item, onPress, disabled = false }) => {
+const MenuGridItem = ({
+  item,
+  onPress,
+  disabled = false,
+  showBadge = false,
+}) => {
   // Colores por defecto si no están definidos
   const backgroundColor = disabled ? COLORS.GRAY : item.color || COLORS.PRIMARY;
   const lightColor = item.lightColor || COLORS.BADGE_BLUE_BG;
@@ -28,6 +33,7 @@ const MenuGridItem = ({ item, onPress, disabled = false }) => {
       accessibilityRole="button"
     >
       <View style={[styles.gridItemContent, { backgroundColor }]}>
+        {showBadge ? <View style={styles.notificationBadge} /> : null}
         {/* Overlay con gradiente sutil */}
         <View style={styles.gradientOverlay} />
 
@@ -98,6 +104,7 @@ export const MenuGrid = ({
   onItemPress,
   residentHasReview = true,
   residentReviewGateStatus = "soft",
+  showNotificationsBadge = false,
 }) => {
   // Filtrar items según el tipo de usuario y excluir los del footer
   const filteredItems = useMemo(() => {
@@ -244,6 +251,7 @@ export const MenuGrid = ({
               item={item}
               onPress={handleItemPress}
               disabled={isItemDisabled(item)}
+              showBadge={item.id === "notifications" && showNotificationsBadge}
             />
           ))}
         </View>
@@ -277,6 +285,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 20,
     justifyContent: "space-between",
+    position: "relative",
     overflow: "hidden",
     // Sombra sutil
     shadowColor: "#000",
@@ -287,6 +296,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 5,
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.RED,
+    borderWidth: 2,
+    borderColor: COLORS.WHITE,
+    zIndex: 3,
   },
   gradientOverlay: {
     position: "absolute",

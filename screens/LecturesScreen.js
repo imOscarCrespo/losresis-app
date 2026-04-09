@@ -437,6 +437,10 @@ export const LecturesScreen = ({ navigation, onBack }) => {
     [navigation]
   );
 
+  const handleCreateCourse = useCallback(() => {
+    navigation?.navigate?.("createCourse");
+  }, [navigation]);
+
   const isInitialLoading = (loading || filtersLoading) && courses.length === 0;
   const courseCountLabel = `${filteredCourses.length} ${
     filteredCourses.length === 1 ? "curso" : "cursos"
@@ -610,6 +614,35 @@ export const LecturesScreen = ({ navigation, onBack }) => {
                 </View>
               ) : null}
 
+              <TouchableOpacity
+                style={styles.publishBanner}
+                activeOpacity={0.92}
+                onPress={handleCreateCourse}
+              >
+                <View style={styles.publishBannerIconWrap}>
+                  <Ionicons name="megaphone-outline" size={22} color={PRIMARY} />
+                </View>
+                <View style={styles.publishBannerContent}>
+                  <Text style={styles.publishBannerTitle}>
+                    ¿Vas a asistir a un curso o congreso próximamente?
+                  </Text>
+                  <Text style={styles.publishBannerText}>
+                    Comparte la información y ayuda a otros residentes a no
+                    perderse oportunidades formativas.
+                  </Text>
+                  <View style={styles.publishBannerButton}>
+                    <Text style={styles.publishBannerButtonText}>
+                      Publicar curso
+                    </Text>
+                    <Ionicons
+                      name="arrow-forward"
+                      size={16}
+                      color="#FFFFFF"
+                    />
+                  </View>
+                </View>
+              </TouchableOpacity>
+
               <View style={styles.sectionRow}>
                 <Text style={styles.sectionLabel}>
                   {hasActiveFilters ? courseCountLabel : "Próximos cursos"}
@@ -677,7 +710,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
       )}
 
       <FloatingActionButton
-        onPress={() => navigation?.navigate?.("createCourse")}
+        onPress={handleCreateCourse}
         icon="add"
         backgroundColor={PRIMARY}
         bottom={24 + insets.bottom}
@@ -850,6 +883,58 @@ const styles = StyleSheet.create({
     color: DANGER,
     fontSize: 14,
     lineHeight: 20,
+  },
+  publishBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 14,
+    backgroundColor: "#F4F0FF",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}18`,
+    padding: 16,
+    marginBottom: 10,
+  },
+  publishBannerIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: `${PRIMARY}14`,
+  },
+  publishBannerContent: {
+    flex: 1,
+  },
+  publishBannerTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: ACCENT,
+    lineHeight: 22,
+  },
+  publishBannerText: {
+    marginTop: 6,
+    fontSize: 14,
+    color: MUTED,
+    lineHeight: 20,
+  },
+  publishBannerButton: {
+    marginTop: 14,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: PRIMARY,
+  },
+  publishBannerButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   sectionRow: {
     flexDirection: "row",

@@ -89,12 +89,6 @@ export const ROOMMATE_OPTION_SETS = {
     { value: "already_have_flat", label: "Ya tengo piso" },
     { value: "open_to_team_up", label: "Quiero montar piso" },
   ],
-  lookingFor: [
-    { value: "room", label: "Habitación" },
-    { value: "shared_flat", label: "Piso compartido" },
-    { value: "studio", label: "Estudio o algo pequeño" },
-    { value: "any", label: "Me adapto" },
-  ],
   sleepSchedule: [
     { value: "early_bird", label: "Madrugador/a" },
     { value: "balanced", label: "Equilibrado/a" },
@@ -252,9 +246,6 @@ export const getOptionLabel = (setName, value) => {
 export const getRoommateTags = (profile, lifestyle) => {
   const tags = [];
 
-  if (profile?.looking_for) {
-    tags.push(getOptionLabel("lookingFor", profile.looking_for));
-  }
   if (lifestyle?.sleep_schedule) {
     tags.push(getOptionLabel("sleepSchedule", lifestyle.sleep_schedule));
   }

@@ -66,6 +66,17 @@ const getProgress = (count, goal) => {
   return Math.min((count / goal) * 100, 100);
 };
 
+const getBookTitle = (book) => {
+  if (!book?.residency_year) {
+    return "Actual";
+  }
+
+  return `R${book.residency_year}`;
+};
+
+const getBookStatusLabel = (book) =>
+  book?.status === "archived" ? "Archivado" : "Activo";
+
 const SectionBadge = ({ icon, label, active = false, onPress }) => (
   <TouchableOpacity
     style={[styles.stepBadge, active && styles.stepBadgeActive]}
@@ -314,6 +325,7 @@ export default function ResidenceLibraryScreen({
   const [activityGoal, setActivityGoal] = useState("");
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [collapsedCategoriesLoaded, setCollapsedCategoriesLoaded] = useState(false);
+  const [heroDetailsCollapsed, setHeroDetailsCollapsed] = useState(true);
   const [exportingPdf, setExportingPdf] = useState(false);
   const onboardingScrollRef = useRef(null);
   const rotationsInputRef = useRef(null);
@@ -325,6 +337,12 @@ export default function ResidenceLibraryScreen({
     residentReviewGateStatus === "hard";
 
   const {
+    books,
+    selectedBook,
+    activeBook,
+    selectBook,
+    archiveAndStartNewYear,
+    isSelectedBookArchived,
     nodeTree,
     entries,
     events,
@@ -360,6 +378,16 @@ export default function ResidenceLibraryScreen({
   );
 
   const quickActivityIds = settings?.quick_activity_ids || [];
+  const currentBookResidencyYear =
+    selectedBook?.residency_year || userResidencyYear || 1;
+  const canStartNextYearBook =
+    !!activeBook &&
+    !!userResidencyYear &&
+    userResidencyYear > activeBook.residency_year;
+  const isViewingActiveBook = selectedBook?.id === activeBook?.id;
+  const profileNeedsUpdateMessage = activeBook
+    ? `Actualiza primero tu año de residencia en Perfil. Tu libro activo está en R${activeBook.residency_year} y tu perfil debe pasar a un año superior antes de archivarlo.`
+    : "Actualiza primero tu año de residencia en Perfil antes de iniciar el siguiente libro.";
 
   const overview = useMemo(() => {
     const totalGoal = procedureNodes.reduce((sum, node) => sum + (node.goal || 0), 0);
@@ -374,7 +402,7 @@ export default function ResidenceLibraryScreen({
   }, [procedureNodes]);
 
   const hasCompletedOnboarding =
-    !!settings?.onboarding_completed_at || nodeTree.length > 0;
+    !!settings?.onboarding_completed_at || books.length > 0 || nodeTree.length > 0;
 
   useEffect(() => {
     posthogLogger.logScreen("ResidenceLibraryScreen");
@@ -571,17 +599,17 @@ export default function ResidenceLibraryScreen({
             goal: activity.goal ? parseInt(activity.goal, 10) : null,
             tracking_mode: activity.tracking_mode || "counter",
           })),
-      }))
-      .filter((category) => category.activities.length > 0);
+      }));
 
     if (!normalizedCategories.length) {
-      Alert.alert("Falta estructura", "Añade al menos una rotación con un procedimiento.");
+      Alert.alert("Falta estructura", "Añade al menos una rotación para continuar.");
       return;
     }
 
     const success = await createStructure({
       specialityId,
       categories: normalizedCategories,
+      residencyYear: userResidencyYear || 1,
     });
 
     if (!success) {
@@ -642,7 +670,7 @@ export default function ResidenceLibraryScreen({
   const handleIncrement = async (node) => {
     const success = await addEntry(node.id, {
       count: 1,
-      residency_year: userResidencyYear || 1,
+      residency_year: currentBookResidencyYear,
       performed_at: TODAY,
       notes: "",
     });
@@ -663,7 +691,7 @@ export default function ResidenceLibraryScreen({
 
     const success = await addEntry(node.id, {
       count: -1,
-      residency_year: userResidencyYear || 1,
+      residency_year: currentBookResidencyYear,
       performed_at: TODAY,
       notes: "",
     });
@@ -676,7 +704,7 @@ export default function ResidenceLibraryScreen({
   const handleQuickRegisterSubmit = async (formData) => {
     const success = await addEntry(formData.nodeId, {
       count: formData.count,
-      residency_year: userResidencyYear || 1,
+      residency_year: currentBookResidencyYear,
       performed_at: formData.performed_at,
       notes: formData.notes || "",
       kind: formData.kind,
@@ -699,7 +727,7 @@ export default function ResidenceLibraryScreen({
     closeQuickRegister();
   };
 
-  const handleProtectedAction = (callback) => {
+  const handleProtectedAction = (callback, { requiresEditable = false } = {}) => {
     if (shouldShowReviewPrompt) {
       Alert.alert(
         "Reseña requerida",
@@ -715,14 +743,70 @@ export default function ResidenceLibraryScreen({
       return;
     }
 
+    if (requiresEditable && isSelectedBookArchived) {
+      Alert.alert(
+        "Libro archivado",
+        "Este libro es de solo lectura. Vuelve al libro activo para hacer cambios."
+      );
+      return;
+    }
+
     callback();
+  };
+
+  const handleSelectBook = async (bookId) => {
+    if (!bookId || bookId === selectedBook?.id) return;
+    await selectBook(bookId);
+  };
+
+  const handleStartNextYearBook = () => {
+    if (!activeBook) {
+      Alert.alert("Sin libro activo", "No se encontró un libro activo para archivar.");
+      return;
+    }
+
+    if (!canStartNextYearBook) {
+      Alert.alert("Actualiza tu perfil", profileNeedsUpdateMessage);
+      return;
+    }
+
+    Alert.alert(
+      "Archivar libro actual",
+      `Vas a archivar tu ${getBookTitle(activeBook)} y crear un libro nuevo vacío para R${userResidencyYear}. Esta acción no se puede deshacer desde la app.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Archivar y continuar",
+          style: "destructive",
+          onPress: async () => {
+            const result = await archiveAndStartNewYear(userResidencyYear);
+
+            if (!result.success) {
+              Alert.alert(
+                "Error",
+                "No se pudo archivar el libro actual y abrir el nuevo año."
+              );
+              return;
+            }
+
+            Alert.alert(
+              "Nuevo libro creado",
+              `Tu ${getBookTitle(activeBook)} ha quedado archivado y ya puedes empezar tu libro R${userResidencyYear}.`
+            );
+          },
+        },
+      ]
+    );
   };
 
   const openChildActions = (node) => {
     Alert.alert(node.name, "Gestiona este procedimiento", [
       {
         text: TRACKING_MODE_ACTION[node.tracking_mode] || "Registrar",
-        onPress: () => openQuickRegister(node),
+        onPress: () =>
+          handleProtectedAction(() => openQuickRegister(node), {
+            requiresEditable: true,
+          }),
       },
       {
         text: "Editar procedimiento, objetivo y tipo",
@@ -730,12 +814,15 @@ export default function ResidenceLibraryScreen({
           handleProtectedAction(() => {
             setEditingNode(node);
             setShowNodeModal(true);
-          }),
+          }, { requiresEditable: true }),
       },
       {
         text: "Eliminar procedimiento",
         style: "destructive",
-        onPress: () => setShowDeleteConfirm(node),
+        onPress: () =>
+          handleProtectedAction(() => setShowDeleteConfirm(node), {
+            requiresEditable: true,
+          }),
       },
       { text: "Cancelar", style: "cancel" },
     ]);
@@ -759,7 +846,7 @@ export default function ResidenceLibraryScreen({
     try {
       await exportLibroToPdf({
         specialtyName,
-        userResidencyYear,
+        userResidencyYear: selectedBook?.residency_year || userResidencyYear,
         nodeTree,
         entries,
         events,
@@ -853,7 +940,7 @@ export default function ResidenceLibraryScreen({
                   Crea tu libro de residencia en menos de 3 minutos
                 </Text>
                 <Text style={styles.heroText}>
-                  Elige qué quieres registrar y nosotros lo organizamos por ti
+                  Define qué quieres registrar y empieza a construir tu libro desde hoy
                 </Text>
 
                 <View style={styles.progressHeader}>
@@ -1000,7 +1087,7 @@ export default function ResidenceLibraryScreen({
                         style={styles.formInput}
                         value={newCategoryName}
                         onChangeText={setNewCategoryName}
-                        placeholder="Ej: Endoscopia, quirófano de urgencias…"
+                        placeholder="Ej: rotación de mama, endoscopia…"
                         onFocus={scrollToRotationsInput}
                       />
 
@@ -1280,13 +1367,17 @@ export default function ResidenceLibraryScreen({
                 />
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.headerIcon}
+                style={[
+                  styles.headerIcon,
+                  isSelectedBookArchived && styles.headerIconDisabled,
+                ]}
                 onPress={() =>
                   handleProtectedAction(() => {
                     setSelectedParentForChild(null);
                     setShowNodeFormScreen(true);
-                  })
+                  }, { requiresEditable: true })
                 }
+                disabled={isSelectedBookArchived}
               >
                 <Ionicons name="add" size={18} color="#FFFFFF" />
               </TouchableOpacity>
@@ -1300,11 +1391,47 @@ export default function ResidenceLibraryScreen({
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           <View style={styles.contentInner}>
             <View style={styles.heroCard}>
+              <View style={styles.bookStatusRow}>
+                <View>
+                  <Text style={styles.bookEyebrow}>
+                    {selectedBook ? getBookTitle(selectedBook) : "Libro de residente"}
+                  </Text>
+                  <Text style={styles.bookStatusText}>
+                    {selectedBook
+                      ? `${getBookStatusLabel(selectedBook)}${selectedBook.archived_at ? ` · archivado el ${new Date(selectedBook.archived_at).toLocaleDateString("es-ES")}` : ""}`
+                      : "Sin libro seleccionado"}
+                  </Text>
+                </View>
+                {selectedBook ? (
+                  <View
+                    style={[
+                      styles.bookStatusBadge,
+                      selectedBook.status === "archived"
+                        ? styles.bookStatusBadgeArchived
+                        : styles.bookStatusBadgeActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.bookStatusBadgeText,
+                        selectedBook.status === "archived"
+                          ? styles.bookStatusBadgeTextArchived
+                          : styles.bookStatusBadgeTextActive,
+                      ]}
+                    >
+                      {getBookStatusLabel(selectedBook)}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
               <View style={styles.dashboardProgressTopRow}>
                 <View style={styles.dashboardProgressCopy}>
                   <Text style={styles.dashboardProgressTitle}>Tu progreso</Text>
                   <Text style={styles.dashboardProgressText}>
-                    Sigue registrando procedimientos para avanzar en tu libro.
+                    {isSelectedBookArchived
+                      ? "Estás consultando un libro histórico en modo solo lectura."
+                      : "Sigue registrando procedimientos para avanzar en tu libro."}
                   </Text>
                 </View>
                 <Text style={styles.dashboardProgressValue}>{overview.progress}%</Text>
@@ -1313,50 +1440,168 @@ export default function ResidenceLibraryScreen({
                 <View style={[styles.progressFill, { width: `${overview.progress}%` }]} />
               </View>
               <TouchableOpacity
-                style={[styles.exportButton, exportingPdf && styles.exportButtonDisabled]}
-                onPress={() => handleProtectedAction(handleExportPdf)}
-                disabled={exportingPdf}
+                style={styles.heroDetailsToggle}
+                onPress={() => setHeroDetailsCollapsed((prev) => !prev)}
+                activeOpacity={0.85}
               >
-                <Ionicons
-                  name={exportingPdf ? "hourglass-outline" : "download-outline"}
-                  size={16}
-                  color="#670CF5"
-                />
-                <Text style={styles.exportButtonText}>
-                  {exportingPdf ? "Generando PDF..." : "Descargar PDF"}
+                <Text style={styles.heroDetailsToggleText}>
+                  {heroDetailsCollapsed ? "Ver acciones y libros" : "Ocultar acciones y libros"}
                 </Text>
+                <Ionicons
+                  name={heroDetailsCollapsed ? "chevron-down" : "chevron-up"}
+                  size={16}
+                  color="#64748B"
+                />
               </TouchableOpacity>
+
+              {!heroDetailsCollapsed ? (
+                <>
+                  {books.length > 1 ? (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.bookTabsRow}
+                    >
+                      {books.map((book) => {
+                        const isSelected = book.id === selectedBook?.id;
+                        return (
+                          <TouchableOpacity
+                            key={book.id}
+                            style={[styles.bookTab, isSelected && styles.bookTabActive]}
+                            onPress={() => handleSelectBook(book.id)}
+                          >
+                            <Text
+                              style={[
+                                styles.bookTabTitle,
+                                isSelected && styles.bookTabTitleActive,
+                              ]}
+                            >
+                              {getBookTitle(book)}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.bookTabSubtitle,
+                                isSelected && styles.bookTabSubtitleActive,
+                              ]}
+                            >
+                              {getBookStatusLabel(book)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  ) : null}
+
+                  {isViewingActiveBook ? (
+                    <TouchableOpacity
+                      style={styles.nextYearButton}
+                      onPress={handleStartNextYearBook}
+                    >
+                      <Ionicons
+                        name="archive-outline"
+                        size={16}
+                        color="#1B0977"
+                      />
+                      <Text style={styles.nextYearButtonText}>
+                        Archivar libro actual y empezar nuevo año
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {isSelectedBookArchived ? (
+                    <View style={styles.readOnlyNotice}>
+                      <Ionicons name="lock-closed-outline" size={16} color="#92400E" />
+                      <Text style={styles.readOnlyNoticeText}>
+                        Este libro está archivado. Puedes consultarlo y exportarlo, pero no editarlo.
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  <TouchableOpacity
+                    style={[styles.exportButton, exportingPdf && styles.exportButtonDisabled]}
+                    onPress={() => handleProtectedAction(handleExportPdf)}
+                    disabled={exportingPdf}
+                  >
+                    <Ionicons
+                      name={exportingPdf ? "hourglass-outline" : "download-outline"}
+                      size={16}
+                      color="#670CF5"
+                    />
+                    <Text style={styles.exportButtonText}>
+                      {exportingPdf ? "Generando PDF..." : "Descargar PDF"}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : null}
             </View>
 
-            {nodeTree.map((parentNode) => (
-              <CategoryCard
-                key={parentNode.id}
-                node={parentNode}
-                collapsed={
-                  collapsedCategories[parentNode.id] == null
-                    ? true
-                    : !!collapsedCategories[parentNode.id]
-                }
-                onToggleCollapse={toggleCategoryCollapse}
-                onAddChild={(parent) =>
-                  handleProtectedAction(() => {
-                    setSelectedParentForChild(parent);
-                    setEditingNode(null);
-                    setShowNodeFormScreen(true);
-                  })
-                }
-                onEditParent={(node) =>
-                  handleProtectedAction(() => {
-                    setEditingNode(node);
-                    setShowNodeModal(true);
-                  })
-                }
-                onDeleteParent={(node) => setShowDeleteConfirm(node)}
-                onIncrement={(node) => handleProtectedAction(() => handleIncrement(node))}
-                onDecrement={handleDecrement}
-                onOpenChildActions={openChildActions}
-              />
-            ))}
+            {!nodeTree.length ? (
+              <View style={styles.emptyBookCard}>
+                <Ionicons name="book-outline" size={22} color="#670CF5" />
+                <Text style={styles.emptyBookTitle}>Este libro está vacío</Text>
+                <Text style={styles.emptyBookText}>
+                  {isSelectedBookArchived
+                    ? "No hay rotaciones guardadas en este libro archivado."
+                    : "Añade tu primera rotación para empezar el libro de este año."}
+                </Text>
+                {!isSelectedBookArchived ? (
+                  <TouchableOpacity
+                    style={styles.primaryAction}
+                    onPress={() =>
+                      handleProtectedAction(() => {
+                        setSelectedParentForChild(null);
+                        setEditingNode(null);
+                        setShowNodeFormScreen(true);
+                      }, { requiresEditable: true })
+                    }
+                  >
+                    <Text style={styles.primaryActionText}>Añadir primera rotación</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : (
+              nodeTree.map((parentNode) => (
+                <CategoryCard
+                  key={parentNode.id}
+                  node={parentNode}
+                  collapsed={
+                    collapsedCategories[parentNode.id] == null
+                      ? true
+                      : !!collapsedCategories[parentNode.id]
+                  }
+                  onToggleCollapse={toggleCategoryCollapse}
+                  onAddChild={(parent) =>
+                    handleProtectedAction(() => {
+                      setSelectedParentForChild(parent);
+                      setEditingNode(null);
+                      setShowNodeFormScreen(true);
+                    }, { requiresEditable: true })
+                  }
+                  onEditParent={(node) =>
+                    handleProtectedAction(() => {
+                      setEditingNode(node);
+                      setShowNodeModal(true);
+                    }, { requiresEditable: true })
+                  }
+                  onDeleteParent={(node) =>
+                    handleProtectedAction(() => setShowDeleteConfirm(node), {
+                      requiresEditable: true,
+                    })
+                  }
+                  onIncrement={(node) =>
+                    handleProtectedAction(() => handleIncrement(node), {
+                      requiresEditable: true,
+                    })
+                  }
+                  onDecrement={(node) =>
+                    handleProtectedAction(() => handleDecrement(node), {
+                      requiresEditable: true,
+                    })
+                  }
+                  onOpenChildActions={openChildActions}
+                />
+              ))
+            )}
           </View>
         </ScrollView>
 
@@ -1478,6 +1723,166 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 1,
     borderColor: "#E8EAF3",
+  },
+  bookStatusRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 14,
+  },
+  bookEyebrow: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#670CF5",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  bookStatusText: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#64748B",
+  },
+  bookStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  bookStatusBadgeActive: {
+    backgroundColor: "#DCFCE7",
+  },
+  bookStatusBadgeArchived: {
+    backgroundColor: "#FEF3C7",
+  },
+  bookStatusBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  bookStatusBadgeTextActive: {
+    color: "#166534",
+  },
+  bookStatusBadgeTextArchived: {
+    color: "#92400E",
+  },
+  bookTabsRow: {
+    gap: 10,
+    paddingVertical: 14,
+  },
+  heroDetailsToggle: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  heroDetailsToggleText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  bookTab: {
+    minWidth: 120,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+  },
+  bookTabActive: {
+    borderColor: "#670CF5",
+    backgroundColor: "#F5F3FF",
+  },
+  bookTabTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  bookTabTitleActive: {
+    color: "#1B0977",
+  },
+  bookTabSubtitle: {
+    marginTop: 4,
+    fontSize: 11,
+    color: "#64748B",
+  },
+  bookTabSubtitleActive: {
+    color: "#5B21B6",
+  },
+  nextYearButton: {
+    marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: "#E0E7FF",
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+  },
+  nextYearButtonDisabled: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
+  },
+  nextYearButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1B0977",
+  },
+  nextYearButtonTextDisabled: {
+    color: "#94A3B8",
+  },
+  nextYearHint: {
+    marginTop: 10,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#64748B",
+  },
+  readOnlyNotice: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  readOnlyNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#92400E",
+  },
+  emptyBookCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
+    alignItems: "center",
+  },
+  emptyBookTitle: {
+    marginTop: 12,
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1B0977",
+  },
+  emptyBookText: {
+    marginTop: 8,
+    marginBottom: 16,
+    textAlign: "center",
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#64748B",
   },
   heroEyebrow: {
     fontSize: 11,

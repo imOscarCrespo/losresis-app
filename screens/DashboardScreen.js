@@ -23,6 +23,7 @@ import HousingScreen from "./HousingScreen";
 import HousingAdDetailScreen from "./HousingAdDetailScreen";
 import CreateHousingAdScreen from "./CreateHousingAdScreen";
 import CreateCourseScreen from "./CreateCourseScreen";
+import ReviewComposerScreen from "./ReviewComposerScreen";
 import ContactScreen from "./ContactScreen";
 import AgendaScreen from "./AgendaScreen";
 import { ExternalRotationsScreen } from "./ExternalRotationsScreen";
@@ -117,6 +118,7 @@ export default function DashboardScreen({
   const [editingHousingAdId, setEditingHousingAdId] = useState(null);
   const [creatingCourse, setCreatingCourse] = useState(false);
   const [editingCourseId, setEditingCourseId] = useState(null);
+  const [reviewComposerMode, setReviewComposerMode] = useState(null);
   const [previousSection, setPreviousSection] = useState(null); // Para volver a la sección correcta
   const [sectionHistory, setSectionHistory] = useState([]);
   const [leisureForumType, setLeisureForumType] = useState(null); // Tipo de foro: "Fiesta" o "Deporte"
@@ -251,11 +253,11 @@ export default function DashboardScreen({
 
   const showResidentGateAlert = () => {
     Alert.alert(
-      "Añade tu reseña para seguir",
-      "Ya has explorado bastante la app. Para desbloquear el resto, publica tu reseña como residente.",
+      "Ayuda a los que vienen detrás",
+      "Tu experiencia como residente puede ayudar muchísimo a futuros MIR a elegir mejor su plaza. Solo te llevará menos de 2 minutos.",
       [
         {
-          text: "Ir a mi reseña",
+          text: "Escribir mi reseña",
           onPress: () => {
             posthogLogger.capture("resident_review_gate_prompt_clicked", {
               source: "hard_gate_alert",
@@ -327,6 +329,7 @@ export default function DashboardScreen({
       setEditingHousingAdId(null);
       setCreatingCourse(false);
       setEditingCourseId(null);
+      setReviewComposerMode(null);
       setMyReviewAutoOpenCreate(false);
       setPreviousSection(null); // Limpiar la sección anterior al cambiar de sección
     }
@@ -343,6 +346,7 @@ export default function DashboardScreen({
     }
     // Si es courseDetail, guardar el courseId
     if (sectionId === "courseDetail" && params.courseId) {
+      setPreviousSection(params.fromSection || currentSection);
       setSelectedCourseId(params.courseId);
     }
     // Si es housingDetail, guardar el adId
@@ -387,8 +391,13 @@ export default function DashboardScreen({
       setSelectedGroupId(params.groupId);
       setSelectedGroupName(params.groupName || "Grupo");
     }
-    // Si volvemos desde groupChat, limpiar
-    if (sectionId === "grupos") {
+    // Permitir entrar por la sección de chats con un chat concreto preabierto
+    if (sectionId === "grupos" && params.groupId) {
+      setSelectedGroupId(params.groupId);
+      setSelectedGroupName(params.groupName || "Grupo");
+    }
+    // Si volvemos a la lista de chats sin un chat concreto, limpiar selección
+    if (sectionId === "grupos" && !params.groupId) {
       setSelectedGroupId(null);
       setSelectedGroupName(null);
     }
@@ -695,11 +704,43 @@ export default function DashboardScreen({
     );
   }
 
+  if (reviewComposerMode) {
+    const handleBackFromReviewComposer = () => {
+      setReviewComposerMode(null);
+      setCurrentSection("myReview");
+    };
+
+    return (
+      <ScreenLayout
+        userProfile={userProfile}
+        activeSection={currentSection}
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <SwipeBackWrapper onSwipeBack={handleBackFromReviewComposer}>
+          <ReviewComposerScreen
+            userProfile={userProfile}
+            mode={reviewComposerMode}
+            onBack={handleBackFromReviewComposer}
+            onSuccess={(result) => {
+              setReviewComposerMode(null);
+              setCurrentSection("myReview");
+              if (result === "created") {
+                onReviewCreated?.();
+              }
+            }}
+          />
+        </SwipeBackWrapper>
+      </ScreenLayout>
+    );
+  }
+
   // Si estamos en la pantalla de detalle del curso
   if (selectedCourseId) {
     const handleBackFromCourse = () => {
       setSelectedCourseId(null);
-      setCurrentSection("cursos");
+      setCurrentSection(previousSection || "cursos");
+      setPreviousSection(null);
     };
     return (
       <ScreenLayout
@@ -746,6 +787,7 @@ export default function DashboardScreen({
             adId={selectedHousingAdId}
             onBack={handleBackFromHousing}
             userProfile={userProfile}
+            onSectionChange={handleSectionChange}
             onEdit={(adId) => {
               // Por ahora solo volvemos, luego se puede implementar edición
               console.log("Edit housing ad:", adId);
@@ -953,6 +995,8 @@ export default function DashboardScreen({
             onReviewDeleted={onReviewDeleted}
             autoOpenCreateReview={myReviewAutoOpenCreate}
             onAutoOpenCreateReviewHandled={() => setMyReviewAutoOpenCreate(false)}
+            onCreateReview={() => setReviewComposerMode("create")}
+            onEditReview={() => setReviewComposerMode("edit")}
             onBack={handleBackFromGenericSection}
           />
         );
@@ -995,6 +1039,7 @@ export default function DashboardScreen({
           <RoommateScreen
             userProfile={userProfile}
             onBack={handleBackFromGenericSection}
+            onSectionChange={handleSectionChange}
             initialTab={roommateInitialTab}
             initialMatchId={selectedRoommateMatchId}
           />

@@ -12,6 +12,165 @@ const mapNodePayload = (nodeData = {}) => ({
   tracking_mode: nodeData.tracking_mode || DEFAULT_TRACKING_MODE,
 });
 
+const LIBRO_NODE_BOOK_RELATION = `
+  id,
+  user_id,
+  section,
+  book_id,
+  parent_node_id,
+  book:libro_book!libro_node_book_id_fkey(
+    id,
+    user_id,
+    section,
+    residency_year,
+    status,
+    archived_at,
+    created_at,
+    updated_at
+  )
+`;
+
+const ensureEditableBook = (book) => {
+  if (!book) {
+    throw new Error("Libro no encontrado");
+  }
+
+  if (book.status !== "active") {
+    throw new Error("El libro archivado es de solo lectura");
+  }
+};
+
+const getLibroBookById = async (bookId, userId, section) => {
+  const query = supabase
+    .from("libro_book")
+    .select("*")
+    .eq("id", bookId)
+    .eq("user_id", userId);
+
+  if (section) {
+    query.eq("section", section);
+  }
+
+  const { data, error } = await query.single();
+
+  if (error) {
+    console.error("Error fetching libro book by id:", error);
+    throw error;
+  }
+
+  return data;
+};
+
+const getLibroNodeContext = async (nodeId, userId) => {
+  const { data, error } = await supabase
+    .from("libro_node")
+    .select(LIBRO_NODE_BOOK_RELATION)
+    .eq("id", nodeId)
+    .eq("user_id", userId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching libro node context:", error);
+    throw error;
+  }
+
+  return data;
+};
+
+const getLibroEventContext = async (eventId) => {
+  const { data, error } = await supabase
+    .from("libro_event")
+    .select("id, entry_id, node_id, user_id")
+    .eq("id", eventId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching libro event context:", error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const getLibroBooks = async (userId, section) => {
+  try {
+    if (!userId || !section) {
+      throw new Error("User ID and section are required");
+    }
+
+    const { data, error } = await supabase
+      .from("libro_book")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("section", section)
+      .order("status", { ascending: true })
+      .order("residency_year", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching libro books:", error);
+      throw error;
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error("Exception in getLibroBooks:", error);
+    throw error;
+  }
+};
+
+export const ensureActiveLibroBook = async ({
+  userId,
+  section,
+  residencyYear = 1,
+}) => {
+  try {
+    if (!userId || !section) {
+      throw new Error("User ID and section are required");
+    }
+
+    const { data: existingBook, error: fetchError } = await supabase
+      .from("libro_book")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("section", section)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error("Error fetching active libro book:", fetchError);
+      throw fetchError;
+    }
+
+    if (existingBook) {
+      return existingBook;
+    }
+
+    const { data, error } = await supabase
+      .from("libro_book")
+      .insert([
+        {
+          user_id: userId,
+          section,
+          residency_year: residencyYear || 1,
+          status: "active",
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error creating active libro book:", error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Exception in ensureActiveLibroBook:", error);
+    throw error;
+  }
+};
+
 /**
  * Servicio para gestionar el Libro de Residente
  * Maneja nodos (padres e hijos), entradas y eventos
@@ -23,17 +182,35 @@ const mapNodePayload = (nodeData = {}) => ({
  * @param {string} section - Código de la sección (ej: "clinical_practice")
  * @returns {Promise<Object>} Objeto con nodes, entries y events
  */
-export const getAllLibroData = async (userId, section) => {
+export const getAllLibroData = async (userId, section, bookId = null) => {
   try {
     if (!userId || !section) {
       throw new Error("User ID and section are required");
     }
 
+    let selectedBook = null;
+
+    if (bookId) {
+      selectedBook = await getLibroBookById(bookId, userId, section);
+    } else {
+      const books = await getLibroBooks(userId, section);
+      selectedBook =
+        books.find((book) => book.status === "active") || books[0] || null;
+    }
+
+    if (!selectedBook) {
+      return {
+        book: null,
+        nodes: [],
+        entries: [],
+        events: [],
+      };
+    }
+
     const query = supabase
       .from("libro_node")
       .select("*,entries:libro_entry(*),events:libro_event(*)")
-      .eq("user_id", userId)
-      .eq("section", section)
+      .eq("book_id", selectedBook.id)
       .order("position", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true });
 
@@ -97,7 +274,7 @@ export const getAllLibroData = async (userId, section) => {
             .from("libro_node")
             .update({ position: node.position })
             .eq("id", node.id)
-            .eq("user_id", userId);
+            .eq("book_id", selectedBook.id);
         } catch (error) {
           // Silently fail - no es crítico si falla
           console.error("Error auto-assigning position:", error);
@@ -106,6 +283,7 @@ export const getAllLibroData = async (userId, section) => {
     }
 
     return {
+      book: selectedBook,
       nodes: cleanedNodes,
       entries: entriesData,
       events: eventsData,
@@ -128,6 +306,13 @@ export const createNode = async (nodeData, userId) => {
       throw new Error("User ID is required");
     }
 
+    if (!nodeData.book_id) {
+      throw new Error("Book ID is required");
+    }
+
+    const book = await getLibroBookById(nodeData.book_id, userId, nodeData.section);
+    ensureEditableBook(book);
+
     // Si es un nodo padre (sin parent_node_id), calcular la posición
     let position = null;
     if (!nodeData.parent_node_id) {
@@ -138,8 +323,7 @@ export const createNode = async (nodeData, userId) => {
         const { data: maxPositionData, error: maxError } = await supabase
           .from("libro_node")
           .select("position")
-          .eq("user_id", userId)
-          .eq("section", nodeData.section)
+          .eq("book_id", nodeData.book_id)
           .is("parent_node_id", null)
           .not("position", "is", null)
           .order("position", { ascending: false })
@@ -161,6 +345,7 @@ export const createNode = async (nodeData, userId) => {
     const newNode = {
       user_id: userId,
       section: nodeData.section,
+      book_id: nodeData.book_id,
       position: position,
       ...mapNodePayload(nodeData),
     };
@@ -195,6 +380,9 @@ export const updateNode = async (nodeId, updates, userId) => {
     if (!nodeId || !userId) {
       throw new Error("Node ID and User ID are required");
     }
+
+    const nodeContext = await getLibroNodeContext(nodeId, userId);
+    ensureEditableBook(nodeContext.book);
 
     const updatedData = {
       name: updates.name,
@@ -245,6 +433,9 @@ export const deleteNode = async (nodeId, userId) => {
     if (!nodeId || !userId) {
       throw new Error("Node ID and User ID are required");
     }
+
+    const nodeContext = await getLibroNodeContext(nodeId, userId);
+    ensureEditableBook(nodeContext.book);
 
     // Primero eliminar entradas y eventos relacionados
     const { error: entriesError } = await supabase
@@ -351,15 +542,18 @@ export const deleteNode = async (nodeId, userId) => {
  * @param {string} section - Código de la sección (ej: "clinical_practice")
  * @returns {Promise<Object>} Entrada creada
  */
-export const createEntry = async (nodeId, entryData, section) => {
+export const createEntry = async (nodeId, entryData, section, userId) => {
   try {
-    if (!nodeId) {
-      throw new Error("Node ID is required");
+    if (!nodeId || !userId) {
+      throw new Error("Node ID and user ID are required");
     }
 
     if (!section) {
       throw new Error("Section is required");
     }
+
+    const nodeContext = await getLibroNodeContext(nodeId, userId);
+    ensureEditableBook(nodeContext.book);
 
     const newEntry = {
       node_id: nodeId,
@@ -403,6 +597,9 @@ export const createEvent = async (eventData, nodeId, section) => {
       throw new Error("Node ID, section and user ID are required");
     }
 
+    const nodeContext = await getLibroNodeContext(nodeId, eventData.user_id);
+    ensureEditableBook(nodeContext.book);
+
     // Primero crear una entrada para el evento
     const entryData = {
       count: 1,
@@ -417,7 +614,7 @@ export const createEvent = async (eventData, nodeId, section) => {
       },
     };
 
-    const entry = await createEntry(nodeId, entryData, section);
+    const entry = await createEntry(nodeId, entryData, section, eventData.user_id);
 
     // Luego crear el evento vinculado a la entrada
     const newEvent = {
@@ -462,6 +659,13 @@ export const updateEvent = async (eventId, updates) => {
       throw new Error("Event ID is required");
     }
 
+    const eventContext = await getLibroEventContext(eventId);
+    const nodeContext = await getLibroNodeContext(
+      eventContext.node_id,
+      eventContext.user_id
+    );
+    ensureEditableBook(nodeContext.book);
+
     const updatedData = {
       event_date: updates.event_date,
       title: updates.title || "Evento",
@@ -501,17 +705,9 @@ export const deleteEvent = async (eventId) => {
       throw new Error("Event ID is required");
     }
 
-    // Obtener el evento para eliminar también la entrada asociada
-    const { data: event, error: fetchError } = await supabase
-      .from("libro_event")
-      .select("entry_id")
-      .eq("id", eventId)
-      .single();
-
-    if (fetchError) {
-      console.error("Error fetching event:", fetchError);
-      throw fetchError;
-    }
+    const event = await getLibroEventContext(eventId);
+    const nodeContext = await getLibroNodeContext(event.node_id, event.user_id);
+    ensureEditableBook(nodeContext.book);
 
     // Eliminar el evento
     const { error: deleteEventError } = await supabase
@@ -563,6 +759,24 @@ export const updateNodesPositions = async (nodesWithPositions, userId) => {
 
     if (validNodes.length === 0) {
       return true; // No hay nada que actualizar
+    }
+
+    const { data: nodeContexts, error: nodeContextsError } = await supabase
+      .from("libro_node")
+      .select("id,book:libro_book!libro_node_book_id_fkey(status)")
+      .in(
+        "id",
+        validNodes.map(({ id }) => id)
+      )
+      .eq("user_id", userId);
+
+    if (nodeContextsError) {
+      console.error("Error fetching nodes for reorder:", nodeContextsError);
+      throw nodeContextsError;
+    }
+
+    if ((nodeContexts || []).some((node) => node.book?.status !== "active")) {
+      throw new Error("No se puede reordenar un libro archivado");
     }
 
     // Actualizar cada nodo con su nueva posición
@@ -655,17 +869,25 @@ export const createLibroStructure = async ({
   section,
   specialityId = null,
   categories = [],
+  residencyYear = 1,
 }) => {
   try {
     if (!userId || !section) {
       throw new Error("User ID and section are required");
     }
 
+    const activeBook = await ensureActiveLibroBook({
+      userId,
+      section,
+      residencyYear,
+    });
+
     const createdParents = [];
 
     for (const [index, category] of categories.entries()) {
       const parent = await createNode(
         {
+          book_id: activeBook.id,
           section,
           name: category.name,
           icon_name: category.icon_name,
@@ -681,6 +903,7 @@ export const createLibroStructure = async ({
       for (const activity of category.activities || []) {
         await createNode(
           {
+            book_id: activeBook.id,
             section,
             name: activity.name,
             parent_node_id: parent.id,
@@ -708,8 +931,41 @@ export const createLibroStructure = async ({
   }
 };
 
+export const archiveLibroBookAndStartNewYear = async ({
+  userId,
+  section,
+  nextResidencyYear,
+}) => {
+  try {
+    if (!userId || !section || !nextResidencyYear) {
+      throw new Error("User ID, section and next residency year are required");
+    }
+
+    const { data, error } = await supabase.rpc(
+      "archive_libro_book_and_start_new_year",
+      {
+        p_user_id: userId,
+        p_section: section,
+        p_next_residency_year: nextResidencyYear,
+      }
+    );
+
+    if (error) {
+      console.error("Error archiving libro and starting new year:", error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Exception in archiveLibroBookAndStartNewYear:", error);
+    throw error;
+  }
+};
+
 export default {
   getAllLibroData,
+  getLibroBooks,
+  ensureActiveLibroBook,
   createNode,
   updateNode,
   deleteNode,
@@ -721,4 +977,5 @@ export default {
   getLibroUserSettings,
   upsertLibroUserSettings,
   createLibroStructure,
+  archiveLibroBookAndStartNewYear,
 };

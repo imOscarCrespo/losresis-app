@@ -396,11 +396,11 @@ export default function HomeDashboardScreen({
           color: "#F97316",
         },
         {
-          label: "Mi reseña",
-          icon: "star-outline",
-          section: "myReview",
-          tint: "#F3E8FF",
-          color: "#9333EA",
+          label: "Notificaciones",
+          icon: "notifications-outline",
+          section: "notifications",
+          tint: "#E0F2FE",
+          color: "#0284C7",
         },
         {
           label: "Rotaciones externas",
@@ -681,10 +681,10 @@ export default function HomeDashboardScreen({
                   <Ionicons name="star-outline" size={22} color="#FFF" />
                 </View>
                 <View style={styles.residentHeroTextWrap}>
-                  <Text style={styles.residentHeroTitle}>Deja tu reseña</Text>
+                  <Text style={styles.residentHeroTitle}>Comparte tu experiencia</Text>
                   <Text style={styles.residentHeroSubtitle}>
-                    Cuéntale al resto cómo es {residentHospital?.name || "tu hospital"}.
-                    Mantendremos este acceso destacado hasta que la publiques.
+                    Cuenta cómo es tu hospital y ayuda a los futuros R0 a elegir
+                    mejor su plaza. Puedes hacerlo de forma anónima.
                   </Text>
                 </View>
               </View>
@@ -701,7 +701,7 @@ export default function HomeDashboardScreen({
                 }}
                 activeOpacity={0.85}
               >
-                <Text style={styles.residentHeroButtonText}>Abrir mi reseña</Text>
+                <Text style={styles.residentHeroButtonText}>Escribir mi reseña</Text>
               </TouchableOpacity>
             </View>
             <Text style={styles.residentHeroFooter}>
@@ -1182,7 +1182,12 @@ export default function HomeDashboardScreen({
                 <TouchableOpacity
                   key={course.id}
                   style={styles.residentCourseCard}
-                  onPress={() => onSectionChange?.("cursos")}
+                  onPress={() =>
+                    onSectionChange?.("courseDetail", {
+                      courseId: course.id,
+                      fromSection: "inicio",
+                    })
+                  }
                   activeOpacity={0.86}
                 >
                   <Text

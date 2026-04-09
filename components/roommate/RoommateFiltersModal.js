@@ -75,7 +75,7 @@ export function RoommateFiltersModal({
           <TouchableOpacity style={styles.iconButton} onPress={onClose}>
             <Ionicons name="close" size={24} color={ROOMMATE_THEME.ACCENT} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Filtros de swipe</Text>
+          <Text style={styles.headerTitle}>Filtros del listado</Text>
           <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
             <Text style={styles.resetButtonText}>Reset</Text>
           </TouchableOpacity>
