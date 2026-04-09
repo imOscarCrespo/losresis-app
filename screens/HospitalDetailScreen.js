@@ -1,26 +1,21 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
   ActivityIndicator,
-  ScrollView as RNScrollView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "../components/ScreenHeader";
 import {
-  getHospitalSpecialties,
   getDetailedGrades,
+  getHospitalProfileContent,
+  getHospitalSpecialties,
   getSpecialtyById,
 } from "../services/hospitalService";
 import posthogLogger from "../services/posthogService";
-
-// ============================================================================
-// COLORS
-// ============================================================================
 
 const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
@@ -32,20 +27,38 @@ const TEXT_LIGHT = "#94A3B8";
 const BORDER = "#F1F5F9";
 const ERROR = "#EF4444";
 
-// ============================================================================
-// MAIN COMPONENT
-// ============================================================================
+const getEmptyHospitalProfile = () => ({
+  org_id: null,
+  about: null,
+  differential_points: [],
+  images: [],
+  open_day: null,
+  plans: [],
+});
+
+const SectionTitle = ({ title, rightLabel = null }) => (
+  <View style={styles.sectionRow}>
+    <View style={styles.sectionLabelRow}>
+      <View style={styles.sectionBar} />
+      <Text style={styles.sectionLabel}>{title}</Text>
+    </View>
+    {rightLabel ? <Text style={styles.sectionCount}>{rightLabel}</Text> : null}
+  </View>
+);
 
 export default function HospitalDetailScreen({
   hospital,
   selectedSpecialtyId,
   onBack,
+  onOpenHospitalInfo,
 }) {
   const [specialties, setSpecialties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedSpecialty, setExpandedSpecialty] = useState(null);
   const [detailedGrades, setDetailedGrades] = useState({});
   const [loadingDetails, setLoadingDetails] = useState({});
+  const [hospitalProfile, setHospitalProfile] = useState(getEmptyHospitalProfile());
+  const [profileLoading, setProfileLoading] = useState(true);
 
   useEffect(() => {
     posthogLogger.logScreen("HospitalDetailScreen", {
@@ -55,7 +68,14 @@ export default function HospitalDetailScreen({
   }, [hospital?.id, selectedSpecialtyId]);
 
   useEffect(() => {
-    if (hospital?.id) fetchSpecialties();
+    setExpandedSpecialty(null);
+    setDetailedGrades({});
+  }, [hospital?.id]);
+
+  useEffect(() => {
+    if (!hospital?.id) return;
+    fetchSpecialties();
+    fetchHospitalProfile();
   }, [hospital?.id, selectedSpecialtyId]);
 
   const fetchSpecialties = async () => {
@@ -77,7 +97,13 @@ export default function HospitalDetailScreen({
             );
             if (specSuccess && specialty) {
               finalSpecialties = [
-                { id: specialty.id, name: specialty.name, description: "", years: [], slots: undefined },
+                {
+                  id: specialty.id,
+                  name: specialty.name,
+                  description: "",
+                  years: [],
+                  slots: undefined,
+                },
                 ...specialtiesData,
               ];
             }
@@ -94,12 +120,37 @@ export default function HospitalDetailScreen({
     }
   };
 
+  const fetchHospitalProfile = async () => {
+    setProfileLoading(true);
+    try {
+      const { success, profile, error } = await getHospitalProfileContent(hospital.id);
+      if (success && profile) {
+        setHospitalProfile(profile);
+      } else {
+        console.error("Error loading hospital profile:", error);
+        setHospitalProfile(getEmptyHospitalProfile());
+      }
+    } catch (error) {
+      console.error("Exception fetching hospital profile:", error);
+      setHospitalProfile(getEmptyHospitalProfile());
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
   const filteredSpecialties = useMemo(() => {
     if (selectedSpecialtyId) {
       return specialties.filter((spec) => spec.id === selectedSpecialtyId);
     }
     return specialties;
   }, [specialties, selectedSpecialtyId]);
+
+  const hospitalInfoHasContent =
+    Boolean(hospitalProfile?.about) ||
+    (hospitalProfile?.differential_points || []).length > 0 ||
+    Boolean(hospitalProfile?.open_day) ||
+    (hospitalProfile?.images || []).length > 0 ||
+    (hospitalProfile?.plans || []).length > 0;
 
   const handleMoreInfo = async (specialty) => {
     if (expandedSpecialty === specialty.id) {
@@ -134,14 +185,12 @@ export default function HospitalDetailScreen({
     }
   };
 
-  // ── Mini bar chart for cut-off grades ──
   const MiniBarChart = ({ grades }) => {
     if (!grades || grades.length === 0) {
       return <Text style={styles.noDataText}>Sin datos disponibles</Text>;
     }
-    // Most recent year first (left to right)
-    const chronological = grades;
-    const validVals = chronological
+
+    const validVals = grades
       .filter((g) => g.grade !== null && g.grade !== undefined)
       .map((g) => g.grade);
     const maxVal = validVals.length > 0 ? Math.max(...validVals) : 1;
@@ -149,12 +198,12 @@ export default function HospitalDetailScreen({
     const BAR_W = 28;
 
     return (
-      <RNScrollView
+      <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.chartScroll}
       >
-        {chronological.map((item, idx) => {
+        {grades.map((item, idx) => {
           const hasScore = item.grade !== null && item.grade !== undefined;
           const fillH = hasScore
             ? Math.max(8, Math.round((item.grade / maxVal) * TRACK_H))
@@ -181,31 +230,28 @@ export default function HospitalDetailScreen({
                   ]}
                 />
               </View>
-              <Text
-                style={[
-                  styles.chartYear,
-                  isNewest && styles.chartYearNewest,
-                ]}
-              >
+              <Text style={[styles.chartYear, isNewest && styles.chartYearNewest]}>
                 {String(item.year).slice(2)}
               </Text>
             </View>
           );
         })}
-      </RNScrollView>
+      </ScrollView>
     );
   };
 
-  const renderSpecialtyItem = ({ item }) => {
+  const renderSpecialtyItem = (item) => {
     const grades = (item.years || [])
-      .map((yearData) => ({ year: yearData.year.toString(), grade: yearData.grade }))
-      .sort((a, b) => parseInt(b.year) - parseInt(a.year));
+      .map((yearData) => ({
+        year: yearData.year.toString(),
+        grade: yearData.grade,
+      }))
+      .sort((a, b) => parseInt(b.year, 10) - parseInt(a.year, 10));
 
     const isExpanded = expandedSpecialty === item.id;
 
     return (
-      <View style={styles.specialtyCard}>
-        {/* Specialty header */}
+      <View key={item.id} style={styles.specialtyCard}>
         <View style={styles.specialtyHeader}>
           <Text style={styles.specialtyName} numberOfLines={2}>
             {item.name}
@@ -217,11 +263,8 @@ export default function HospitalDetailScreen({
           )}
         </View>
 
-        {item.info_note ? (
-          <Text style={styles.infoNote}>{item.info_note}</Text>
-        ) : null}
+        {item.info_note ? <Text style={styles.infoNote}>{item.info_note}</Text> : null}
 
-        {/* Cut-off section */}
         <View style={styles.cutOffSection}>
           <View style={styles.cutOffHeader}>
             <View style={styles.cutOffLabelRow}>
@@ -233,7 +276,12 @@ export default function HospitalDetailScreen({
               onPress={() => handleMoreInfo(item)}
               activeOpacity={0.8}
             >
-              <Text style={[styles.moreInfoBtnText, isExpanded && styles.moreInfoBtnTextActive]}>
+              <Text
+                style={[
+                  styles.moreInfoBtnText,
+                  isExpanded && styles.moreInfoBtnTextActive,
+                ]}
+              >
                 {isExpanded ? "Ver menos" : "Ver más"}
               </Text>
               <Ionicons
@@ -245,10 +293,8 @@ export default function HospitalDetailScreen({
           </View>
 
           {!isExpanded ? (
-            // Mini bar chart (condensed)
             <MiniBarChart grades={grades} />
           ) : (
-            // Expanded table view
             <View style={styles.tableWrap}>
               {loadingDetails[item.id] ? (
                 <View style={styles.loadingDetailsRow}>
@@ -257,14 +303,12 @@ export default function HospitalDetailScreen({
                 </View>
               ) : detailedGrades[item.id] && detailedGrades[item.id].length > 0 ? (
                 <View style={styles.table}>
-                  {/* Table header */}
                   <View style={styles.tableHead}>
                     <Text style={[styles.tableHeadText, { flex: 1 }]}>Año</Text>
                     <Text style={[styles.tableHeadText, { flex: 1 }]}>Plazas</Text>
-                    <Text style={[styles.tableHeadText, { flex: 2 }]}>Notas de Corte</Text>
+                    <Text style={[styles.tableHeadText, { flex: 2 }]}>Notas de corte</Text>
                   </View>
 
-                  {/* Table rows */}
                   {detailedGrades[item.id].map((gradeData, index) => (
                     <View
                       key={gradeData.year}
@@ -287,8 +331,11 @@ export default function HospitalDetailScreen({
                       <View style={[styles.gradesCellWrap, { flex: 2 }]}>
                         {gradeData.grades && gradeData.grades.length > 0 ? (
                           <View style={styles.gradesCellInner}>
-                            {gradeData.grades.map((gradeValue, gi) => (
-                              <View key={gi} style={styles.detailedGradeBadge}>
+                            {gradeData.grades.map((gradeValue, gradeIndex) => (
+                              <View
+                                key={`${gradeData.year}-${gradeIndex}`}
+                                style={styles.detailedGradeBadge}
+                              >
                                 <Text style={styles.detailedGradeText}>
                                   {gradeValue}
                                 </Text>
@@ -330,7 +377,6 @@ export default function HospitalDetailScreen({
       <ScreenHeader title="Hospitales" onBack={onBack} compact />
 
       <View style={styles.scrollContent}>
-        {/* Hospital info card */}
         <View style={styles.hospitalCard}>
           <View style={styles.hospitalIconWrap}>
             <Ionicons name="business" size={26} color={PRIMARY} />
@@ -347,7 +393,7 @@ export default function HospitalDetailScreen({
             {hospital.specialtyCount !== undefined && (
               <View style={styles.metaRow}>
                 <Ionicons name="school" size={14} color={PRIMARY} />
-                <Text style={[styles.metaText, { color: PRIMARY, fontWeight: "600" }]}>
+                <Text style={[styles.metaText, styles.metaTextAccent]}>
                   {hospital.specialtyCount} especialidades MIR
                 </Text>
               </View>
@@ -355,21 +401,43 @@ export default function HospitalDetailScreen({
           </View>
         </View>
 
-        {/* Specialties section label */}
-        <View style={styles.sectionRow}>
-          <View style={styles.sectionLabelRow}>
-            <View style={styles.sectionBar} />
-            <Text style={styles.sectionLabel}>Especialidades disponibles</Text>
+        {profileLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={PRIMARY} />
+            <Text style={styles.loadingText}>Cargando información del hospital...</Text>
           </View>
-          {!loading && (
-            <Text style={styles.sectionCount}>
-              {filteredSpecialties.length}{" "}
-              {filteredSpecialties.length === 1 ? "ESPECIALIDAD" : "ESPECIALIDADES"}
-            </Text>
-          )}
-        </View>
+        ) : hospitalInfoHasContent ? (
+          <View style={styles.hospitalInfoEntryCard}>
+            <View style={styles.hospitalInfoEntryHeader}>
+              <View style={styles.hospitalInfoEntryIconWrap}>
+                <Ionicons name="document-text-outline" size={24} color={PRIMARY} />
+              </View>
+              <Text style={styles.hospitalInfoEntryTitle}>
+                Información proporcionada por el hospital
+              </Text>
+            </View>
 
-        {/* Specialty list */}
+            <TouchableOpacity
+              style={styles.hospitalInfoEntryButton}
+              activeOpacity={0.85}
+              onPress={onOpenHospitalInfo}
+            >
+              <Text style={styles.hospitalInfoEntryButtonText}>Ver información</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        <SectionTitle
+          title="Especialidades disponibles"
+          rightLabel={
+            !loading
+              ? `${filteredSpecialties.length} ${
+                  filteredSpecialties.length === 1 ? "ESPECIALIDAD" : "ESPECIALIDADES"
+                }`
+              : null
+          }
+        />
+
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={PRIMARY} />
@@ -386,37 +454,18 @@ export default function HospitalDetailScreen({
             </Text>
           </View>
         ) : (
-          <FlatList
-            data={filteredSpecialties}
-            renderItem={renderSpecialtyItem}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            contentContainerStyle={styles.specialtiesList}
-          />
+          <View style={styles.specialtiesList}>
+            {filteredSpecialties.map(renderSpecialtyItem)}
+          </View>
         )}
       </View>
     </ScrollView>
   );
 }
 
-// ============================================================================
-// STYLES
-// ============================================================================
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: BG_LIGHT,
-  },
-
-  // ── Scroll content ──
-  scrollContent: {
-    padding: 16,
-    paddingTop: 14,
-    paddingBottom: 32,
-  },
-
-  // ── Hospital card ──
+  container: { flex: 1, backgroundColor: BG_LIGHT },
+  scrollContent: { padding: 16, paddingTop: 14, paddingBottom: 32 },
   hospitalCard: {
     backgroundColor: WHITE,
     borderRadius: 18,
@@ -449,64 +498,70 @@ const styles = StyleSheet.create({
     lineHeight: 27,
     letterSpacing: -0.2,
   },
-  hospitalMeta: {
-    gap: 8,
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  metaText: {
-    fontSize: 13,
-    color: TEXT_MEDIUM,
-  },
-
-  // ── Section row ──
+  hospitalMeta: { gap: 8 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  metaText: { fontSize: 13, color: TEXT_MEDIUM },
+  metaTextAccent: { color: PRIMARY, fontWeight: "600" },
   sectionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
+    marginTop: 6,
+    gap: 12,
   },
-  sectionLabelRow: {
+  sectionLabelRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
+  sectionBar: { width: 4, height: 20, borderRadius: 2, backgroundColor: PRIMARY },
+  sectionLabel: { fontSize: 17, fontWeight: "700", color: ACCENT },
+  sectionCount: { fontSize: 10, fontWeight: "700", color: PRIMARY, letterSpacing: 0.8 },
+  hospitalInfoEntryCard: {
+    backgroundColor: "#F1F3FB",
+    borderRadius: 28,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#D9E2FF",
+    marginBottom: 16,
+  },
+  hospitalInfoEntryHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 14,
+    marginBottom: 22,
   },
-  sectionBar: {
-    width: 4,
-    height: 20,
-    borderRadius: 2,
-    backgroundColor: PRIMARY,
+  hospitalInfoEntryIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: WHITE,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 1,
   },
-  sectionLabel: {
+  hospitalInfoEntryTitle: {
+    flex: 1,
     fontSize: 17,
+    lineHeight: 24,
     fontWeight: "700",
     color: ACCENT,
   },
-  sectionCount: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: PRIMARY,
-    letterSpacing: 0.8,
-  },
-
-  // ── Loading / empty / error states ──
-  loadingContainer: {
+  hospitalInfoEntryButton: {
+    borderRadius: 18,
+    backgroundColor: PRIMARY,
+    paddingVertical: 15,
+    paddingHorizontal: 18,
     alignItems: "center",
-    paddingVertical: 48,
-    gap: 12,
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
   },
-  loadingText: {
-    fontSize: 14,
-    color: TEXT_MEDIUM,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: 48,
-    paddingHorizontal: 32,
-  },
+  hospitalInfoEntryButtonText: { fontSize: 15, fontWeight: "700", color: WHITE },
+  loadingContainer: { alignItems: "center", paddingVertical: 36, gap: 12 },
+  loadingText: { fontSize: 14, color: TEXT_MEDIUM, textAlign: "center" },
+  emptyContainer: { alignItems: "center", paddingVertical: 48, paddingHorizontal: 32 },
   emptyIconWrap: {
     width: 68,
     height: 68,
@@ -516,19 +571,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 14,
   },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: ACCENT,
-    marginBottom: 6,
-    textAlign: "center",
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: TEXT_MEDIUM,
-    textAlign: "center",
-    lineHeight: 19,
-  },
+  emptyTitle: { fontSize: 17, fontWeight: "700", color: ACCENT, marginBottom: 6, textAlign: "center" },
+  emptySubtitle: { fontSize: 13, color: TEXT_MEDIUM, textAlign: "center", lineHeight: 19 },
   stateContainer: {
     flex: 1,
     justifyContent: "center",
@@ -546,19 +590,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 4,
   },
-  errorTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: ACCENT,
-    textAlign: "center",
-  },
-
-  // ── Specialty list ──
-  specialtiesList: {
-    gap: 12,
-  },
-
-  // ── Specialty card ──
+  errorTitle: { fontSize: 17, fontWeight: "700", color: ACCENT, textAlign: "center" },
+  specialtiesList: { gap: 12 },
   specialtyCard: {
     backgroundColor: WHITE,
     borderRadius: 16,
@@ -570,6 +603,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.07,
     shadowRadius: 6,
     elevation: 2,
+    marginBottom: 12,
   },
   specialtyHeader: {
     flexDirection: "row",
@@ -578,13 +612,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: 8,
   },
-  specialtyName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: ACCENT,
-    flex: 1,
-    lineHeight: 21,
-  },
+  specialtyName: { fontSize: 15, fontWeight: "700", color: ACCENT, flex: 1, lineHeight: 21 },
   slotsBadge: {
     backgroundColor: `${PRIMARY}10`,
     borderRadius: 999,
@@ -594,39 +622,17 @@ const styles = StyleSheet.create({
     borderColor: `${PRIMARY}25`,
     flexShrink: 0,
   },
-  slotsText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: PRIMARY,
-  },
-  infoNote: {
-    fontSize: 13,
-    color: TEXT_MEDIUM,
-    marginBottom: 10,
-    lineHeight: 18,
-  },
-
-  // ── Cut-off section ──
-  cutOffSection: {
-    marginTop: 4,
-  },
+  slotsText: { fontSize: 11, fontWeight: "700", color: PRIMARY },
+  infoNote: { fontSize: 13, color: TEXT_MEDIUM, marginBottom: 10, lineHeight: 18 },
+  cutOffSection: { marginTop: 4 },
   cutOffHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 12,
   },
-  cutOffLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  cutOffLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: TEXT_MEDIUM,
-    letterSpacing: 0.5,
-  },
+  cutOffLabelRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  cutOffLabel: { fontSize: 11, fontWeight: "700", color: TEXT_MEDIUM, letterSpacing: 0.5 },
   moreInfoBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -638,45 +644,14 @@ const styles = StyleSheet.create({
     borderColor: `${PRIMARY}30`,
     backgroundColor: `${PRIMARY}10`,
   },
-  moreInfoBtnActive: {
-    backgroundColor: PRIMARY,
-    borderColor: PRIMARY,
-  },
-  moreInfoBtnText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: PRIMARY,
-  },
-  moreInfoBtnTextActive: {
-    color: WHITE,
-  },
-
-  // ── Mini bar chart (condensed) ──
-  chartScroll: {
-    paddingVertical: 10,
-    paddingHorizontal: 2,
-    alignItems: "flex-end",
-    gap: 6,
-  },
-  chartCol: {
-    alignItems: "center",
-    gap: 5,
-    width: 44,
-  },
-  chartValue: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: `${SECONDARY}99`,
-    textAlign: "center",
-  },
-  chartValueNewest: {
-    color: SECONDARY,
-    fontSize: 12,
-  },
-  chartValueEmpty: {
-    color: TEXT_LIGHT,
-    fontWeight: "400",
-  },
+  moreInfoBtnActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
+  moreInfoBtnText: { fontSize: 12, fontWeight: "700", color: PRIMARY },
+  moreInfoBtnTextActive: { color: WHITE },
+  chartScroll: { paddingVertical: 10, paddingHorizontal: 2, alignItems: "flex-end", gap: 6 },
+  chartCol: { alignItems: "center", gap: 5, width: 44 },
+  chartValue: { fontSize: 11, fontWeight: "700", color: `${SECONDARY}99`, textAlign: "center" },
+  chartValueNewest: { color: SECONDARY, fontSize: 12 },
+  chartValueEmpty: { color: TEXT_LIGHT, fontWeight: "400" },
   chartTrack: {
     width: 28,
     justifyContent: "flex-end",
@@ -684,27 +659,11 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     overflow: "hidden",
   },
-  chartFill: {
-    borderRadius: 6,
-    backgroundColor: `${SECONDARY}55`,
-  },
-  chartFillNewest: {
-    backgroundColor: SECONDARY,
-  },
-  chartFillEmpty: {
-    backgroundColor: "#E2E8F0",
-    height: 8,
-  },
-  chartYear: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: TEXT_MEDIUM,
-    textAlign: "center",
-  },
-  chartYearNewest: {
-    color: PRIMARY,
-    fontWeight: "700",
-  },
+  chartFill: { borderRadius: 6, backgroundColor: `${SECONDARY}55` },
+  chartFillNewest: { backgroundColor: SECONDARY },
+  chartFillEmpty: { backgroundColor: "#E2E8F0", height: 8 },
+  chartYear: { fontSize: 10, fontWeight: "600", color: TEXT_MEDIUM, textAlign: "center" },
+  chartYearNewest: { color: PRIMARY, fontWeight: "700" },
   noDataText: {
     fontSize: 12,
     color: TEXT_LIGHT,
@@ -712,11 +671,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: 16,
   },
-
-  // ── Expanded table ──
-  tableWrap: {
-    marginTop: 4,
-  },
+  tableWrap: { marginTop: 4 },
   loadingDetailsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -724,16 +679,8 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 20,
   },
-  loadingDetailsText: {
-    fontSize: 13,
-    color: TEXT_MEDIUM,
-  },
-  table: {
-    borderWidth: 1,
-    borderColor: BORDER,
-    borderRadius: 12,
-    overflow: "hidden",
-  },
+  loadingDetailsText: { fontSize: 13, color: TEXT_MEDIUM },
+  table: { borderWidth: 1, borderColor: BORDER, borderRadius: 12, overflow: "hidden" },
   tableHead: {
     flexDirection: "row",
     backgroundColor: `${PRIMARY}08`,
@@ -742,13 +689,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: `${PRIMARY}20`,
   },
-  tableHeadText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: PRIMARY,
-    textAlign: "center",
-    letterSpacing: 0.3,
-  },
+  tableHeadText: { fontSize: 11, fontWeight: "700", color: PRIMARY, textAlign: "center", letterSpacing: 0.3 },
   tableRow: {
     flexDirection: "row",
     paddingVertical: 11,
@@ -757,18 +698,9 @@ const styles = StyleSheet.create({
     borderBottomColor: BORDER,
     alignItems: "center",
   },
-  tableRowEven: {
-    backgroundColor: WHITE,
-  },
-  tableRowOdd: {
-    backgroundColor: BG_LIGHT,
-  },
-  tableCellYear: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: ACCENT,
-    textAlign: "center",
-  },
+  tableRowEven: { backgroundColor: WHITE },
+  tableRowOdd: { backgroundColor: BG_LIGHT },
+  tableCellYear: { fontSize: 13, fontWeight: "600", color: ACCENT, textAlign: "center" },
   slotsBadgeSmall: {
     backgroundColor: `${PRIMARY}10`,
     borderRadius: 999,
@@ -777,21 +709,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: `${PRIMARY}20`,
   },
-  slotsTextSmall: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: PRIMARY,
-  },
-  gradesCellWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  gradesCellInner: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 4,
-  },
+  slotsTextSmall: { fontSize: 11, fontWeight: "700", color: PRIMARY },
+  gradesCellWrap: { alignItems: "center", justifyContent: "center" },
+  gradesCellInner: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 4 },
   detailedGradeBadge: {
     backgroundColor: `${SECONDARY}18`,
     borderRadius: 999,
@@ -800,9 +720,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: `${SECONDARY}30`,
   },
-  detailedGradeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: SECONDARY,
-  },
+  detailedGradeText: { fontSize: 11, fontWeight: "700", color: SECONDARY },
 });

@@ -6,6 +6,7 @@ import { PlaceholderScreen } from "../components/PlaceholderScreen";
 import { SwipeBackWrapper } from "../components/SwipeBackWrapper";
 import HospitalsScreen from "./HospitalsScreen";
 import HospitalDetailScreen from "./HospitalDetailScreen";
+import HospitalInfoScreen from "./HospitalInfoScreen";
 import MirSimulatorScreen from "./MirSimulatorScreen";
 import ProfileScreen from "./ProfileScreen";
 import MenuScreen from "./MenuScreen";
@@ -109,6 +110,7 @@ export default function DashboardScreen({
   const [isProfileIncomplete, setIsProfileIncomplete] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [selectedHospital, setSelectedHospital] = useState(null);
+  const [showHospitalInfoScreen, setShowHospitalInfoScreen] = useState(false);
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState(null);
   const [selectedReviewId, setSelectedReviewId] = useState(null);
   const [selectedArticleId, setSelectedArticleId] = useState(null);
@@ -498,6 +500,7 @@ export default function DashboardScreen({
 
   const handleHospitalSelect = (hospital, specialtyId, fromSection = null) => {
     setSelectedHospital(hospital);
+    setShowHospitalInfoScreen(false);
     setSelectedSpecialtyId(specialtyId || null);
     // Guardar la sección de origen para poder volver a ella
     setPreviousSection(fromSection || currentSection);
@@ -511,6 +514,7 @@ export default function DashboardScreen({
   };
 
   const handleBackFromDetail = () => {
+    setShowHospitalInfoScreen(false);
     setSelectedHospital(null);
     setSelectedSpecialtyId(null);
     // Volver a la sección de origen si existe, sino a la sección por defecto
@@ -591,11 +595,19 @@ export default function DashboardScreen({
         onSectionChange={handleSectionChange}
       >
         <SwipeBackWrapper onSwipeBack={handleBackFromDetail}>
-          <HospitalDetailScreen
-            hospital={selectedHospital}
-            selectedSpecialtyId={selectedSpecialtyId}
-            onBack={handleBackFromDetail}
-          />
+          {showHospitalInfoScreen ? (
+            <HospitalInfoScreen
+              hospital={selectedHospital}
+              onBack={() => setShowHospitalInfoScreen(false)}
+            />
+          ) : (
+            <HospitalDetailScreen
+              hospital={selectedHospital}
+              selectedSpecialtyId={selectedSpecialtyId}
+              onBack={handleBackFromDetail}
+              onOpenHospitalInfo={() => setShowHospitalInfoScreen(true)}
+            />
+          )}
         </SwipeBackWrapper>
       </ScreenLayout>
     );

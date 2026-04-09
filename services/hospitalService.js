@@ -633,6 +633,230 @@ export const getHospitalSpecialties = async (hospitalId) => {
 };
 
 /**
+ * Obtener la información pública ampliada del hospital gestionada desde losresis-panel
+ * @param {string} hospitalId - ID del hospital
+ * @returns {Promise<{success: boolean, profile: object|null, error: string|null}>}
+ */
+export const getHospitalProfileContent = async (hospitalId) => {
+  try {
+    if (!hospitalId) {
+      return {
+        success: false,
+        profile: null,
+        error: "Hospital ID is required",
+      };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayIso = today.toISOString().slice(0, 10);
+
+    const { data: orgRow, error: orgError } = await supabase
+      .from("employer_org")
+      .select("id, hospital_id")
+      .eq("hospital_id", hospitalId)
+      .maybeSingle();
+
+    if (orgError) {
+      throw new Error(orgError.message);
+    }
+
+    if (!orgRow?.id) {
+      return {
+        success: true,
+        profile: {
+          org_id: null,
+          about: null,
+          differential_points: [],
+          images: [],
+          open_day: null,
+          plans: [],
+        },
+        error: null,
+      };
+    }
+
+    const [
+      { data: profileRow, error: profileError },
+      { data: imageRows, error: imageError },
+      { data: openDayRows, error: openDayError },
+      { data: planRows, error: planError },
+    ] = await Promise.all([
+      supabase
+        .from("employer_org_profile")
+        .select("org_id, about, differential_points")
+        .eq("org_id", orgRow.id)
+        .maybeSingle(),
+      supabase
+        .from("employer_org_profile_image")
+        .select("*")
+        .eq("org_id", orgRow.id)
+        .order("position", { ascending: true }),
+      supabase
+        .from("hospital_open_day")
+        .select("*")
+        .eq("hospital_id", hospitalId)
+        .eq("is_published", true)
+        .gte("event_date", todayIso)
+        .order("event_date", { ascending: true })
+        .order("created_at", { ascending: false })
+        .limit(1),
+      supabase
+        .from("employer_org_profile_speciality")
+        .select(
+          "org_id, speciality_id, plan_formativo_storage_path, plan_formativo_url, description, differential_points, specialities(name)"
+        )
+        .eq("org_id", orgRow.id),
+    ]);
+
+    if (profileError) {
+      throw new Error(profileError.message);
+    }
+    if (imageError) {
+      throw new Error(imageError.message);
+    }
+    if (openDayError) {
+      throw new Error(openDayError.message);
+    }
+    if (planError) {
+      throw new Error(planError.message);
+    }
+
+    const plans = ((planRows || []).map((row) => {
+      const specialty = Array.isArray(row.specialities)
+        ? row.specialities[0]
+        : row.specialities;
+
+      return {
+        org_id: row.org_id,
+        speciality_id: row.speciality_id,
+        speciality_name: specialty?.name || "Especialidad",
+        plan_formativo_storage_path: row.plan_formativo_storage_path || null,
+        plan_formativo_url: row.plan_formativo_url || null,
+        description: row.description || "",
+        differential_points: Array.isArray(row.differential_points)
+          ? row.differential_points.filter(Boolean)
+          : [],
+      };
+    }) || []).sort((a, b) =>
+      a.speciality_name.localeCompare(b.speciality_name, "es")
+    );
+
+    return {
+      success: true,
+      profile: {
+        org_id: orgRow.id,
+        about: profileRow?.about?.trim() || null,
+        differential_points: Array.isArray(profileRow?.differential_points)
+          ? profileRow.differential_points.filter(Boolean)
+          : [],
+        images: imageRows || [],
+        open_day: openDayRows?.[0] || null,
+        plans,
+      },
+      error: null,
+    };
+  } catch (error) {
+    console.error("❌ Error fetching hospital profile content:", error);
+    return {
+      success: false,
+      profile: null,
+      error: error.message,
+    };
+  }
+};
+
+/**
+ * Comprobar si un usuario ya está inscrito a una jornada abierta
+ * @param {string} openDayId
+ * @param {string} userId
+ * @returns {Promise<{success: boolean, isRegistered: boolean, error: string|null}>}
+ */
+export const getHospitalOpenDayRegistrationStatus = async (openDayId, userId) => {
+  try {
+    if (!openDayId || !userId) {
+      return {
+        success: true,
+        isRegistered: false,
+        error: null,
+      };
+    }
+
+    const { data, error } = await supabase
+      .from("hospital_open_day_registration")
+      .select("id")
+      .eq("open_day_id", openDayId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return {
+      success: true,
+      isRegistered: Boolean(data?.id),
+      error: null,
+    };
+  } catch (error) {
+    console.error("❌ Error fetching open day registration status:", error);
+    return {
+      success: false,
+      isRegistered: false,
+      error: error.message,
+    };
+  }
+};
+
+/**
+ * Registrar a un usuario en una jornada abierta
+ * @param {string} openDayId
+ * @param {string} userId
+ * @returns {Promise<{success: boolean, alreadyRegistered: boolean, error: string|null}>}
+ */
+export const registerForHospitalOpenDay = async (openDayId, userId) => {
+  try {
+    if (!openDayId || !userId) {
+      return {
+        success: false,
+        alreadyRegistered: false,
+        error: "Open day ID and user ID are required",
+      };
+    }
+
+    const { error } = await supabase
+      .from("hospital_open_day_registration")
+      .upsert(
+        {
+          open_day_id: openDayId,
+          user_id: userId,
+        },
+        {
+          onConflict: "open_day_id,user_id",
+          ignoreDuplicates: false,
+        }
+      );
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return {
+      success: true,
+      alreadyRegistered: false,
+      error: null,
+    };
+  } catch (error) {
+    console.error("❌ Error registering for hospital open day:", error);
+    return {
+      success: false,
+      alreadyRegistered: false,
+      error: error.message,
+    };
+  }
+};
+
+/**
  * Obtener notas detalladas de una especialidad de un hospital (agrupadas por año)
  * @param {string} hospitalId - ID del hospital
  * @param {string} specialtyId - ID de la especialidad

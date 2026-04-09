@@ -13,7 +13,7 @@
  * ⚠️ No commitear este archivo con un valor distinto de null en producción.
  */
 
-export const DEV_USER_TYPE = null;
+export const DEV_USER_TYPE = "student";
 
 /*
 
