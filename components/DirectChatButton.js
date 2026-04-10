@@ -50,6 +50,7 @@ export function DirectChatButton({
           compact ? styles.labelCompact : styles.labelRegular,
           textStyle,
         ]}
+        numberOfLines={1}
       >
         {buttonLabel}
       </Text>
@@ -65,6 +66,7 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 999,
     backgroundColor: PRIMARY,
+    maxWidth: "100%",
   },
   regular: {
     minHeight: 48,

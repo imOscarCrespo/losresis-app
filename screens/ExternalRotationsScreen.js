@@ -308,12 +308,21 @@ const MatchCard = ({
 }) => (
   <View style={styles.matchCard}>
     <View style={styles.matchCardHeader}>
-      <View>
-        <Text style={styles.matchName}>{item.name}</Text>
-        <Text style={styles.matchMeta}>{item.meta}</Text>
+      <View style={styles.matchHeaderCopy}>
+        <Text style={styles.matchName} numberOfLines={2}>
+          {item.name}
+        </Text>
+        <Text style={styles.matchMeta} numberOfLines={2}>
+          {item.meta}
+        </Text>
       </View>
       {onChat ? (
-        <DirectChatButton onPress={onChat} loading={chatLoading} size="sm" />
+        <DirectChatButton
+          onPress={onChat}
+          loading={chatLoading}
+          size="sm"
+          style={styles.matchChatButton}
+        />
       ) : null}
     </View>
     <View style={styles.matchBody}>
@@ -2719,6 +2728,10 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     gap: 12,
   },
+  matchHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
   matchName: {
     fontSize: 15,
     fontWeight: "700",
@@ -2728,6 +2741,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: TEXT_MUTED,
     marginTop: 4,
+  },
+  matchChatButton: {
+    flexShrink: 0,
   },
   chatBadge: {
     backgroundColor: PRIMARY_SOFT,
