@@ -1,41 +1,166 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { getRotationReviewWithAnswers } from "../services/externalRotationReviewService";
+import { DirectChatButton } from "../components";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
+import {
+  getRotationReviewWithAnswers,
+  isExternalRotationReviewFavorite,
+  setExternalRotationReviewFavorite,
+} from "../services/externalRotationReviewService";
 import { formatLongDate, formatShortDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
-import { StarRating } from "../components/StarRating";
 import posthogLogger from "../services/posthogService";
 
-/**
- * Pantalla de detalle de reseña de rotación externa
- */
+const PRIMARY = "#670CF5";
+const PRIMARY_SOFT = "#F2EBFF";
+const SURFACE = "#F5F7FA";
+const SURFACE_CARD = "#FFFFFF";
+const SURFACE_ALT = "#EEF1F6";
+const TEXT = "#111827";
+const TEXT_MUTED = "#667085";
+const SUCCESS = "#0F9D7A";
+const WARNING = "#F97316";
+
+const difficultyLabels = {
+  easy: "Fácil",
+  medium: "Media",
+  hard: "Alta",
+};
+
+const rotationKindLabels = {
+  observational: "Observacional",
+  hands_on: "Participativa",
+};
+
+const ratingLabels = {
+  "Calidad Docente": "Calidad docente",
+  "Actividad Práctica": "Nivel práctico",
+  "Ambiente de Trabajo": "Ambiente",
+  "Recomendación General": "Recomendación",
+};
+
+const scoreIconByLabel = {
+  "Calidad docente": "school-outline",
+  "Nivel práctico": "medkit-outline",
+  Ambiente: "people-outline",
+  Recomendación: "thumbs-up-outline",
+};
+
+const normalizeReviewResidentData = (review) => {
+  const firstName = review?.users?.name || review?.reviewer_name || "";
+  const surname = review?.users?.surname || review?.reviewer_surname || "";
+
+  return {
+    residentName:
+      [firstName, surname ? `${surname[0]}.` : ""].filter(Boolean).join(" ").trim() ||
+      "Residente",
+    specialtyName:
+      review?.specialities?.name ||
+      review?.users?.specialities?.name ||
+      review?.reviewer_specialty_name ||
+      "Especialidad",
+    hospitalName: review?.users?.hospitals?.name || review?.reviewer_hospital_name || "",
+  };
+};
+
+const ScoreCard = ({ label, value }) => {
+  const isPrimary = label === "Recomendación";
+
+  return (
+    <View style={[styles.scoreCard, isPrimary && styles.scoreCardPrimary]}>
+      <Text style={[styles.scoreLabel, isPrimary && styles.scoreLabelPrimary]}>
+        {label}
+      </Text>
+      <View style={styles.scoreValueRow}>
+        <Text style={[styles.scoreValue, isPrimary && styles.scoreValuePrimary]}>
+          {value.toFixed(1)}
+        </Text>
+        <Ionicons
+          name={scoreIconByLabel[label] || "star"}
+          size={18}
+          color={isPrimary ? "#FFFFFF" : PRIMARY}
+        />
+      </View>
+    </View>
+  );
+};
+
+const InfoChip = ({ icon, label, tone = "primary" }) => {
+  const toneStyles = {
+    primary: {
+      backgroundColor: PRIMARY_SOFT,
+      color: PRIMARY,
+    },
+    success: {
+      backgroundColor: "#E7FBF4",
+      color: SUCCESS,
+    },
+    warning: {
+      backgroundColor: "#FFF0E7",
+      color: WARNING,
+    },
+  };
+
+  return (
+    <View style={[styles.infoChip, { backgroundColor: toneStyles[tone].backgroundColor }]}>
+      <Ionicons name={icon} size={16} color={toneStyles[tone].color} />
+      <Text style={[styles.infoChipText, { color: toneStyles[tone].color }]}>
+        {label}
+      </Text>
+    </View>
+  );
+};
+
+const AnswerCard = ({ title, body, tone = "primary" }) => {
+  const toneMap = {
+    primary: PRIMARY,
+    success: SUCCESS,
+  };
+
+  if (!body) {
+    return null;
+  }
+
+  return (
+    <View style={[styles.answerCard, { borderLeftColor: toneMap[tone] || PRIMARY }]}>
+      <Text style={[styles.answerTitle, { color: toneMap[tone] || PRIMARY }]}>
+        {title}
+      </Text>
+      <Text style={styles.answerBody}>{body}</Text>
+    </View>
+  );
+};
+
 export default function RotationReviewDetailScreen({
   reviewId,
+  userId,
   onBack,
-  userProfile,
+  onContact,
+  onFavoriteChanged,
 }) {
   const [review, setReview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
 
-  // Tracking de pantalla con PostHog
   useEffect(() => {
     posthogLogger.logScreen("RotationReviewDetailScreen", { reviewId });
   }, [reviewId]);
 
-  // Cargar detalle de la reseña
   useEffect(() => {
-    const fetchReviewDetail = async () => {
+    const loadReview = async () => {
       if (!reviewId) {
-        console.warn("RotationReviewDetailScreen: reviewId is required");
         setError("ID de reseña requerido");
         setLoading(false);
         return;
@@ -47,415 +172,537 @@ export default function RotationReviewDetailScreen({
         const data = await getRotationReviewWithAnswers(reviewId);
         setReview(data);
       } catch (err) {
-        console.error("Error fetching rotation review detail:", err);
-        setError(err.message || "Error al cargar la reseña");
+        setError(err.message || "Error al cargar la experiencia");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchReviewDetail();
+    loadReview();
   }, [reviewId]);
 
-  // Separar respuestas por tipo
-  const { ratingAnswers, textAnswers } = useMemo(() => {
-    if (
-      !review?.external_rotation_review_answer ||
-      !Array.isArray(review.external_rotation_review_answer)
-    ) {
-      return { ratingAnswers: [], textAnswers: [] };
-    }
+  useEffect(() => {
+    const loadFavoriteState = async () => {
+      if (!userId || !reviewId) {
+        setIsFavorite(false);
+        return;
+      }
+
+      try {
+        const favorite = await isExternalRotationReviewFavorite(userId, reviewId);
+        setIsFavorite(favorite);
+      } catch (err) {
+        console.error("Error loading favorite state:", err);
+      }
+    };
+
+    loadFavoriteState();
+  }, [reviewId, userId]);
+
+  const ratingCards = useMemo(() => {
+    const answers = review?.external_rotation_review_answer || [];
+    return answers
+      .filter(
+        (answer) =>
+          answer.external_rotation_question?.type === "rating" &&
+          typeof answer.rating_value === "number"
+      )
+      .map((answer) => ({
+        label:
+          ratingLabels[answer.external_rotation_question?.text] ||
+          answer.external_rotation_question?.text ||
+          "Valoración",
+        value: answer.rating_value,
+      }))
+      .slice(0, 4);
+  }, [review]);
+
+  const reviewerName = useMemo(() => {
+    return normalizeReviewResidentData(review).residentName;
+  }, [review]);
+
+  const reviewerMeta = useMemo(() => {
+    const resident = normalizeReviewResidentData(review);
 
     return {
-      ratingAnswers: review.external_rotation_review_answer.filter(
-        (answer) => answer.external_rotation_question?.type === "rating"
-      ),
-      textAnswers: review.external_rotation_review_answer.filter(
-        (answer) => answer.external_rotation_question?.type === "text"
-      ),
+      specialtyLine: [
+        resident.specialtyName,
+        review?.users?.resident_year ? `R${review.users.resident_year}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      hospitalLine: resident.hospitalName,
     };
-  }, [review?.external_rotation_review_answer]);
+  }, [review]);
+
+  const durationLabel = useMemo(() => {
+    if (!review?.start_date) {
+      return null;
+    }
+
+    if (!review?.end_date) {
+      return formatShortDate(review.start_date);
+    }
+
+    return `${formatShortDate(review.start_date)} - ${formatShortDate(
+      review.end_date
+    )}`;
+  }, [review]);
+
+  const canFavorite = Boolean(userId && review?.user_id && review.user_id !== userId);
+  const canContact = Boolean(userId && review?.user_id && review.user_id !== userId);
+
+  const handleToggleFavorite = async () => {
+    if (!canFavorite || favoriteLoading) {
+      return;
+    }
+
+    try {
+      setFavoriteLoading(true);
+      const nextValue = !isFavorite;
+      await setExternalRotationReviewFavorite(userId, reviewId, nextValue);
+      setIsFavorite(nextValue);
+      onFavoriteChanged?.();
+    } catch (err) {
+      console.error("Error toggling favorite review:", err);
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
+
+  const handleOpenChat = useCallback(async () => {
+    if (!canContact || chatLoading) {
+      return;
+    }
+
+    try {
+      setChatLoading(true);
+      await onContact?.(review);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [canContact, chatLoading, onContact, review]);
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
-            <Text style={styles.backButtonText}>Volver al listado</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-          <Text style={styles.loadingText}>
-            Cargando detalle de la reseña...
-          </Text>
-        </View>
+      <View style={styles.stateContainer}>
+        <ActivityIndicator size="large" color={PRIMARY} />
+        <Text style={styles.stateText}>Cargando experiencia...</Text>
       </View>
     );
   }
 
   if (error || !review) {
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
-            <Text style={styles.backButtonText}>Volver al listado</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={64} color={COLORS.ERROR} />
-          <Text style={styles.errorTitle}>Error al cargar la reseña</Text>
-          <Text style={styles.errorText}>
-            {error || "No se pudo encontrar la reseña solicitada."}
-          </Text>
-        </View>
+      <View style={styles.stateContainer}>
+        <Ionicons name="alert-circle-outline" size={40} color={COLORS.ERROR} />
+        <Text style={styles.stateTitle}>No se pudo cargar la experiencia</Text>
+        <Text style={styles.stateText}>
+          {error || "La experiencia ya no está disponible."}
+        </Text>
+        <TouchableOpacity style={styles.secondaryAction} onPress={onBack}>
+          <Text style={styles.secondaryActionText}>Volver</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
+  const header = (
+    <ScreenHeader
+      title="Rotaciones"
+      onBack={onBack}
+      compact
+      variant="brand"
+      rightSlot={
+        canFavorite ? (
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={handleToggleFavorite}
+            disabled={favoriteLoading}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={isFavorite ? "heart" : "heart-outline"}
+              size={22}
+              color={isFavorite ? COLORS.ERROR : "#FFFFFF"}
+            />
+          </TouchableOpacity>
+        ) : null
+      }
+    />
+  );
+
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={onBack}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
-          <Text style={styles.backButtonText}>Volver al listado</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Content */}
-      <View style={styles.content}>
-        {/* Hospital Info Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.hospitalInfo}>
-              <Ionicons name="business" size={24} color={COLORS.PRIMARY} />
-              <Text style={styles.hospitalName}>
-                {review.external_hospital_name}
-              </Text>
+    <ScreenScaffold
+      header={header}
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.container}
+    >
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.heroCard}>
+          <View style={styles.heroTopRow}>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Experiencia real</Text>
             </View>
           </View>
 
-          <View style={styles.infoRow}>
-            <Ionicons name="location" size={18} color={COLORS.GRAY} />
-            <Text style={styles.infoText}>
-              {review.city}, {review.country}
-            </Text>
-          </View>
-
-          {review.external_rotation && (
-            <View style={styles.infoRow}>
-              <Ionicons name="calendar" size={18} color={COLORS.GRAY} />
-              <Text style={styles.infoText}>
-                {formatShortDate(review.external_rotation.start_date)}
-                {review.external_rotation.end_date &&
-                  ` - ${formatShortDate(review.external_rotation.end_date)}`}
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.infoRow}>
-            <Ionicons name="time" size={18} color={COLORS.GRAY} />
-            <Text style={styles.infoText}>
-              {formatLongDate(review.created_at)}
-            </Text>
-          </View>
+          <Text style={styles.heroTitle}>{review.external_hospital_name}</Text>
+          <Text style={styles.heroSubtitle}>
+            {[review.service_name, review.city, review.country]
+              .filter(Boolean)
+              .join(" · ")}
+          </Text>
         </View>
 
-        {/* Answers Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Respuestas</Text>
-
-          {review.external_rotation_review_answer &&
-          review.external_rotation_review_answer.length > 0 ? (
-            <View>
-              {/* Rating Questions */}
-              {ratingAnswers.length > 0 && (
-                <View style={styles.answersSection}>
-                  <Text style={styles.answersSectionTitle}>
-                    Preguntas de Rating
-                  </Text>
-                  <View style={styles.ratingList}>
-                    {ratingAnswers.map((answer) => (
-                      <View
-                        key={`${answer.review_id}-${answer.question_id}`}
-                        style={styles.ratingCard}
-                      >
-                        <Text style={styles.questionText}>
-                          {answer.external_rotation_question?.text}
-                        </Text>
-                        {answer.rating_value && (
-                          <View style={styles.ratingContainer}>
-                            <StarRating
-                              rating={answer.rating_value}
-                              size={20}
-                              disabled
-                            />
-                            <Text style={styles.ratingText}>
-                              ({answer.rating_value}/5)
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    ))}
+        <View style={styles.profileCard}>
+          <View style={styles.profileHeader}>
+            <View style={styles.profileCopy}>
+              <View style={styles.profileTitleRow}>
+                <Text style={styles.profileName}>{reviewerName}</Text>
+                {canContact ? (
+                  <View style={styles.responseBadge}>
+                    <Text style={styles.responseBadgeText}>Responde dudas</Text>
                   </View>
-                </View>
-              )}
-
-              {/* Text Questions */}
-              {textAnswers.length > 0 && (
-                <View style={styles.answersSection}>
-                  <Text style={styles.answersSectionTitle}>
-                    Preguntas de Texto
-                  </Text>
-                  <View style={styles.textAnswersList}>
-                    {textAnswers.map((answer) => (
-                      <View
-                        key={`${answer.review_id}-${answer.question_id}`}
-                        style={styles.textAnswerCard}
-                      >
-                        <Text style={styles.questionText}>
-                          {answer.external_rotation_question?.text}
-                        </Text>
-                        {answer.text_value && (
-                          <View style={styles.textAnswerContent}>
-                            <Text style={styles.textAnswerText}>
-                              {answer.text_value}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
+                ) : null}
+              </View>
+              {reviewerMeta.specialtyLine ? (
+                <Text style={styles.profileMeta}>{reviewerMeta.specialtyLine}</Text>
+              ) : null}
+              {reviewerMeta.hospitalLine ? (
+                <Text style={styles.profileMeta}>{reviewerMeta.hospitalLine}</Text>
+              ) : null}
+              <Text style={styles.profileMeta}>
+                Publicada el {formatLongDate(review.created_at)}
+              </Text>
             </View>
-          ) : (
-            <View style={styles.emptyAnswersContainer}>
-              <Ionicons
-                name="document-text-outline"
-                size={48}
-                color={COLORS.GRAY}
+          </View>
+
+          {canContact ? (
+            <DirectChatButton
+              style={styles.primaryAction}
+              onPress={handleOpenChat}
+              loading={chatLoading}
+              label="Abrir chat"
+              loadingLabel="Abriendo chat..."
+            />
+          ) : null}
+        </View>
+
+        <View style={styles.chipsRow}>
+          {review.difficulty ? (
+            <InfoChip
+              icon="flash-outline"
+              label={`Dificultad: ${difficultyLabels[review.difficulty]}`}
+              tone="warning"
+            />
+          ) : null}
+          {review.rotation_kind ? (
+            <InfoChip
+              icon="flask-outline"
+              label={`Tipo: ${rotationKindLabels[review.rotation_kind]}`}
+              tone="success"
+            />
+          ) : null}
+          {durationLabel ? (
+            <InfoChip
+              icon="time-outline"
+              label={`Duración: ${durationLabel}`}
+              tone="primary"
+            />
+          ) : null}
+        </View>
+
+        {ratingCards.length > 0 ? (
+          <View style={styles.scoresGrid}>
+            {ratingCards.map((rating) => (
+              <ScoreCard
+                key={rating.label}
+                label={rating.label}
+                value={rating.value}
               />
-              <Text style={styles.emptyAnswersText}>
-                No hay respuestas disponibles
+            ))}
+          </View>
+        ) : null}
+
+        <AnswerCard
+          title="¿Qué es lo que más destacas?"
+          body={review.highlight_summary}
+          tone="primary"
+        />
+        <AnswerCard
+          title="¿Qué debería saber antes de ir?"
+          body={review.before_you_go}
+          tone="success"
+        />
+
+        {(review.tutor_name || review.tutor_email) && (
+          <View style={styles.contactCard}>
+            <View style={styles.contactTitleRow}>
+              <Ionicons name="mail-outline" size={18} color={PRIMARY} />
+              <Text style={styles.contactTitle}>
+                Contacto para acceder a la rotación
               </Text>
             </View>
-          )}
-        </View>
-
-        {/* Free Comment Card */}
-        {review.free_comment && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Comentario adicional</Text>
-            <View style={styles.commentContent}>
-              <Text style={styles.commentText}>{review.free_comment}</Text>
+            <View style={styles.contactInnerCard}>
+              <View>
+                <Text style={styles.contactLabel}>Tutor responsable</Text>
+                <Text style={styles.contactName}>
+                  {review.tutor_name || "No especificado"}
+                </Text>
+              </View>
+              {review.tutor_email ? (
+                <Text style={styles.contactEmail}>{review.tutor_email}</Text>
+              ) : null}
             </View>
           </View>
         )}
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </ScreenScaffold>
   );
 }
-
-// ============================================================================
-// STYLES
-// ============================================================================
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: SURFACE,
   },
-  header: {
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
-  },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: COLORS.PRIMARY,
-    fontWeight: "600",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: COLORS.GRAY,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 60,
-    paddingHorizontal: 32,
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  errorText: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    textAlign: "center",
-  },
-  content: {
-    padding: 16,
-  },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cardHeader: {
-    marginBottom: 16,
-  },
-  hospitalInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  hospitalName: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: COLORS.GRAY_DARK,
-    flex: 1,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  infoText: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 16,
-  },
-  answersSection: {
-    marginBottom: 24,
-  },
-  answersSectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 16,
-  },
-  ratingList: {
-    gap: 12,
-  },
-  ratingCard: {
-    width: "100%",
-    backgroundColor: "#FFFFFF",
+  headerButton: {
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  questionText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  ratingContainer: {
-    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.14)",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "center",
   },
-  ratingText: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    fontWeight: "600",
+  scrollView: {
+    flex: 1,
   },
-  textAnswersList: {
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 32,
     gap: 16,
   },
-  textAnswerCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.PRIMARY,
-    paddingLeft: 16,
+  heroCard: {
+    backgroundColor: SURFACE_CARD,
+    borderRadius: 24,
+    padding: 20,
+  },
+  heroTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  badge: {
+    backgroundColor: PRIMARY_SOFT,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  badgeText: {
+    color: PRIMARY,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  heroTitle: {
+    fontSize: 32,
+    lineHeight: 36,
+    fontWeight: "800",
+    color: TEXT,
+    marginBottom: 8,
+  },
+  heroSubtitle: {
+    fontSize: 16,
+    color: TEXT_MUTED,
+    fontWeight: "500",
+  },
+  profileCard: {
+    backgroundColor: SURFACE_CARD,
+    borderRadius: 24,
+    padding: 20,
+    gap: 18,
+  },
+  profileHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  profileCopy: {
+    flex: 1,
+  },
+  profileTitleRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  profileName: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: TEXT,
+  },
+  responseBadge: {
+    backgroundColor: "#E7FBF4",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  responseBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: SUCCESS,
+    textTransform: "uppercase",
+  },
+  profileMeta: {
+    fontSize: 14,
+    color: TEXT_MUTED,
     marginBottom: 4,
   },
-  textAnswerContent: {
-    backgroundColor: COLORS.GRAY_LIGHT,
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
+  primaryAction: {
+    width: "100%",
   },
-  textAnswerText: {
-    fontSize: 14,
-    color: COLORS.GRAY_DARK,
-    lineHeight: 20,
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
   },
-  emptyAnswersContainer: {
+  infoChip: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 32,
+    gap: 8,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  emptyAnswersText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: COLORS.GRAY,
+  infoChipText: {
+    fontSize: 13,
+    fontWeight: "700",
   },
-  commentContent: {
-    backgroundColor: COLORS.GRAY_LIGHT,
+  scoresGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  scoreCard: {
+    width: "47%",
+    backgroundColor: SURFACE_ALT,
+    borderRadius: 20,
     padding: 16,
-    borderRadius: 12,
+    minHeight: 100,
+    justifyContent: "space-between",
   },
-  commentText: {
+  scoreCardPrimary: {
+    backgroundColor: PRIMARY,
+  },
+  scoreLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: TEXT_MUTED,
+    textTransform: "uppercase",
+  },
+  scoreLabelPrimary: {
+    color: "rgba(255,255,255,0.8)",
+  },
+  scoreValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  scoreValue: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: TEXT,
+  },
+  scoreValuePrimary: {
+    color: "#FFFFFF",
+  },
+  answerCard: {
+    backgroundColor: SURFACE_CARD,
+    borderRadius: 20,
+    padding: 18,
+    borderLeftWidth: 4,
+  },
+  answerTitle: {
     fontSize: 14,
-    color: COLORS.GRAY_DARK,
-    lineHeight: 20,
+    fontWeight: "800",
+    marginBottom: 10,
+  },
+  answerBody: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: TEXT_MUTED,
+  },
+  contactCard: {
+    backgroundColor: "#EEF2F6",
+    borderRadius: 20,
+    padding: 18,
+    gap: 14,
+  },
+  contactTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  contactTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: TEXT,
+  },
+  contactInnerCard: {
+    backgroundColor: SURFACE_CARD,
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
+  },
+  contactLabel: {
+    fontSize: 11,
+    color: PRIMARY,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  contactName: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: TEXT,
+  },
+  contactEmail: {
+    fontSize: 14,
+    color: PRIMARY,
+    fontWeight: "600",
+  },
+  stateContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+    backgroundColor: SURFACE,
+  },
+  stateTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: TEXT,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  stateText: {
+    fontSize: 14,
+    color: TEXT_MUTED,
+    textAlign: "center",
+    marginTop: 12,
+  },
+  secondaryAction: {
+    marginTop: 18,
+    backgroundColor: SURFACE_CARD,
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  secondaryActionText: {
+    color: PRIMARY,
+    fontWeight: "700",
   },
 });

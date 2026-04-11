@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Alert } from "react-native";
 import { ScreenLayout } from "../components/ScreenLayout";
+import { BackNavigationButton } from "../components/BackNavigationButton";
 import { PlaceholderScreen } from "../components/PlaceholderScreen";
 import { SwipeBackWrapper } from "../components/SwipeBackWrapper";
 import HospitalsScreen from "./HospitalsScreen";
 import HospitalDetailScreen from "./HospitalDetailScreen";
+import HospitalInfoScreen from "./HospitalInfoScreen";
 import MirSimulatorScreen from "./MirSimulatorScreen";
 import ProfileScreen from "./ProfileScreen";
 import MenuScreen from "./MenuScreen";
@@ -17,12 +19,14 @@ import ReviewDetailScreen from "./ReviewDetailScreen";
 import ArticlesScreen from "./ArticlesScreen";
 import ArticleDetailScreen from "./ArticleDetailScreen";
 import CourseDetailScreen from "./CourseDetailScreen";
+import HomeDashboardScreen from "./HomeDashboardScreen";
 import HousingScreen from "./HousingScreen";
 import HousingAdDetailScreen from "./HousingAdDetailScreen";
 import CreateHousingAdScreen from "./CreateHousingAdScreen";
 import CreateCourseScreen from "./CreateCourseScreen";
+import ReviewComposerScreen from "./ReviewComposerScreen";
 import ContactScreen from "./ContactScreen";
-import ShiftsScreen from "./ShiftsScreen";
+import AgendaScreen from "./AgendaScreen";
 import { ExternalRotationsScreen } from "./ExternalRotationsScreen";
 import { LecturesScreen } from "./LecturesScreen";
 import LeisureScreen from "./LeisureScreen";
@@ -31,21 +35,88 @@ import SportsSelectionScreen from "./SportsSelectionScreen";
 import ThreadDetailScreen from "./ThreadDetailScreen";
 import NotificationSettingsScreen from "../src/screens/settings/NotificationSettingsScreen";
 import NotificationsScreen from "../src/screens/notifications/NotificationsScreen";
+import { setNotificationNavigationHandler } from "../src/services/push/notificationRouter";
 import SpecialityQuizScreen from "./SpecialityQuizScreen";
+import GroupsScreen from "./GroupsScreen";
+import GroupChatScreen from "./GroupChatScreen";
+import RoommateScreen from "./RoommateScreen";
+import ResidentPayoutsScreen from "./ResidentPayoutsScreen";
+import ResidentPayoutDetailScreen from "./ResidentPayoutDetailScreen";
+import ResidentPayoutEntryScreen from "./ResidentPayoutEntryScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
+import { DEV_USER_TYPE } from "../config/devConfig";
+import {
+  isQualifiedResidentSection,
+  registerQualifiedResidentAction,
+} from "../services/residentReviewGateService";
+import {
+  isResidentLockedMissingCorporateEmail,
+  shouldBypassResidentReviewGate,
+} from "../utils/residentAccess";
+
+/**
+ * Aplica el override de tipo de usuario definido en devConfig.js.
+ * Solo actúa si DEV_USER_TYPE tiene un valor distinto de null.
+ */
+const applyDevUserType = (profile) => {
+  if (!DEV_USER_TYPE || !profile) return profile;
+
+  const overrides = {
+    is_resident: false,
+    is_student: false,
+    is_doctor: false,
+    is_super_admin: false,
+  };
+
+  if (DEV_USER_TYPE === "resident") {
+    overrides.is_resident = true;
+  } else if (DEV_USER_TYPE === "student") {
+    overrides.is_student = true;
+  } else if (DEV_USER_TYPE === "admin") {
+    overrides.is_resident = true;
+    overrides.is_super_admin = true;
+  }
+
+  console.log(`🛠️ [DEV] Simulando usuario tipo: "${DEV_USER_TYPE}"`);
+  return { ...profile, ...overrides };
+};
+
+const GENERIC_BACK_SECTIONS = new Set([
+  "menu",
+  "myPreferences",
+  "myReview",
+  "residenceLibrary",
+  "libro-residente",
+  "articulos",
+  "vivienda",
+  "roomies",
+  "ocio",
+  "notifications",
+  "specialityQuiz",
+  "rotaciones-externas",
+  "cursos",
+  "residentPayouts",
+  "residentPayoutDetail",
+  "residentPayoutEntry",
+]);
 
 export default function DashboardScreen({
   onSignOut,
   residentHasReview = true,
+  residentReviewGateState = null,
+  residentReviewGateConfig = null,
   onReviewCreated,
   onReviewDeleted,
+  showUpdateBanner = false,
+  updateUrl = null,
 }) {
   const [userProfile, setUserProfile] = useState(null);
   const [isProfileIncomplete, setIsProfileIncomplete] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [selectedHospital, setSelectedHospital] = useState(null);
+  const [showHospitalInfoScreen, setShowHospitalInfoScreen] = useState(false);
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState(null);
   const [selectedReviewId, setSelectedReviewId] = useState(null);
   const [selectedArticleId, setSelectedArticleId] = useState(null);
@@ -55,15 +126,33 @@ export default function DashboardScreen({
   const [editingHousingAdId, setEditingHousingAdId] = useState(null);
   const [creatingCourse, setCreatingCourse] = useState(false);
   const [editingCourseId, setEditingCourseId] = useState(null);
+  const [reviewComposerMode, setReviewComposerMode] = useState(null);
   const [previousSection, setPreviousSection] = useState(null); // Para volver a la sección correcta
+  const [sectionHistory, setSectionHistory] = useState([]);
   const [leisureForumType, setLeisureForumType] = useState(null); // Tipo de foro: "Fiesta" o "Deporte"
   const [selectedThreadId, setSelectedThreadId] = useState(null); // ID del thread seleccionado
+  const [selectedGroupId, setSelectedGroupId] = useState(null); // ID del grupo de chat
+  const [selectedGroupName, setSelectedGroupName] = useState(null); // Nombre del grupo de chat
+  const [roommateInitialTab, setRoommateInitialTab] = useState("discover");
+  const [selectedRoommateMatchId, setSelectedRoommateMatchId] = useState(null);
+  const [myReviewAutoOpenCreate, setMyReviewAutoOpenCreate] = useState(false);
+  const [residentPayoutRouteParams, setResidentPayoutRouteParams] = useState({
+    initialYear: null,
+    initialMonth: null,
+    lockInitialPeriod: false,
+  });
+  const [localResidentGateState, setLocalResidentGateState] =
+    useState(residentReviewGateState);
+  const screenLayoutProps = {
+    showUpdateBanner,
+    updateUrl,
+  };
 
-  // Determinar sección inicial según el tipo de usuario
+  // Determinar sección inicial según el tipo de usuario (primera pestaña = Inicio)
   const getInitialSection = (profile) => {
-    if (!profile) return "hospitales";
+    if (!profile) return "inicio";
     const footerConfig = getFooterConfig(profile);
-    return footerConfig[0]?.screen || "hospitales";
+    return footerConfig[0]?.screen || "inicio";
   };
 
   const [currentSection, setCurrentSection] = useState(() =>
@@ -83,6 +172,10 @@ export default function DashboardScreen({
     }
   }, [userProfile, loadingProfile]);
 
+  useEffect(() => {
+    setLocalResidentGateState(residentReviewGateState);
+  }, [residentReviewGateState]);
+
   // Tracking de pantalla con PostHog
   useEffect(() => {
     posthogLogger.logScreen("DashboardScreen");
@@ -97,6 +190,42 @@ export default function DashboardScreen({
     }
   }, [currentSection]);
 
+  useEffect(() => {
+    const cleanup = setNotificationNavigationHandler((data) => {
+      if (data?.destination_section === "groupChat" && data?.group_id) {
+        handleSectionChange("groupChat", {
+          groupId: data.group_id,
+          groupName: data.group_name || "Grupo",
+        });
+        return;
+      }
+
+      if (data?.entity_type === "review" && data?.entity_id) {
+        handleSectionChange("reviewDetail", { reviewId: data.entity_id });
+        return;
+      }
+
+      if (data?.entity_type === "comment" && data?.entity_id) {
+        handleSectionChange("threadDetail", { threadId: data.entity_id });
+        return;
+      }
+
+      if (data?.entity_type === "roommate_match" && data?.entity_id) {
+        handleSectionChange("roomies", {
+          initialTab: "matches",
+          matchId: data.entity_id,
+        });
+        return;
+      }
+
+      if (data?.entity_type === "course" && data?.entity_id) {
+        handleSectionChange("courseDetail", { courseId: data.entity_id });
+      }
+    });
+
+    return cleanup;
+  }, []);
+
   const loadUserProfile = async () => {
     try {
       setLoadingProfile(true);
@@ -106,7 +235,7 @@ export default function DashboardScreen({
           user.id
         );
         if (profileSuccess && profile) {
-          setUserProfile(profile);
+          setUserProfile(applyDevUserType(profile));
         }
       }
     } catch (error) {
@@ -116,7 +245,94 @@ export default function DashboardScreen({
     }
   };
 
-  const handleSectionChange = (sectionId, params = {}) => {
+  const residentReviewGateBypassed = shouldBypassResidentReviewGate(userProfile);
+  const residentGateEnabled =
+    userProfile?.is_resident &&
+    !userProfile?.is_super_admin &&
+    !residentReviewGateBypassed &&
+    !residentHasReview;
+  const residentGateStatus = localResidentGateState?.status || "soft";
+  const residentGatePromptVisible = Boolean(localResidentGateState?.promptVisible);
+  const residentGateBudget = {
+    qualifiedActionsCount: localResidentGateState?.qualifiedActionsCount || 0,
+    sessionsCount: localResidentGateState?.sessionsCount || 0,
+    hardGateActionLimit: residentReviewGateConfig?.hardGateActionLimit || 8,
+    hardGateSessionLimit: residentReviewGateConfig?.hardGateSessionLimit || 2,
+    promptActionThreshold: residentReviewGateConfig?.promptActionThreshold || 5,
+  };
+  const residentHardGateAllowedSections = new Set([
+    "inicio",
+    "myReview",
+    "usuario",
+    "contacto",
+  ]);
+
+  const showResidentGateAlert = () => {
+    Alert.alert(
+      "Ayuda a los que vienen detrás",
+      "Tu experiencia como residente puede ayudar muchísimo a futuros MIR a elegir mejor su plaza. Solo te llevará menos de 2 minutos.",
+      [
+        {
+          text: "Escribir mi reseña",
+          onPress: () => {
+            posthogLogger.capture("resident_review_gate_prompt_clicked", {
+              source: "hard_gate_alert",
+              status: residentGateStatus,
+            });
+            setCurrentSection("myReview");
+          },
+        },
+        { text: "Más tarde", style: "cancel" },
+      ]
+    );
+  };
+
+  const handleSectionChange = async (sectionId, params = {}) => {
+    if (
+      isResidentLockedMissingCorporateEmail(userProfile) &&
+      !["inicio", "usuario", "contacto"].includes(sectionId)
+    ) {
+      Alert.alert(
+        "Correo corporativo requerido",
+        "La ventana temporal MIR ya ha terminado. Añade tu correo corporativo en el perfil para recuperar el acceso completo."
+      );
+      setCurrentSection("usuario");
+      return;
+    }
+
+    if (
+      residentGateEnabled &&
+      residentGateStatus === "hard" &&
+      !residentHardGateAllowedSections.has(sectionId)
+    ) {
+      posthogLogger.capture("resident_review_gate_blocked_navigation", {
+        section: sectionId,
+        current_section: currentSection,
+      });
+      showResidentGateAlert();
+      return;
+    }
+
+    const footerSections = new Set(
+      getFooterConfig(userProfile).map((item) => item.screen)
+    );
+    const isFooterSection = footerSections.has(sectionId);
+    const shouldTrackBack = GENERIC_BACK_SECTIONS.has(sectionId);
+
+    if (sectionId !== currentSection) {
+      if (shouldTrackBack) {
+        const originSection = params.fromSection || currentSection;
+        setSectionHistory((prev) => {
+          if (prev[prev.length - 1] === originSection) {
+            return prev;
+          }
+          return [...prev, originSection];
+        });
+      } else if (isFooterSection) {
+        setSectionHistory([]);
+      }
+    }
+
     setCurrentSection(sectionId);
     // Limpiar selecciones cuando cambiamos de sección
     if (
@@ -128,7 +344,8 @@ export default function DashboardScreen({
       sectionId !== "createHousingAd" &&
       sectionId !== "editHousingAd" &&
       sectionId !== "createCourse" &&
-      sectionId !== "editCourse"
+      sectionId !== "editCourse" &&
+      sectionId !== "groupChat"
     ) {
       setSelectedHospital(null);
       setSelectedSpecialtyId(null);
@@ -140,7 +357,12 @@ export default function DashboardScreen({
       setEditingHousingAdId(null);
       setCreatingCourse(false);
       setEditingCourseId(null);
+      setReviewComposerMode(null);
+      setMyReviewAutoOpenCreate(false);
       setPreviousSection(null); // Limpiar la sección anterior al cambiar de sección
+    }
+    if (sectionId === "myReview") {
+      setMyReviewAutoOpenCreate(Boolean(params.autoOpenCreateReview));
     }
     // Si es reviewDetail, guardar el reviewId
     if (sectionId === "reviewDetail" && params.reviewId) {
@@ -152,6 +374,7 @@ export default function DashboardScreen({
     }
     // Si es courseDetail, guardar el courseId
     if (sectionId === "courseDetail" && params.courseId) {
+      setPreviousSection(params.fromSection || currentSection);
       setSelectedCourseId(params.courseId);
     }
     // Si es housingDetail, guardar el adId
@@ -184,16 +407,126 @@ export default function DashboardScreen({
     }
     // Si es threadDetail, guardar el threadId
     if (sectionId === "threadDetail" && params.threadId) {
+      setPreviousSection(params.fromSection || currentSection);
       setSelectedThreadId(params.threadId);
     }
     // Si volvemos desde threadDetail, limpiar el threadId
     if (sectionId === "leisureForum") {
       setSelectedThreadId(null);
     }
+    // Si es groupChat, guardar groupId y nombre
+    if (sectionId === "groupChat" && params.groupId) {
+      setSelectedGroupId(params.groupId);
+      setSelectedGroupName(params.groupName || "Grupo");
+    }
+    // Permitir entrar por la sección de chats con un chat concreto preabierto
+    if (sectionId === "grupos" && params.groupId) {
+      setSelectedGroupId(params.groupId);
+      setSelectedGroupName(params.groupName || "Grupo");
+    }
+    // Si volvemos a la lista de chats sin un chat concreto, limpiar selección
+    if (sectionId === "grupos" && !params.groupId) {
+      setSelectedGroupId(null);
+      setSelectedGroupName(null);
+    }
+    if (sectionId === "roomies") {
+      setRoommateInitialTab(params.initialTab || "discover");
+      setSelectedRoommateMatchId(params.matchId || null);
+    } else {
+      setRoommateInitialTab("discover");
+      setSelectedRoommateMatchId(null);
+    }
+
+    if (sectionId === "residentPayouts") {
+      setResidentPayoutRouteParams({
+        initialYear: params.initialYear || null,
+        initialMonth: params.initialMonth || null,
+        lockInitialPeriod: Boolean(params.lockInitialPeriod),
+      });
+    } else if (sectionId === "residentPayoutDetail") {
+      setResidentPayoutRouteParams({
+        initialYear: params.initialYear || null,
+        initialMonth: params.initialMonth || null,
+        lockInitialPeriod: false,
+      });
+    } else if (sectionId === "residentPayoutEntry") {
+      setResidentPayoutRouteParams({
+        initialYear: params.initialYear || null,
+        initialMonth: params.initialMonth || null,
+        lockInitialPeriod: Boolean(params.lockInitialPeriod),
+      });
+    } else {
+      setResidentPayoutRouteParams({
+        initialYear: null,
+        initialMonth: null,
+        lockInitialPeriod: false,
+      });
+    }
+
+    if (
+      residentGateEnabled &&
+      userProfile?.id &&
+      isQualifiedResidentSection(sectionId)
+    ) {
+      const { state, counted, hardLockedChanged } =
+        await registerQualifiedResidentAction(userProfile.id, {
+          sectionId,
+          actionType: "section_visit",
+        });
+
+      setLocalResidentGateState(state);
+
+      if (counted) {
+        posthogLogger.capture("resident_review_gate_qualified_action", {
+          action_type: "section_visit",
+          current_section: sectionId,
+          budget_count: state.qualifiedActionsCount,
+          sessions_count: state.sessionsCount,
+        });
+      }
+
+      if (state?.promptVisible && !residentGatePromptVisible) {
+        posthogLogger.capture("resident_review_gate_prompt_shown", {
+          budget_count: state.qualifiedActionsCount,
+          sessions_count: state.sessionsCount,
+        });
+      }
+
+      if (hardLockedChanged) {
+        posthogLogger.capture("resident_review_gate_hard_locked", {
+          budget_count: state.qualifiedActionsCount,
+          sessions_count: state.sessionsCount,
+        });
+      }
+    }
   };
+
+  const handleBackFromGenericSection = () => {
+    let nextSection = getDefaultSection();
+
+    setSectionHistory((prev) => {
+      if (!prev.length) {
+        return prev;
+      }
+
+      const nextHistory = [...prev];
+      nextSection = nextHistory.pop() || getDefaultSection();
+      return nextHistory;
+    });
+
+    setCurrentSection(nextSection);
+  };
+
+  const renderSectionWithBackButton = (section) => (
+    <View style={styles.sectionShell}>
+      <BackNavigationButton onPress={handleBackFromGenericSection} />
+      <View style={styles.sectionBody}>{section}</View>
+    </View>
+  );
 
   const handleHospitalSelect = (hospital, specialtyId, fromSection = null) => {
     setSelectedHospital(hospital);
+    setShowHospitalInfoScreen(false);
     setSelectedSpecialtyId(specialtyId || null);
     // Guardar la sección de origen para poder volver a ella
     setPreviousSection(fromSection || currentSection);
@@ -203,10 +536,11 @@ export default function DashboardScreen({
   // Obtener la primera sección del footer según el tipo de usuario
   const getDefaultSection = () => {
     const footerConfig = getFooterConfig(userProfile);
-    return footerConfig[0]?.screen || "hospitales";
+    return footerConfig[0]?.screen || "inicio";
   };
 
   const handleBackFromDetail = () => {
+    setShowHospitalInfoScreen(false);
     setSelectedHospital(null);
     setSelectedSpecialtyId(null);
     // Volver a la sección de origen si existe, sino a la sección por defecto
@@ -224,13 +558,44 @@ export default function DashboardScreen({
 
   const handleBackFromThreadDetail = () => {
     setSelectedThreadId(null);
-    setCurrentSection("leisureForum");
+    setCurrentSection(previousSection || "leisureForum");
+    setPreviousSection(null);
   };
+
+  const handleBackFromGroupChat = () => {
+    setSelectedGroupId(null);
+    setSelectedGroupName(null);
+    setCurrentSection("grupos");
+  };
+
+  // Si estamos en el chat de un grupo
+  if (selectedGroupId) {
+    return (
+      <ScreenLayout
+        {...screenLayoutProps}
+        userProfile={userProfile}
+        activeSection="grupos"
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+        hideFooter
+      >
+        <SwipeBackWrapper onSwipeBack={handleBackFromGroupChat}>
+          <GroupChatScreen
+            groupId={selectedGroupId}
+            groupName={selectedGroupName}
+            userProfile={userProfile}
+            onBack={handleBackFromGroupChat}
+          />
+        </SwipeBackWrapper>
+      </ScreenLayout>
+    );
+  }
 
   // Si estamos en la pantalla de detalle del thread
   if (selectedThreadId) {
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection="ocio"
         isProfileIncomplete={isProfileIncomplete}
@@ -252,17 +617,26 @@ export default function DashboardScreen({
   if (selectedHospital) {
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
         onSectionChange={handleSectionChange}
       >
         <SwipeBackWrapper onSwipeBack={handleBackFromDetail}>
-          <HospitalDetailScreen
-            hospital={selectedHospital}
-            selectedSpecialtyId={selectedSpecialtyId}
-            onBack={handleBackFromDetail}
-          />
+          {showHospitalInfoScreen ? (
+            <HospitalInfoScreen
+              hospital={selectedHospital}
+              onBack={() => setShowHospitalInfoScreen(false)}
+            />
+          ) : (
+            <HospitalDetailScreen
+              hospital={selectedHospital}
+              selectedSpecialtyId={selectedSpecialtyId}
+              onBack={handleBackFromDetail}
+              onOpenHospitalInfo={() => setShowHospitalInfoScreen(true)}
+            />
+          )}
         </SwipeBackWrapper>
       </ScreenLayout>
     );
@@ -276,6 +650,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -300,6 +675,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -324,6 +700,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -351,6 +728,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -371,14 +749,48 @@ export default function DashboardScreen({
     );
   }
 
+  if (reviewComposerMode) {
+    const handleBackFromReviewComposer = () => {
+      setReviewComposerMode(null);
+      setCurrentSection("myReview");
+    };
+
+    return (
+      <ScreenLayout
+        {...screenLayoutProps}
+        userProfile={userProfile}
+        activeSection={currentSection}
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <SwipeBackWrapper onSwipeBack={handleBackFromReviewComposer}>
+          <ReviewComposerScreen
+            userProfile={userProfile}
+            mode={reviewComposerMode}
+            onBack={handleBackFromReviewComposer}
+            onSuccess={(result) => {
+              setReviewComposerMode(null);
+              setCurrentSection("myReview");
+              if (result === "created") {
+                onReviewCreated?.();
+              }
+            }}
+          />
+        </SwipeBackWrapper>
+      </ScreenLayout>
+    );
+  }
+
   // Si estamos en la pantalla de detalle del curso
   if (selectedCourseId) {
     const handleBackFromCourse = () => {
       setSelectedCourseId(null);
-      setCurrentSection("cursos");
+      setCurrentSection(previousSection || "cursos");
+      setPreviousSection(null);
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -412,6 +824,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -422,6 +835,7 @@ export default function DashboardScreen({
             adId={selectedHousingAdId}
             onBack={handleBackFromHousing}
             userProfile={userProfile}
+            onSectionChange={handleSectionChange}
             onEdit={(adId) => {
               // Por ahora solo volvemos, luego se puede implementar edición
               console.log("Edit housing ad:", adId);
@@ -447,6 +861,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -475,6 +890,7 @@ export default function DashboardScreen({
     };
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -499,7 +915,19 @@ export default function DashboardScreen({
   // Renderizar según la sección activa
   const renderSection = () => {
     switch (currentSection) {
-      // Secciones existentes
+      case "inicio":
+        return (
+          <HomeDashboardScreen
+            userProfile={userProfile}
+            residentHasReview={residentHasReview}
+            residentReviewGateStatus={residentGateStatus}
+            residentReviewGateBypassed={residentReviewGateBypassed}
+            residentReviewGateBudget={residentGateBudget}
+            onHospitalSelect={handleHospitalSelect}
+            onSectionChange={handleSectionChange}
+          />
+        );
+
       case "hospitals":
       case "hospitales":
         return (
@@ -513,12 +941,18 @@ export default function DashboardScreen({
 
       case "mirSimulator":
       case "nota-mir":
-        return <MirSimulatorScreen onBack={handleBackFromMirSimulator} />;
+        return (
+          <MirSimulatorScreen
+            onBack={handleBackFromMirSimulator}
+            userProfile={userProfile}
+          />
+        );
 
       case "specialityQuiz":
         return (
           <SpecialityQuizScreen
             userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
             onSectionChange={handleSectionChange}
           />
         );
@@ -529,6 +963,7 @@ export default function DashboardScreen({
           <ProfileScreen
             onBack={handleBackFromProfile}
             onSignOut={onSignOut}
+            onProfileUpdated={loadUserProfile}
             onSectionChange={handleSectionChange}
             currentSection={currentSection}
           />
@@ -546,12 +981,24 @@ export default function DashboardScreen({
         return (
           <NotificationsScreen
             userId={userProfile?.id}
-            onBack={() => handleSectionChange("usuario")}
+            onBack={handleBackFromGenericSection}
             onNavigateToEntity={(screenId, entityId) => {
               if (screenId === "reviewDetail") {
                 handleSectionChange("reviewDetail", { reviewId: entityId });
               } else if (screenId === "threadDetail") {
                 handleSectionChange("threadDetail", { threadId: entityId });
+              } else if (screenId === "roomies") {
+                handleSectionChange("roomies", {
+                  initialTab: "matches",
+                  matchId: entityId,
+                });
+              } else if (screenId === "groupChat") {
+                handleSectionChange("groupChat", {
+                  groupId: entityId.groupId,
+                  groupName: entityId.groupName,
+                });
+              } else if (screenId === "courseDetail") {
+                handleSectionChange("courseDetail", { courseId: entityId });
               }
             }}
           />
@@ -562,9 +1009,12 @@ export default function DashboardScreen({
         return (
           <MenuScreen
             onSectionChange={handleSectionChange}
+            onBack={handleBackFromGenericSection}
             currentSection={currentSection}
             userProfile={userProfile}
             residentHasReview={residentHasReview}
+            residentReviewGateStatus={residentGateStatus}
+            residentReviewGateBypassed={residentReviewGateBypassed}
           />
         );
 
@@ -575,6 +1025,7 @@ export default function DashboardScreen({
             currentSection={currentSection}
             userProfile={userProfile}
             onHospitalSelect={handleHospitalSelect}
+            onBack={handleBackFromGenericSection}
           />
         );
 
@@ -583,6 +1034,7 @@ export default function DashboardScreen({
           <ComunityScreen
             userProfile={userProfile}
             navigation={{ navigate: handleSectionChange }}
+            residentReviewGateStatus={residentGateStatus}
           />
         );
 
@@ -593,15 +1045,23 @@ export default function DashboardScreen({
             navigation={{ navigate: handleSectionChange }}
             onReviewCreated={onReviewCreated}
             onReviewDeleted={onReviewDeleted}
+            autoOpenCreateReview={myReviewAutoOpenCreate}
+            onAutoOpenCreateReviewHandled={() => setMyReviewAutoOpenCreate(false)}
+            onCreateReview={() => setReviewComposerMode("create")}
+            onEditReview={() => setReviewComposerMode("edit")}
+            onBack={handleBackFromGenericSection}
           />
         );
 
       case "residenceLibrary":
+      case "libro-residente":
         return (
           <ResidenceLibraryScreen
             userProfile={userProfile}
             navigation={{ navigate: handleSectionChange }}
+            onBack={handleBackFromGenericSection}
             residentHasReview={residentHasReview}
+            residentReviewGateStatus={residentGateStatus}
           />
         );
 
@@ -611,6 +1071,7 @@ export default function DashboardScreen({
           <ArticlesScreen
             onSectionChange={handleSectionChange}
             userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
           />
         );
 
@@ -621,6 +1082,18 @@ export default function DashboardScreen({
             onSectionChange={handleSectionChange}
             currentSection={currentSection}
             userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+          />
+        );
+
+      case "roomies":
+        return (
+          <RoommateScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+            onSectionChange={handleSectionChange}
+            initialTab={roommateInitialTab}
+            initialMatchId={selectedRoommateMatchId}
           />
         );
 
@@ -629,6 +1102,7 @@ export default function DashboardScreen({
         return (
           <LeisureScreen
             onSectionChange={handleSectionChange}
+            onBack={handleBackFromGenericSection}
             userProfile={userProfile}
           />
         );
@@ -654,12 +1128,18 @@ export default function DashboardScreen({
 
       // Pantalla de contacto
       case "contacto":
-        return <ContactScreen userProfile={userProfile} />;
+        return (
+          <ContactScreen
+            userProfile={userProfile}
+            onBack={() => handleSectionChange("usuario")}
+          />
+        );
 
-      // Pantalla de guardias
+      // Pantalla de agenda
+      case "agenda":
       case "guardias":
         return (
-          <ShiftsScreen
+          <AgendaScreen
             userProfile={userProfile}
             navigation={{ navigate: handleSectionChange }}
             onNavigateToSection={handleSectionChange}
@@ -667,12 +1147,12 @@ export default function DashboardScreen({
         );
 
       // Secciones del menú (placeholder)
-      case "libro-residente":
       case "rotaciones-externas":
         return (
           <ExternalRotationsScreen
             userProfile={userProfile}
             navigation={{ navigate: handleSectionChange }}
+            onBack={handleBackFromGenericSection}
           />
         );
 
@@ -681,6 +1161,65 @@ export default function DashboardScreen({
           <LecturesScreen
             userProfile={userProfile}
             navigation={{ navigate: handleSectionChange }}
+            onBack={handleBackFromGenericSection}
+          />
+        );
+
+      case "residentPayouts":
+        return (
+          <ResidentPayoutsScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+            onOpenDetail={(params = {}) =>
+              handleSectionChange("residentPayoutDetail", {
+                initialYear: params.initialYear || new Date().getFullYear(),
+                initialMonth: params.initialMonth || new Date().getMonth() + 1,
+              })
+            }
+            onCreateEntry={(params = {}) =>
+              handleSectionChange("residentPayoutEntry", {
+                initialYear: params.initialYear || new Date().getFullYear(),
+                initialMonth: params.initialMonth || new Date().getMonth() + 1,
+                lockInitialPeriod: Boolean(params.lockInitialPeriod),
+              })
+            }
+          />
+        );
+
+      case "residentPayoutDetail":
+        return (
+          <ResidentPayoutDetailScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+            onEdit={(params = {}) =>
+              handleSectionChange("residentPayoutEntry", {
+                initialYear: params.initialYear || residentPayoutRouteParams.initialYear,
+                initialMonth:
+                  params.initialMonth || residentPayoutRouteParams.initialMonth,
+                lockInitialPeriod: Boolean(params.lockInitialPeriod),
+              })
+            }
+            initialYear={residentPayoutRouteParams.initialYear}
+            initialMonth={residentPayoutRouteParams.initialMonth}
+          />
+        );
+
+      case "residentPayoutEntry":
+        return (
+          <ResidentPayoutEntryScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+            initialYear={residentPayoutRouteParams.initialYear}
+            initialMonth={residentPayoutRouteParams.initialMonth}
+            lockInitialPeriod={residentPayoutRouteParams.lockInitialPeriod}
+          />
+        );
+
+      case "grupos":
+        return (
+          <GroupsScreen
+            onSectionChange={handleSectionChange}
+            userProfile={userProfile}
           />
         );
 
@@ -708,6 +1247,7 @@ export default function DashboardScreen({
   if (loadingProfile) {
     return (
       <ScreenLayout
+        {...screenLayoutProps}
         userProfile={userProfile}
         activeSection={currentSection}
         isProfileIncomplete={isProfileIncomplete}
@@ -722,8 +1262,9 @@ export default function DashboardScreen({
 
   return (
     <ScreenLayout
+      {...screenLayoutProps}
       userProfile={userProfile}
-      activeSection={currentSection}
+      activeSection={currentSection === "roomies" ? "vivienda" : currentSection}
       isProfileIncomplete={isProfileIncomplete}
       onSectionChange={handleSectionChange}
     >
@@ -737,6 +1278,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  sectionShell: {
+    flex: 1,
+  },
+  sectionBody: {
+    flex: 1,
   },
   loadingText: {
     fontSize: 16,

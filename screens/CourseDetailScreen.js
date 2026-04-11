@@ -1,36 +1,106 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { getCourseById, deleteCourse } from "../services/lectureService";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
+import {
+  deleteCourse,
+  getCourseById,
+  toggleCourseLike,
+} from "../services/lectureService";
 import { getCurrentUser } from "../services/authService";
-import { formatShortDate, formatDateOnly } from "../utils/dateUtils";
+import { formatDateOnly, formatShortDate } from "../utils/dateUtils";
 import { openURL } from "../utils/courseUtils";
-import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
 
-/**
- * Pantalla de detalle de curso.
- * Muestra solo los bloques con datos; los opcionales se ocultan si no existen.
- */
+const PRIMARY = "#670CF5";
+const SECONDARY = "#00BD7C";
+const ACCENT = "#1B0977";
+const BG_LIGHT = "#F8F9FE";
+const CARD_BORDER = "#F1F5F9";
+const MUTED = "#64748B";
+const MUTED_LIGHT = "#94A3B8";
+const DANGER = "#EF4444";
+
+function InfoPill({ icon, text, accent = "purple" }) {
+  return (
+    <View
+      style={[
+        styles.infoPill,
+        accent === "purple" && styles.infoPillPurple,
+        accent === "green" && styles.infoPillGreen,
+        accent === "blue" && styles.infoPillBlue,
+      ]}
+    >
+      <Ionicons
+        name={icon}
+        size={16}
+        color={
+          accent === "purple"
+            ? PRIMARY
+            : accent === "green"
+              ? SECONDARY
+              : "#2563EB"
+        }
+      />
+      <Text
+        style={[
+          styles.infoPillText,
+          accent === "purple" && styles.infoPillTextPurple,
+          accent === "green" && styles.infoPillTextGreen,
+          accent === "blue" && styles.infoPillTextBlue,
+        ]}
+      >
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+function SectionCard({ title, children }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionLabel}>{title}</Text>
+      <View style={styles.sectionCard}>{children}</View>
+    </View>
+  );
+}
+
+function InfoRow({ icon, label, value }) {
+  return (
+    <View style={styles.infoRow}>
+      <View style={styles.infoIconWrap}>
+        <Ionicons name={icon} size={15} color={PRIMARY} />
+      </View>
+      <View style={styles.infoCopy}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={styles.infoValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function CourseDetailScreen({
   courseId,
   onBack,
   onEdit,
   onDelete,
-  userProfile,
 }) {
+  const insets = useSafeAreaInsets();
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
 
   useEffect(() => {
     posthogLogger.logScreen("CourseDetailScreen", { courseId });
@@ -40,11 +110,14 @@ export default function CourseDetailScreen({
     const loadUser = async () => {
       try {
         const { success, user } = await getCurrentUser();
-        if (success && user) setCurrentUserId(user.id);
+        if (success && user) {
+          setCurrentUserId(user.id);
+        }
       } catch (err) {
         console.error("Error loading current user:", err);
       }
     };
+
     loadUser();
   }, []);
 
@@ -55,44 +128,84 @@ export default function CourseDetailScreen({
         setLoading(false);
         return;
       }
+
       try {
         setLoading(true);
         setError(null);
-        const fetchedCourse = await getCourseById(courseId);
+        const fetchedCourse = await getCourseById(courseId, currentUserId);
         setCourse(fetchedCourse);
       } catch (err) {
         console.error("Error fetching course:", err);
-        setError("Error al cargar el curso");
+        setError("No se pudo cargar el curso");
       } finally {
         setLoading(false);
       }
     };
-    loadCourse();
-  }, [courseId]);
 
-  const formatDateRange = () => {
-    if (!course?.event_dates || course.event_dates.length === 0) return "";
-    if (course.event_dates.length === 1) {
-      return formatDateOnly(course.event_dates[0]);
-    }
-    const start = formatDateOnly(course.event_dates[0]);
-    const end = formatDateOnly(course.event_dates[course.event_dates.length - 1]);
-    return `${start} – ${end}`;
-  };
+    loadCourse();
+  }, [courseId, currentUserId]);
+
+  const sortedDates = useMemo(
+    () => (Array.isArray(course?.event_dates) ? [...course.event_dates].sort() : []),
+    [course?.event_dates]
+  );
+
+  const dateLabel = useMemo(() => {
+    if (sortedDates.length === 0) return "Sin fecha";
+    if (sortedDates.length === 1) return formatDateOnly(sortedDates[0]);
+    return `${formatDateOnly(sortedDates[0])} - ${formatDateOnly(
+      sortedDates[sortedDates.length - 1]
+    )}`;
+  }, [sortedDates]);
+
+  const quickStats = useMemo(
+    () =>
+      [
+        { key: "date", icon: "calendar-outline", label: dateLabel, accent: "purple" },
+        course?.teaching_hours
+          ? {
+              key: "hours",
+              icon: "time-outline",
+              label: course.teaching_hours,
+              accent: "blue",
+            }
+          : null,
+        course?.price_text
+          ? {
+              key: "price",
+              icon: "cash-outline",
+              label: course.price_text,
+              accent: "green",
+            }
+          : null,
+        course?.seats_available != null && course?.seats_available !== ""
+          ? {
+              key: "seats",
+              icon: "people-outline",
+              label: `${course.seats_available} plazas`,
+              accent: "purple",
+            }
+          : null,
+      ].filter(Boolean),
+    [course?.price_text, course?.seats_available, course?.teaching_hours, dateLabel]
+  );
+
+  const canEditCourse = Boolean(
+    currentUserId && course?.created_by_id && currentUserId === course.created_by_id
+  );
 
   const handleRegister = useCallback(() => {
-    if (course?.registration_url) openURL(course.registration_url);
-  }, [course]);
-
-  const handleEdit = useCallback(() => {
-    if (onEdit && course?.id) onEdit(course.id);
-  }, [onEdit, course?.id]);
+    if (course?.registration_url) {
+      openURL(course.registration_url);
+    }
+  }, [course?.registration_url]);
 
   const handleDelete = useCallback(() => {
     if (!course?.id) return;
+
     Alert.alert(
       "Eliminar curso",
-      "¿Estás seguro de que quieres eliminar este curso? Esta acción no se puede deshacer.",
+      "Esta acción eliminará el curso y no se puede deshacer.",
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -101,7 +214,7 @@ export default function CourseDetailScreen({
           onPress: async () => {
             try {
               await deleteCourse(course.id);
-              if (onDelete) onDelete(course.id);
+              onDelete?.(course.id);
             } catch (err) {
               console.error("Error deleting course:", err);
               Alert.alert("Error", "No se pudo eliminar el curso.");
@@ -112,462 +225,605 @@ export default function CourseDetailScreen({
     );
   }, [course?.id, onDelete]);
 
-  const canEditCourse =
-    currentUserId &&
-    course?.created_by_id &&
-    course.created_by_id === currentUserId;
-  const hasLocation = course?.venue_name || course?.venue_address;
-  const hasCourseMeta =
-    course?.hospital ||
-    course?.speciality ||
-    course?.course_code ||
-    course?.course_directors;
+  const handleToggleFavorite = useCallback(async () => {
+    if (!course?.id || favoriteLoading) {
+      return;
+    }
+
+    if (!currentUserId) {
+      Alert.alert(
+        "Inicia sesión",
+        "Necesitas haber iniciado sesión para guardar cursos."
+      );
+      return;
+    }
+
+    try {
+      setFavoriteLoading(true);
+      const liked = await toggleCourseLike(currentUserId, course.id);
+      setCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              is_liked: liked,
+            }
+          : prev
+      );
+    } catch (err) {
+      console.error("Error toggling course like:", err);
+      Alert.alert("Error", "No se pudo guardar el curso.");
+    } finally {
+      setFavoriteLoading(false);
+    }
+  }, [course?.id, currentUserId, favoriteLoading]);
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton} activeOpacity={0.7}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.GRAY_DARK} />
-            <Text style={styles.backButtonText}>Volver a Cursos</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-          <Text style={styles.loadingText}>Cargando curso...</Text>
-        </View>
+      <View style={styles.stateContainer}>
+        <ActivityIndicator size="large" color={PRIMARY} />
+        <Text style={styles.stateText}>Cargando curso...</Text>
       </View>
     );
   }
 
   if (error || !course) {
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton} activeOpacity={0.7}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.GRAY_DARK} />
-            <Text style={styles.backButtonText}>Volver a Cursos</Text>
-          </TouchableOpacity>
+      <View style={styles.stateContainer}>
+        <View style={styles.stateIconWrap}>
+          <Ionicons name="alert-circle-outline" size={32} color={DANGER} />
         </View>
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={56} color={COLORS.ERROR} />
-          <Text style={styles.errorTitle}>{error || "Curso no encontrado"}</Text>
-          <Text style={styles.errorText}>
-            {error
-              ? "No se pudo cargar la información del curso."
-              : "El curso que buscas no existe o ha sido eliminado."}
-          </Text>
-        </View>
+        <Text style={styles.stateTitle}>{error || "Curso no encontrado"}</Text>
+        <Text style={styles.stateText}>
+          Revisa el identificador o vuelve al listado para seguir explorando.
+        </Text>
+        <TouchableOpacity style={styles.secondaryButton} onPress={onBack}>
+          <Text style={styles.secondaryButtonText}>Volver a cursos</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Header fijo */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.GRAY_DARK} />
-          <Text style={styles.backButtonText}>Volver</Text>
-        </TouchableOpacity>
-        {canEditCourse && (onEdit || onDelete) && (
+  const header = (
+    <ScreenHeader
+      title="Cursos"
+      onBack={onBack}
+      compact
+      variant="brand"
+      rightSlot={
+        canEditCourse ? (
           <View style={styles.headerActions}>
-            {onEdit && (
-              <TouchableOpacity onPress={handleEdit} style={styles.headerActionButton} activeOpacity={0.7}>
-                <Ionicons name="pencil-outline" size={20} color={COLORS.PRIMARY} />
-                <Text style={styles.editButtonText}>Editar</Text>
-              </TouchableOpacity>
-            )}
-            {onDelete && (
+            {onEdit ? (
               <TouchableOpacity
-                onPress={handleDelete}
-                style={styles.headerActionButton}
+                style={styles.headerIconButton}
+                onPress={() => onEdit(course.id)}
                 activeOpacity={0.7}
-                accessibilityLabel="Eliminar curso"
               >
-                <Ionicons name="trash-outline" size={20} color={COLORS.ERROR} />
-                <Text style={styles.deleteButtonText}>Eliminar</Text>
+                <Ionicons name="pencil-outline" size={18} color="#FFFFFF" />
               </TouchableOpacity>
-            )}
+            ) : null}
+            {onDelete ? (
+              <TouchableOpacity
+                style={[styles.headerIconButton, styles.headerDangerButton]}
+                onPress={handleDelete}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            ) : null}
           </View>
-        )}
-      </View>
+        ) : null
+      }
+    />
+  );
 
-      <View style={styles.content}>
-        {/* Bloque principal: título y organización */}
+  return (
+    <ScreenScaffold
+      header={header}
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.container}
+    >
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom + 32, 40) },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.heroCard}>
-          <Text style={styles.title}>{course.title}</Text>
-          {course.organization ? (
-            <Text style={styles.organization}>{course.organization}</Text>
-          ) : null}
-        </View>
-
-        {/* Resumen: fechas (siempre) + duración, precio, plazas (si existen) */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Resumen</Text>
-          <View style={styles.summaryGrid}>
-            <View style={styles.summaryItem}>
-              <Ionicons name="calendar-outline" size={18} color={COLORS.PRIMARY} />
-              <Text style={styles.summaryValue}>{formatDateRange()}</Text>
-              {course.event_dates?.length > 1 && (
-                <Text style={styles.summaryHint}>
-                  {course.event_dates.length} días
-                </Text>
-              )}
+          <View style={styles.heroTopRow}>
+            <View style={styles.heroBadge}>
+              <Ionicons name="school-outline" size={16} color={PRIMARY} />
+              <Text style={styles.heroBadgeText}>Curso</Text>
             </View>
-            {course.teaching_hours ? (
-              <View style={styles.summaryItem}>
-                <Ionicons name="time-outline" size={18} color={COLORS.GRAY} />
-                <Text style={styles.summaryValue}>{course.teaching_hours}</Text>
+            {course.is_liked ? (
+              <View style={styles.savedBadge}>
+                <Ionicons name="heart" size={14} color={SECONDARY} />
+                <Text style={styles.savedBadgeText}>Guardado</Text>
               </View>
             ) : null}
-            {course.price_text ? (
-              <View style={[styles.summaryItem, styles.summaryItemHighlight]}>
-                <Ionicons name="cash-outline" size={18} color={COLORS.SUCCESS} />
-                <Text style={[styles.summaryValue, styles.summaryValuePrice]}>
-                  {course.price_text}
-                </Text>
-              </View>
-            ) : null}
-            {course.seats_available != null && course.seats_available !== "" ? (
-              <View style={styles.summaryItem}>
-                <Ionicons name="people-outline" size={18} color={COLORS.GRAY} />
-                <Text style={styles.summaryValue}>
-                  {course.seats_available} plazas
-                </Text>
-              </View>
+          </View>
+
+          <Text style={styles.heroTitle}>{course.title}</Text>
+
+          {course.organization ? (
+            <Text style={styles.heroSubtitle}>{course.organization}</Text>
+          ) : null}
+
+          <View style={styles.quickStats}>
+            {quickStats.map((item) => (
+              <InfoPill
+                key={item.key}
+                icon={item.icon}
+                text={item.label}
+                accent={item.accent}
+              />
+            ))}
+          </View>
+
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={[
+                styles.favoriteButton,
+                course.is_liked && styles.favoriteButtonActive,
+                favoriteLoading && styles.favoriteButtonDisabled,
+              ]}
+              onPress={handleToggleFavorite}
+              activeOpacity={0.88}
+              disabled={favoriteLoading}
+            >
+              <Ionicons
+                name={course.is_liked ? "heart" : "heart-outline"}
+                size={18}
+                color={course.is_liked ? "#FFFFFF" : PRIMARY}
+              />
+              <Text
+                style={[
+                  styles.favoriteButtonText,
+                  course.is_liked && styles.favoriteButtonTextActive,
+                ]}
+              >
+                {course.is_liked ? "En mis cursos" : "Guardar"}
+              </Text>
+            </TouchableOpacity>
+
+            {course.registration_url ? (
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={handleRegister}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.primaryButtonText}>Inscribirme</Text>
+                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
             ) : null}
           </View>
         </View>
 
-        {/* Ubicación (solo si hay datos) */}
-        {hasLocation && (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Ubicación</Text>
-            <View style={styles.card}>
+        <View style={styles.content}>
+          {(course.hospital?.name || course.venue_name || course.venue_address) && (
+            <SectionCard title="Dónde se imparte">
+              {course.hospital?.name ? (
+                <InfoRow
+                  icon="business-outline"
+                  label="Hospital"
+                  value={`${course.hospital.name}${
+                    course.hospital.city ? ` · ${course.hospital.city}` : ""
+                  }`}
+                />
+              ) : null}
               {course.venue_name ? (
-                <Text style={styles.venueName}>{course.venue_name}</Text>
+                <InfoRow icon="location-outline" label="Sede" value={course.venue_name} />
               ) : null}
               {course.venue_address ? (
-                <Text style={styles.venueAddress}>{course.venue_address}</Text>
+                <InfoRow
+                  icon="navigate-outline"
+                  label="Dirección"
+                  value={course.venue_address}
+                />
               ) : null}
-            </View>
-          </View>
-        )}
+            </SectionCard>
+          )}
 
-        {/* Datos del curso: hospital, especialidad, código, directores (solo si hay alguno) */}
-        {hasCourseMeta && (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Datos del curso</Text>
-            <View style={styles.card}>
-              {course.hospital && (
-                <View style={styles.dataRow}>
-                  <Text style={styles.dataLabel}>Hospital</Text>
-                  <Text style={styles.dataValue}>
-                    {course.hospital.name}
-                    {course.hospital.city ? ` · ${course.hospital.city}` : ""}
-                  </Text>
+          {sortedDates.length > 1 ? (
+            <SectionCard title="Calendario">
+              {sortedDates.map((date) => (
+                <View key={date} style={styles.timelineRow}>
+                  <View style={styles.timelineDot} />
+                  <Text style={styles.timelineText}>{formatShortDate(date)}</Text>
                 </View>
-              )}
-              {course.speciality && (
+              ))}
+            </SectionCard>
+          ) : null}
+
+          {course.speciality || course.course_code || course.course_directors ? (
+            <SectionCard title="Ficha del curso">
+              {course.speciality ? (
                 <View style={styles.dataRow}>
                   <Text style={styles.dataLabel}>Especialidad</Text>
-                  <Text style={[styles.dataValue, styles.dataValueSpecialty]}>
-                    {course.speciality.name}
-                  </Text>
+                  <Text style={styles.dataValue}>{course.speciality.name}</Text>
                 </View>
-              )}
-              {course.course_code && (
+              ) : null}
+              {course.course_code ? (
                 <View style={styles.dataRow}>
                   <Text style={styles.dataLabel}>Código</Text>
                   <Text style={styles.dataValue}>{course.course_code}</Text>
                 </View>
-              )}
-              {course.course_directors && (
+              ) : null}
+              {course.course_directors ? (
                 <View style={styles.dataRow}>
-                  <Text style={styles.dataLabel}>Directores</Text>
+                  <Text style={styles.dataLabel}>Dirección</Text>
                   <Text style={styles.dataValue}>{course.course_directors}</Text>
                 </View>
-              )}
-            </View>
-          </View>
-        )}
+              ) : null}
+            </SectionCard>
+          ) : null}
 
-        {/* Objetivos (solo si hay) */}
-        {course.objectives ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Objetivos</Text>
-            <View style={styles.card}>
-              <Text style={styles.bodyText}>{course.objectives}</Text>
-            </View>
-          </View>
-        ) : null}
+          {course.registration_url ? (
+            <SectionCard title="Inscripción">
+              <Text style={styles.cardBody}>
+                Accede al enlace oficial para revisar plazas, requisitos y el
+                formulario de inscripción.
+              </Text>
+              <TouchableOpacity
+                style={styles.secondaryAction}
+                onPress={handleRegister}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.secondaryActionText}>Abrir enlace</Text>
+                <Ionicons name="open-outline" size={16} color={PRIMARY} />
+              </TouchableOpacity>
+            </SectionCard>
+          ) : null}
 
-        {/* Más información (solo si hay) */}
-        {course.more_info ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Más información</Text>
-            <View style={styles.card}>
-              <Text style={styles.bodyText}>{course.more_info}</Text>
-            </View>
-          </View>
-        ) : null}
+          {course.objectives ? (
+            <SectionCard title="Objetivos">
+              <Text style={styles.cardBody}>{course.objectives}</Text>
+            </SectionCard>
+          ) : null}
 
-        {/* CTA inscripción (solo si hay URL) */}
-        {course.registration_url ? (
-          <TouchableOpacity
-            style={styles.ctaButton}
-            onPress={handleRegister}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="link" size={22} color={COLORS.WHITE} />
-            <Text style={styles.ctaButtonText}>Inscribirse en el curso</Text>
-          </TouchableOpacity>
-        ) : null}
-
-        <View style={styles.bottomSpacer} />
-      </View>
-    </ScrollView>
+          {course.more_info ? (
+            <SectionCard title="Más información">
+              <Text style={styles.cardBody}>{course.more_info}</Text>
+            </SectionCard>
+          ) : null}
+        </View>
+      </ScrollView>
+    </ScreenScaffold>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND,
-  },
-  scrollContent: {
-    paddingBottom: 32,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: COLORS.WHITE,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.BORDER,
-  },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 6,
-    paddingRight: 12,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: COLORS.GRAY_DARK,
-    fontWeight: "500",
+    backgroundColor: BG_LIGHT,
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    flexShrink: 0,
+    gap: 8,
   },
-  headerActionButton: {
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerDangerButton: {
+    backgroundColor: "rgba(239,68,68,0.22)",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  stateContainer: {
+    flex: 1,
+    backgroundColor: BG_LIGHT,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  stateIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FEF2F2",
+    marginBottom: 16,
+  },
+  stateTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: ACCENT,
+    textAlign: "center",
+  },
+  stateText: {
+    marginTop: 10,
+    fontSize: 15,
+    color: MUTED,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  secondaryButton: {
+    marginTop: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}24`,
+    backgroundColor: "#FFFFFF",
+  },
+  secondaryButtonText: {
+    color: PRIMARY,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  heroCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    marginTop: 16,
+  },
+  heroTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  heroBadge: {
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingVertical: 8,
     paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: `${PRIMARY}12`,
   },
-  editButtonText: {
-    fontSize: 15,
-    color: COLORS.PRIMARY,
-    fontWeight: "600",
-  },
-  deleteButtonText: {
-    fontSize: 15,
-    color: COLORS.ERROR,
-    fontWeight: "600",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 15,
-    color: COLORS.GRAY,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 48,
-    paddingHorizontal: 24,
-  },
-  errorTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  errorText: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  content: {
-    padding: 16,
-  },
-  heroCard: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: COLORS.BORDER,
-  },
-  heroCardUpcoming: {
-    borderColor: COLORS.ORANGE + "50",
-    backgroundColor: COLORS.ORANGE + "08",
-  },
-  badge: {
-    alignSelf: "flex-start",
-    backgroundColor: COLORS.ORANGE,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginBottom: 12,
-  },
-  badgeText: {
+  heroBadgeText: {
+    color: PRIMARY,
     fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.WHITE,
-  },
-  title: {
-    fontSize: 22,
     fontWeight: "700",
-    color: COLORS.GRAY_DARK,
-    lineHeight: 28,
-    marginBottom: 6,
   },
-  organization: {
+  savedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: `${SECONDARY}14`,
+  },
+  savedBadgeText: {
+    color: SECONDARY,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  heroTitle: {
+    marginTop: 14,
+    fontSize: 24,
+    fontWeight: "700",
+    color: ACCENT,
+    lineHeight: 31,
+  },
+  heroSubtitle: {
+    marginTop: 8,
     fontSize: 15,
-    color: COLORS.GRAY,
+    color: MUTED,
     lineHeight: 22,
   },
+  quickStats: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 18,
+    alignItems: "flex-start",
+  },
+  infoPill: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    maxWidth: "100%",
+    flexShrink: 1,
+  },
+  infoPillPurple: {
+    backgroundColor: `${PRIMARY}10`,
+  },
+  infoPillGreen: {
+    backgroundColor: `${SECONDARY}12`,
+  },
+  infoPillBlue: {
+    backgroundColor: "#DBEAFE",
+  },
+  infoPillText: {
+    fontSize: 13,
+    fontWeight: "700",
+    flexShrink: 1,
+    lineHeight: 18,
+  },
+  infoPillTextPurple: {
+    color: PRIMARY,
+  },
+  infoPillTextGreen: {
+    color: SECONDARY,
+  },
+  infoPillTextBlue: {
+    color: "#2563EB",
+  },
+  actionsRow: {
+    marginTop: 18,
+    gap: 12,
+  },
+  favoriteButton: {
+    minHeight: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}24`,
+    backgroundColor: `${PRIMARY}08`,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  favoriteButtonActive: {
+    backgroundColor: PRIMARY,
+    borderColor: PRIMARY,
+  },
+  favoriteButtonDisabled: {
+    opacity: 0.7,
+  },
+  favoriteButtonText: {
+    color: PRIMARY,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  favoriteButtonTextActive: {
+    color: "#FFFFFF",
+  },
+  primaryButton: {
+    backgroundColor: PRIMARY,
+    borderRadius: 18,
+    paddingVertical: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  primaryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  content: {
+    paddingTop: 18,
+    gap: 18,
+  },
   section: {
-    marginBottom: 20,
+    gap: 10,
   },
   sectionLabel: {
     fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.GRAY,
-    letterSpacing: 0.3,
-    marginBottom: 10,
+    fontWeight: "700",
+    color: MUTED,
     textTransform: "uppercase",
+    letterSpacing: 0.6,
   },
-  summaryGrid: {
+  sectionCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  infoRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "flex-start",
     gap: 12,
+    paddingVertical: 10,
   },
-  summaryItem: {
+  infoIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: `${PRIMARY}10`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  infoLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: MUTED_LIGHT,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  infoValue: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: ACCENT,
+    fontWeight: "600",
+  },
+  timelineRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: COLORS.WHITE,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.BORDER,
-    minWidth: 0,
+    gap: 10,
+    paddingVertical: 7,
   },
-  summaryItemHighlight: {
-    borderColor: COLORS.SUCCESS + "40",
-    backgroundColor: COLORS.SUCCESS_LIGHT + "40",
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: PRIMARY,
   },
-  summaryValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-  },
-  summaryValuePrice: {
-    color: COLORS.SUCCESS,
-  },
-  summaryHint: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-    marginLeft: 2,
-  },
-  card: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.BORDER,
-  },
-  venueName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 4,
-  },
-  venueAddress: {
+  timelineText: {
     fontSize: 15,
-    color: COLORS.GRAY,
-    lineHeight: 22,
+    color: ACCENT,
+    fontWeight: "600",
+  },
+  cardBody: {
+    fontSize: 15,
+    color: MUTED,
+    lineHeight: 23,
   },
   dataRow: {
-    marginBottom: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: CARD_BORDER,
   },
   dataLabel: {
     fontSize: 12,
-    color: COLORS.GRAY,
-    marginBottom: 2,
+    fontWeight: "700",
+    color: MUTED_LIGHT,
     textTransform: "uppercase",
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
+    marginBottom: 4,
   },
   dataValue: {
     fontSize: 15,
-    color: COLORS.GRAY_DARK,
-    fontWeight: "500",
+    fontWeight: "600",
+    color: ACCENT,
     lineHeight: 22,
   },
-  dataValueSpecialty: {
-    color: COLORS.PURPLE,
-  },
-  bodyText: {
-    fontSize: 15,
-    color: COLORS.GRAY_DARK,
-    lineHeight: 24,
-  },
-  ctaButton: {
+  secondaryAction: {
+    marginTop: 14,
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 12,
-    paddingVertical: 16,
-    marginTop: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 3,
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: `${PRIMARY}10`,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}18`,
   },
-  ctaButtonText: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: COLORS.WHITE,
-  },
-  bottomSpacer: {
-    height: 24,
+  secondaryActionText: {
+    color: PRIMARY,
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

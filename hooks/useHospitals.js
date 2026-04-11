@@ -2,10 +2,47 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   getHospitals,
   getSpecialties,
-  getHospitalIdsBySpecialty,
+  getHospitalRankingBySpecialty,
   getSpecialtyCounts,
 } from "../services/hospitalService";
 import { usePersistedFilters } from "./usePersistedFilters";
+
+const compareByRankingMetadata = (a, b, rankingByHospitalId) => {
+  const aRanking = rankingByHospitalId[a.id] || a;
+  const bRanking = rankingByHospitalId[b.id] || b;
+  const aRanked =
+    aRanking &&
+    (aRanking.final_score !== null ||
+      aRanking.organic_score !== null ||
+      aRanking.blended_rank !== null);
+  const bRanked =
+    bRanking &&
+    (bRanking.final_score !== null ||
+      bRanking.organic_score !== null ||
+      bRanking.blended_rank !== null);
+
+  if (aRanked && bRanked) {
+    if ((bRanking.final_score ?? -1) !== (aRanking.final_score ?? -1)) {
+      return (bRanking.final_score ?? -1) - (aRanking.final_score ?? -1);
+    }
+    if ((bRanking.organic_score ?? -1) !== (aRanking.organic_score ?? -1)) {
+      return (bRanking.organic_score ?? -1) - (aRanking.organic_score ?? -1);
+    }
+    if (
+      (bRanking.approved_review_count ?? 0) !==
+      (aRanking.approved_review_count ?? 0)
+    ) {
+      return (
+        (bRanking.approved_review_count ?? 0) -
+        (aRanking.approved_review_count ?? 0)
+      );
+    }
+  } else if (aRanked !== bRanked) {
+    return aRanked ? -1 : 1;
+  }
+
+  return (a.catalog_order ?? 0) - (b.catalog_order ?? 0);
+};
 
 /**
  * Hook para obtener y filtrar hospitales
@@ -17,12 +54,15 @@ export const useHospitals = () => {
   const [loadingHospitals, setLoadingHospitals] = useState(false);
   const [loadingSpecialties, setLoadingSpecialties] = useState(false);
   const [loadingSpecialtyFilter, setLoadingSpecialtyFilter] = useState(false);
-  const [hospitalIdsBySpecialty, setHospitalIdsBySpecialty] = useState([]);
+  const [specialtyRanking, setSpecialtyRanking] = useState({
+    isLoaded: false,
+    orderedHospitalIds: [],
+    rankingByHospitalId: {},
+  });
 
   // Filtros persistentes
   const {
     filters,
-    isLoading: isLoadingFilters,
     updateFilter,
     clearAllFilters: clearPersistedFilters,
   } = usePersistedFilters(
@@ -32,6 +72,8 @@ export const useHospitals = () => {
       selectedRegion: "",
       selectedCity: "",
       selectedSpecialty: "",
+      sortMode: "ranking",
+      sponsorshipOnly: false,
     },
     { enableDebounce: true, debounceMs: 500 }
   );
@@ -40,6 +82,8 @@ export const useHospitals = () => {
   const selectedRegion = filters.selectedRegion;
   const selectedCity = filters.selectedCity;
   const selectedSpecialty = filters.selectedSpecialty;
+  const sortMode = filters.sortMode || "ranking";
+  const sponsorshipOnly = Boolean(filters.sponsorshipOnly);
 
   // Setters que actualizan los filtros persistentes
   const setSearchTerm = useCallback(
@@ -58,16 +102,14 @@ export const useHospitals = () => {
     (value) => updateFilter("selectedSpecialty", value),
     [updateFilter]
   );
-
-  // Hospitales destacados para mostrar primero cuando no hay filtros
-  const featuredHospitalNames = [
-    "H. General Universitario Gregorio Marañón",
-    "H. Universitario La Paz",
-    "H. Clinic De Barcelona",
-    "H. Universitari Vall D´Hebron",
-    "H. Universitari I Politecnic La Fe",
-    "H. Universitario Virgen Del Rocío",
-  ];
+  const setSortMode = useCallback(
+    (value) => updateFilter("sortMode", value),
+    [updateFilter]
+  );
+  const setSponsorshipOnly = useCallback(
+    (value) => updateFilter("sponsorshipOnly", Boolean(value)),
+    [updateFilter]
+  );
 
   // Obtener regiones únicas
   const uniqueRegions = useMemo(
@@ -95,16 +137,28 @@ export const useHospitals = () => {
 
   // Filtrar hospitales
   const filteredHospitals = useMemo(() => {
-    let filtered = hospitals;
+    const rankingByHospitalId = selectedSpecialty
+      ? specialtyRanking.rankingByHospitalId
+      : {};
+    const orderedHospitalIds = selectedSpecialty
+      ? specialtyRanking.orderedHospitalIds
+      : [];
+    const rankingIndex = new Map(
+      orderedHospitalIds.map((hospitalId, index) => [hospitalId, index])
+    );
+
+    let filtered = hospitals.map((hospital) => {
+      const scopedRanking = rankingByHospitalId[hospital.id];
+      return scopedRanking ? { ...hospital, ...scopedRanking } : hospital;
+    });
 
     // Aplicar filtro de especialidad primero
-    if (selectedSpecialty && hospitalIdsBySpecialty.length > 0) {
+    if (selectedSpecialty && specialtyRanking.isLoaded) {
       filtered = filtered.filter((hospital) =>
-        hospitalIdsBySpecialty.includes(hospital.id)
+        rankingIndex.has(hospital.id)
       );
     }
 
-    // Aplicar otros filtros
     filtered = filtered.filter((hospital) => {
       const matchesSearch = hospital.name
         .toLowerCase()
@@ -118,25 +172,44 @@ export const useHospitals = () => {
       return matchesSearch && matchesRegion && matchesCity;
     });
 
-    // Si no hay filtros, priorizar hospitales destacados
-    if (!searchTerm && !selectedRegion && !selectedCity && !selectedSpecialty) {
-      const featured = filtered.filter((h) =>
-        featuredHospitalNames.includes(h.name)
-      );
-      const others = filtered.filter(
-        (h) => !featuredHospitalNames.includes(h.name)
-      );
-      filtered = [...featured, ...others];
+    if (sponsorshipOnly) {
+      filtered = filtered.filter((hospital) => hospital.is_sponsored);
     }
 
-    return filtered;
+    if (sortMode === "alphabetical") {
+      return [...filtered].sort((a, b) => a.name.localeCompare(b.name, "es"));
+    }
+
+    if (selectedSpecialty && specialtyRanking.isLoaded) {
+      return [...filtered].sort((a, b) => {
+        const rankingOrder = compareByRankingMetadata(
+          a,
+          b,
+          rankingByHospitalId
+        );
+
+        if (rankingOrder !== 0) return rankingOrder;
+
+        const aIndex = rankingIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+        const bIndex = rankingIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+        if (aIndex !== bIndex) return aIndex - bIndex;
+
+        return (a.catalog_order ?? 0) - (b.catalog_order ?? 0);
+      });
+    }
+
+    return [...filtered].sort((a, b) =>
+      compareByRankingMetadata(a, b, {})
+    );
   }, [
     hospitals,
     searchTerm,
     selectedRegion,
     selectedCity,
     selectedSpecialty,
-    hospitalIdsBySpecialty,
+    specialtyRanking,
+    sortMode,
+    sponsorshipOnly,
   ]);
 
   // Cargar hospitales
@@ -187,26 +260,41 @@ export const useHospitals = () => {
   }, []);
 
   // Cargar IDs de hospitales por especialidad
-  const fetchHospitalIdsBySpecialty = useCallback(async (specialtyId) => {
+  const fetchHospitalRankingBySpecialty = useCallback(async (specialtyId) => {
     if (!specialtyId) {
-      setHospitalIdsBySpecialty([]);
+      setSpecialtyRanking({
+        isLoaded: false,
+        orderedHospitalIds: [],
+        rankingByHospitalId: {},
+      });
       return;
     }
 
     setLoadingSpecialtyFilter(true);
     try {
-      const { success, hospitalIds, error } = await getHospitalIdsBySpecialty(
-        specialtyId
-      );
+      const { success, orderedHospitalIds, rankingByHospitalId, error } =
+        await getHospitalRankingBySpecialty(specialtyId);
       if (success) {
-        setHospitalIdsBySpecialty(hospitalIds);
+        setSpecialtyRanking({
+          isLoaded: true,
+          orderedHospitalIds,
+          rankingByHospitalId,
+        });
       } else {
         console.error("Error loading hospitals by specialty:", error);
-        setHospitalIdsBySpecialty([]);
+        setSpecialtyRanking({
+          isLoaded: true,
+          orderedHospitalIds: [],
+          rankingByHospitalId: {},
+        });
       }
     } catch (error) {
       console.error("Exception fetching hospitals by specialty:", error);
-      setHospitalIdsBySpecialty([]);
+      setSpecialtyRanking({
+        isLoaded: true,
+        orderedHospitalIds: [],
+        rankingByHospitalId: {},
+      });
     } finally {
       setLoadingSpecialtyFilter(false);
     }
@@ -215,7 +303,11 @@ export const useHospitals = () => {
   // Limpiar todos los filtros
   const clearFilters = useCallback(async () => {
     await clearPersistedFilters();
-    setHospitalIdsBySpecialty([]);
+    setSpecialtyRanking({
+      isLoaded: false,
+      orderedHospitalIds: [],
+      rankingByHospitalId: {},
+    });
   }, [clearPersistedFilters]);
 
   // Resetear ciudad cuando cambia la región (solo si hay hospitales cargados)
@@ -248,11 +340,15 @@ export const useHospitals = () => {
   // Cargar hospitales por especialidad cuando cambia la especialidad seleccionada
   useEffect(() => {
     if (selectedSpecialty) {
-      fetchHospitalIdsBySpecialty(selectedSpecialty);
+      fetchHospitalRankingBySpecialty(selectedSpecialty);
     } else {
-      setHospitalIdsBySpecialty([]);
+      setSpecialtyRanking({
+        isLoaded: false,
+        orderedHospitalIds: [],
+        rankingByHospitalId: {},
+      });
     }
-  }, [selectedSpecialty, fetchHospitalIdsBySpecialty]);
+  }, [selectedSpecialty, fetchHospitalRankingBySpecialty]);
 
   return {
     hospitals,
@@ -265,6 +361,10 @@ export const useHospitals = () => {
     setSelectedCity,
     selectedSpecialty,
     setSelectedSpecialty,
+    sortMode,
+    setSortMode,
+    sponsorshipOnly,
+    setSponsorshipOnly,
     filteredHospitals,
     uniqueRegions,
     uniqueCities,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
   Modal,
   Alert,
   ScrollView,
+  Keyboard,
+  Platform,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useStudentQuestions } from "../hooks/useStudentQuestions";
@@ -23,6 +26,8 @@ export const StudentQuestionsSection = ({
   hospitalId,
   specialityId,
   userProfile,
+  onInputFocus,
+  onInputBlur,
 }) => {
   const [newQuestion, setNewQuestion] = useState("");
   const [expandedQuestions, setExpandedQuestions] = useState([]);
@@ -37,6 +42,12 @@ export const StudentQuestionsSection = ({
   // Estados para eliminar
   const [deletingQuestion, setDeletingQuestion] = useState(null);
   const [deletingAnswer, setDeletingAnswer] = useState(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [questionsListHeight, setQuestionsListHeight] = useState(0);
+  const [focusedQuestionId, setFocusedQuestionId] = useState(null);
+
+  const questionsListRef = useRef(null);
+  const questionLayoutsRef = useRef({});
 
   const {
     questions,
@@ -74,6 +85,94 @@ export const StudentQuestionsSection = ({
     };
     checkCanAnswer();
   }, [userProfile, hospitalId, specialityId, canAnswerQuestions]);
+
+  useEffect(() => {
+    const windowHeight = Dimensions.get("window").height;
+
+    const getNextKeyboardHeight = (event) => {
+      if (!event?.endCoordinates) return 0;
+
+      if (Platform.OS === "ios") {
+        const keyboardTop = event.endCoordinates.screenY ?? windowHeight;
+        return Math.max(windowHeight - keyboardTop, 0);
+      }
+
+      return Math.max(event.endCoordinates.height ?? 0, 0);
+    };
+
+    const handleKeyboardShow = (event) => {
+      setKeyboardHeight(getNextKeyboardHeight(event));
+    };
+
+    const handleKeyboardHide = () => {
+      setKeyboardHeight(0);
+    };
+
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillChangeFrame" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSubscription = Keyboard.addListener(showEvent, handleKeyboardShow);
+    const hideSubscription = Keyboard.addListener(hideEvent, handleKeyboardHide);
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  const scrollQuestionIntoView = useCallback(
+    (questionId, animated = true) => {
+      const layout = questionLayoutsRef.current[questionId];
+
+      if (!layout) {
+        questionsListRef.current?.scrollToEnd({ animated });
+        return;
+      }
+
+      const visibleHeight = Math.max(questionsListHeight - keyboardHeight - 24, 0);
+      const targetY =
+        visibleHeight > 0
+          ? Math.max(layout.y + layout.height - visibleHeight, 0)
+          : Math.max(layout.y - 12, 0);
+
+      questionsListRef.current?.scrollTo({ y: targetY, animated });
+    },
+    [keyboardHeight, questionsListHeight]
+  );
+
+  const handleQuestionInputFocus = useCallback(
+    (questionId = null) => {
+      setFocusedQuestionId(questionId);
+      onInputFocus?.();
+
+      requestAnimationFrame(() => {
+        if (questionId) {
+          scrollQuestionIntoView(questionId, false);
+          return;
+        }
+
+        questionsListRef.current?.scrollToEnd({ animated: false });
+      });
+    },
+    [onInputFocus, scrollQuestionIntoView]
+  );
+
+  const handleQuestionInputBlur = useCallback(() => {
+    setFocusedQuestionId(null);
+    onInputBlur?.();
+  }, [onInputBlur]);
+
+  useEffect(() => {
+    if (!focusedQuestionId || keyboardHeight <= 0) return;
+
+    const timeoutId = setTimeout(() => {
+      scrollQuestionIntoView(focusedQuestionId, false);
+    }, 50);
+
+    return () => clearTimeout(timeoutId);
+  }, [focusedQuestionId, keyboardHeight, scrollQuestionIntoView]);
 
   const handleSubmitQuestion = async () => {
     if (!newQuestion.trim() || !userProfile) return;
@@ -268,6 +367,8 @@ export const StudentQuestionsSection = ({
             multiline
             maxLength={500}
             editable={!submitting}
+            onFocus={() => handleQuestionInputFocus()}
+            onBlur={handleQuestionInputBlur}
           />
           <TouchableOpacity
             style={[
@@ -307,9 +408,32 @@ export const StudentQuestionsSection = ({
           </Text>
         </View>
       ) : (
-        <ScrollView style={styles.questionsList} nestedScrollEnabled>
+        <ScrollView
+          ref={questionsListRef}
+          style={styles.questionsList}
+          contentContainerStyle={[
+            styles.questionsListContent,
+            keyboardHeight > 0 && { paddingBottom: keyboardHeight + 24 },
+          ]}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          nestedScrollEnabled
+          onLayout={(event) => {
+            const nextHeight = Math.ceil(event.nativeEvent.layout.height);
+            if (nextHeight > 0 && nextHeight !== questionsListHeight) {
+              setQuestionsListHeight(nextHeight);
+            }
+          }}
+        >
           {questions.map((question) => (
-            <View key={question.id} style={styles.questionCard}>
+            <View
+              key={question.id}
+              style={styles.questionCard}
+              onLayout={(event) => {
+                const { y, height } = event.nativeEvent.layout;
+                questionLayoutsRef.current[question.id] = { y, height };
+              }}
+            >
               {/* Header de la pregunta */}
               <View style={styles.questionHeader}>
                 <View style={styles.questionHeaderLeft}>
@@ -378,6 +502,8 @@ export const StudentQuestionsSection = ({
                     multiline
                     maxLength={500}
                     editable={!submitting}
+                    onFocus={() => handleQuestionInputFocus(question.id)}
+                    onBlur={handleQuestionInputBlur}
                   />
                   <View style={styles.editButtons}>
                     <TouchableOpacity
@@ -485,6 +611,8 @@ export const StudentQuestionsSection = ({
                                 multiline
                                 maxLength={500}
                                 editable={!submitting}
+                                onFocus={() => handleQuestionInputFocus(question.id)}
+                                onBlur={handleQuestionInputBlur}
                               />
                               <View style={styles.editButtons}>
                                 <TouchableOpacity
@@ -548,6 +676,8 @@ export const StudentQuestionsSection = ({
                         multiline
                         maxLength={500}
                         editable={!submitting}
+                        onFocus={() => handleQuestionInputFocus(question.id)}
+                        onBlur={handleQuestionInputBlur}
                       />
                       <TouchableOpacity
                         style={[
@@ -679,6 +809,9 @@ const styles = StyleSheet.create({
   },
   questionsList: {
     maxHeight: 400,
+  },
+  questionsListContent: {
+    paddingBottom: 4,
   },
   questionCard: {
     borderWidth: 1,

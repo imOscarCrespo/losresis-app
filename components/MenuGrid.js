@@ -2,6 +2,11 @@ import React, { useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
+import {
+  canWriteResidentHospitalReview,
+  hasResidentFeatureAccess,
+  isResidentLockedMissingCorporateEmail,
+} from "../utils/residentAccess";
 
 const GRID_COLUMNS = 2;
 const ICON_SIZE = 40;
@@ -13,7 +18,12 @@ const ICON_SIZE = 40;
 /**
  * Item individual del grid con diseño moderno
  */
-const MenuGridItem = ({ item, onPress, disabled = false }) => {
+const MenuGridItem = ({
+  item,
+  onPress,
+  disabled = false,
+  showBadge = false,
+}) => {
   // Colores por defecto si no están definidos
   const backgroundColor = disabled ? COLORS.GRAY : item.color || COLORS.PRIMARY;
   const lightColor = item.lightColor || COLORS.BADGE_BLUE_BG;
@@ -28,6 +38,7 @@ const MenuGridItem = ({ item, onPress, disabled = false }) => {
       accessibilityRole="button"
     >
       <View style={[styles.gridItemContent, { backgroundColor }]}>
+        {showBadge ? <View style={styles.notificationBadge} /> : null}
         {/* Overlay con gradiente sutil */}
         <View style={styles.gradientOverlay} />
 
@@ -97,6 +108,9 @@ export const MenuGrid = ({
   userProfile,
   onItemPress,
   residentHasReview = true,
+  residentReviewGateStatus = "soft",
+  residentReviewGateBypassed = false,
+  showNotificationsBadge = false,
 }) => {
   // Filtrar items según el tipo de usuario y excluir los del footer
   const filteredItems = useMemo(() => {
@@ -127,14 +141,36 @@ export const MenuGrid = ({
         return true;
       }
 
+      // Ocultar "Reseñas" a perfiles residentes en el menú principal
+      if (item.id === "reseñas" && userProfile.is_resident) {
+        return false;
+      }
+
+      if (item.id === "mi-resena" && userProfile.is_resident && residentHasReview) {
+        return false;
+      }
+
+      if (
+        item.id === "mi-resena" &&
+        userProfile.is_resident &&
+        !canWriteResidentHospitalReview(userProfile)
+      ) {
+        return false;
+      }
+
       // Si es solo para estudiantes
       if (item.studentOnly) {
         return userProfile.is_student;
       }
 
+      // Si es solo para residentes
+      if (item.residentOnly) {
+        return hasResidentFeatureAccess(userProfile);
+      }
+
       // Si es solo para doctores/residentes
       if (item.doctorOnly) {
-        return userProfile.is_doctor || userProfile.is_resident;
+        return userProfile.is_doctor || hasResidentFeatureAccess(userProfile);
       }
 
       // Si es solo para super admin
@@ -145,7 +181,13 @@ export const MenuGrid = ({
       // Items sin restricciones
       return true;
     });
-  }, [navigationItems, footerItems, userProfile]);
+  }, [
+    navigationItems,
+    footerItems,
+    userProfile,
+    residentHasReview,
+    residentReviewGateBypassed,
+  ]);
 
   // Calcular número de filas necesarias
   const rows = Math.ceil(filteredItems.length / GRID_COLUMNS);
@@ -186,14 +228,18 @@ export const MenuGrid = ({
       return true;
     }
 
-    // Si es residente sin review y no es super admin, deshabilitar todos los botones excepto "mi-resena"
     if (
       userProfile?.is_resident &&
       !userProfile?.is_super_admin &&
-      !residentHasReview
+      !residentReviewGateBypassed &&
+      !residentHasReview &&
+      residentReviewGateStatus === "hard"
     ) {
-      // Solo permitir acceso a "mi-resena" para que puedan crear su review
-      return item.id !== "mi-resena";
+      return !["mi-resena", "usuario", "contacto"].includes(item.id);
+    }
+
+    if (isResidentLockedMissingCorporateEmail(userProfile)) {
+      return !["inicio", "usuario", "contacto"].includes(item.id);
     }
     return false;
   };
@@ -225,6 +271,7 @@ export const MenuGrid = ({
               item={item}
               onPress={handleItemPress}
               disabled={isItemDisabled(item)}
+              showBadge={item.id === "notifications" && showNotificationsBadge}
             />
           ))}
         </View>
@@ -258,6 +305,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 20,
     justifyContent: "space-between",
+    position: "relative",
     overflow: "hidden",
     // Sombra sutil
     shadowColor: "#000",
@@ -268,6 +316,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 5,
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.RED,
+    borderWidth: 2,
+    borderColor: COLORS.WHITE,
+    zIndex: 3,
   },
   gradientOverlay: {
     position: "absolute",

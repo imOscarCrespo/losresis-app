@@ -9,9 +9,11 @@ import * as Application from 'expo-application';
  * Usa caché en AsyncStorage para optimizar el rendimiento
  * @returns {object} { needsUpdate: boolean, currentVersion: string|null, isLoading: boolean }
  */
-export const useVersionCheck = () => {
+export const useVersionCheck = (refreshKey = 0) => {
   const [needsUpdate, setNeedsUpdate] = useState(false);
+  const [isForceUpdate, setIsForceUpdate] = useState(false);
   const [currentVersion, setCurrentVersion] = useState(null);
+  const [minVersion, setMinVersion] = useState(null);
   const [updateUrl, setUpdateUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -56,6 +58,7 @@ export const useVersionCheck = () => {
 
         console.log('📱 [useVersionCheck] Resultado de verificación:', {
           needsUpdate: result.needsUpdate,
+          isForceUpdate: result.isForceUpdate,
           currentVersion: result.currentVersion,
           minVersion: result.minVersion,
           updateUrl: result.updateUrl,
@@ -67,25 +70,40 @@ export const useVersionCheck = () => {
           console.warn('⚠️ [useVersionCheck] Error verificando versión:', result.error);
           // En caso de error, no mostrar banner (no bloquear la app)
           setNeedsUpdate(false);
+          setIsForceUpdate(false);
+          setMinVersion(null);
           setUpdateUrl(null);
         } else {
           console.log('✅ [useVersionCheck] Estado final:', {
             needsUpdate: result.needsUpdate,
-            willShowBanner: result.needsUpdate,
+            isForceUpdate: !!result.isForceUpdate,
+            willShowBanner: result.needsUpdate && !result.isForceUpdate,
+            willBlockApp: result.needsUpdate && !!result.isForceUpdate,
           });
           setNeedsUpdate(result.needsUpdate || false);
+          setIsForceUpdate(result.isForceUpdate || false);
+          setMinVersion(result.minVersion || null);
           setUpdateUrl(result.updateUrl || null);
         }
       } catch (error) {
         console.error('Error en useVersionCheck:', error);
         setNeedsUpdate(false);
+        setIsForceUpdate(false);
+        setMinVersion(null);
       } finally {
         setIsLoading(false);
       }
     };
 
     verifyVersion();
-  }, []);
+  }, [refreshKey]);
 
-  return { needsUpdate, currentVersion, updateUrl, isLoading };
+  return {
+    needsUpdate,
+    isForceUpdate,
+    currentVersion,
+    minVersion,
+    updateUrl,
+    isLoading,
+  };
 };

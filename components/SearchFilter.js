@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TextInput, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { COLORS } from "../constants/colors";
 
 /**
  * Componente de filtro de búsqueda por texto
@@ -25,13 +26,13 @@ export const SearchFilter = ({
         <Ionicons
           name="search"
           size={20}
-          color="#999"
+          color={COLORS.TEXT_LIGHT}
           style={styles.searchIcon}
         />
         <TextInput
           style={styles.input}
           placeholder={placeholder}
-          placeholderTextColor="#999"
+          placeholderTextColor={COLORS.TEXT_LIGHT}
           value={value}
           onChangeText={onChangeText}
         />
@@ -47,16 +48,16 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: COLORS.TEXT_DARK,
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.SURFACE,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E5E5EA",
+    borderColor: COLORS.BORDER,
     paddingHorizontal: 12,
   },
   searchIcon: {
@@ -66,6 +67,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     fontSize: 16,
-    color: "#1a1a1a",
+    color: COLORS.TEXT_DARK,
   },
 });

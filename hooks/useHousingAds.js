@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getHousingAds,
   getHousingAdById,
@@ -8,8 +8,24 @@ import {
   toggleHousingAdStatus,
 } from "../services/housingService";
 import { getCurrentUser } from "../services/authService";
+import { usePersistedFilters } from "./usePersistedFilters";
 
 const ITEMS_PER_PAGE = 20;
+
+const mergeUniqueAds = (existingAds = [], incomingAds = []) => {
+  const adsById = new Map();
+
+  existingAds.forEach((ad) => {
+    if (ad?.id) adsById.set(ad.id, ad);
+  });
+
+  incomingAds.forEach((ad) => {
+    if (!ad?.id) return;
+    adsById.set(ad.id, ad);
+  });
+
+  return Array.from(adsById.values());
+};
 
 /**
  * Hook personalizado para manejar los anuncios de vivienda
@@ -22,12 +38,46 @@ export const useHousingAds = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
 
-  // Filtros
-  const [city, setCity] = useState("");
-  const [kind, setKind] = useState("");
-  const [hospitalId, setHospitalId] = useState("");
-  const [showMyAds, setShowMyAds] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const inFlightRequestRef = useRef(null);
+
+  const {
+    filters,
+    isLoading: filtersLoading,
+    updateFilter,
+    clearAllFilters: clearPersistedFilters,
+  } = usePersistedFilters(
+    "housing",
+    {
+      city: "",
+      kind: "",
+      hospitalId: "",
+      maxPrice: null,
+      showMyAds: false,
+    },
+    { enableDebounce: true, debounceMs: 500 }
+  );
+
+  const city = filters.city || "";
+  const kind = filters.kind || "";
+  const hospitalId = filters.hospitalId || "";
+  const maxPrice = filters.maxPrice || null;
+  const showMyAds = Boolean(filters.showMyAds);
+
+  const setCity = useCallback((value) => updateFilter("city", value), [updateFilter]);
+  const setKind = useCallback((value) => updateFilter("kind", value), [updateFilter]);
+  const setHospitalId = useCallback(
+    (value) => updateFilter("hospitalId", value),
+    [updateFilter]
+  );
+  const setMaxPrice = useCallback(
+    (value) => updateFilter("maxPrice", value),
+    [updateFilter]
+  );
+  const setShowMyAds = useCallback(
+    (value) => updateFilter("showMyAds", Boolean(value)),
+    [updateFilter]
+  );
 
   // Cargar usuario actual
   useEffect(() => {
@@ -47,18 +97,25 @@ export const useHousingAds = () => {
   // Cargar anuncios con paginación y filtros
   const fetchHousingAds = useCallback(
     async (reset = false) => {
+      const page = reset ? 0 : currentPage;
+      const filters = {
+        city: city || undefined,
+        kind: kind || undefined,
+        hospital_id: hospitalId || undefined,
+        maxPrice: maxPrice || undefined,
+        user_id: showMyAds && currentUserId ? currentUserId : undefined,
+      };
+      const requestKey = JSON.stringify({ page, reset, filters });
+
+      if (inFlightRequestRef.current === requestKey) {
+        return;
+      }
+
+      inFlightRequestRef.current = requestKey;
+
       try {
         setLoading(true);
         setError(null);
-
-        const page = reset ? 0 : currentPage;
-
-        const filters = {
-          city: city || undefined,
-          kind: kind || undefined,
-          hospital_id: hospitalId || undefined,
-          user_id: showMyAds && currentUserId ? currentUserId : undefined,
-        };
 
         const {
           success,
@@ -70,10 +127,10 @@ export const useHousingAds = () => {
 
         if (success) {
           if (reset) {
-            setHousingAds(ads || []);
+            setHousingAds(mergeUniqueAds([], ads || []));
             setCurrentPage(1);
           } else {
-            setHousingAds((prev) => [...prev, ...(ads || [])]);
+            setHousingAds((prev) => mergeUniqueAds(prev, ads || []));
             setCurrentPage((prev) => prev + 1);
           }
           setTotalCount(total || 0);
@@ -84,10 +141,13 @@ export const useHousingAds = () => {
       } catch (err) {
         setError(err.message || "Error inesperado al cargar los anuncios");
       } finally {
+        if (inFlightRequestRef.current === requestKey) {
+          inFlightRequestRef.current = null;
+        }
         setLoading(false);
       }
     },
-    [currentPage, city, kind, hospitalId, showMyAds, currentUserId]
+    [currentPage, city, kind, hospitalId, maxPrice, showMyAds, currentUserId]
   );
 
   // Cargar más anuncios
@@ -102,12 +162,9 @@ export const useHousingAds = () => {
   }, [fetchHousingAds]);
 
   // Limpiar filtros
-  const clearFilters = useCallback(() => {
-    setCity("");
-    setKind("");
-    setHospitalId("");
-    setShowMyAds(false);
-  }, []);
+  const clearFilters = useCallback(async () => {
+    await clearPersistedFilters();
+  }, [clearPersistedFilters]);
 
   // Obtener un anuncio por ID
   const fetchHousingAdById = useCallback(async (adId) => {
@@ -235,9 +292,12 @@ export const useHousingAds = () => {
 
   // Auto-fetch cuando cambian los filtros
   useEffect(() => {
+    if (filtersLoading) {
+      return;
+    }
     fetchHousingAds(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, kind, hospitalId, showMyAds]);
+  }, [city, kind, hospitalId, maxPrice, showMyAds, filtersLoading]);
 
   return {
     // Data
@@ -246,6 +306,7 @@ export const useHousingAds = () => {
     error,
     hasMore,
     totalCount,
+    filtersLoading,
 
     // Filters
     city,
@@ -254,6 +315,8 @@ export const useHousingAds = () => {
     setKind,
     hospitalId,
     setHospitalId,
+    maxPrice,
+    setMaxPrice,
     showMyAds,
     setShowMyAds,
     clearFilters,

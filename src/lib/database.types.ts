@@ -20,6 +20,7 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean | null
+          is_force_update: boolean | null
           min_required_version: string
           platform: string
           update_url: string | null
@@ -30,6 +31,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          is_force_update?: boolean | null
           min_required_version: string
           platform: string
           update_url?: string | null
@@ -40,12 +42,79 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          is_force_update?: boolean | null
           min_required_version?: string
           platform?: string
           update_url?: string | null
           updated_at?: string | null
         }
         Relationships: []
+      }
+      agenda_events: {
+        Row: {
+          all_day: boolean
+          created_at: string | null
+          end_date: string | null
+          end_time: string | null
+          event_date: string | null
+          event_type: string
+          id: string
+          metadata: Json
+          notes: string | null
+          source_shift_id: string | null
+          start_time: string | null
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          all_day?: boolean
+          created_at?: string | null
+          end_date?: string | null
+          end_time?: string | null
+          event_date?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          source_shift_id?: string | null
+          start_time?: string | null
+          title: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          all_day?: boolean
+          created_at?: string | null
+          end_date?: string | null
+          end_time?: string | null
+          event_date?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          source_shift_id?: string | null
+          start_time?: string | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_events_source_shift_id_fkey"
+            columns: ["source_shift_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agenda_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       article: {
         Row: {
@@ -130,6 +199,39 @@ export type Database = {
           },
         ]
       }
+      course_like: {
+        Row: {
+          course_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_like_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_like_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           course_code: string | null
@@ -137,20 +239,26 @@ export type Database = {
           created_at: string
           created_by_id: string | null
           event_dates: string[]
+          featured_until: string | null
           hospital_id: string | null
           id: string
+          is_featured: boolean
           more_info: string | null
           objectives: string | null
+          org_id: string | null
           organization: string | null
           price_text: string | null
+          published_at: string | null
           registration_url: string | null
           seats_available: number | null
           speciality_id: string | null
+          status: string
           teaching_hours: string | null
           title: string
           updated_at: string
           venue_address: string | null
           venue_name: string | null
+          visibility_score: number
         }
         Insert: {
           course_code?: string | null
@@ -158,20 +266,26 @@ export type Database = {
           created_at?: string
           created_by_id?: string | null
           event_dates: string[]
+          featured_until?: string | null
           hospital_id?: string | null
           id?: string
+          is_featured?: boolean
           more_info?: string | null
           objectives?: string | null
+          org_id?: string | null
           organization?: string | null
           price_text?: string | null
+          published_at?: string | null
           registration_url?: string | null
           seats_available?: number | null
           speciality_id?: string | null
+          status?: string
           teaching_hours?: string | null
           title: string
           updated_at?: string
           venue_address?: string | null
           venue_name?: string | null
+          visibility_score?: number
         }
         Update: {
           course_code?: string | null
@@ -179,20 +293,26 @@ export type Database = {
           created_at?: string
           created_by_id?: string | null
           event_dates?: string[]
+          featured_until?: string | null
           hospital_id?: string | null
           id?: string
+          is_featured?: boolean
           more_info?: string | null
           objectives?: string | null
+          org_id?: string | null
           organization?: string | null
           price_text?: string | null
+          published_at?: string | null
           registration_url?: string | null
           seats_available?: number | null
           speciality_id?: string | null
+          status?: string
           teaching_hours?: string | null
           title?: string
           updated_at?: string
           venue_address?: string | null
           venue_name?: string | null
+          visibility_score?: number
         }
         Relationships: [
           {
@@ -217,6 +337,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      dashboard_advertisement: {
+        Row: {
+          created_at: string
+          description: string | null
+          ends_at: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          placement_scope: string
+          position: number
+          role_scope: string
+          starts_at: string | null
+          target_section: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          placement_scope?: string
+          position?: number
+          role_scope?: string
+          starts_at?: string | null
+          target_section?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          placement_scope?: string
+          position?: number
+          role_scope?: string
+          starts_at?: string | null
+          target_section?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       dimension_weights: {
         Row: {
@@ -387,7 +555,7 @@ export type Database = {
       external_rotation_review: {
         Row: {
           approved_at: string | null
-          city: string
+          city: string | null
           country: string
           created_at: string
           end_date: string | null
@@ -403,7 +571,7 @@ export type Database = {
         }
         Insert: {
           approved_at?: string | null
-          city: string
+          city?: string | null
           country: string
           created_at?: string
           end_date?: string | null
@@ -419,7 +587,7 @@ export type Database = {
         }
         Update: {
           approved_at?: string | null
-          city?: string
+          city?: string | null
           country?: string
           created_at?: string
           end_date?: string | null
@@ -583,18 +751,24 @@ export type Database = {
           group_id: string
           id: string
           joined_at: string | null
+          last_read_at: string | null
+          notifications_muted: boolean | null
           user_id: string
         }
         Insert: {
           group_id: string
           id?: string
           joined_at?: string | null
+          last_read_at?: string | null
+          notifications_muted?: boolean | null
           user_id: string
         }
         Update: {
           group_id?: string
           id?: string
           joined_at?: string | null
+          last_read_at?: string | null
+          notifications_muted?: boolean | null
           user_id?: string
         }
         Relationships: [
@@ -661,39 +835,68 @@ export type Database = {
       }
       groups: {
         Row: {
-          city: string
+          city: string | null
+          cohort_year: number | null
           created_at: string | null
+          created_by_user_id: string | null
           description: string | null
+          direct_pair_key: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean | null
+          kind: string
           member_count: number | null
           name: string
-          speciality_id: string
+          speciality_id: string | null
           user_type: string
         }
         Insert: {
-          city: string
+          city?: string | null
+          cohort_year?: number | null
           created_at?: string | null
+          created_by_user_id?: string | null
           description?: string | null
+          direct_pair_key?: string | null
+          hospital_id?: string | null
           id?: string
           is_active?: boolean | null
+          kind?: string
           member_count?: number | null
           name: string
-          speciality_id: string
+          speciality_id?: string | null
           user_type: string
         }
         Update: {
-          city?: string
+          city?: string | null
+          cohort_year?: number | null
           created_at?: string | null
+          created_by_user_id?: string | null
           description?: string | null
+          direct_pair_key?: string | null
+          hospital_id?: string | null
           id?: string
           is_active?: boolean | null
+          kind?: string
           member_count?: number | null
           name?: string
-          speciality_id?: string
+          speciality_id?: string | null
           user_type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "groups_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "groups_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "groups_speciality_id_fkey"
             columns: ["speciality_id"]
@@ -1075,6 +1278,47 @@ export type Database = {
           },
         ]
       }
+      libro_book: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          id: string
+          residency_year: number
+          section: Database["public"]["Enums"]["libro_section_code"]
+          status: Database["public"]["Enums"]["libro_book_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          residency_year: number
+          section: Database["public"]["Enums"]["libro_section_code"]
+          status?: Database["public"]["Enums"]["libro_book_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          residency_year?: number
+          section?: Database["public"]["Enums"]["libro_section_code"]
+          status?: Database["public"]["Enums"]["libro_book_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "libro_book_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       libro_entry: {
         Row: {
           count: number
@@ -1185,6 +1429,7 @@ export type Database = {
       }
       libro_node: {
         Row: {
+          book_id: string
           created_at: string | null
           goal: number | null
           id: string
@@ -1196,6 +1441,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          book_id: string
           created_at?: string | null
           goal?: number | null
           id?: string
@@ -1207,6 +1453,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          book_id?: string
           created_at?: string | null
           goal?: number | null
           id?: string
@@ -1218,6 +1465,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "libro_node_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "libro_book"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "libro_node_parent_node_id_fkey"
             columns: ["parent_node_id"]
@@ -1617,6 +1871,74 @@ export type Database = {
           {
             foreignKeyName: "referral_referrer_user_id_fkey"
             columns: ["referrer_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_monthly_payouts: {
+        Row: {
+          created_at: string
+          friday_guard_count: number
+          gross_total_eur: number
+          guard_count: number
+          has_double_pay: boolean
+          holiday_guard_count: number
+          has_pending_payment: boolean
+          id: string
+          pending_payment_description: string | null
+          period_month: number
+          period_year: number
+          saturday_guard_count: number
+          sunday_guard_count: number
+          strike_count: number
+          updated_at: string
+          user_id: string
+          weekday_guard_count: number
+        }
+        Insert: {
+          created_at?: string
+          friday_guard_count?: number
+          gross_total_eur: number
+          guard_count?: number
+          has_double_pay?: boolean
+          holiday_guard_count?: number
+          has_pending_payment?: boolean
+          id?: string
+          pending_payment_description?: string | null
+          period_month: number
+          period_year: number
+          saturday_guard_count?: number
+          sunday_guard_count?: number
+          strike_count?: number
+          updated_at?: string
+          user_id: string
+          weekday_guard_count?: number
+        }
+        Update: {
+          created_at?: string
+          friday_guard_count?: number
+          gross_total_eur?: number
+          guard_count?: number
+          has_double_pay?: boolean
+          holiday_guard_count?: number
+          has_pending_payment?: boolean
+          id?: string
+          pending_payment_description?: string | null
+          period_month?: number
+          period_year?: number
+          saturday_guard_count?: number
+          sunday_guard_count?: number
+          strike_count?: number
+          updated_at?: string
+          user_id?: string
+          weekday_guard_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_monthly_payouts_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -2231,6 +2553,36 @@ export type Database = {
           },
         ]
       }
+      resident_transition_config: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          ends_at: string
+          key: string
+          starts_at: string
+          target_resident_year: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          ends_at: string
+          key: string
+          starts_at: string
+          target_resident_year?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          ends_at?: string
+          key?: string
+          starts_at?: string
+          target_resident_year?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_email_review_requests: {
         Row: {
           created_at: string
@@ -2353,6 +2705,11 @@ export type Database = {
           is_super_admin: boolean
           name: string | null
           phone: string | null
+          resident_state:
+            | Database["public"]["Enums"]["resident_lifecycle_state"]
+            | null
+          resident_transition_expires_at: string | null
+          resident_transition_started_at: string | null
           referral_code: string | null
           resident_year: number | null
           speciality_id: string | null
@@ -2370,6 +2727,11 @@ export type Database = {
           is_super_admin?: boolean
           name?: string | null
           phone?: string | null
+          resident_state?:
+            | Database["public"]["Enums"]["resident_lifecycle_state"]
+            | null
+          resident_transition_expires_at?: string | null
+          resident_transition_started_at?: string | null
           referral_code?: string | null
           resident_year?: number | null
           speciality_id?: string | null
@@ -2387,6 +2749,11 @@ export type Database = {
           is_super_admin?: boolean
           name?: string | null
           phone?: string | null
+          resident_state?:
+            | Database["public"]["Enums"]["resident_lifecycle_state"]
+            | null
+          resident_transition_expires_at?: string | null
+          resident_transition_started_at?: string | null
           referral_code?: string | null
           resident_year?: number | null
           speciality_id?: string | null
@@ -2424,7 +2791,32 @@ export type Database = {
           speciality_name: string
         }[]
       }
+      ensure_direct_group: {
+        Args: { p_other_user_id: string }
+        Returns: {
+          group_id: string
+          group_name: string
+          other_user_id: string
+        }[]
+      }
       generate_referral_code: { Args: never; Returns: string }
+      get_direct_groups: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          group_id: string
+          kind: string
+          last_message_at: string
+          last_message_preview: string
+          notifications_muted: boolean
+          other_user_city: string
+          other_user_hospital_name: string
+          other_user_id: string
+          other_user_name: string
+          other_user_speciality_name: string
+          other_user_surname: string
+          unread_count: number
+        }[]
+      }
       unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
@@ -2449,6 +2841,7 @@ export type Database = {
         | "training"
         | "other"
       job_status: "draft" | "published" | "closed" | "archived"
+      libro_book_status: "active" | "archived"
       libro_entry_kind: "counter" | "event"
       libro_section_code:
         | "clinical_practice"
@@ -2457,6 +2850,10 @@ export type Database = {
         | "congress_attendance"
         | "workshop_attendance"
       ownership_type: "public" | "private" | "concertado" | "mixed" | "unknown"
+      resident_lifecycle_state:
+        | "active"
+        | "pending_corporate_email_seasonal"
+        | "locked_missing_corporate_email"
       review_question_type: "rating" | "text"
       user_email_review_status: "PENDING" | "APPROVED" | "REJECTED"
       work_mode: "onsite" | "hybrid" | "remote"
@@ -2610,6 +3007,7 @@ export const Constants = {
         "other",
       ],
       job_status: ["draft", "published", "closed", "archived"],
+      libro_book_status: ["active", "archived"],
       libro_entry_kind: ["counter", "event"],
       libro_section_code: [
         "clinical_practice",
@@ -2619,6 +3017,11 @@ export const Constants = {
         "workshop_attendance",
       ],
       ownership_type: ["public", "private", "concertado", "mixed", "unknown"],
+      resident_lifecycle_state: [
+        "active",
+        "pending_corporate_email_seasonal",
+        "locked_missing_corporate_email",
+      ],
       review_question_type: ["rating", "text"],
       user_email_review_status: ["PENDING", "APPROVED", "REJECTED"],
       work_mode: ["onsite", "hybrid", "remote"],

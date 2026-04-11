@@ -2,39 +2,29 @@
  * Servicio para el test de especialidad de estudiantes.
  *
  * Gestiona:
- * - Perfiles de especialidad (tabla speciality_profile)
  * - Preguntas del test (speciality_quiz_question)
+ * - Opciones del test (speciality_quiz_option)
  * - Sesiones de test (speciality_quiz_session)
  * - Respuestas del usuario (speciality_quiz_answer)
  */
 
 import { supabase, supabaseQuery } from "../config/supabase";
 
-const TABLE_PROFILE = "speciality_profile";
 const TABLE_SESSION = "speciality_quiz_session";
 const TABLE_QUESTION = "speciality_quiz_question";
 const TABLE_ANSWER = "speciality_quiz_answer";
 
 /**
- * Obtener todos los perfiles de especialidad.
- * @returns {Promise<{success: boolean, data: any, error: string|null}>}
- */
-export const getAllSpecialityProfiles = async () => {
-  return supabaseQuery(() =>
-    supabase.from(TABLE_PROFILE).select("*").order("name", { ascending: true })
-  );
-};
-
-/**
- * Obtener las preguntas del test (sin opciones).
- * Las opciones se gestionan en el cliente según el tipo/dimensión.
+ * Obtener las preguntas del test con sus opciones.
  * @returns {Promise<{success: boolean, data: any, error: string|null}>}
  */
 export const getQuizQuestions = async () => {
   return supabaseQuery(() =>
     supabase
       .from(TABLE_QUESTION)
-      .select("id, order_index, text, dimension, question_type")
+      .select(
+        "id, order_index, text, dimension, question_type, options:speciality_quiz_option(id, label, value, order_index)"
+      )
       .order("order_index", { ascending: true })
   );
 };
@@ -183,10 +173,9 @@ export const getQuizHistoryForUser = async (userId, limit = 10) => {
   return supabaseQuery(() =>
     supabase
       .from(TABLE_SESSION)
-      .select("id, started_at, finished_at, top_results, meta")
+      .select("id, started_at, finished_at, top_results, raw_scores, meta")
       .eq("user_id", userId)
       .order("started_at", { ascending: false })
       .limit(limit)
   );
 };
-

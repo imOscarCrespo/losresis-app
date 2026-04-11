@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import { formatShortDate, formatLongDate } from "../utils/dateUtils";
 import {
   getThreadById,
@@ -341,23 +343,19 @@ export default function ThreadDetailScreen({
   );
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={onBack}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT_PRIMARY} />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {thread?.title || "Thread"}
-          </Text>
-        </View>
-      </View>
-
+    <ScreenScaffold
+      header={
+        <ScreenHeader
+          title={thread?.title || "Thread"}
+          onBack={onBack}
+          compact
+          variant="brand"
+          titleNumberOfLines={1}
+        />
+      }
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.container}
+    >
       {/* Content */}
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -509,33 +507,14 @@ export default function ThreadDetailScreen({
         bottom={20}
         right={20}
       />
-    </View>
+    </ScreenScaffold>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
-  },
-  backButton: {
-    marginRight: 12,
-  },
-  headerContent: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.TEXT_PRIMARY,
+    backgroundColor: COLORS.BACKGROUND,
   },
   content: {
     flex: 1,

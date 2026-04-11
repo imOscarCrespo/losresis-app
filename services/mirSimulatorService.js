@@ -57,6 +57,32 @@ const fetchGradesInBatches = async (hospitalIds, specialtyId) => {
 };
 
 /**
+ * Obtener estadísticas de uso del simulador MIR para un usuario
+ * @param {string} userId
+ * @returns {Promise<{success: boolean, count: number, lastGrade: number|null}>}
+ */
+export const getMirSimulatorStats = async (userId) => {
+  if (!userId) return { success: false, count: 0, lastGrade: null };
+
+  const { data, error } = await supabase
+    .from("mir_simulator_searches")
+    .select("grade, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.warn("Error fetching MIR simulator stats:", error);
+    return { success: false, count: 0, lastGrade: null };
+  }
+
+  return {
+    success: true,
+    count: data?.length ?? 0,
+    lastGrade: data?.[0]?.grade ?? null,
+  };
+};
+
+/**
  * Calcular probabilidades MIR para hospitales
  * @param {number} mirScore - Posición del usuario en el MIR
  * @param {string} specialtyId - ID de la especialidad

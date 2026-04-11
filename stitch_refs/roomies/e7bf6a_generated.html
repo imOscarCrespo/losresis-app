@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#640af5",
+                        "background-light": "#f7f5f8",
+                        "background-dark": "#171022",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Registro de Actividad Quirúrgica</title>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased">
+<div class="relative flex min-h-screen w-full flex-col bg-background-light dark:bg-background-dark overflow-x-hidden pb-24">
+<!-- Header / TopAppBar -->
+<header class="sticky top-0 z-50 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+<div class="flex items-center p-4 justify-between max-w-lg mx-auto w-full">
+<div class="text-primary flex size-10 shrink-0 items-center justify-start cursor-pointer">
+<span class="material-symbols-outlined">arrow_back_ios</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-tight flex-1 text-center">Registro de Actividad</h2>
+<div class="flex w-24 items-center justify-end">
+<button class="text-primary text-sm font-bold leading-normal tracking-tight shrink-0 hover:opacity-80 transition-opacity">
+                        Editar plantilla
+                    </button>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-1 w-full max-w-lg mx-auto"><!-- User Section & Progress -->
+<section class="px-4 py-6 bg-white dark:bg-slate-900/50 mb-2">
+<h1 class="text-slate-900 dark:text-slate-100 tracking-tight text-2xl font-extrabold leading-tight text-center">Ginecología - R1</h1>
+<div class="mt-6 flex flex-col gap-2">
+<div class="flex justify-between items-end">
+<p class="text-slate-600 dark:text-slate-400 text-sm font-medium">Objetivo del BOE</p>
+<p class="text-slate-900 dark:text-slate-100 text-lg font-bold">34 <span class="text-slate-400 font-normal">/ 50</span></p>
+</div>
+<div class="w-full h-3 bg-primary/10 dark:bg-primary/5 rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all duration-500" style="width: 68%;"></div>
+</div>
+<p class="text-primary text-xs font-bold uppercase tracking-wider">68% completado</p>
+</div>
+</section>
+<!-- OBSTETRICIA - PARTO -->
+<section class="mt-2">
+<div class="px-4 py-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">child_care</span>
+<h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-widest">OBSTETRICIA - PARTO</h3>
+</div>
+<div class="bg-white dark:bg-slate-900/50 divide-y divide-slate-100 dark:divide-slate-800">
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">baby_changing_station</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Partos eutócicos</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">12</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">content_cut</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Episiotomías</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">8</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">straighten</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Suturas de episiotomía</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">4</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">healing</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Suturas de desgarros</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">front_hand</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Alumbramiento manual</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">visibility</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Revisión uterina</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+</div>
+</section>
+<!-- OBSTETRICIA - URGENCIAS -->
+<section class="mt-6">
+<div class="px-4 py-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">emergency</span>
+<h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-widest">OBSTETRICIA - URGENCIAS</h3>
+</div>
+<div class="bg-white dark:bg-slate-900/50 divide-y divide-slate-100 dark:divide-slate-800">
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">medical_services</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Atención urgencias obstétricas</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">10</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">calendar_month</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Valoración embarazo primer trimestre</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">heart_broken</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Diagnóstico aborto</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">location_on</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Diagnóstico ectópico</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">warning</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Valoración amenaza parto pretérmino</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">monitor_heart</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Registro cardiotocográfico</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+</div>
+</section>
+<!-- OBSTETRICIA - ECOGRAFÍA -->
+<section class="mt-6">
+<div class="px-4 py-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">settings_accessibility</span>
+<h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-widest">OBSTETRICIA - ECOGRAFÍA</h3>
+</div>
+<div class="bg-white dark:bg-slate-900/50 divide-y divide-slate-100 dark:divide-slate-800">
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">radiology</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Ecografías primer trimestre</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">square_foot</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Biometrías fetales</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">opacity</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Valoración líquido amniótico</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">place</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Localización placentaria</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+</div>
+</section>
+<!-- CIRUGÍA - AYUDANTE -->
+<section class="mt-6">
+<div class="px-4 py-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">medical_services</span>
+<h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-widest">CIRUGÍA - AYUDANTE</h3>
+</div>
+<div class="bg-white dark:bg-slate-900/50 divide-y divide-slate-100 dark:divide-slate-800">
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">health_metrics</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Cesáreas como 2º ayudante</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">clean_hands</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Legrados como 1º ayudante</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">surgical_mask</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Histerectomías como 2º ayudante</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">precision_manufacturing</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Cirugías laparoscópicas como ayudante</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+</div>
+</section>
+<!-- GINECOLOGÍA - CONSULTA -->
+<section class="mt-6 mb-8">
+<div class="px-4 py-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">stethoscope</span>
+<h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-widest">GINECOLOGÍA - CONSULTA</h3>
+</div>
+<div class="bg-white dark:bg-slate-900/50 divide-y divide-slate-100 dark:divide-slate-800">
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">groups</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Consultas ginecología general</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">clinical_notes</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Exploraciones ginecológicas</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">lab_panel</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Citologías cervicales</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 py-4 justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary flex items-center justify-center rounded-lg bg-primary/10 shrink-0 size-10"><span class="material-symbols-outlined">female</span></div>
+<p class="text-slate-900 dark:text-slate-100 text-base font-medium">Exploraciones mamarias</p>
+</div>
+<div class="shrink-0 flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-1 rounded-full">
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">remove</span></button>
+<span class="text-slate-900 dark:text-slate-100 text-base font-bold min-w-[20px] text-center">0</span>
+<button class="text-primary flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"><span class="material-symbols-outlined text-lg">add</span></button>
+</div>
+</div>
+</div>
+</section></main>
+<!-- Sticky Bottom CTA -->
+<footer class="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-4">
+<div class="max-w-lg mx-auto">
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+<span class="material-symbols-outlined">save</span>
+                    Guardar actividad
+                </button>
+</div>
+</footer>
+</div>
+</body></html>

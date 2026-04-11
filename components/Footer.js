@@ -1,15 +1,18 @@
-import React, { useMemo, memo, useCallback } from "react";
+import React, { useMemo, memo, useCallback, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { getFooterConfig } from "../constants/footerConfig";
+import { useUnreadChatsCount } from "../src/hooks/useUnreadChatsCount";
+import { COLORS } from "../constants/colors";
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
-const COLORS = {
-  ACTIVE: "#000000",
-  INACTIVE: "#8E8E93",
+const FOOTER_COLORS = {
+  ACTIVE: "#670CF5",
+  INACTIVE: "#64748B",
 };
 
 const ICON_SIZE = 24;
@@ -20,12 +23,9 @@ const TEXT_SIZE = 10;
 // ============================================================================
 
 /**
- * Item individual del footer
- * Memoizado para evitar re-renders innecesarios
+ * Item individual del footer (v2: icono + texto + punto activo en púrpura)
  */
-const FooterItem = memo(({ item, isActive, onPress }) => {
-  const isMenuText = item.icon === null;
-
+const FooterItem = memo(({ item, isActive, onPress, showBadge = false }) => {
   return (
     <TouchableOpacity
       style={styles.footerItem}
@@ -35,28 +35,21 @@ const FooterItem = memo(({ item, isActive, onPress }) => {
       accessibilityRole="button"
       accessibilityState={{ selected: isActive }}
     >
-      {isMenuText ? (
-        <View style={styles.menuTextContainer}>
-          <Text style={[styles.menuText, isActive && styles.menuTextActive]}>
-            {item.label}
-          </Text>
-          {isActive && <View style={styles.menuUnderline} />}
-        </View>
-      ) : (
-        <>
-          <Ionicons
-            name={item.icon}
-            size={ICON_SIZE}
-            color={isActive ? COLORS.ACTIVE : COLORS.INACTIVE}
-          />
-          <Text
-            style={[styles.footerLabel, isActive && styles.footerLabelActive]}
-            numberOfLines={1}
-          >
-            {item.label}
-          </Text>
-        </>
-      )}
+      <View style={styles.iconWrapper}>
+        <Ionicons
+          name={item.icon}
+          size={ICON_SIZE}
+          color={isActive ? FOOTER_COLORS.ACTIVE : FOOTER_COLORS.INACTIVE}
+        />
+        {showBadge ? <View style={styles.unreadBadge} /> : null}
+      </View>
+      <Text
+        style={[styles.footerLabel, isActive && styles.footerLabelActive]}
+        numberOfLines={1}
+      >
+        {item.label}
+      </Text>
+      {isActive && <View style={styles.activeDot} />}
     </TouchableOpacity>
   );
 });
@@ -68,9 +61,9 @@ FooterItem.displayName = "FooterItem";
 // ============================================================================
 
 /**
- * Componente Footer estilo Zara con 5 elementos
- * - Para estudiantes: Hospitales, Simulador MIR, MENU, Preferencias, Perfil
- * - Para residentes: Comunidad, Mi Reseña, MENU, Libro, Perfil
+ * Componente Footer v2
+ * Mismo menú para todos: Inicio, Hospitales, MIR, Vivienda, Perfil
+ * Activo: icono y texto en púrpura + punto debajo
  *
  * @param {object} props
  * @param {object} props.userProfile - Perfil del usuario
@@ -84,10 +77,16 @@ export const Footer = ({
   onSectionChange,
   style,
 }) => {
+  const insets = useSafeAreaInsets();
   // Obtener configuración del footer según el tipo de usuario
   const footerItems = useMemo(() => {
     return getFooterConfig(userProfile);
   }, [userProfile]);
+  const { hasChatUnread, refresh } = useUnreadChatsCount(userProfile?.id);
+
+  useEffect(() => {
+    refresh();
+  }, [activeSection, refresh]);
 
   const handleItemPress = useCallback(
     (screenId) => {
@@ -99,19 +98,22 @@ export const Footer = ({
   );
 
   return (
-    <View style={[styles.footerContainer, style]}>
-      {footerItems.map((item) => {
-        const isActive =
-          activeSection === item.screen || activeSection === item.id;
-        return (
-          <FooterItem
-            key={item.id}
-            item={item}
-            isActive={isActive}
-            onPress={() => handleItemPress(item.screen)}
-          />
-        );
-      })}
+    <View style={[styles.footerShell, { paddingBottom: insets.bottom }, style]}>
+      <View style={styles.footerContainer}>
+        {footerItems.map((item) => {
+          const isActive =
+            activeSection === item.screen || activeSection === item.id;
+          return (
+            <FooterItem
+              key={item.id}
+              item={item}
+              isActive={isActive}
+              showBadge={item.id === "grupos" && hasChatUnread}
+              onPress={() => handleItemPress(item.screen)}
+            />
+          );
+        })}
+      </View>
     </View>
   );
 };
@@ -121,13 +123,16 @@ export const Footer = ({
 // ============================================================================
 
 const styles = StyleSheet.create({
+  footerShell: {
+    backgroundColor: COLORS.SURFACE,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.BORDER,
+  },
   footerContainer: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderTopWidth: 1,
-    borderTopColor: "#E5E5EA",
+    backgroundColor: COLORS.SURFACE,
     paddingVertical: 8,
     paddingHorizontal: 4,
     minHeight: 60,
@@ -140,34 +145,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     minHeight: 52,
   },
+  iconWrapper: {
+    position: "relative",
+  },
   footerLabel: {
     fontSize: TEXT_SIZE,
-    color: COLORS.INACTIVE,
+    color: FOOTER_COLORS.INACTIVE,
     marginTop: 4,
-    fontWeight: "400",
+    fontWeight: "500",
     textAlign: "center",
   },
   footerLabelActive: {
-    color: COLORS.ACTIVE,
-    fontWeight: "500",
+    color: FOOTER_COLORS.ACTIVE,
+    fontWeight: "700",
   },
-  menuTextContainer: {
-    alignItems: "center",
-    justifyContent: "center",
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: FOOTER_COLORS.ACTIVE,
+    marginTop: 4,
   },
-  menuText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: COLORS.INACTIVE,
-    letterSpacing: 0.5,
-  },
-  menuTextActive: {
-    color: COLORS.ACTIVE,
-  },
-  menuUnderline: {
-    width: 20,
-    height: 2,
-    backgroundColor: COLORS.ACTIVE,
-    marginTop: 2,
+  unreadBadge: {
+    position: "absolute",
+    top: -2,
+    right: -6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FF3B30",
+    borderWidth: 2,
+    borderColor: COLORS.WHITE,
   },
 });

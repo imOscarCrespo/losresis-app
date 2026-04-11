@@ -1,5 +1,6 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
+import { COLORS } from "../constants/colors";
 
 /**
  * Componente Card reutilizable
@@ -17,7 +18,7 @@ export const Card = ({ children, style, ...props }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.SURFACE,
     borderRadius: 16,
     padding: 20,
     shadowColor: "#000",

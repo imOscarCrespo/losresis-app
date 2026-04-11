@@ -12,13 +12,16 @@ import { supabase } from "../config/supabase";
  * @param {string} city - Ciudad para filtrar (opcional)
  * @returns {Promise<Array>} Lista de rotaciones
  */
-export const getAllRotations = async (
-  specialtyId = null,
-  monthYear = null,
-  country = null,
-  city = null
-) => {
+export const getAllRotations = async (filters = {}) => {
   try {
+    const {
+      specialtyId = null,
+      monthYear = null,
+      country = null,
+      city = null,
+      search = null,
+    } = filters;
+
     let query = supabase.from("external_rotation").select(
       `
         *,
@@ -28,7 +31,13 @@ export const getAllRotations = async (
           surname,
           work_email,
           phone,
-          speciality_id
+          speciality_id,
+          hospital_id,
+          resident_year
+        ),
+        specialities (
+          id,
+          name
         )
       `
     );
@@ -41,6 +50,10 @@ export const getAllRotations = async (
       query = query.eq("city", city);
     }
 
+    if (specialtyId) {
+      query = query.eq("speciality_id", specialtyId);
+    }
+
     query = query.order("created_at", { ascending: false });
 
     const { data, error } = await query;
@@ -51,13 +64,6 @@ export const getAllRotations = async (
     }
 
     let filteredData = data || [];
-
-    // Filtrar por especialidad
-    if (specialtyId) {
-      filteredData = filteredData.filter(
-        (rotation) => rotation.users?.speciality_id === specialtyId
-      );
-    }
 
     // Filtrar por mes/año
     if (monthYear) {
@@ -85,6 +91,25 @@ export const getAllRotations = async (
       return rotationStart >= today;
     });
 
+    if (search?.trim()) {
+      const normalizedSearch = search.trim().toLowerCase();
+      filteredData = filteredData.filter((rotation) =>
+        [
+          rotation.hospital_name,
+          rotation.service_name,
+          rotation.city,
+          rotation.country,
+          rotation.specialities?.name,
+          rotation.users?.name,
+          rotation.users?.surname,
+        ]
+          .filter(Boolean)
+          .some((value) =>
+            String(value).toLowerCase().includes(normalizedSearch)
+          )
+      );
+    }
+
     // Mapear datos del usuario
     const rotationsWithUser = filteredData.map((rotation) => ({
       ...rotation,
@@ -93,6 +118,8 @@ export const getAllRotations = async (
       user_email: rotation.users?.work_email || "",
       user_phone: rotation.users?.phone || "",
       user_speciality_id: rotation.users?.speciality_id || "",
+      user_resident_year: rotation.users?.resident_year || null,
+      specialty_name: rotation.specialities?.name || null,
     }));
 
     return rotationsWithUser;
@@ -152,6 +179,11 @@ export const createRotation = async (rotationData, userId) => {
       end_date: rotationData.end_date || null,
       country: rotationData.country || null,
       city: rotationData.city || null,
+      hospital_name: rotationData.hospital_name?.trim() || null,
+      service_name: rotationData.service_name?.trim() || null,
+      speciality_id: rotationData.speciality_id || null,
+      notes: rotationData.notes?.trim() || null,
+      contact_preference: rotationData.contact_preference || "app_chat",
     };
 
     const { data, error } = await supabase
@@ -192,6 +224,11 @@ export const updateRotation = async (rotationId, updates, userId) => {
       end_date: updates.end_date || null,
       country: updates.country || null,
       city: updates.city || null,
+      hospital_name: updates.hospital_name?.trim() || null,
+      service_name: updates.service_name?.trim() || null,
+      speciality_id: updates.speciality_id || null,
+      notes: updates.notes?.trim() || null,
+      contact_preference: updates.contact_preference || "app_chat",
     };
 
     const { data, error } = await supabase

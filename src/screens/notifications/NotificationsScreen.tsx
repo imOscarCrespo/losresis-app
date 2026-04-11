@@ -6,10 +6,11 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
-  TouchableOpacity,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { ScreenHeader } from "../../../components/ScreenHeader";
+import { ScreenScaffold } from "../../../components/ScreenScaffold";
+import { COLORS } from "../../../constants/colors";
 import {
   fetchNotifications,
   markNotificationAsRead,
@@ -20,12 +21,17 @@ import { NotificationItem } from "../../components/notifications/NotificationIte
 export type NotificationDataPayload = {
   entity_type?: string;
   entity_id?: string;
+  destination_section?: string;
+  destination_tab?: string;
+  course_id?: string;
+  group_id?: string;
+  group_name?: string;
 };
 
 type NotificationsScreenProps = {
   userId: string | undefined;
-  onBack: () => void;
-  onNavigateToEntity: (entityType: string, entityId: string) => void;
+  onBack?: () => void;
+  onNavigateToEntity: (entityType: string, entityId: string | { groupId: string; groupName?: string }) => void;
 };
 
 export default function NotificationsScreen({
@@ -36,6 +42,7 @@ export default function NotificationsScreen({
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const unreadCount = notifications.filter((notification) => !notification.is_read).length;
 
   const loadNotifications = useCallback(async () => {
     if (!userId) return;
@@ -78,12 +85,25 @@ export default function NotificationsScreen({
       const data = (notification.data as NotificationDataPayload | null) ?? {};
       const entityType = data.entity_type;
       const entityId = data.entity_id;
+      const groupId = data.group_id;
+      const groupName = data.group_name;
+
+      if (data.destination_section === "groupChat" && groupId) {
+        onNavigateToEntity("groupChat", { groupId, groupName });
+        return;
+      }
 
       if (entityType && entityId) {
         if (entityType === "review") {
           onNavigateToEntity("reviewDetail", entityId);
         } else if (entityType === "comment") {
           onNavigateToEntity("threadDetail", entityId);
+        } else if (entityType === "roommate_match") {
+          onNavigateToEntity("roomies", entityId);
+        } else if (entityType === "group") {
+          onNavigateToEntity("groupChat", { groupId: entityId, groupName });
+        } else if (entityType === "course") {
+          onNavigateToEntity("courseDetail", entityId);
         }
       }
     },
@@ -108,95 +128,129 @@ export default function NotificationsScreen({
         <Ionicons
           name="notifications-off-outline"
           size={64}
-          color="#C7C7CC"
+          color="#94A3B8"
           style={styles.emptyIcon}
         />
-        <Text style={styles.emptyText}>
-          No tienes notificaciones todavía
-        </Text>
+        <Text style={styles.emptyTitle}>Nada por aqui</Text>
+        <Text style={styles.emptyText}>No tienes notificaciones todavia</Text>
       </View>
     ),
     []
   );
 
-  const renderHeader = useCallback(
+  const renderListHeader = useCallback(
     () => (
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notificaciones</Text>
+      <View style={styles.scrollContent}>
+        <View style={styles.titleRow}>
+          <Text style={styles.sectionTitle}>Actividad reciente</Text>
+          <View style={styles.countBadge}>
+            <Text style={styles.countText}>
+              {unreadCount} {unreadCount === 1 ? "nueva" : "nuevas"}
+            </Text>
+          </View>
+        </View>
       </View>
     ),
-    [onBack]
+    [unreadCount]
   );
 
   if (loading && notifications.length === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        {renderHeader()}
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-        </View>
-      </SafeAreaView>
+      <ScreenScaffold
+        header={
+          <ScreenHeader
+            title="Notificaciones"
+            onBack={onBack}
+            iconName="notifications-outline"
+            compact
+          />
+        }
+        contentSurfaceStyle={styles.contentSurface}
+      >
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#670CF5" />
+          </View>
+      </ScreenScaffold>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      {renderHeader()}
-      <FlatList
-        data={notifications}
-        renderItem={renderItem}
-        keyExtractor={keyExtractor}
-        contentContainerStyle={
-          notifications.length === 0
-            ? styles.listContentEmpty
-            : styles.listContent
-        }
-        ListEmptyComponent={renderEmpty}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={["#007AFF"]}
-            tintColor="#007AFF"
-          />
-        }
-      />
-    </SafeAreaView>
+    <ScreenScaffold
+      header={
+        <ScreenHeader
+          title="Notificaciones"
+          onBack={onBack}
+          iconName="notifications-outline"
+          compact
+        />
+      }
+      contentSurfaceStyle={styles.contentSurface}
+    >
+        <FlatList
+          data={notifications}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          ListHeaderComponent={renderListHeader}
+          contentContainerStyle={
+            notifications.length === 0
+              ? styles.listContentEmpty
+              : styles.listContent
+          }
+          ListEmptyComponent={renderEmpty}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={["#670CF5"]}
+              tintColor="#670CF5"
+            />
+          }
+        />
+    </ScreenScaffold>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  contentSurface: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: COLORS.BACKGROUND,
   },
-  header: {
+  titleRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    justifyContent: "space-between",
+    paddingBottom: 16,
   },
-  backButton: {
-    marginRight: 12,
-    padding: 4,
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
   },
-  headerTitle: {
+  sectionTitle: {
+    flex: 1,
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#1a1a1a",
+    fontWeight: "700",
+    color: "#1B0977",
+  },
+  countBadge: {
+    backgroundColor: "rgba(103,12,245,0.07)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.15)",
+  },
+  countText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#670CF5",
+    letterSpacing: 0.3,
   },
   listContent: {
-    paddingVertical: 16,
     paddingBottom: 32,
   },
   listContentEmpty: {
     flexGrow: 1,
-    paddingVertical: 16,
+    paddingBottom: 32,
   },
   loadingContainer: {
     flex: 1,
@@ -207,14 +261,20 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 16,
+    padding: 24,
   },
   emptyIcon: {
     marginBottom: 16,
   },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1B0977",
+    marginBottom: 6,
+  },
   emptyText: {
-    fontSize: 16,
-    color: "#8E8E93",
+    fontSize: 15,
+    color: "#64748B",
     textAlign: "center",
   },
 });

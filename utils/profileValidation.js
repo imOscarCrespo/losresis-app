@@ -1,3 +1,5 @@
+import { canResidentUseSeasonalGrace } from "./residentAccess";
+
 /**
  * Utilidades para validación del perfil de usuario
  */
@@ -7,7 +9,10 @@
  * @param {object} formData - Datos del formulario
  * @returns {{ isValid: boolean, error?: string }}
  */
-export const validateProfileForm = (formData) => {
+export const validateProfileForm = (
+  formData,
+  { residentTransitionConfig = null } = {}
+) => {
   // Validar que se haya seleccionado un tipo de usuario
   if (!formData.is_student && !formData.is_resident && !formData.is_doctor) {
     return {
@@ -28,6 +33,21 @@ export const validateProfileForm = (formData) => {
       isValid: false,
       error: "Por favor, selecciona tu año de residencia.",
     };
+  }
+
+  if (formData.is_resident && !formData.work_email?.trim()) {
+    const canUseSeasonalGrace = canResidentUseSeasonalGrace(
+      formData,
+      residentTransitionConfig
+    );
+
+    if (!canUseSeasonalGrace) {
+      return {
+        isValid: false,
+        error:
+          "Necesitas tu correo corporativo para activar el perfil de residente fuera de la ventana temporal MIR.",
+      };
+    }
   }
 
   return { isValid: true };

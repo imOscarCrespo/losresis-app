@@ -5,15 +5,6 @@
 
 export const NAVIGATION_ITEMS = [
   {
-    id: "comunidad",
-    name: "Comunidad",
-    icon: "people",
-    description: "Conecta con otros residentes de tu especialidad",
-    doctorOnly: true,
-    color: "#7C3AED", // Violet
-    lightColor: "#EDE9FE",
-  },
-  {
     id: "mi-resena",
     name: "Mi Reseña",
     icon: "star",
@@ -42,10 +33,10 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#FCE7F3",
   },
   {
-    id: "guardias",
-    name: "Guardias",
-    icon: "time",
-    description: "Revisa tus próximas guardias programadas",
+    id: "agenda",
+    name: "Agenda",
+    icon: "calendar",
+    description: "Gestiona guardias, estudio, cursos y eventos en un solo calendario",
     doctorOnly: true,
     color: "#8B5CF6", // Purple
     lightColor: "#F3E8FF",
@@ -88,6 +79,32 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#CCFBF1",
   },
   {
+    id: "residentPayouts",
+    name: "Nóminas",
+    icon: "cash",
+    description: "Registra tu nómina mensual y revisa la evolución anual",
+    residentOnly: true,
+    color: "#670CF5",
+    lightColor: "#F4EEFF",
+  },
+  {
+    id: "grupos",
+    name: "Chats",
+    icon: "people",
+    description:
+      "Chatea con residentes y estudiantes de tu especialidad y ciudad",
+    color: "#6D28D9", // Violet
+    lightColor: "#EDE9FE",
+  },
+  {
+    id: "notifications",
+    name: "Notificaciones",
+    icon: "notifications",
+    description: "Consulta avisos de actividad, recordatorios y novedades",
+    color: "#EF4444",
+    lightColor: "#FEE2E2",
+  },
+  {
     id: "reseñas",
     name: "Reseñas",
     icon: "document-text",
@@ -121,6 +138,14 @@ export const NAVIGATION_ITEMS = [
     description: "Busca o publica anuncios de habitaciones para residentes",
     color: "#84CC16", // Lime
     lightColor: "#ECFCCB",
+  },
+  {
+    id: "roomies",
+    name: "Roomies",
+    icon: "heart",
+    description: "Haz match con futuros compañeros de piso según convivencia",
+    color: "#670CF5",
+    lightColor: "#F3E8FF",
   },
   {
     id: "ocio",
@@ -185,8 +210,14 @@ export const IMPLEMENTED_SECTIONS = [
   "reviewDetail",
   "articulos",
   "vivienda",
+  "roomies",
   "ocio",
   "leisureForum",
+  "grupos",
+  "groupChat",
+  "agenda",
+  "residentPayouts",
+  "notifications",
 ];
 
 /**

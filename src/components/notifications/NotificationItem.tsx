@@ -37,6 +37,18 @@ export function NotificationItem({ notification, onPress }: NotificationItemProp
     >
       <View style={styles.content}>
         <View style={styles.header}>
+          <View style={styles.titleWrap}>
+            <View style={[styles.typeBadge, isUnread && styles.typeBadgeUnread]}>
+              <Text style={[styles.typeBadgeText, isUnread && styles.typeBadgeTextUnread]}>
+                {isUnread ? "Nueva" : "Leida"}
+              </Text>
+            </View>
+            <Text style={styles.timestamp}>
+              {formatRelativeTime(notification.created_at)}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.bodyWrap}>
           <Text style={styles.title} numberOfLines={1}>
             {notification.title}
           </Text>
@@ -47,9 +59,6 @@ export function NotificationItem({ notification, onPress }: NotificationItemProp
             {notification.body}
           </Text>
         ) : null}
-        <Text style={styles.timestamp}>
-          {formatRelativeTime(notification.created_at)}
-        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -58,46 +67,80 @@ export function NotificationItem({ notification, onPress }: NotificationItemProp
 const styles = StyleSheet.create({
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 24,
+    padding: 18,
     marginHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#E5E5EA",
+    borderColor: "#E8EAF3",
+    shadowColor: "#1B0977",
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
   },
   cardUnread: {
-    backgroundColor: "#F8FAFC",
-    borderColor: "#E2E8F0",
+    backgroundColor: "#FCFAFF",
+    borderColor: "#DCCFFF",
   },
   content: {
     flex: 1,
   },
   header: {
+    marginBottom: 12,
+  },
+  titleWrap: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 4,
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  bodyWrap: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  typeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "#EEF2FF",
+  },
+  typeBadgeUnread: {
+    backgroundColor: "#F1EAFE",
+  },
+  typeBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#475569",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  typeBadgeTextUnread: {
+    color: "#670CF5",
   },
   title: {
     flex: 1,
     fontSize: 16,
-    fontWeight: "bold",
-    color: "#1a1a1a",
+    fontWeight: "800",
+    color: "#1B0977",
   },
   unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#007AFF",
-    marginLeft: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#670CF5",
+    marginLeft: 10,
+    marginTop: 5,
   },
   body: {
     fontSize: 14,
-    color: "#3C3C43",
-    lineHeight: 20,
-    marginBottom: 8,
+    color: "#475569",
+    lineHeight: 21,
   },
   timestamp: {
     fontSize: 12,
-    color: "#8E8E93",
+    color: "#64748B",
+    fontWeight: "700",
   },
 });

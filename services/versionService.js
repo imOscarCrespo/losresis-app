@@ -8,6 +8,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
+import {
+  APP_STORE_URL_IOS,
+  PLAY_STORE_URL_ANDROID,
+  DEV_FORCE_UPDATE_OVERRIDE,
+} from "../config/versionConfig";
 
 // Claves para AsyncStorage
 const VERSION_CACHE_KEY = "@losresis:version_cache";
@@ -135,7 +140,8 @@ export const getMinRequiredVersion = async (forceRefresh = false) => {
       const cached = await AsyncStorage.getItem(VERSION_CACHE_KEY);
       if (cached) {
         try {
-          const { minVersion, updateUrl, timestamp } = JSON.parse(cached);
+          const { minVersion, updateUrl, isForceUpdate, timestamp } =
+            JSON.parse(cached);
           const now = Date.now();
           // Si el caché es válido (menos de 5 minutos), usarlo
           if (now - timestamp < CACHE_DURATION) {
@@ -143,6 +149,7 @@ export const getMinRequiredVersion = async (forceRefresh = false) => {
               success: true,
               minVersion,
               updateUrl: updateUrl || null,
+              isForceUpdate: !!isForceUpdate,
               error: null,
               fromCache: true,
             };
@@ -165,7 +172,7 @@ export const getMinRequiredVersion = async (forceRefresh = false) => {
       () =>
         supabase
           .from("app_versions")
-          .select("min_required_version, platform, update_url")
+          .select("min_required_version, platform, update_url, is_force_update")
           .eq("platform", Platform.OS)
           .eq("is_active", true)
           .order("created_at", { ascending: false })
@@ -179,6 +186,7 @@ export const getMinRequiredVersion = async (forceRefresh = false) => {
       data: result.data,
       min_required_version: result.data?.min_required_version,
       update_url: result.data?.update_url,
+      is_force_update: result.data?.is_force_update,
       platform: result.data?.platform,
       error: result.error,
     });
@@ -189,7 +197,7 @@ export const getMinRequiredVersion = async (forceRefresh = false) => {
         () =>
           supabase
             .from("app_versions")
-            .select("min_required_version, update_url")
+            .select("min_required_version, update_url, is_force_update")
             .eq("is_active", true)
             .order("created_at", { ascending: false })
             .limit(1)
@@ -201,6 +209,7 @@ export const getMinRequiredVersion = async (forceRefresh = false) => {
         return {
           success: false,
           minVersion: null,
+          isForceUpdate: false,
           error: result.error || "No se pudo obtener la versión requerida",
         };
       }
@@ -209,6 +218,7 @@ export const getMinRequiredVersion = async (forceRefresh = false) => {
       const cacheData = {
         minVersion: fallbackResult.data.min_required_version,
         updateUrl: fallbackResult.data.update_url,
+        isForceUpdate: !!fallbackResult.data.is_force_update,
         timestamp: Date.now(),
       };
       await AsyncStorage.setItem(VERSION_CACHE_KEY, JSON.stringify(cacheData));
@@ -217,6 +227,7 @@ export const getMinRequiredVersion = async (forceRefresh = false) => {
         success: true,
         minVersion: fallbackResult.data.min_required_version,
         updateUrl: fallbackResult.data.update_url,
+        isForceUpdate: !!fallbackResult.data.is_force_update,
         error: null,
         fromCache: false,
       };
@@ -226,6 +237,7 @@ export const getMinRequiredVersion = async (forceRefresh = false) => {
     const cacheData = {
       minVersion: result.data.min_required_version,
       updateUrl: result.data.update_url,
+      isForceUpdate: !!result.data.is_force_update,
       timestamp: Date.now(),
     };
     await AsyncStorage.setItem(VERSION_CACHE_KEY, JSON.stringify(cacheData));
@@ -234,6 +246,7 @@ export const getMinRequiredVersion = async (forceRefresh = false) => {
       success: true,
       minVersion: result.data.min_required_version,
       updateUrl: result.data.update_url,
+      isForceUpdate: !!result.data.is_force_update,
       error: null,
       fromCache: false,
     };
@@ -242,6 +255,7 @@ export const getMinRequiredVersion = async (forceRefresh = false) => {
     return {
       success: false,
       minVersion: null,
+      isForceUpdate: false,
       error: error.message,
     };
   }
@@ -257,10 +271,27 @@ export const checkVersionUpdate = async (forceRefresh = false) => {
   try {
     const currentVersion = getCurrentAppVersion();
 
+    if (__DEV__ && DEV_FORCE_UPDATE_OVERRIDE.enabled) {
+      const minVersion = DEV_FORCE_UPDATE_OVERRIDE.minVersion || "999.0.0";
+      const updateUrl =
+        Platform.OS === "ios" ? APP_STORE_URL_IOS : PLAY_STORE_URL_ANDROID;
+
+      return {
+        needsUpdate: true,
+        isForceUpdate: true,
+        currentVersion,
+        minVersion,
+        updateUrl,
+        error: null,
+        fromCache: false,
+      };
+    }
+
     // En desarrollo, si no hay versión, retornar false (no forzar actualización)
     if (!currentVersion && !__DEV__) {
       return {
         needsUpdate: false,
+        isForceUpdate: false,
         currentVersion: null,
         minVersion: null,
         error: "No se pudo obtener la versión actual de la app",
@@ -272,8 +303,14 @@ export const checkVersionUpdate = async (forceRefresh = false) => {
       const cachedCheck = await AsyncStorage.getItem(VERSION_CHECK_KEY);
       if (cachedCheck) {
         try {
-          const { needsUpdate, currentVersion: cachedCurrent, minVersion, updateUrl, timestamp } =
-            JSON.parse(cachedCheck);
+          const {
+            needsUpdate,
+            currentVersion: cachedCurrent,
+            minVersion,
+            updateUrl,
+            isForceUpdate,
+            timestamp,
+          } = JSON.parse(cachedCheck);
           const now = Date.now();
           const cacheAge = now - timestamp;
 
@@ -282,6 +319,7 @@ export const checkVersionUpdate = async (forceRefresh = false) => {
             currentVersion,
             cachedMinVersion: minVersion,
             needsUpdate,
+            isForceUpdate: !!isForceUpdate,
             cacheAgeMinutes: Math.round(cacheAge / 1000 / 60),
             cacheValid: cacheAge < CACHE_DURATION,
             versionMatch: cachedCurrent === currentVersion,
@@ -294,11 +332,13 @@ export const checkVersionUpdate = async (forceRefresh = false) => {
           
           if (
             now - timestamp < SHORT_CACHE_DURATION &&
-            cachedCurrent === currentVersion
+            cachedCurrent === currentVersion &&
+            !(needsUpdate && !isForceUpdate)
           ) {
             console.log('✅ [checkVersionUpdate] Usando caché (válido, < 2 minutos)');
             return {
               needsUpdate,
+              isForceUpdate: !!isForceUpdate,
               currentVersion,
               minVersion,
               updateUrl: updateUrl || null,
@@ -328,6 +368,7 @@ export const checkVersionUpdate = async (forceRefresh = false) => {
       success: versionResult.success,
       minVersion: versionResult.minVersion,
       updateUrl: versionResult.updateUrl,
+      isForceUpdate: versionResult.isForceUpdate,
       error: versionResult.error,
       fromCache: versionResult.fromCache,
     });
@@ -340,6 +381,7 @@ export const checkVersionUpdate = async (forceRefresh = false) => {
       });
       return {
         needsUpdate: false,
+        isForceUpdate: false,
         currentVersion,
         minVersion: null,
         updateUrl: null,
@@ -368,8 +410,10 @@ export const checkVersionUpdate = async (forceRefresh = false) => {
       currentVersion,
       minVersion: versionResult.minVersion,
       updateUrl: versionResult.updateUrl,
+      isForceUpdate: !!versionResult.isForceUpdate,
       comparison: `"${currentVersion}" < "${versionResult.minVersion}" = ${needsUpdate}`,
-      shouldShowBanner: needsUpdate,
+      shouldShowBanner: needsUpdate && !versionResult.isForceUpdate,
+      shouldBlockApp: needsUpdate && !!versionResult.isForceUpdate,
     });
 
     // Guardar resultado en caché
@@ -378,12 +422,14 @@ export const checkVersionUpdate = async (forceRefresh = false) => {
       currentVersion,
       minVersion: versionResult.minVersion,
       updateUrl: versionResult.updateUrl || null,
+      isForceUpdate: !!versionResult.isForceUpdate,
       timestamp: Date.now(),
     };
     await AsyncStorage.setItem(VERSION_CHECK_KEY, JSON.stringify(checkCache));
 
     return {
       needsUpdate,
+      isForceUpdate: !!versionResult.isForceUpdate,
       currentVersion,
       minVersion: versionResult.minVersion,
       updateUrl: versionResult.updateUrl || null,
@@ -394,6 +440,7 @@ export const checkVersionUpdate = async (forceRefresh = false) => {
     console.error("Error verificando actualización:", error);
     return {
       needsUpdate: false,
+      isForceUpdate: false,
       currentVersion: getCurrentAppVersion(),
       minVersion: null,
       updateUrl: null,

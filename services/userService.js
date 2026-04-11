@@ -3,6 +3,14 @@
  */
 
 import { supabase } from "../config/supabase";
+import {
+  cacheUserProfile,
+  clearCachedUserProfile,
+} from "./userProfileCacheService";
+import {
+  isSeasonalResidentPending,
+  isResidentLockedMissingCorporateEmail,
+} from "../utils/residentAccess";
 
 /**
  * Actualizar el perfil de usuario
@@ -13,6 +21,14 @@ import { supabase } from "../config/supabase";
 export const updateUserProfile = async (userId, profileData) => {
   try {
     console.log("🔄 Updating user profile:", userId, profileData);
+
+    const previousProfileResult = await supabase
+      .from("users")
+      .select("id, hospital_id, speciality_id, resident_year")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const previousProfile = previousProfileResult.data || null;
 
     const updateData = {
       id: userId,
@@ -48,6 +64,20 @@ export const updateUserProfile = async (userId, profileData) => {
     }
 
     console.log("✅ Profile updated successfully:", data);
+
+    const hospitalChanged =
+      previousProfile?.hospital_id !== (data?.hospital_id || null);
+    const specialityChanged =
+      previousProfile?.speciality_id !== (data?.speciality_id || null);
+    const residentYearChanged =
+      (previousProfile?.resident_year || null) !== (data?.resident_year || null);
+
+    if (hospitalChanged || specialityChanged || residentYearChanged) {
+      await clearCachedUserProfile(userId);
+    } else {
+      await cacheUserProfile(data);
+    }
+
     return {
       success: true,
       profile: data,
@@ -127,22 +157,26 @@ export const isProfileComplete = (
   }
 
   if (profile.is_resident) {
-    // Para residentes, el perfil está completo si:
-    // 1. Tiene toda la información básica requerida
-    // 2. Tiene work_email definido
-    // 3. Tiene hospital_id, speciality_id y resident_year
-    // 4. Y (el email es válido O tiene una solicitud de revisión activa)
-    const hasAllRequiredFields = !!(
+    const hasResidentCoreFields = !!(
       hasRequiredBasicInfo &&
-      profile.work_email &&
       profile.hospital_id &&
       profile.speciality_id &&
       profile.resident_year
     );
 
-    if (!hasAllRequiredFields) return false;
+    if (!hasResidentCoreFields) return false;
 
-    // El perfil está completo si el email es válido O tiene solicitud activa
+    if (isSeasonalResidentPending(profile)) {
+      return true;
+    }
+
+    if (isResidentLockedMissingCorporateEmail(profile)) {
+      return false;
+    }
+
+    const hasCorporateEmail = !!profile.work_email;
+    if (!hasCorporateEmail) return false;
+
     return isEmailValid || hasActiveEmailReview;
   }
 
@@ -192,6 +226,13 @@ export const deleteUserAccount = async (userId) => {
         deleteProfileError.code,
         deleteProfileError.message
       );
+      console.warn("⚠️ Detalle completo del error al eliminar usuario:", {
+        code: deleteProfileError.code,
+        message: deleteProfileError.message,
+        details: deleteProfileError.details,
+        hint: deleteProfileError.hint,
+        userId,
+      });
 
       // Verificar si el registro todavía existe
       // Si el error es del trigger pero el DELETE se ejecutó, el registro no debería existir
@@ -219,10 +260,19 @@ export const deleteUserAccount = async (userId) => {
         );
         return {
           success: false,
-          error:
-            "No se pudo eliminar el usuario debido a un error en el trigger de la base de datos. " +
-            "Por favor, contacta con el administrador o corrige el trigger en Supabase que intenta " +
-            "llamar a 'supabase_functions.http_request' cuando se elimina un usuario.",
+          error: (() => {
+            if (deleteProfileError.code === "23503") {
+              return (
+                "No se pudo eliminar el usuario porque sigue referenciado por otros registros en la base de datos. " +
+                `Detalle: ${deleteProfileError.message}`
+              );
+            }
+
+            return (
+              "No se pudo eliminar el usuario debido a un error en la base de datos. " +
+              `Detalle: ${deleteProfileError.message}`
+            );
+          })(),
         };
       }
     }

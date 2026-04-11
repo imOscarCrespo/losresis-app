@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Alert } from "react-native";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { updateUserProfile } from "../services/userService";
+import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
 import {
   validateProfileForm,
   shouldShowEmailReview,
@@ -135,14 +136,11 @@ export const useProfileForm = () => {
       is_student: type === "student",
       is_resident: type === "resident",
       is_doctor: type === "doctor",
-      // Limpiar campos profesionales si cambia a estudiante
-      ...(type === "student" && {
-        work_email: "",
-        hospital_id: "",
-        speciality_id: "",
-        resident_year: "",
-      }),
     }));
+
+    if (type !== "resident") {
+      setShowEmailReviewSection(false);
+    }
   }, []);
 
   /**
@@ -180,8 +178,22 @@ export const useProfileForm = () => {
       setMessage(null);
 
       try {
+        const normalizedFormData = formData.is_student
+          ? {
+              ...formData,
+              work_email: "",
+              hospital_id: "",
+              speciality_id: "",
+              resident_year: "",
+            }
+          : formData;
+
         // Validación básica
-        const validation = validateProfileForm(formData);
+        const { config: residentTransitionConfig } =
+          await getResidentTransitionConfig();
+        const validation = validateProfileForm(normalizedFormData, {
+          residentTransitionConfig,
+        });
         if (!validation.isValid) {
           setMessage({ type: "error", text: validation.error });
           setLoading(false);
@@ -191,17 +203,17 @@ export const useProfileForm = () => {
         // Validar email de trabajo para residentes y doctores
         let emailValidation = { isValid: true };
         if (
-          (formData.is_resident || formData.is_doctor) &&
-          formData.work_email &&
-          formData.hospital_id
+          (normalizedFormData.is_resident || normalizedFormData.is_doctor) &&
+          normalizedFormData.work_email &&
+          normalizedFormData.hospital_id
         ) {
           emailValidation = await validateEmailDomain(
-            formData.work_email,
-            formData.hospital_id
+            normalizedFormData.work_email,
+            normalizedFormData.hospital_id
           );
 
           if (!emailValidation.isValid) {
-            if (shouldShowEmailReview(formData, emailValidation)) {
+            if (shouldShowEmailReview(normalizedFormData, emailValidation)) {
               setShowEmailReviewSection(true);
               setMessage({
                 type: "error",
@@ -229,7 +241,7 @@ export const useProfileForm = () => {
         // Actualizar perfil
         const { success, profile, error } = await updateUserProfile(
           user.id,
-          formData
+          normalizedFormData
         );
 
         if (!success) {

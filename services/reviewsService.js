@@ -119,6 +119,58 @@ export const getReviewSummaries = async (filters = {}) => {
 };
 
 /**
+ * Obtener la puntuación media de reseñas agrupada por hospital
+ * @returns {Promise<{success: boolean, ratings: Object, error: string|null}>}
+ *   ratings: { [hospitalId]: { avgRating: number, reviewCount: number } }
+ */
+export const getHospitalRatings = async () => {
+  try {
+    const { data, error } = await supabase
+      .from("review")
+      .select("hospital_id, review_answer(rating_value)")
+      .not("is_approved", "is", false);
+
+    if (error) {
+      console.error("Error fetching hospital ratings:", error);
+      return { success: false, ratings: {}, error: error.message };
+    }
+
+    const ratingsMap = {};
+
+    (data || []).forEach((review) => {
+      const { hospital_id: hospitalId, review_answer: answers = [] } = review;
+      const ratingValues = (answers || [])
+        .map((a) => a.rating_value)
+        .filter((v) => v != null);
+
+      if (ratingValues.length === 0) return;
+
+      const reviewAvg =
+        ratingValues.reduce((sum, v) => sum + v, 0) / ratingValues.length;
+
+      if (!ratingsMap[hospitalId]) {
+        ratingsMap[hospitalId] = { total: 0, count: 0 };
+      }
+      ratingsMap[hospitalId].total += reviewAvg;
+      ratingsMap[hospitalId].count += 1;
+    });
+
+    const ratings = {};
+    Object.entries(ratingsMap).forEach(([hospitalId, { total, count }]) => {
+      ratings[hospitalId] = {
+        avgRating: total / count,
+        reviewCount: count,
+      };
+    });
+
+    return { success: true, ratings, error: null };
+  } catch (error) {
+    console.error("Exception in getHospitalRatings:", error);
+    return { success: false, ratings: {}, error: error.message };
+  }
+};
+
+/**
  * Obtener el detalle completo de una reseña
  * @param {string} reviewId - ID de la reseña
  * @returns {Promise<{success: boolean, review: object|null, error: string|null}>}

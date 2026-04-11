@@ -14,37 +14,52 @@ export const ConfirmationModal = ({
   confirmText = "Confirmar",
   cancelText = "Cancelar",
   confirmColor = COLORS.ERROR,
+  useModal = true,
 }) => {
-  return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.overlay}>
-        <View style={styles.content}>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.message}>{message}</Text>
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-              <Text style={styles.cancelButtonText}>{cancelText}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.confirmButton, { backgroundColor: confirmColor }]}
-              onPress={onConfirm}
-            >
-              <Text style={styles.confirmButtonText}>{confirmText}</Text>
-            </TouchableOpacity>
-          </View>
+  if (!visible) {
+    return null;
+  }
+
+  const content = (
+    <View style={styles.overlay}>
+      <View style={styles.content}>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.message}>{message}</Text>
+        <View style={styles.actions}>
+          <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
+            <Text style={styles.cancelButtonText}>{cancelText}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.confirmButton, { backgroundColor: confirmColor }]}
+            onPress={onConfirm}
+          >
+            <Text style={styles.confirmButtonText}>{confirmText}</Text>
+          </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </View>
   );
+
+  if (useModal) {
+    return (
+      <Modal visible={visible} transparent animationType="fade">
+        {content}
+      </Modal>
+    );
+  }
+
+  return content;
 };
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    zIndex: 1000,
+    elevation: 1000,
   },
   content: {
     backgroundColor: COLORS.WHITE,

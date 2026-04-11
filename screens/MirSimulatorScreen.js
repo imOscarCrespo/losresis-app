@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,22 +9,33 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
+  ImageBackground,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SelectFilter } from "../components/SelectFilter";
 import { useHospitals } from "../hooks/useHospitals";
 import { calculateMIRProbabilities } from "../services/mirSimulatorService";
 import posthogLogger from "../services/posthogService";
+import { getAdvertisementsByPlacement } from "../services/dashboardAdvertisementService";
 
-export default function MirSimulatorScreen({ onBack }) {
+const PRIMARY = "#670CF5";
+const INDIGO = "#1B0977";
+const BG_LIGHT = "#F8FAFC";
+
+export default function MirSimulatorScreen({ onBack, userProfile }) {
+  const insets = useSafeAreaInsets();
   const { specialties, uniqueRegions } = useHospitals();
+  const scrollViewRef = useRef(null);
   const [mirScore, setMirScore] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [resultsCardY, setResultsCardY] = useState(null);
+  const [shouldScrollToResults, setShouldScrollToResults] = useState(false);
+  const [mirAds, setMirAds] = useState([]);
 
-  // Preparar opciones para los selects
   const specialtyOptions = useMemo(() => {
     return (specialties || [])
       .slice()
@@ -45,13 +56,78 @@ export default function MirSimulatorScreen({ onBack }) {
       }));
   }, [uniqueRegions]);
 
-  // Tracking de pantalla con PostHog
   useEffect(() => {
     posthogLogger.logScreen("MirSimulatorScreen");
   }, []);
 
-  // Validar si se puede calcular
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadMirAds = async () => {
+      const { success, ads } = await getAdvertisementsByPlacement(
+        userProfile,
+        "mir_results"
+      );
+
+      if (!isMounted) return;
+      setMirAds(success ? ads : []);
+    };
+
+    loadMirAds();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    userProfile?.id,
+    userProfile?.is_student,
+    userProfile?.is_resident,
+    userProfile?.is_doctor,
+  ]);
+
+  useEffect(() => {
+    if (!shouldScrollToResults || results.length === 0 || resultsCardY == null) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(resultsCardY - 16, 0),
+        animated: true,
+      });
+      setShouldScrollToResults(false);
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [results.length, resultsCardY, shouldScrollToResults]);
+
   const canCalculate = mirScore && selectedSpecialty && !loading;
+  const interleavedResults = useMemo(() => {
+    if (!results.length) return [];
+
+    const items = [];
+    let adCursor = 0;
+
+    results.forEach((result, index) => {
+      items.push({
+        type: "result",
+        id: `result-${result.hospital.id}`,
+        result,
+      });
+
+      if (mirAds.length > 0 && (index + 1) % 2 === 0) {
+        const ad = mirAds[adCursor % mirAds.length];
+        items.push({
+          type: "ad",
+          id: `ad-${ad.id}-${index}`,
+          ad,
+        });
+        adCursor += 1;
+      }
+    });
+
+    return items;
+  }, [results, mirAds]);
 
   const handleCalculate = async () => {
     if (!canCalculate) return;
@@ -77,6 +153,7 @@ export default function MirSimulatorScreen({ onBack }) {
 
       if (success) {
         setResults(calculatedResults);
+        setShouldScrollToResults(true);
       } else {
         console.error("Error calculating probabilities:", error);
         alert(
@@ -92,95 +169,156 @@ export default function MirSimulatorScreen({ onBack }) {
     }
   };
 
+  const getGradeTrend = (grades) => {
+    const validGrades = grades
+      .filter(
+        (g) =>
+          g.grade !== null &&
+          g.grade !== undefined &&
+          typeof g.grade === "number"
+      )
+      .sort((a, b) => parseInt(a.year) - parseInt(b.year));
+
+    if (validGrades.length < 2) return null;
+
+    const n = validGrades.length;
+    const years = validGrades.map((g) => parseInt(g.year));
+    const values = validGrades.map((g) => g.grade);
+    const minYear = years[0];
+    const xNorm = years.map((y) => y - minYear);
+
+    const sumX = xNorm.reduce((a, b) => a + b, 0);
+    const sumY = values.reduce((a, b) => a + b, 0);
+    const sumXY = xNorm.reduce((sum, x, i) => sum + x * values[i], 0);
+    const sumX2 = xNorm.reduce((sum, x) => sum + x * x, 0);
+    const denom = n * sumX2 - sumX * sumX;
+    if (denom === 0) return "stable";
+
+    const slope = (n * sumXY - sumX * sumY) / denom;
+    const avgValue = sumY / n;
+    const relativeSlope = avgValue !== 0 ? slope / avgValue : 0;
+
+    if (relativeSlope > 0.02) return "up";
+    if (relativeSlope < -0.02) return "down";
+    return "stable";
+  };
+
   const getProbabilityColor = (probability) => {
     if (probability === "NA") return "#9CA3AF";
-    const prob = parseInt(probability.replace("%", ""));
-    if (prob >= 75) return "#059669"; // green
-    if (prob >= 50) return "#D97706"; // yellow/orange
-    if (prob >= 25) return "#DC2626"; // orange/red
-    return "#DC2626"; // red
+    const prob = parseInt(probability.replace("%", ""), 10);
+    if (prob >= 75) return "#059669";
+    if (prob >= 50) return "#D97706";
+    if (prob >= 25) return "#DC2626";
+    return "#DC2626";
   };
 
   const getProbabilityBgColor = (probability) => {
     if (probability === "NA") return "#F3F4F6";
-    const prob = parseInt(probability.replace("%", ""));
+    const prob = parseInt(probability.replace("%", ""), 10);
     if (prob >= 75) return "#D1FAE5";
     if (prob >= 50) return "#FEF3C7";
     if (prob >= 25) return "#FEE2E2";
     return "#FEE2E2";
   };
 
-  const renderResultItem = ({ item }) => {
+  const renderResultCard = (item) => {
     const currentYear = new Date().getFullYear();
-
-    // Filtrar grades para excluir el año actual (comparando como números)
     const filteredGrades = item.grades.filter((grade) => {
       const year =
         typeof grade.year === "string" ? parseInt(grade.year, 10) : grade.year;
       return year !== currentYear;
     });
 
+    const trend = getGradeTrend(filteredGrades);
+    const trendConfig = {
+      up: {
+        icon: "trending-up",
+        color: "#059669",
+        bg: "#D1FAE5",
+        border: "#A7F3D0",
+      },
+      down: {
+        icon: "trending-down",
+        color: "#DC2626",
+        bg: "#FEE2E2",
+        border: "#FECACA",
+      },
+      stable: {
+        icon: "remove",
+        color: "#64748B",
+        bg: "#F1F5F9",
+        border: "#E2E8F0",
+      },
+    };
+    const tc = trend ? trendConfig[trend] : null;
+
     return (
       <View style={styles.resultCard}>
         <View style={styles.resultHeader}>
           <Text style={styles.resultHospitalName}>{item.hospital.name}</Text>
-          <View
-            style={[
-              styles.probabilityBadge,
-              { backgroundColor: getProbabilityBgColor(item.probability) },
-            ]}
-          >
-            <Text
+          <View style={styles.resultBadges}>
+            {tc && (
+              <View
+                style={[
+                  styles.trendBadge,
+                  { backgroundColor: tc.bg, borderColor: tc.border },
+                ]}
+              >
+                <Ionicons name={tc.icon} size={13} color={tc.color} />
+              </View>
+            )}
+            <View
               style={[
-                styles.probabilityText,
-                { color: getProbabilityColor(item.probability) },
+                styles.probabilityBadge,
+                { backgroundColor: getProbabilityBgColor(item.probability) },
               ]}
             >
-              {item.probability === "NA" ? "Sin datos" : item.probability}
-            </Text>
+              <Text
+                style={[
+                  styles.probabilityText,
+                  { color: getProbabilityColor(item.probability) },
+                ]}
+              >
+                {item.probability === "NA" ? "Sin datos" : item.probability}
+              </Text>
+            </View>
           </View>
         </View>
 
         <View style={styles.resultLocation}>
-          <Ionicons name="location" size={14} color="#666" />
+          <Ionicons name="location" size={14} color="#6B7280" />
           <Text style={styles.resultLocationText}>
             {item.hospital.city}, {item.hospital.region}
           </Text>
           {item.yearsUsed > 0 && (
             <View style={styles.yearsBadge}>
               <Text style={styles.yearsText}>
-                {item.yearsUsed} {item.yearsUsed === 1 ? "año" : "años"} de
-                datos
+                {item.yearsUsed} {item.yearsUsed === 1 ? "año" : "años"} de datos
               </Text>
             </View>
           )}
-          {item.currentYearSlots !== null &&
-            item.currentYearSlots !== undefined && (
-              <View style={styles.slotsBadge}>
-                <Text style={styles.slotsText}>
-                  {item.currentYearSlots}{" "}
-                  {item.currentYearSlots === 1 ? "plaza" : "plazas"}
-                </Text>
-              </View>
-            )}
+          {item.currentYearSlots != null && (
+            <View style={styles.slotsBadge}>
+              <Text style={styles.slotsText}>
+                {item.currentYearSlots}{" "}
+                {item.currentYearSlots === 1 ? "plaza" : "plazas"}
+              </Text>
+            </View>
+          )}
         </View>
 
         {item.info_note ? (
           <Text style={styles.infoNoteText}>{item.info_note}</Text>
         ) : null}
 
-        {/* Historical grades */}
         <View style={styles.gradesGrid}>
           {filteredGrades.map((grade) => {
-            // Verificar si hay un grade válido (no null, undefined, cadena vacía, o NaN)
             const gradeValue = grade.grade;
             const hasGrade =
-              gradeValue !== null &&
-              gradeValue !== undefined &&
+              gradeValue != null &&
               gradeValue !== "" &&
               !isNaN(parseFloat(gradeValue)) &&
               isFinite(parseFloat(gradeValue));
-
             const isAbove =
               hasGrade && parseFloat(mirScore) <= parseFloat(gradeValue);
 
@@ -221,69 +359,103 @@ export default function MirSimulatorScreen({ onBack }) {
     );
   };
 
+  const renderMirAdCard = (ad) => {
+    return (
+      <View style={styles.inlineAdCard}>
+        {ad?.image_url ? (
+          <ImageBackground
+            source={{ uri: ad.image_url }}
+            style={styles.inlineAdImage}
+            imageStyle={styles.inlineAdImageAsset}
+          >
+            <View style={styles.inlineAdBadge}>
+              <Text style={styles.inlineAdBadgeText}>Ad</Text>
+            </View>
+          </ImageBackground>
+        ) : (
+          <View style={[styles.inlineAdImage, styles.inlineAdPlaceholder]}>
+            <View style={styles.inlineAdBadge}>
+              <Text style={styles.inlineAdBadgeText}>Ad</Text>
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderResultsListItem = ({ item }) => {
+    if (item.type === "ad") {
+      return renderMirAdCard(item.ad);
+    }
+
+    return renderResultCard(item.result);
+  };
+
   return (
     <ScrollView
+      ref={scrollViewRef}
       style={styles.container}
+      contentContainerStyle={{ paddingBottom: 24 }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Header con botón de volver */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={onBack}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-        </TouchableOpacity>
+      {/* Header púrpura */}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: Math.max(insets.top, 16),
+          },
+        ]}
+      >
         <Text style={styles.headerTitle}>Simulador MIR</Text>
+        <Text style={styles.headerSubtitle}>
+          Calcula tus probabilidades de obtener plaza
+        </Text>
       </View>
 
-      {/* Form */}
+      {/* Card del formulario (solapa el header) */}
       <View style={styles.formCard}>
-        <View style={styles.formRow}>
-          {/* MIR Score Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Tu posición en el MIR *</Text>
-            <TextInput
-              style={styles.numberInput}
-              placeholder="1950"
-              keyboardType="numeric"
-              value={mirScore.toString()}
-              onChangeText={(text) => {
-                const num = text === "" ? "" : parseFloat(text);
-                if (text === "" || (!isNaN(num) && num >= 0)) {
-                  setMirScore(text);
-                }
-              }}
-              maxLength={5}
-            />
-          </View>
-
-          {/* Specialty Selection */}
-          <View style={styles.inputGroup}>
-            <SelectFilter
-              label="Filtrar por especialidad *"
-              value={selectedSpecialty}
-              onSelect={setSelectedSpecialty}
-              options={specialtyOptions}
-              placeholder="Selecciona una especialidad"
-            />
-          </View>
-
-          {/* Region Selection */}
-          <View style={styles.inputGroup}>
-            <SelectFilter
-              label="Filtrar por comunidad autónoma"
-              value={selectedRegion}
-              onSelect={setSelectedRegion}
-              options={regionOptions}
-              placeholder="Todas las comunidades autónomas"
-            />
-          </View>
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Tu posición en el MIR *</Text>
+          <TextInput
+            style={styles.numberInput}
+            placeholder="Ej: 1950"
+            placeholderTextColor="#94A3B8"
+            keyboardType="numeric"
+            value={mirScore}
+            onChangeText={(text) => {
+              const num = text === "" ? "" : parseFloat(text, 10);
+              if (text === "" || (!isNaN(num) && num >= 0)) {
+                setMirScore(text);
+              }
+            }}
+            maxLength={5}
+          />
         </View>
 
-        {/* Calculate Button */}
+        <View style={styles.inputGroup}>
+          <SelectFilter
+            label="Filtrar por especialidad *"
+            value={selectedSpecialty}
+            onSelect={setSelectedSpecialty}
+            options={specialtyOptions}
+            placeholder="Selecciona una especialidad"
+            style={styles.selectFilter}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <SelectFilter
+            label="Filtrar por comunidad autónoma"
+            value={selectedRegion}
+            onSelect={setSelectedRegion}
+            options={regionOptions}
+            placeholder="Todas las comunidades autónomas"
+            style={styles.selectFilter}
+          />
+        </View>
+
         <TouchableOpacity
           style={[
             styles.calculateButton,
@@ -291,11 +463,11 @@ export default function MirSimulatorScreen({ onBack }) {
           ]}
           onPress={handleCalculate}
           disabled={!canCalculate}
-          activeOpacity={0.8}
+          activeOpacity={0.9}
         >
           {loading ? (
             <View style={styles.buttonContent}>
-              <ActivityIndicator size="small" color="#ffffff" />
+              <ActivityIndicator size="small" color="#FFF" />
               <Text style={styles.calculateButtonText}>Calculando...</Text>
             </View>
           ) : (
@@ -306,30 +478,34 @@ export default function MirSimulatorScreen({ onBack }) {
         </TouchableOpacity>
       </View>
 
-      {/* Results */}
+      {/* Resultados */}
       {results.length > 0 && (
-        <View style={styles.resultsCard}>
+        <View
+          style={styles.resultsCard}
+          onLayout={(event) => {
+            setResultsCardY(event.nativeEvent.layout.y);
+          }}
+        >
           <View style={styles.resultsHeader}>
             <Text style={styles.resultsTitle}>Resultados de probabilidad</Text>
             <Text style={styles.resultsSubtitle}>
               Basado en las notas de corte de los últimos 7 años (2019-2025)
             </Text>
           </View>
-
           <FlatList
-            data={results}
-            renderItem={renderResultItem}
-            keyExtractor={(item) => item.hospital.id}
+            data={interleavedResults}
+            renderItem={renderResultsListItem}
+            keyExtractor={(item) => item.id}
             scrollEnabled={false}
             contentContainerStyle={styles.resultsList}
           />
         </View>
       )}
 
-      {/* Help Text */}
+      {/* Caja informativa */}
       <View style={styles.helpCard}>
         <View style={styles.helpHeader}>
-          <Ionicons name="school" size={20} color="#2563EB" />
+          <Ionicons name="school" size={20} color={PRIMARY} />
           <Text style={styles.helpTitle}>
             ¿Cómo se calcula la probabilidad?
           </Text>
@@ -338,10 +514,8 @@ export default function MirSimulatorScreen({ onBack }) {
           La probabilidad se basa en los años disponibles de notas de corte
           (2019-2025). Solo se incluyen en el cálculo los años que tienen datos
           válidos. En el MIR, los números más bajos representan mejores
-          posiciones (como un ranking). Si tu posición es igual o mejor (menor)
-          que la nota de corte, podrías haber accedido ese año. El porcentaje
-          muestra en cuántos de esos años con datos habrías tenido oportunidad
-          de conseguir plaza.
+          posiciones. Si tu posición es igual o mejor (menor) que la nota de
+          corte histórica, tu probabilidad aumenta significativamente.
         </Text>
       </View>
     </ScrollView>
@@ -351,79 +525,81 @@ export default function MirSimulatorScreen({ onBack }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: BG_LIGHT,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    backgroundColor: "#ffffff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
-  },
-  backButton: {
-    padding: 4,
-    marginRight: 12,
+    backgroundColor: PRIMARY,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+    paddingHorizontal: 24,
+    paddingBottom: 48,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1a1a1a",
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#FFF",
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.85)",
   },
   formCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    padding: 20,
-    margin: 16,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  formRow: {
-    gap: 16,
+    backgroundColor: "#FFF",
+    borderRadius: 24,
+    padding: 24,
+    marginHorizontal: 24,
+    marginTop: -24,
+    shadowColor: INDIGO,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: "rgba(226,232,240,0.8)",
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   inputLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: INDIGO,
     marginBottom: 8,
   },
   numberInput: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
+    backgroundColor: "#FFF",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E5E5EA",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 16,
-    color: "#1a1a1a",
+    color: INDIGO,
+  },
+  selectFilter: {
+    borderRadius: 16,
+    borderColor: "#E2E8F0",
   },
   calculateButton: {
-    backgroundColor: "#8B5CF6",
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
+    backgroundColor: PRIMARY,
+    borderRadius: 16,
+    paddingVertical: 16,
     alignItems: "center",
     marginTop: 8,
-    shadowColor: "#8B5CF6",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowRadius: 8,
     elevation: 4,
   },
   calculateButtonDisabled: {
-    backgroundColor: "#D1D5DB",
+    backgroundColor: "#CBD5E1",
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -433,48 +609,89 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   calculateButtonText: {
-    color: "#ffffff",
+    color: "#FFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   resultsCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    margin: 16,
-    marginTop: 0,
+    backgroundColor: "#FFF",
+    borderRadius: 24,
+    marginHorizontal: 24,
+    marginTop: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
     elevation: 3,
-    overflow: "hidden",
   },
   resultsHeader: {
-    padding: 16,
+    padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
-    backgroundColor: "#F9FAFB",
+    borderBottomColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
   },
   resultsTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: INDIGO,
     marginBottom: 4,
   },
   resultsSubtitle: {
     fontSize: 14,
-    color: "#666",
+    color: "#64748B",
   },
   resultsList: {
     padding: 16,
+    gap: 12,
   },
   resultCard: {
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  inlineAdCard: {
+    borderRadius: 20,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.12)",
+    padding: 12,
+  },
+  inlineAdImage: {
+    minHeight: 132,
+    borderRadius: 20,
+    overflow: "hidden",
+    padding: 16,
+    justifyContent: "flex-end",
+    alignItems: "flex-end",
+  },
+  inlineAdImageAsset: {
+    borderRadius: 20,
+  },
+  inlineAdPlaceholder: {
+    backgroundColor: "#F6F0FF",
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.10)",
+  },
+  inlineAdBadge: {
+    alignSelf: "flex-end",
+    backgroundColor: "rgba(15,23,42,0.72)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  inlineAdBadgeText: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#FFF",
   },
   resultHeader: {
     flexDirection: "row",
@@ -486,9 +703,23 @@ const styles = StyleSheet.create({
   resultHospitalName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: INDIGO,
     flex: 1,
     marginRight: 8,
+  },
+  resultBadges: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  trendBadge: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
   },
   probabilityBadge: {
     borderRadius: 12,
@@ -504,12 +735,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
     flexWrap: "wrap",
+    gap: 8,
   },
   resultLocationText: {
     fontSize: 14,
-    color: "#666",
-    marginLeft: 4,
-    marginRight: 8,
+    color: "#64748B",
   },
   yearsBadge: {
     backgroundColor: "#DBEAFE",
@@ -535,7 +765,7 @@ const styles = StyleSheet.create({
   },
   infoNoteText: {
     fontSize: 14,
-    color: "#666",
+    color: "#64748B",
     marginBottom: 8,
   },
   gradesGrid: {
@@ -545,9 +775,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   gradeCard: {
-    borderRadius: 8,
-    padding: 8,
-    minWidth: 60,
+    borderRadius: 12,
+    padding: 10,
+    minWidth: 64,
     alignItems: "center",
     borderWidth: 1,
   },
@@ -560,17 +790,17 @@ const styles = StyleSheet.create({
     borderColor: "#FECACA",
   },
   gradeCardEmpty: {
-    backgroundColor: "#F3F4F6",
-    borderColor: "#E5E7EB",
+    backgroundColor: "#F1F5F9",
+    borderColor: "#E2E8F0",
   },
   gradeYear: {
     fontSize: 11,
     fontWeight: "500",
-    color: "#666",
+    color: "#64748B",
     marginBottom: 4,
   },
   gradeYearEmpty: {
-    color: "#9CA3AF",
+    color: "#94A3B8",
   },
   gradeValue: {
     fontSize: 14,
@@ -583,31 +813,31 @@ const styles = StyleSheet.create({
     color: "#DC2626",
   },
   gradeValueEmpty: {
-    color: "#9CA3AF",
+    color: "#94A3B8",
   },
   helpCard: {
-    backgroundColor: "#DBEAFE",
-    borderRadius: 12,
-    padding: 16,
-    margin: 16,
-    marginTop: 0,
+    backgroundColor: "#EBF1FF",
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 24,
+    marginTop: 24,
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "#C7D2FE",
   },
   helpHeader: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
     marginBottom: 8,
   },
   helpTitle: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#1E40AF",
-    marginLeft: 8,
+    fontWeight: "700",
+    color: INDIGO,
   },
   helpText: {
-    fontSize: 14,
-    color: "#1E3A8A",
+    fontSize: 12,
+    color: "rgba(27,9,119,0.75)",
     lineHeight: 20,
   },
 });

@@ -1,40 +1,65 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
   ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
+import { ScreenHeader } from "../components/ScreenHeader";
 import {
-  getHospitalSpecialties,
   getDetailedGrades,
+  getHospitalProfileContent,
+  getHospitalSpecialties,
   getSpecialtyById,
 } from "../services/hospitalService";
 import posthogLogger from "../services/posthogService";
 
-/**
- * Pantalla de detalle del hospital con especialidades y notas de corte
- * @param {object} props
- * @param {object} props.hospital - Objeto del hospital seleccionado
- * @param {string} props.selectedSpecialtyId - ID de especialidad filtrada (opcional)
- * @param {function} props.onBack - Callback para volver atrás
- */
+const PRIMARY = "#670CF5";
+const SECONDARY = "#00BD7C";
+const ACCENT = "#1B0977";
+const BG_LIGHT = "#F8F9FE";
+const WHITE = "#FFFFFF";
+const TEXT_MEDIUM = "#64748B";
+const TEXT_LIGHT = "#94A3B8";
+const BORDER = "#F1F5F9";
+const ERROR = "#EF4444";
+
+const getEmptyHospitalProfile = () => ({
+  org_id: null,
+  about: null,
+  differential_points: [],
+  images: [],
+  open_day: null,
+  plans: [],
+});
+
+const SectionTitle = ({ title, rightLabel = null }) => (
+  <View style={styles.sectionRow}>
+    <View style={styles.sectionLabelRow}>
+      <View style={styles.sectionBar} />
+      <Text style={styles.sectionLabel}>{title}</Text>
+    </View>
+    {rightLabel ? <Text style={styles.sectionCount}>{rightLabel}</Text> : null}
+  </View>
+);
+
 export default function HospitalDetailScreen({
   hospital,
   selectedSpecialtyId,
   onBack,
+  onOpenHospitalInfo,
 }) {
   const [specialties, setSpecialties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedSpecialty, setExpandedSpecialty] = useState(null);
   const [detailedGrades, setDetailedGrades] = useState({});
   const [loadingDetails, setLoadingDetails] = useState({});
+  const [hospitalProfile, setHospitalProfile] = useState(getEmptyHospitalProfile());
+  const [profileLoading, setProfileLoading] = useState(true);
 
-  // Tracking de pantalla con PostHog
   useEffect(() => {
     posthogLogger.logScreen("HospitalDetailScreen", {
       hospitalId: hospital?.id,
@@ -43,49 +68,40 @@ export default function HospitalDetailScreen({
   }, [hospital?.id, selectedSpecialtyId]);
 
   useEffect(() => {
-    if (hospital?.id) {
-      fetchSpecialties();
-    }
+    setExpandedSpecialty(null);
+    setDetailedGrades({});
+  }, [hospital?.id]);
+
+  useEffect(() => {
+    if (!hospital?.id) return;
+    fetchSpecialties();
+    fetchHospitalProfile();
   }, [hospital?.id, selectedSpecialtyId]);
 
   const fetchSpecialties = async () => {
     setLoading(true);
     try {
-      const {
-        success,
-        specialties: specialtiesData,
-        error,
-      } = await getHospitalSpecialties(hospital.id);
+      const { success, specialties: specialtiesData, error } =
+        await getHospitalSpecialties(hospital.id);
 
       if (success) {
         let finalSpecialties = specialtiesData;
 
-        // Si hay una especialidad seleccionada y no está en la lista, añadirla
         if (selectedSpecialtyId) {
-          const isSpecialtyInList = specialtiesData.some(
+          const isInList = specialtiesData.some(
             (spec) => spec.id === selectedSpecialtyId
           );
-
-          if (!isSpecialtyInList) {
-            console.log(
-              "⚠️ Selected specialty not in list, fetching it:",
-              selectedSpecialtyId
-            );
-
-            // Obtener la información de la especialidad
+          if (!isInList) {
             const { success: specSuccess, specialty } = await getSpecialtyById(
               selectedSpecialtyId
             );
-
             if (specSuccess && specialty) {
-              console.log("✅ Adding specialty to list:", specialty.name);
-              // Añadir la especialidad sin datos de grados (estructura dinámica)
               finalSpecialties = [
                 {
                   id: specialty.id,
                   name: specialty.name,
                   description: "",
-                  years: [], // Array vacío de años
+                  years: [],
                   slots: undefined,
                 },
                 ...specialtiesData,
@@ -93,7 +109,6 @@ export default function HospitalDetailScreen({
             }
           }
         }
-
         setSpecialties(finalSpecialties);
       } else {
         console.error("Error loading specialties:", error);
@@ -105,7 +120,24 @@ export default function HospitalDetailScreen({
     }
   };
 
-  // Filtrar especialidades si hay una seleccionada
+  const fetchHospitalProfile = async () => {
+    setProfileLoading(true);
+    try {
+      const { success, profile, error } = await getHospitalProfileContent(hospital.id);
+      if (success && profile) {
+        setHospitalProfile(profile);
+      } else {
+        console.error("Error loading hospital profile:", error);
+        setHospitalProfile(getEmptyHospitalProfile());
+      }
+    } catch (error) {
+      console.error("Exception fetching hospital profile:", error);
+      setHospitalProfile(getEmptyHospitalProfile());
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
   const filteredSpecialties = useMemo(() => {
     if (selectedSpecialtyId) {
       return specialties.filter((spec) => spec.id === selectedSpecialtyId);
@@ -113,19 +145,24 @@ export default function HospitalDetailScreen({
     return specialties;
   }, [specialties, selectedSpecialtyId]);
 
+  const hospitalInfoHasContent =
+    Boolean(hospitalProfile?.about) ||
+    (hospitalProfile?.differential_points || []).length > 0 ||
+    Boolean(hospitalProfile?.open_day) ||
+    (hospitalProfile?.images || []).length > 0 ||
+    (hospitalProfile?.plans || []).length > 0;
+
   const handleMoreInfo = async (specialty) => {
-    // Si ya está expandida, colapsarla
     if (expandedSpecialty === specialty.id) {
       setExpandedSpecialty(null);
       setDetailedGrades((prev) => {
-        const newState = { ...prev };
-        delete newState[specialty.id];
-        return newState;
+        const next = { ...prev };
+        delete next[specialty.id];
+        return next;
       });
       return;
     }
 
-    // Expandir y cargar datos detallados
     setExpandedSpecialty(specialty.id);
     setLoadingDetails((prev) => ({ ...prev, [specialty.id]: true }));
 
@@ -134,44 +171,91 @@ export default function HospitalDetailScreen({
         hospital.id,
         specialty.id
       );
-
       if (success) {
-        setDetailedGrades((prev) => ({
-          ...prev,
-          [specialty.id]: grades,
-        }));
+        setDetailedGrades((prev) => ({ ...prev, [specialty.id]: grades }));
       } else {
         console.error("Error loading detailed grades:", error);
-        setDetailedGrades((prev) => ({
-          ...prev,
-          [specialty.id]: [],
-        }));
+        setDetailedGrades((prev) => ({ ...prev, [specialty.id]: [] }));
       }
     } catch (error) {
       console.error("Exception fetching detailed grades:", error);
-      setDetailedGrades((prev) => ({
-        ...prev,
-        [specialty.id]: [],
-      }));
+      setDetailedGrades((prev) => ({ ...prev, [specialty.id]: [] }));
     } finally {
       setLoadingDetails((prev) => ({ ...prev, [specialty.id]: false }));
     }
   };
 
-  const renderSpecialtyItem = ({ item }) => {
-    // Obtener años dinámicamente desde la base de datos (igual que la web app)
-    // Obtener años dinámicamente desde la base de datos (igual que la web app)
+  const MiniBarChart = ({ grades }) => {
+    if (!grades || grades.length === 0) {
+      return <Text style={styles.noDataText}>Sin datos disponibles</Text>;
+    }
+
+    const validVals = grades
+      .filter((g) => g.grade !== null && g.grade !== undefined)
+      .map((g) => g.grade);
+    const maxVal = validVals.length > 0 ? Math.max(...validVals) : 1;
+    const TRACK_H = 72;
+    const BAR_W = 28;
+
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chartScroll}
+      >
+        {grades.map((item, idx) => {
+          const hasScore = item.grade !== null && item.grade !== undefined;
+          const fillH = hasScore
+            ? Math.max(8, Math.round((item.grade / maxVal) * TRACK_H))
+            : 8;
+          const isNewest = idx === 0;
+          return (
+            <View key={item.year} style={styles.chartCol}>
+              <Text
+                style={[
+                  styles.chartValue,
+                  isNewest && hasScore && styles.chartValueNewest,
+                  !hasScore && styles.chartValueEmpty,
+                ]}
+              >
+                {hasScore ? item.grade : "—"}
+              </Text>
+              <View style={[styles.chartTrack, { height: TRACK_H }]}>
+                <View
+                  style={[
+                    styles.chartFill,
+                    { height: fillH, width: BAR_W },
+                    isNewest && hasScore && styles.chartFillNewest,
+                    !hasScore && styles.chartFillEmpty,
+                  ]}
+                />
+              </View>
+              <Text style={[styles.chartYear, isNewest && styles.chartYearNewest]}>
+                {String(item.year).slice(2)}
+              </Text>
+            </View>
+          );
+        })}
+      </ScrollView>
+    );
+  };
+
+  const renderSpecialtyItem = (item) => {
     const grades = (item.years || [])
       .map((yearData) => ({
         year: yearData.year.toString(),
         grade: yearData.grade,
       }))
-      .sort((a, b) => parseInt(b.year) - parseInt(a.year)); // Ordenar descendente
+      .sort((a, b) => parseInt(b.year, 10) - parseInt(a.year, 10));
+
+    const isExpanded = expandedSpecialty === item.id;
 
     return (
-      <View style={styles.specialtyCard}>
+      <View key={item.id} style={styles.specialtyCard}>
         <View style={styles.specialtyHeader}>
-          <Text style={styles.specialtyName}>{item.name}</Text>
+          <Text style={styles.specialtyName} numberOfLines={2}>
+            {item.name}
+          </Text>
           {item.slots > 0 && (
             <View style={styles.slotsBadge}>
               <Text style={styles.slotsText}>{item.slots} plazas</Text>
@@ -179,101 +263,64 @@ export default function HospitalDetailScreen({
           )}
         </View>
 
-        {item.info_note ? (
-          <Text style={styles.infoNoteText}>{item.info_note}</Text>
-        ) : null}
+        {item.info_note ? <Text style={styles.infoNote}>{item.info_note}</Text> : null}
 
         <View style={styles.cutOffSection}>
           <View style={styles.cutOffHeader}>
-            <Ionicons name="bar-chart" size={16} color="#666" />
-            <Text style={styles.cutOffHeaderText}>NOTAS DE CORTE POR AÑO</Text>
+            <View style={styles.cutOffLabelRow}>
+              <Ionicons name="bar-chart" size={14} color={TEXT_MEDIUM} />
+              <Text style={styles.cutOffLabel}>NOTAS DE CORTE</Text>
+            </View>
             <TouchableOpacity
-              style={styles.moreInfoButton}
+              style={[styles.moreInfoBtn, isExpanded && styles.moreInfoBtnActive]}
               onPress={() => handleMoreInfo(item)}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
-              <Text style={styles.moreInfoButtonText}>
-                {expandedSpecialty === item.id
-                  ? "Menos info"
-                  : "Más información"}
+              <Text
+                style={[
+                  styles.moreInfoBtnText,
+                  isExpanded && styles.moreInfoBtnTextActive,
+                ]}
+              >
+                {isExpanded ? "Ver menos" : "Ver más"}
               </Text>
+              <Ionicons
+                name={isExpanded ? "chevron-up" : "chevron-down"}
+                size={13}
+                color={isExpanded ? WHITE : PRIMARY}
+              />
             </TouchableOpacity>
           </View>
 
-          {expandedSpecialty !== item.id ? (
-            // Vista condensada - mostrar todas las notas en grid
-            <View style={styles.cutOffScoresGrid}>
-              {grades.length > 0 ? (
-                grades.map((gradeItem) => {
-                  const hasScore =
-                    gradeItem.grade !== null && gradeItem.grade !== undefined;
-
-                  return (
-                    <View
-                      key={gradeItem.year}
-                      style={[
-                        styles.cutOffScoreBadge,
-                        !hasScore && styles.cutOffScoreBadgeEmpty,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.cutOffScoreYear,
-                          !hasScore && styles.cutOffScoreYearEmpty,
-                        ]}
-                      >
-                        {gradeItem.year}:
-                      </Text>
-                      <Text
-                        style={[
-                          styles.cutOffScoreValue,
-                          !hasScore && styles.cutOffScoreValueEmpty,
-                        ]}
-                      >
-                        {hasScore ? gradeItem.grade : "N/A"}
-                      </Text>
-                    </View>
-                  );
-                })
-              ) : (
-                <Text style={styles.noDataText}>
-                  No hay datos de años disponibles
-                </Text>
-              )}
-            </View>
+          {!isExpanded ? (
+            <MiniBarChart grades={grades} />
           ) : (
-            // Vista expandida - tabla detallada
-            <View style={styles.detailedTableContainer}>
+            <View style={styles.tableWrap}>
               {loadingDetails[item.id] ? (
-                <View style={styles.loadingDetailsContainer}>
-                  <ActivityIndicator size="small" color="#8B5CF6" />
-                  <Text style={styles.loadingDetailsText}>
-                    Cargando detalles...
-                  </Text>
+                <View style={styles.loadingDetailsRow}>
+                  <ActivityIndicator size="small" color={PRIMARY} />
+                  <Text style={styles.loadingDetailsText}>Cargando detalles...</Text>
                 </View>
-              ) : detailedGrades[item.id] &&
-                detailedGrades[item.id].length > 0 ? (
+              ) : detailedGrades[item.id] && detailedGrades[item.id].length > 0 ? (
                 <View style={styles.table}>
-                  {/* Header */}
-                  <View style={styles.tableHeader}>
-                    <Text style={styles.tableHeaderText}>Año</Text>
-                    <Text style={styles.tableHeaderText}>Plazas</Text>
-                    <Text style={styles.tableHeaderText}>Notas de Corte</Text>
+                  <View style={styles.tableHead}>
+                    <Text style={[styles.tableHeadText, { flex: 1 }]}>Año</Text>
+                    <Text style={[styles.tableHeadText, { flex: 1 }]}>Plazas</Text>
+                    <Text style={[styles.tableHeadText, { flex: 2 }]}>Notas de corte</Text>
                   </View>
 
-                  {/* Rows */}
                   {detailedGrades[item.id].map((gradeData, index) => (
                     <View
                       key={gradeData.year}
                       style={[
                         styles.tableRow,
-                        index % 2 === 0
-                          ? styles.tableRowEven
-                          : styles.tableRowOdd,
+                        index % 2 === 0 ? styles.tableRowEven : styles.tableRowOdd,
                       ]}
                     >
-                      <Text style={styles.tableCellYear}>{gradeData.year}</Text>
-                      <View style={styles.tableCellCenter}>
+                      <Text style={[styles.tableCellYear, { flex: 1 }]}>
+                        {gradeData.year}
+                      </Text>
+                      <View style={[{ flex: 1, alignItems: "center" }]}>
                         <View style={styles.slotsBadgeSmall}>
                           <Text style={styles.slotsTextSmall}>
                             {gradeData.slots}{" "}
@@ -281,12 +328,12 @@ export default function HospitalDetailScreen({
                           </Text>
                         </View>
                       </View>
-                      <View style={styles.tableCellGrades}>
+                      <View style={[styles.gradesCellWrap, { flex: 2 }]}>
                         {gradeData.grades && gradeData.grades.length > 0 ? (
-                          <View style={styles.gradesContainer}>
+                          <View style={styles.gradesCellInner}>
                             {gradeData.grades.map((gradeValue, gradeIndex) => (
                               <View
-                                key={gradeIndex}
+                                key={`${gradeData.year}-${gradeIndex}`}
                                 style={styles.detailedGradeBadge}
                               >
                                 <Text style={styles.detailedGradeText}>
@@ -304,7 +351,7 @@ export default function HospitalDetailScreen({
                 </View>
               ) : (
                 <Text style={styles.noDataText}>
-                  No hay datos detallados disponibles para esta especialidad
+                  Sin datos detallados para esta especialidad
                 </Text>
               )}
             </View>
@@ -316,395 +363,362 @@ export default function HospitalDetailScreen({
 
   if (!hospital) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>No se encontró el hospital</Text>
+      <View style={styles.stateContainer}>
+        <View style={styles.stateIconWrap}>
+          <Ionicons name="alert-circle-outline" size={36} color={ERROR} />
+        </View>
+        <Text style={styles.errorTitle}>Hospital no encontrado</Text>
       </View>
     );
   }
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header con botón de volver */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={onBack}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader title="Hospitales" onBack={onBack} compact />
 
-      {/* Card de información del hospital */}
-      <View style={styles.hospitalCard}>
-        <View style={styles.hospitalIconContainer}>
-          <Ionicons name="medical" size={32} color="#8B5CF6" />
+      <View style={styles.scrollContent}>
+        <View style={styles.hospitalCard}>
+          <View style={styles.hospitalIconWrap}>
+            <Ionicons name="business" size={26} color={PRIMARY} />
+          </View>
+          <Text style={styles.hospitalName}>{hospital.name}</Text>
+
+          <View style={styles.hospitalMeta}>
+            <View style={styles.metaRow}>
+              <Ionicons name="location-outline" size={14} color={TEXT_MEDIUM} />
+              <Text style={styles.metaText}>
+                {hospital.city}, {hospital.region}
+              </Text>
+            </View>
+            {hospital.specialtyCount !== undefined && (
+              <View style={styles.metaRow}>
+                <Ionicons name="school" size={14} color={PRIMARY} />
+                <Text style={[styles.metaText, styles.metaTextAccent]}>
+                  {hospital.specialtyCount} especialidades MIR
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
-        <Text style={styles.hospitalName}>{hospital.name}</Text>
 
-        <View style={styles.hospitalInfoRow}>
-          <Ionicons name="location" size={16} color="#666" />
-          <Text style={styles.hospitalLocation}>
-            {hospital.city}, {hospital.region}
-          </Text>
-        </View>
+        {profileLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={PRIMARY} />
+            <Text style={styles.loadingText}>Cargando información del hospital...</Text>
+          </View>
+        ) : hospitalInfoHasContent ? (
+          <View style={styles.hospitalInfoEntryCard}>
+            <View style={styles.hospitalInfoEntryHeader}>
+              <View style={styles.hospitalInfoEntryIconWrap}>
+                <Ionicons name="document-text-outline" size={24} color={PRIMARY} />
+              </View>
+              <Text style={styles.hospitalInfoEntryTitle}>
+                Información proporcionada por el hospital
+              </Text>
+            </View>
 
-        {hospital.specialtyCount !== undefined && (
-          <View style={styles.hospitalInfoRow}>
-            <Ionicons name="school" size={16} color="#8B5CF6" />
-            <Text style={styles.specialtyCount}>
-              {hospital.specialtyCount} especialidades disponibles
+            <TouchableOpacity
+              style={styles.hospitalInfoEntryButton}
+              activeOpacity={0.85}
+              onPress={onOpenHospitalInfo}
+            >
+              <Text style={styles.hospitalInfoEntryButtonText}>Ver información</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        <SectionTitle
+          title="Especialidades disponibles"
+          rightLabel={
+            !loading
+              ? `${filteredSpecialties.length} ${
+                  filteredSpecialties.length === 1 ? "ESPECIALIDAD" : "ESPECIALIDADES"
+                }`
+              : null
+          }
+        />
+
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={PRIMARY} />
+            <Text style={styles.loadingText}>Cargando especialidades...</Text>
+          </View>
+        ) : filteredSpecialties.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="school-outline" size={36} color={PRIMARY} />
+            </View>
+            <Text style={styles.emptyTitle}>Sin especialidades</Text>
+            <Text style={styles.emptySubtitle}>
+              No se encontraron especialidades para este hospital
             </Text>
+          </View>
+        ) : (
+          <View style={styles.specialtiesList}>
+            {filteredSpecialties.map(renderSpecialtyItem)}
           </View>
         )}
       </View>
-
-      {/* Header de especialidades */}
-      <View style={styles.specialtiesHeader}>
-        <Ionicons name="school" size={24} color="#8B5CF6" />
-        <Text style={styles.specialtiesHeaderText}>
-          Especialidades Disponibles
-        </Text>
-      </View>
-
-      {/* Lista de especialidades */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
-          <Text style={styles.loadingText}>Cargando especialidades...</Text>
-        </View>
-      ) : filteredSpecialties.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No se encontraron especialidades</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredSpecialties}
-          renderItem={renderSpecialtyItem}
-          keyExtractor={(item) => item.id}
-          scrollEnabled={false}
-          contentContainerStyle={styles.specialtiesList}
-        />
-      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f5f5f5",
-  },
-  header: {
-    padding: 16,
-    backgroundColor: "#ffffff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
-  },
-  backButton: {
-    padding: 4,
-  },
+  container: { flex: 1, backgroundColor: BG_LIGHT },
+  scrollContent: { padding: 16, paddingTop: 14, paddingBottom: 32 },
   hospitalCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
+    backgroundColor: WHITE,
+    borderRadius: 18,
     padding: 20,
-    margin: 16,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 3,
   },
-  hospitalIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 12,
-    backgroundColor: "#F3E8FF",
-    justifyContent: "center",
+  hospitalIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: `${PRIMARY}10`,
     alignItems: "center",
-    marginBottom: 12,
+    justifyContent: "center",
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}20`,
   },
   hospitalName: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-    marginBottom: 12,
-  },
-  hospitalInfoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  hospitalLocation: {
-    fontSize: 14,
-    color: "#666",
-    marginLeft: 8,
-  },
-  specialtyCount: {
-    fontSize: 14,
-    color: "#8B5CF6",
-    marginLeft: 8,
-  },
-  specialtiesHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#ffffff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
-  },
-  specialtiesHeaderText: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-    marginLeft: 8,
-  },
-  specialtiesList: {
-    padding: 16,
-  },
-  specialtyCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
+    fontWeight: "700",
+    color: ACCENT,
     marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    lineHeight: 27,
+    letterSpacing: -0.2,
   },
-  specialtyHeader: {
+  hospitalMeta: { gap: 8 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  metaText: { fontSize: 13, color: TEXT_MEDIUM },
+  metaTextAccent: { color: PRIMARY, fontWeight: "600" },
+  sectionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
+    marginTop: 6,
+    gap: 12,
   },
-  specialtyName: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#8B5CF6",
+  sectionLabelRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
+  sectionBar: { width: 4, height: 20, borderRadius: 2, backgroundColor: PRIMARY },
+  sectionLabel: { fontSize: 17, fontWeight: "700", color: ACCENT },
+  sectionCount: { fontSize: 10, fontWeight: "700", color: PRIMARY, letterSpacing: 0.8 },
+  hospitalInfoEntryCard: {
+    backgroundColor: "#F1F3FB",
+    borderRadius: 28,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#D9E2FF",
+    marginBottom: 16,
+  },
+  hospitalInfoEntryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 22,
+  },
+  hospitalInfoEntryIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: WHITE,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  hospitalInfoEntryTitle: {
     flex: 1,
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: "700",
+    color: ACCENT,
   },
-  slotsBadge: {
-    backgroundColor: "#F3E8FF",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  hospitalInfoEntryButton: {
+    borderRadius: 18,
+    backgroundColor: PRIMARY,
+    paddingVertical: 15,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
   },
-  slotsText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#8B5CF6",
+  hospitalInfoEntryButtonText: { fontSize: 15, fontWeight: "700", color: WHITE },
+  loadingContainer: { alignItems: "center", paddingVertical: 36, gap: 12 },
+  loadingText: { fontSize: 14, color: TEXT_MEDIUM, textAlign: "center" },
+  emptyContainer: { alignItems: "center", paddingVertical: 48, paddingHorizontal: 32 },
+  emptyIconWrap: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: `${PRIMARY}10`,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
   },
-  infoNoteText: {
-    fontSize: 14,
-    color: "#666",
+  emptyTitle: { fontSize: 17, fontWeight: "700", color: ACCENT, marginBottom: 6, textAlign: "center" },
+  emptySubtitle: { fontSize: 13, color: TEXT_MEDIUM, textAlign: "center", lineHeight: 19 },
+  stateContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+    gap: 12,
+    backgroundColor: BG_LIGHT,
+  },
+  stateIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: `${ERROR}10`,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  errorTitle: { fontSize: 17, fontWeight: "700", color: ACCENT, textAlign: "center" },
+  specialtiesList: { gap: 12 },
+  specialtyCard: {
+    backgroundColor: WHITE,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 6,
+    elevation: 2,
     marginBottom: 12,
   },
-  cutOffSection: {
-    marginTop: 12,
+  specialtyHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 10,
+    gap: 8,
   },
+  specialtyName: { fontSize: 15, fontWeight: "700", color: ACCENT, flex: 1, lineHeight: 21 },
+  slotsBadge: {
+    backgroundColor: `${PRIMARY}10`,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}25`,
+    flexShrink: 0,
+  },
+  slotsText: { fontSize: 11, fontWeight: "700", color: PRIMARY },
+  infoNote: { fontSize: 13, color: TEXT_MEDIUM, marginBottom: 10, lineHeight: 18 },
+  cutOffSection: { marginTop: 4 },
   cutOffHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 12,
-    flexWrap: "wrap",
   },
-  cutOffHeaderText: {
-    fontSize: 12,
-    color: "#666",
-    marginLeft: 6,
-    fontWeight: "600",
-    flex: 1,
-  },
-  cutOffScoresGrid: {
+  cutOffLabelRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  cutOffLabel: { fontSize: 11, fontWeight: "700", color: TEXT_MEDIUM, letterSpacing: 0.5 },
+  moreInfoBtn: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  cutOffScoreBadge: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#D1FAE5",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    gap: 4,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#A7F3D0",
-    minWidth: "30%",
-    flex: 1,
-    maxWidth: "32%",
+    borderColor: `${PRIMARY}30`,
+    backgroundColor: `${PRIMARY}10`,
   },
-  cutOffScoreBadgeEmpty: {
-    backgroundColor: "#F3F4F6",
-    borderColor: "#E5E7EB",
-  },
-  cutOffScoreYear: {
-    fontSize: 12,
-    color: "#059669",
-    fontWeight: "500",
-  },
-  cutOffScoreYearEmpty: {
-    color: "#9CA3AF",
-    fontWeight: "400",
-  },
-  cutOffScoreValue: {
-    fontSize: 12,
-    color: "#059669",
-    fontWeight: "700",
-  },
-  cutOffScoreValueEmpty: {
-    color: "#9CA3AF",
-    fontWeight: "400",
-  },
-  moreInfoButton: {
-    backgroundColor: "#8B5CF6",
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginLeft: 8,
-  },
-  moreInfoButtonText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  loadingContainer: {
-    padding: 40,
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: "#666",
-  },
-  emptyContainer: {
-    padding: 40,
-    alignItems: "center",
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#999",
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    color: "#999",
-  },
-  detailedTableContainer: {
-    marginTop: 12,
-  },
-  loadingDetailsContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  loadingDetailsText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: "#8B5CF6",
-  },
-  table: {
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 8,
+  moreInfoBtnActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
+  moreInfoBtnText: { fontSize: 12, fontWeight: "700", color: PRIMARY },
+  moreInfoBtnTextActive: { color: WHITE },
+  chartScroll: { paddingVertical: 10, paddingHorizontal: 2, alignItems: "flex-end", gap: 6 },
+  chartCol: { alignItems: "center", gap: 5, width: 44 },
+  chartValue: { fontSize: 11, fontWeight: "700", color: `${SECONDARY}99`, textAlign: "center" },
+  chartValueNewest: { color: SECONDARY, fontSize: 12 },
+  chartValueEmpty: { color: TEXT_LIGHT, fontWeight: "400" },
+  chartTrack: {
+    width: 28,
+    justifyContent: "flex-end",
+    backgroundColor: `${SECONDARY}10`,
+    borderRadius: 6,
     overflow: "hidden",
   },
-  tableHeader: {
+  chartFill: { borderRadius: 6, backgroundColor: `${SECONDARY}55` },
+  chartFillNewest: { backgroundColor: SECONDARY },
+  chartFillEmpty: { backgroundColor: "#E2E8F0", height: 8 },
+  chartYear: { fontSize: 10, fontWeight: "600", color: TEXT_MEDIUM, textAlign: "center" },
+  chartYearNewest: { color: PRIMARY, fontWeight: "700" },
+  noDataText: {
+    fontSize: 12,
+    color: TEXT_LIGHT,
+    fontStyle: "italic",
+    textAlign: "center",
+    paddingVertical: 16,
+  },
+  tableWrap: { marginTop: 4 },
+  loadingDetailsRow: {
     flexDirection: "row",
-    backgroundColor: "#F3E8FF",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 20,
+  },
+  loadingDetailsText: { fontSize: 13, color: TEXT_MEDIUM },
+  table: { borderWidth: 1, borderColor: BORDER, borderRadius: 12, overflow: "hidden" },
+  tableHead: {
+    flexDirection: "row",
+    backgroundColor: `${PRIMARY}08`,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    borderBottomColor: `${PRIMARY}20`,
   },
-  tableHeaderText: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#8B5CF6",
-    textAlign: "center",
-  },
+  tableHeadText: { fontSize: 11, fontWeight: "700", color: PRIMARY, textAlign: "center", letterSpacing: 0.3 },
   tableRow: {
     flexDirection: "row",
-    paddingVertical: 12,
+    paddingVertical: 11,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5",
-  },
-  tableRowEven: {
-    backgroundColor: "#ffffff",
-  },
-  tableRowOdd: {
-    backgroundColor: "#FAFAFA",
-  },
-  tableCellYear: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#1a1a1a",
-    textAlign: "center",
-  },
-  tableCellCenter: {
-    flex: 1,
+    borderBottomColor: BORDER,
     alignItems: "center",
-    justifyContent: "center",
   },
-  tableCellGrades: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  tableRowEven: { backgroundColor: WHITE },
+  tableRowOdd: { backgroundColor: BG_LIGHT },
+  tableCellYear: { fontSize: 13, fontWeight: "600", color: ACCENT, textAlign: "center" },
   slotsBadgeSmall: {
-    backgroundColor: "#F3E8FF",
-    borderRadius: 12,
+    backgroundColor: `${PRIMARY}10`,
+    borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}20`,
   },
-  slotsTextSmall: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#8B5CF6",
-  },
-  gradesContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 4,
-  },
+  slotsTextSmall: { fontSize: 11, fontWeight: "700", color: PRIMARY },
+  gradesCellWrap: { alignItems: "center", justifyContent: "center" },
+  gradesCellInner: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 4 },
   detailedGradeBadge: {
-    backgroundColor: "#D1FAE5",
-    borderRadius: 12,
+    backgroundColor: `${SECONDARY}18`,
+    borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    marginHorizontal: 2,
-    marginVertical: 2,
+    borderWidth: 1,
+    borderColor: `${SECONDARY}30`,
   },
-  detailedGradeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#059669",
-  },
-  noDataText: {
-    fontSize: 12,
-    color: "#999",
-    fontStyle: "italic",
-    textAlign: "center",
-    padding: 20,
-  },
+  detailedGradeText: { fontSize: 11, fontWeight: "700", color: SECONDARY },
 });

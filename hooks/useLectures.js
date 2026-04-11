@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   getCourses,
+  getLikedCourses,
   createCourse,
   updateCourse,
   deleteCourse,
 } from "../services/lectureService";
 import { getCurrentUser } from "../services/authService";
+import { usePersistedFilters } from "./usePersistedFilters";
 
 /**
  * Hook para gestionar cursos y formaciones
@@ -18,16 +20,33 @@ export const useLectures = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
-  const [showMyCourses, setShowMyCourses] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
 
-  // Filters
-  const [filters, setFiltersState] = useState({
-    hospital_id: "",
-    speciality_id: "",
-  });
+  const {
+    filters,
+    isLoading: filtersLoading,
+    updateFilter,
+    updateFilters,
+    clearAllFilters: clearPersistedFilters,
+  } = usePersistedFilters(
+    "lectures_v2",
+    {
+      searchTerm: "",
+      hospital_id: "",
+      speciality_id: "",
+      showLikedCourses: false,
+      showCreatedCourses: false,
+    },
+    { enableDebounce: true, debounceMs: 500 }
+  );
 
-  // Cargar usuario actual (para \"Mis cursos\")
+  const searchTerm = filters.searchTerm || "";
+  const selectedHospital = filters.hospital_id || "";
+  const selectedSpecialty = filters.speciality_id || "";
+  const showLikedCourses = Boolean(filters.showLikedCourses);
+  const showCreatedCourses = Boolean(filters.showCreatedCourses);
+
+  // Cargar usuario actual para filtros y guardados
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -58,14 +77,24 @@ export const useLectures = () => {
         setError(null);
 
         const page = reset ? 0 : currentPage;
+        const createdById =
+          showCreatedCourses && currentUserId ? currentUserId : null;
 
-        const result = await getCourses({
-          hospitalId: filters.hospital_id || null,
-          specialityId: filters.speciality_id || null,
-          createdById:
-            showMyCourses && currentUserId ? currentUserId : null,
-          page,
-        });
+        const result = showLikedCourses
+          ? await getLikedCourses({
+              userId: currentUserId,
+              hospitalId: selectedHospital || null,
+              specialityId: selectedSpecialty || null,
+              createdById,
+              page,
+            })
+          : await getCourses({
+              hospitalId: selectedHospital || null,
+              specialityId: selectedSpecialty || null,
+              createdById,
+              userId: currentUserId,
+              page,
+            });
 
         if (reset) {
           setCourses(result.courses);
@@ -84,7 +113,14 @@ export const useLectures = () => {
         setLoading(false);
       }
     },
-    [filters, currentPage, showMyCourses, currentUserId]
+    [
+      currentPage,
+      selectedHospital,
+      selectedSpecialty,
+      showLikedCourses,
+      showCreatedCourses,
+      currentUserId,
+    ]
   );
 
   // Load more courses (pagination)
@@ -101,19 +137,44 @@ export const useLectures = () => {
 
   // Set filters and refresh
   const setFilters = useCallback((newFilters) => {
-    setFiltersState(newFilters);
+    updateFilters(newFilters);
     setCurrentPage(0);
     setCourses([]);
     setHasMore(true);
-  }, []);
+  }, [updateFilters]);
+
+  const setSearchTerm = useCallback(
+    (value) => updateFilter("searchTerm", value),
+    [updateFilter]
+  );
+
+  const setSelectedHospital = useCallback(
+    (value) => updateFilter("hospital_id", value),
+    [updateFilter]
+  );
+
+  const setSelectedSpecialty = useCallback(
+    (value) => updateFilter("speciality_id", value),
+    [updateFilter]
+  );
+
+  const setShowLikedCourses = useCallback(
+    (value) => updateFilter("showLikedCourses", Boolean(value)),
+    [updateFilter]
+  );
+
+  const setShowCreatedCourses = useCallback(
+    (value) => updateFilter("showCreatedCourses", Boolean(value)),
+    [updateFilter]
+  );
 
   // Clear filters
-  const clearFilters = useCallback(() => {
-    setFilters({
-      hospital_id: "",
-      speciality_id: "",
-    });
-  }, [setFilters]);
+  const clearFilters = useCallback(async () => {
+    await clearPersistedFilters();
+    setCurrentPage(0);
+    setCourses([]);
+    setHasMore(true);
+  }, [clearPersistedFilters]);
 
   // Create a new course
   const createNewCourse = useCallback(async (courseData) => {
@@ -182,10 +243,21 @@ export const useLectures = () => {
     }
   }, []);
 
-  // Initial load when filters or \"Mis cursos\" cambian
+  // Initial load when filters or toggles cambian
   useEffect(() => {
+    if (filtersLoading) {
+      return;
+    }
     fetchCourses(true);
-  }, [filters, showMyCourses, currentUserId]);
+  }, [
+    selectedHospital,
+    selectedSpecialty,
+    showLikedCourses,
+    showCreatedCourses,
+    currentUserId,
+    filtersLoading,
+    fetchCourses,
+  ]);
 
   return {
     // Data
@@ -197,8 +269,15 @@ export const useLectures = () => {
 
     // Filters
     filters,
+    searchTerm,
+    setSearchTerm,
+    selectedHospital,
+    setSelectedHospital,
+    selectedSpecialty,
+    setSelectedSpecialty,
     setFilters,
     clearFilters,
+    filtersLoading,
 
     // Actions
     fetchCourses,
@@ -207,8 +286,10 @@ export const useLectures = () => {
     updateCourse: updateExistingCourse,
     deleteCourse: deleteExistingCourse,
     refreshCourses,
-    showMyCourses,
-    setShowMyCourses,
+    showLikedCourses,
+    setShowLikedCourses,
+    showCreatedCourses,
+    setShowCreatedCourses,
     currentUserId,
   };
 };

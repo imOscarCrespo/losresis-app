@@ -2,12 +2,18 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   getAllLibroData,
   createNode,
+  createLibroStructure,
+  getLibroBooks,
+  getLibroUserSettings,
+  upsertLibroUserSettings,
   updateNode,
   deleteNode,
   createEntry,
   createEvent,
   updateEvent,
   deleteEvent,
+  archiveLibroBookAndStartNewYear,
+  ensureActiveLibroBook,
 } from "../services/libroService";
 import { supabase } from "../config/supabase";
 import { getCachedUserId } from "../services/authService";
@@ -20,10 +26,14 @@ import libroTemplate from "../data/libroTemplate.json";
  * @returns {Object} Estado y funciones para gestionar el libro
  */
 export const useLibroSection = (userId, section) => {
+  const [books, setBooks] = useState([]);
+  const [selectedBookId, setSelectedBookId] = useState(null);
   const [nodes, setNodes] = useState([]);
   const [entries, setEntries] = useState([]);
   const [events, setEvents] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
   const [isAddingNode, setIsAddingNode] = useState(false);
   const [editingNode, setEditingNode] = useState(null);
@@ -93,7 +103,7 @@ export const useLibroSection = (userId, section) => {
   );
 
   // Función optimizada que obtiene todos los datos en una sola llamada
-  const fetchAllData = useCallback(async () => {
+  const fetchAllData = useCallback(async (preferredBookId = null) => {
     // Obtener userId desde diferentes fuentes si no está disponible
     let currentUserId = userId;
 
@@ -126,12 +136,37 @@ export const useLibroSection = (userId, section) => {
 
     setLoading(true);
     try {
+      const booksData = await getLibroBooks(currentUserId, section);
+      setBooks(booksData);
+
+      const resolvedBookId =
+        preferredBookId && booksData.some((book) => book.id === preferredBookId)
+          ? preferredBookId
+          : selectedBookId && booksData.some((book) => book.id === selectedBookId)
+            ? selectedBookId
+            : booksData.find((book) => book.status === "active")?.id ||
+              booksData[0]?.id ||
+              null;
+
+      setSelectedBookId(resolvedBookId);
+
+      if (!resolvedBookId) {
+        setNodes([]);
+        setEntries([]);
+        setEvents([]);
+        return;
+      }
+
       const {
+        book,
         nodes: nodesData,
         entries: entriesData,
         events: eventsData,
-      } = await getAllLibroData(currentUserId, section);
+      } = await getAllLibroData(currentUserId, section, resolvedBookId);
 
+      if (book?.id && book.id !== resolvedBookId) {
+        setSelectedBookId(book.id);
+      }
       setNodes(nodesData);
       setEntries(entriesData);
       setEvents(eventsData);
@@ -140,12 +175,24 @@ export const useLibroSection = (userId, section) => {
     } finally {
       setLoading(false);
     }
-  }, [userId, section]);
+  }, [userId, section, selectedBookId]);
 
   // Obtener estructura de árbol
   const nodeTree = useMemo(() => {
     return buildNodeTree(nodes);
   }, [nodes, buildNodeTree]);
+
+  const selectedBook = useMemo(
+    () => books.find((book) => book.id === selectedBookId) || null,
+    [books, selectedBookId]
+  );
+
+  const activeBook = useMemo(
+    () => books.find((book) => book.status === "active") || null,
+    [books]
+  );
+
+  const isSelectedBookArchived = selectedBook?.status === "archived";
 
   // Calcular estadísticas
   const statistics = useMemo(() => {
@@ -197,16 +244,35 @@ export const useLibroSection = (userId, section) => {
     return null;
   }, [userId]);
 
+  const fetchSettings = useCallback(async () => {
+    const currentUserId = await getCurrentUserId();
+    if (!currentUserId) return null;
+
+    setSettingsLoading(true);
+    try {
+      const settingsData = await getLibroUserSettings(currentUserId);
+      setSettings(settingsData || null);
+      return settingsData || null;
+    } catch (error) {
+      console.error("Error fetching libro settings:", error);
+      return null;
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, [getCurrentUserId]);
+
   // Funciones CRUD para nodos
   const addNode = useCallback(
     async (formData) => {
       const currentUserId = await getCurrentUserId();
       if (!currentUserId || !section) return false;
+      if (!selectedBookId) return false;
 
       try {
         const newNode = await createNode(
           {
             ...formData,
+            book_id: selectedBookId,
             section,
           },
           currentUserId
@@ -220,7 +286,7 @@ export const useLibroSection = (userId, section) => {
         return false;
       }
     },
-    [getCurrentUserId, section, fetchAllData]
+    [getCurrentUserId, section, fetchAllData, selectedBookId]
   );
 
   const updateNodeData = useCallback(
@@ -234,6 +300,10 @@ export const useLibroSection = (userId, section) => {
           {
             name: node.name,
             goal: node.goal !== undefined ? node.goal : undefined,
+            icon_name: node.icon_name !== undefined ? node.icon_name : undefined,
+            color_token: node.color_token !== undefined ? node.color_token : undefined,
+            tracking_mode:
+              node.tracking_mode !== undefined ? node.tracking_mode : undefined,
           },
           currentUserId
         );
@@ -273,10 +343,11 @@ export const useLibroSection = (userId, section) => {
   // Funciones CRUD para entradas
   const addEntry = useCallback(
     async (nodeId, formData) => {
-      if (!section) return false;
+      const currentUserId = await getCurrentUserId();
+      if (!section || !currentUserId) return false;
 
       try {
-        await createEntry(nodeId, formData, section);
+        await createEntry(nodeId, formData, section, currentUserId);
 
         // Refrescar todos los datos después de la adición exitosa
         await fetchAllData();
@@ -286,7 +357,7 @@ export const useLibroSection = (userId, section) => {
         return false;
       }
     },
-    [section, fetchAllData]
+    [getCurrentUserId, section, fetchAllData]
   );
 
   // Funciones CRUD para eventos
@@ -364,11 +435,18 @@ export const useLibroSection = (userId, section) => {
 
     setLoading(true);
     try {
+      const activeLibroBook = await ensureActiveLibroBook({
+        userId: currentUserId,
+        section,
+        residencyYear: 1,
+      });
+
       // Crear todos los nodos padre primero
       for (const parentTemplate of libroTemplate) {
         // Crear el nodo padre
         const parentNode = await createNode(
           {
+            book_id: activeLibroBook.id,
             name: parentTemplate.name,
             section,
             parent_node_id: null,
@@ -381,6 +459,7 @@ export const useLibroSection = (userId, section) => {
           for (const childTemplate of parentTemplate.children) {
             await createNode(
               {
+                book_id: activeLibroBook.id,
                 name: childTemplate.name,
                 section,
                 parent_node_id: parentNode.id,
@@ -403,17 +482,151 @@ export const useLibroSection = (userId, section) => {
     }
   }, [getCurrentUserId, section, fetchAllData]);
 
+  const createStructure = useCallback(
+    async ({ specialityId = null, categories = [], residencyYear = 1 }) => {
+      const currentUserId = await getCurrentUserId();
+      if (!currentUserId || !section) return false;
+
+      setLoading(true);
+      try {
+        await createLibroStructure({
+          userId: currentUserId,
+          section,
+          specialityId,
+          categories,
+          residencyYear,
+        });
+        await Promise.all([fetchAllData(), fetchSettings()]);
+        return true;
+      } catch (error) {
+        console.error("Error creating libro structure:", error);
+        return false;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fetchAllData, fetchSettings, getCurrentUserId, section]
+  );
+
+  const selectBook = useCallback(
+    async (bookId) => {
+      setSelectedBookId(bookId);
+      await fetchAllData(bookId);
+    },
+    [fetchAllData]
+  );
+
+  const markOnboardingComplete = useCallback(
+    async ({ specialityId = null, lastUsedNodeId = null, quickActivityIds = [] } = {}) => {
+      const currentUserId = await getCurrentUserId();
+      if (!currentUserId) return false;
+
+      try {
+        const updatedSettings = await upsertLibroUserSettings(currentUserId, {
+          speciality_id: specialityId,
+          onboarding_completed_at: new Date().toISOString(),
+          onboarding_version: 1,
+          last_used_node_id: lastUsedNodeId,
+          quick_activity_ids: quickActivityIds,
+        });
+        setSettings(updatedSettings);
+        return true;
+      } catch (error) {
+        console.error("Error marking onboarding complete:", error);
+        return false;
+      }
+    },
+    [getCurrentUserId]
+  );
+
+  const updateLibroSettings = useCallback(
+    async (partialSettings = {}) => {
+      const currentUserId = await getCurrentUserId();
+      if (!currentUserId) return false;
+
+      try {
+        const updatedSettings = await upsertLibroUserSettings(currentUserId, {
+          speciality_id:
+            partialSettings.speciality_id !== undefined
+              ? partialSettings.speciality_id
+              : settings?.speciality_id || null,
+          onboarding_completed_at:
+            partialSettings.onboarding_completed_at !== undefined
+              ? partialSettings.onboarding_completed_at
+              : settings?.onboarding_completed_at || null,
+          onboarding_version:
+            partialSettings.onboarding_version || settings?.onboarding_version || 1,
+          last_used_node_id:
+            partialSettings.last_used_node_id !== undefined
+              ? partialSettings.last_used_node_id
+              : settings?.last_used_node_id || null,
+          quick_activity_ids:
+            partialSettings.quick_activity_ids !== undefined
+              ? partialSettings.quick_activity_ids
+              : settings?.quick_activity_ids || [],
+        });
+        setSettings(updatedSettings);
+        return true;
+      } catch (error) {
+        console.error("Error updating libro settings:", error);
+        return false;
+      }
+    },
+    [getCurrentUserId, settings]
+  );
+
+  const archiveAndStartNewYear = useCallback(
+    async (nextResidencyYear) => {
+      const currentUserId = await getCurrentUserId();
+      if (!currentUserId || !section) return { success: false, book: null };
+
+      try {
+        const nextBook = await archiveLibroBookAndStartNewYear({
+          userId: currentUserId,
+          section,
+          nextResidencyYear,
+        });
+
+        await Promise.all([
+          updateLibroSettings({
+            last_used_node_id: null,
+            quick_activity_ids: [],
+          }),
+          fetchAllData(nextBook?.id || null),
+        ]);
+
+        return { success: true, book: nextBook || null };
+      } catch (error) {
+        console.error("Error archiving libro and starting new year:", error);
+        return { success: false, book: null };
+      }
+    },
+    [fetchAllData, getCurrentUserId, section, updateLibroSettings]
+  );
+
   // Cargar datos al montar y cuando cambien usuario o sección
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
 
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
   return {
+    books,
+    selectedBook,
+    activeBook,
+    selectedBookId,
+    setSelectedBookId,
+    isSelectedBookArchived,
     nodes,
     nodeTree,
     entries,
     events,
+    settings,
     loading,
+    settingsLoading,
     statistics,
     selectedNode,
     setSelectedNode,
@@ -432,8 +645,14 @@ export const useLibroSection = (userId, section) => {
     deleteEvent: removeEvent,
     getNodeEntries,
     getNodeEvents,
+    selectBook,
     fetchAllData,
+    fetchSettings,
     createTemplate,
+    createStructure,
+    archiveAndStartNewYear,
+    markOnboardingComplete,
+    updateLibroSettings,
   };
 };
 

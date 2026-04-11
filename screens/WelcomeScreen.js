@@ -3,19 +3,20 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   Platform,
   Alert,
   Modal,
   TouchableOpacity,
+  ImageBackground,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { FaceIdLogo } from "../components/FaceIdLogo";
+import { LosResisLogo } from "../components/LosResisLogo";
 import {
   signInWithGoogle,
   signInWithApple,
@@ -42,6 +43,7 @@ const isDevelopment = __DEV__;
 const isIOS = Platform.OS === "ios";
 
 export default function WelcomeScreen({ onAuthSuccess }) {
+  const insets = useSafeAreaInsets();
   const [isChecking, setIsChecking] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [signingInProvider, setSigningInProvider] = useState(null); // 'google' | 'apple' | 'biometric' | null
@@ -649,123 +651,67 @@ export default function WelcomeScreen({ onAuthSuccess }) {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </SafeAreaView>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.content}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>¡Bienvenido!</Text>
-            <Text style={styles.subtitle}>
-              Accede a <Text style={styles.highlight}>LosResis</Text>
-            </Text>
+    <View style={styles.container}>
+      <StatusBar style="light" />
+      <View style={styles.screen}>
+        {/* Hero: pantalla completa arriba, contenido con inset para Dynamic Island/notch */}
+        <View style={styles.heroContainer}>
+          <ImageBackground
+            source={{
+              uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuAN2ZQrWQHhKMf3XXkD0upVsZsRwLEN_aRgeKcpgkaVXPq6JzmO_DQ_bAPTI3-3uOV-1inQlcfSeLFGpmomhX4gynnDlq26xCup1lfrDj1EhdmnIkjop5ci7PGRSSzutvJponn9Pvjbz_ANmfEbfOF6X5ySesI701-LI0ulSPWpWQukniZSl18PXUMlBbcT0FZLQ62RHTd6dQ-65yf_2gRPR4kcoSg2W41c3vlLndS0dr4dOIDoKKVeeDKQdZFOz9uouoA0a5oU-d-B",
+            }}
+            style={styles.heroBackground}
+            imageStyle={styles.heroBackgroundImage}
+            resizeMode="cover"
+            blurRadius={2}
+          >
+            <View style={styles.heroOverlay} />
+            <View
+              style={[
+                styles.heroContent,
+                { paddingTop: Math.max(insets.top, 24) },
+              ]}
+            >
+              <View style={styles.heroContentCenter}>
+                <View style={styles.heroLogoRow}>
+                  <LosResisLogo width={160} height={160} color="#FFFFFF" />
+                </View>
+              </View>
+            </View>
+          </ImageBackground>
+        </View>
+
+        {/* Bottom sheet: fondo hasta el borde inferior, contenido respetando el home indicator */}
+        <View style={styles.bottomSheet}>
+          <View style={styles.bottomHandleContainer}>
+            <View style={styles.bottomHandle} />
           </View>
-
-          {/* Login Card */}
-          <Card style={styles.loginCard}>
-            {/* Description */}
-            <Text style={styles.description}>
-              Encuentra el hospital ideal para tu residencia médica.{"\n"}
-              <Text style={styles.descriptionBold}>
-                Opiniones reales, decisiones inteligentes.
+          <View
+            style={[
+              styles.bottomContent,
+              { paddingBottom: 24 + insets.bottom },
+            ]}
+          >
+            <View style={styles.welcomeHeader}>
+              <Text style={styles.welcomeTitle}>Bienvenido de nuevo</Text>
+              <Text style={styles.welcomeSubtitle}>
+                Accede a tu plataforma MIR personalizada
               </Text>
-            </Text>
+            </View>
 
-            {/* Sign In Buttons */}
-            <View style={styles.buttonContainer}>
-              {/* Face ID Button - Siempre visible si Face ID está disponible */}
-              {biometricAvailable && (
-                <>
-                  <TouchableOpacity
-                    style={[
-                      styles.biometricButton,
-                      (!biometricEnabled ||
-                        !hasStoredTokensState ||
-                        signingInWithBiometric ||
-                        isChecking) &&
-                        styles.biometricButtonDisabled,
-                    ]}
-                    onPress={handleSignInWithBiometric}
-                    disabled={
-                      !biometricEnabled ||
-                      !hasStoredTokensState ||
-                      signingInWithBiometric ||
-                      isChecking
-                    }
-                  >
-                    {signingInWithBiometric ? (
-                      <ActivityIndicator size="small" color={COLORS.PRIMARY} />
-                    ) : (
-                      <>
-                        <FaceIdLogo
-                          width={24}
-                          height={24}
-                          color={
-                            biometricEnabled && hasStoredTokensState
-                              ? COLORS.PRIMARY
-                              : COLORS.TEXT_LIGHT
-                          }
-                        />
-                        <View style={styles.biometricButtonTextContainer}>
-                          <Text
-                            style={[
-                              styles.biometricButtonText,
-                              (!biometricEnabled || !hasStoredTokensState) &&
-                                styles.biometricButtonTextDisabled,
-                            ]}
-                          >
-                            {biometricEnabled && hasStoredTokensState
-                              ? `Accede con ${biometricType || "Face ID"}`
-                              : `Inicia sesión primero para activar ${
-                                  biometricType || "Face ID"
-                                }`}
-                          </Text>
-                        </View>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                  <View style={styles.dividerContainer}>
-                    <View style={styles.dividerLine} />
-                    <Text style={styles.dividerText}>o</Text>
-                    <View style={styles.dividerLine} />
-                  </View>
-                </>
-              )}
-
-              {/* Apple Sign In Button - Solo en iOS */}
-              {isIOS && (
-                <>
-                  <Button
-                    title={
-                      signingInProvider === "apple"
-                        ? "Verificando perfil..."
-                        : "Continuar con Apple"
-                    }
-                    onPress={() => handleSignIn("apple")}
-                    loading={signingInProvider === "apple"}
-                    disabled={!!isChecking || signingInWithBiometric}
-                    variant="apple"
-                    style={styles.appleButton}
-                  />
-                  <View style={{ height: 12 }} />
-                </>
-              )}
-
+            <View style={styles.actionsContainer}>
               {/* Google Sign In Button */}
               <Button
                 title={
                   signingInProvider === "google"
-                    ? "Verificando perfil..."
+                    ? "Completa la verificación en Google"
                     : "Continuar con Google"
                 }
                 onPress={() => handleSignIn("google")}
@@ -774,32 +720,96 @@ export default function WelcomeScreen({ onAuthSuccess }) {
                 variant="google"
                 style={styles.googleButton}
               />
+
+              {signingInProvider === "google" && (
+                <Text style={styles.authPendingHint}>
+                  Sigue el proceso en Google. Continuaremos automáticamente
+                  cuando termine la verificación.
+                </Text>
+              )}
+
+              {/* Apple Sign In Button - Solo en iOS */}
+              {isIOS && (
+                <Button
+                  title={
+                    signingInProvider === "apple"
+                      ? "Verificando perfil..."
+                      : "Continuar con Apple"
+                  }
+                  onPress={() => handleSignIn("apple")}
+                  loading={signingInProvider === "apple"}
+                  disabled={!!isChecking || signingInWithBiometric}
+                  variant="apple"
+                  style={styles.appleButton}
+                />
+              )}
+
+              <View style={styles.dividerContainer}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>o</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              {/* Face ID Button - Siempre visible si Face ID está disponible */}
+              {biometricAvailable && (
+                <TouchableOpacity
+                  style={[
+                    styles.biometricCard,
+                    (!biometricEnabled ||
+                      !hasStoredTokensState ||
+                      signingInWithBiometric ||
+                      isChecking) &&
+                      styles.biometricCardDisabled,
+                  ]}
+                  onPress={handleSignInWithBiometric}
+                  disabled={
+                    !biometricEnabled ||
+                    !hasStoredTokensState ||
+                    signingInWithBiometric ||
+                    isChecking
+                  }
+                >
+                  {signingInWithBiometric ? (
+                    <ActivityIndicator size="small" color={COLORS.PRIMARY} />
+                  ) : (
+                    <>
+                      <View style={styles.biometricIconContainer}>
+                        <FaceIdLogo
+                          width={32}
+                          height={32}
+                          color={COLORS.PRIMARY}
+                        />
+                      </View>
+                      <View style={styles.biometricTextContainer}>
+                        <Text style={styles.biometricTitle}>Acceso rápido</Text>
+                        <Text style={styles.biometricSubtitle}>
+                          {biometricEnabled && hasStoredTokensState
+                            ? `Toca para entrar con ${
+                                biometricType || "Face ID"
+                              }`
+                            : `Activa ${
+                                biometricType || "Face ID"
+                              } después de iniciar sesión`}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={COLORS.PRIMARY}
+                      />
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
 
-            {/* Supabase Auth Badge */}
-            <View style={styles.authBadge}>
-              <View style={styles.greenDot} />
-              <View style={{ width: 8 }} />
-              <Text style={styles.authText}>
-                Protegido por <Text style={styles.authBold}>Supabase Auth</Text>
-              </Text>
-            </View>
-
-            {/* New User Info */}
-            <View style={styles.newUserContainer}>
-              <Text style={styles.newUserTitle}>¿Nuevo en la plataforma?</Text>
-              <Text style={styles.newUserText}>
-                Tu cuenta se creará automáticamente al iniciar sesión
-              </Text>
-            </View>
-          </Card>
-
-          {/* Footer */}
-          <Text style={styles.footer}>
-            Conectando futuros médicos con su hospital ideal
-          </Text>
+            <Text style={styles.bottomNote}>
+              Si es tu primera vez, inicia sesión para crear tu cuenta
+              automáticamente.
+            </Text>
+          </View>
         </View>
-      </ScrollView>
+      </View>
 
       {/* Modal para preguntar sobre Face ID la primera vez */}
       <Modal
@@ -844,7 +854,7 @@ export default function WelcomeScreen({ onAuthSuccess }) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -853,155 +863,130 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#171022",
   },
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#171022",
   },
-  scrollContent: {
-    flexGrow: 1,
+  screen: {
+    flex: 1,
+    backgroundColor: "#171022",
+  },
+  heroContainer: {
+    height: "55%",
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    overflow: "hidden",
+  },
+  heroBackground: {
+    flex: 1,
     justifyContent: "center",
-    padding: 20,
-  },
-  content: {
-    width: "100%",
-    maxWidth: 400,
-    alignSelf: "center",
-  },
-  header: {
     alignItems: "center",
-    marginBottom: 32,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#6B46C1",
+  heroBackgroundImage: {
+    transform: [{ scale: 1.05 }],
+  },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(100, 10, 245, 0.68)",
+  },
+  heroContent: {
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  heroContentCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  heroLogoRow: {
     marginBottom: 8,
-    textAlign: "center",
   },
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-    fontWeight: "500",
-    textAlign: "center",
+  heroTitle: {
+    fontSize: 34,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
   },
-  highlight: {
-    color: "#007AFF",
-    fontWeight: "600",
-  },
-  loginCard: {
-    marginBottom: 24,
-  },
-  description: {
+  heroSubtitle: {
+    marginTop: 8,
     fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  descriptionBold: {
     fontWeight: "600",
-    color: "#333",
+    color: "rgba(255,255,255,0.9)",
+    textAlign: "center",
+    letterSpacing: 0.2,
   },
-  buttonContainer: {
-    marginBottom: 16,
+  bottomSheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "56%",
+    backgroundColor: COLORS.WHITE,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  bottomHandleContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+  },
+  bottomHandle: {
+    width: 48,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: "#E5E7EB",
+  },
+  bottomContent: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  welcomeHeader: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  welcomeTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  welcomeSubtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+  },
+  actionsContainer: {
+    gap: 16,
   },
   appleButton: {
     width: "100%",
+    height: 56,
+    borderRadius: 16,
   },
   googleButton: {
     width: "100%",
-  },
-  authBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  greenDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#10B981",
-  },
-  authText: {
-    fontSize: 12,
-    color: "#666",
-  },
-  authBold: {
-    fontWeight: "600",
-  },
-  newUserContainer: {
-    backgroundColor: "#EFF6FF",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#DBEAFE",
-  },
-  newUserTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1E40AF",
-    marginBottom: 4,
-    textAlign: "center",
-  },
-  newUserText: {
-    fontSize: 12,
-    color: "#666",
-    textAlign: "center",
-    lineHeight: 16,
-  },
-  footer: {
-    fontSize: 12,
-    color: "#999",
-    textAlign: "center",
-    marginTop: 8,
-  },
-  biometricButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.WHITE,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    height: 56,
     borderRadius: 16,
-    gap: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: COLORS.BORDER,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  biometricButtonDisabled: {
-    opacity: 0.6,
-    backgroundColor: COLORS.GRAY_LIGHT,
-  },
-  biometricButtonTextContainer: {
-    flex: 1,
-    alignItems: "center",
-  },
-  biometricButtonText: {
-    color: COLORS.PRIMARY,
-    fontSize: 16,
-    fontWeight: "600",
+  authPendingHint: {
+    marginTop: -6,
+    fontSize: 12,
+    lineHeight: 18,
     textAlign: "center",
-  },
-  biometricButtonTextDisabled: {
-    color: COLORS.TEXT_LIGHT,
-    fontSize: 14,
-    fontWeight: "500",
+    color: "#6B7280",
   },
   dividerContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 16,
+    marginVertical: 12,
   },
   dividerLine: {
     flex: 1,
@@ -1009,10 +994,52 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BORDER,
   },
   dividerText: {
-    marginHorizontal: 12,
-    fontSize: 14,
+    marginHorizontal: 10,
+    fontSize: 10,
+    letterSpacing: 1.5,
     color: COLORS.TEXT_LIGHT,
-    fontWeight: "500",
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  biometricCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(103, 12, 245, 0.2)",
+    backgroundColor: "rgba(103, 12, 245, 0.04)",
+    gap: 12,
+  },
+  biometricCardDisabled: {
+    opacity: 0.7,
+  },
+  biometricIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: COLORS.WHITE,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  biometricTextContainer: {
+    flex: 1,
+  },
+  biometricTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 2,
+  },
+  biometricSubtitle: {
+    fontSize: 12,
+    color: "#6B7280",
   },
   modalOverlay: {
     flex: 1,
@@ -1075,5 +1102,12 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT_DARK,
     fontSize: 16,
     fontWeight: "600",
+  },
+  bottomNote: {
+    marginTop: 16,
+    fontSize: 12,
+    fontWeight: "500",
+    textAlign: "center",
+    color: "#1B0977",
   },
 });

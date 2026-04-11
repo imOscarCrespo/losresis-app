@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#640af5",
+              "background-light": "#f7f5f8",
+              "background-dark": "#171022",
+            },
+            fontFamily: {
+              "display": ["Manrope"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Manrope', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen">
+<div class="relative flex h-auto min-h-screen w-full max-w-md mx-auto flex-col bg-white dark:bg-background-dark shadow-sm">
+<!-- Header / TopAppBar -->
+<div class="flex items-center bg-white dark:bg-background-dark p-4 pb-2 justify-between sticky top-0 z-10 border-b border-slate-100 dark:border-primary/10">
+<div class="text-slate-900 dark:text-slate-100 flex size-12 shrink-0 items-center justify-center cursor-pointer hover:bg-slate-50 dark:hover:bg-primary/5 rounded-full transition-colors">
+<span class="material-symbols-outlined">arrow_back</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-12">Registro del Día</h2>
+</div>
+<div class="flex flex-col gap-6 p-4">
+<!-- Journaling Prompt -->
+<div class="pt-2">
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Reflexión asistencial</p>
+<h1 class="text-slate-900 dark:text-slate-100 text-2xl font-extrabold tracking-tight">¿Cómo fue tu turno hoy?</h1>
+</div>
+<!-- Tipo de Jornada Selection -->
+<section>
+<h3 class="text-slate-900 dark:text-slate-100 text-base font-bold leading-tight tracking-[-0.015em] mb-3">Tipo de jornada</h3>
+<div class="flex gap-2 flex-wrap">
+<button class="flex h-10 items-center justify-center gap-x-2 rounded-xl bg-primary text-white px-5 transition-all shadow-sm">
+<span class="material-symbols-outlined text-lg">medical_services</span>
+<p class="text-sm font-semibold leading-normal">Guardia</p>
+</button>
+<button class="flex h-10 items-center justify-center gap-x-2 rounded-xl bg-slate-100 dark:bg-primary/10 text-slate-700 dark:text-slate-200 px-5 hover:bg-slate-200 dark:hover:bg-primary/20 transition-all">
+<span class="material-symbols-outlined text-lg">domain</span>
+<p class="text-sm font-medium leading-normal">Planta</p>
+</button>
+<button class="flex h-10 items-center justify-center gap-x-2 rounded-xl bg-slate-100 dark:bg-primary/10 text-slate-700 dark:text-slate-200 px-5 hover:bg-slate-200 dark:hover:bg-primary/20 transition-all">
+<span class="material-symbols-outlined text-lg">stethoscope</span>
+<p class="text-sm font-medium leading-normal">Consultas</p>
+</button>
+</div>
+</section>
+<!-- Metrics Inputs -->
+<section class="grid grid-cols-2 gap-4">
+<label class="flex flex-col flex-1">
+<p class="text-slate-700 dark:text-slate-300 text-sm font-semibold pb-2">Pacientes vistos</p>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">group</span>
+<input class="form-input flex w-full rounded-xl text-slate-900 dark:text-slate-100 border-slate-200 dark:border-primary/20 bg-slate-50 dark:bg-primary/5 focus:ring-primary focus:border-primary h-14 pl-10 pr-4 placeholder:text-slate-400 text-base font-medium" placeholder="0" type="number"/>
+</div>
+</label>
+<label class="flex flex-col flex-1">
+<p class="text-slate-700 dark:text-slate-300 text-sm font-semibold pb-2">Interconsultas</p>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">assignment_turned_in</span>
+<input class="form-input flex w-full rounded-xl text-slate-900 dark:text-slate-100 border-slate-200 dark:border-primary/20 bg-slate-50 dark:bg-primary/5 focus:ring-primary focus:border-primary h-14 pl-10 pr-4 placeholder:text-slate-400 text-base font-medium" placeholder="0" type="number"/>
+</div>
+</label>
+</section>
+<!-- Qualitative Section -->
+<section>
+<div class="flex items-center justify-between mb-2">
+<h3 class="text-slate-900 dark:text-slate-100 text-base font-bold leading-tight tracking-[-0.015em]">Aprendizaje clave del día</h3>
+<span class="text-xs font-medium text-slate-400 italic">Opcional</span>
+</div>
+<div class="relative group">
+<textarea class="form-textarea w-full rounded-xl text-slate-900 dark:text-slate-100 border-slate-200 dark:border-primary/20 bg-slate-50 dark:bg-primary/5 focus:ring-primary focus:border-primary min-h-[120px] p-4 placeholder:text-slate-400 text-base font-normal leading-relaxed resize-none transition-all" placeholder="Describe brevemente un caso interesante o una lección aprendida..."></textarea>
+<div class="absolute bottom-3 right-3 text-slate-300 dark:text-slate-600">
+<span class="material-symbols-outlined">edit_note</span>
+</div>
+</div>
+</section>
+<!-- Satisfaction (Lightweight reflection) -->
+<section>
+<h3 class="text-slate-900 dark:text-slate-100 text-sm font-semibold mb-3">Balance de carga de trabajo</h3>
+<div class="flex justify-between items-center bg-slate-50 dark:bg-primary/5 p-4 rounded-xl border border-slate-100 dark:border-primary/10">
+<span class="text-2xl grayscale hover:grayscale-0 cursor-pointer transition-all">😫</span>
+<span class="text-2xl grayscale hover:grayscale-0 cursor-pointer transition-all">😮‍💨</span>
+<span class="text-3xl cursor-pointer">⚖️</span>
+<span class="text-2xl grayscale hover:grayscale-0 cursor-pointer transition-all">✨</span>
+<span class="text-2xl grayscale hover:grayscale-0 cursor-pointer transition-all">🔥</span>
+</div>
+</section>
+</div>
+<!-- Footer Button Container -->
+<div class="mt-auto p-4 pb-8">
+<button class="flex w-full items-center justify-center gap-2 rounded-xl bg-primary h-14 text-white text-base font-bold shadow-lg shadow-primary/25 hover:opacity-90 active:scale-[0.98] transition-all">
+<span>Finalizar día</span>
+<span class="material-symbols-outlined">check_circle</span>
+</button>
+<p class="text-center text-slate-400 text-xs mt-4 font-medium">
+                Los datos se guardarán en tu bitácora personal.
+            </p>
+</div>
+</div>
+</body></html>

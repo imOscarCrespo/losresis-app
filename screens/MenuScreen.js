@@ -1,9 +1,13 @@
 import React, { useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { MenuGrid } from "../components/MenuGrid";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import { NAVIGATION_ITEMS } from "../constants/navigationItems";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
+import { useUnreadNotificationBuckets } from "../src/hooks/useUnreadNotificationBuckets";
+import { COLORS } from "../constants/colors";
 
 /**
  * Pantalla de Menú con grid de opciones
@@ -11,12 +15,16 @@ import posthogLogger from "../services/posthogService";
  */
 export default function MenuScreen({
   onSectionChange,
+  onBack,
   currentSection,
   userProfile,
   residentHasReview = true,
+  residentReviewGateStatus = "soft",
+  residentReviewGateBypassed = false,
 }) {
   // Obtener items del footer para excluirlos
   const footerItems = getFooterConfig(userProfile);
+  const { hasOtherUnread } = useUnreadNotificationBuckets(userProfile?.id);
 
   const handleItemPress = (item) => {
     if (onSectionChange) {
@@ -32,10 +40,17 @@ export default function MenuScreen({
   }, []);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Menú</Text>
-      </View>
+    <ScreenScaffold
+      header={
+        <ScreenHeader
+          title="Menú"
+          onBack={onBack}
+          iconName="grid-outline"
+          compact
+        />
+      }
+      contentSurfaceStyle={styles.contentSurface}
+    >
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -47,27 +62,18 @@ export default function MenuScreen({
           userProfile={userProfile}
           onItemPress={handleItemPress}
           residentHasReview={residentHasReview}
+          residentReviewGateStatus={residentReviewGateStatus}
+          residentReviewGateBypassed={residentReviewGateBypassed}
+          showNotificationsBadge={hasOtherUnread}
         />
       </ScrollView>
-    </View>
+    </ScreenScaffold>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F5F5F5",
-  },
-  header: {
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1a1a1a",
+  contentSurface: {
+    backgroundColor: COLORS.BACKGROUND,
   },
   content: {
     flex: 1,

@@ -23,6 +23,7 @@ export const FloatingActionButton = ({
   size = 56,
   bottom = 20,
   right = 20,
+  style,
 }) => {
   return (
     <TouchableOpacity
@@ -36,9 +37,11 @@ export const FloatingActionButton = ({
           bottom,
           right,
         },
+        style,
       ]}
       onPress={onPress}
       activeOpacity={0.8}
+      hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
     >
       <View style={styles.iconContainer}>
         <Ionicons name={icon} size={size * 0.5} color={iconColor} />
@@ -52,6 +55,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 1000,
     elevation: 8,
     // Sombra para iOS
     shadowColor: COLORS.BLACK,

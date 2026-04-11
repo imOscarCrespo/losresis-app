@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,60 +6,65 @@ import {
   ScrollView,
   TouchableOpacity,
   Modal,
-  TextInput,
   ActivityIndicator,
-  Switch,
-  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { StarRating } from "../components/StarRating";
 import { ScreenHeader } from "../components/ScreenHeader";
-import { useUnreadNotificationsCount } from "../src/hooks/useUnreadNotificationsCount";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import { useMyReview } from "../hooks/useMyReview";
 import { useHospitals } from "../hooks/useHospitals";
 import { formatShortDate } from "../utils/dateUtils";
-import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
+import { COLORS } from "../constants/colors";
+import {
+  canWriteResidentHospitalReview,
+  formatResidentTransitionDeadline,
+  isResidentLockedMissingCorporateEmail,
+} from "../utils/residentAccess";
 
-/**
- * Pantalla para crear/editar/ver la reseña del usuario residente
- */
+// ============================================================================
+// COLORS
+// ============================================================================
+
+const PRIMARY = "#670CF5";
+const SECONDARY = "#00BD7C";
+const ACCENT = "#1B0977";
+const BG_LIGHT = COLORS.BACKGROUND;
+const WHITE = "#FFFFFF";
+const TEXT_MEDIUM = "#64748B";
+const TEXT_LIGHT = "#94A3B8";
+const BORDER = "#F1F5F9";
+const ERROR = "#EF4444";
+const WARNING = "#FBBF24";
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 export default function MyReviewScreen({
   userProfile,
   navigation,
   onReviewCreated,
   onReviewDeleted,
+  autoOpenCreateReview = false,
+  onAutoOpenCreateReviewHandled,
+  onCreateReview,
+  onEditReview,
+  onBack,
 }) {
-  // Estados locales
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
-  const [answers, setAnswers] = useState({});
-  const [freeComment, setFreeComment] = useState("");
-  const [isAnonymous, setIsAnonymous] = useState(false);
 
-  // Obtener datos del hospital y especialidad
   const { hospitals, specialties } = useHospitals();
   const hospital = hospitals.find((h) => h.id === userProfile?.hospital_id);
-  const specialty = specialties.find(
-    (s) => s.id === userProfile?.speciality_id
-  );
+  const specialty = specialties.find((s) => s.id === userProfile?.speciality_id);
 
-  const { count: notificationCount } = useUnreadNotificationsCount(
-    userProfile?.id
-  );
-
-  // Hook de reseña
   const {
-    reviewQuestions,
     existingReview,
     loading,
     loadingQuestions,
     error,
     success,
-    fetchReviewQuestions,
-    handleCreateReview,
-    handleUpdateReview,
     handleDeleteReview,
     clearError,
     clearSuccess,
@@ -69,445 +74,363 @@ export default function MyReviewScreen({
     userProfile?.speciality_id
   );
 
-  // Verificar si es residente
   const isResident = userProfile?.is_resident;
+  const reviewWritingDisabled = !canWriteResidentHospitalReview(userProfile);
+  const headerStatusChip = existingReview ? (
+    <View
+      style={[
+        styles.statusChip,
+        existingReview.is_approved ? styles.statusChipGreen : styles.statusChipOrange,
+      ]}
+    >
+      <Ionicons
+        name={existingReview.is_approved ? "checkmark-circle" : "time-outline"}
+        size={13}
+        color={existingReview.is_approved ? SECONDARY : "#D97706"}
+      />
+      <Text
+        style={[
+          styles.statusChipText,
+          existingReview.is_approved
+            ? styles.statusChipTextGreen
+            : styles.statusChipTextOrange,
+        ]}
+      >
+        {existingReview.is_approved ? "Aprobada" : "Pendiente"}
+      </Text>
+    </View>
+  ) : null;
+  const header = (
+    <ScreenHeader
+      title="Mi Reseña"
+      onBack={onBack}
+      compact
+      variant="brand"
+      rightSlot={headerStatusChip}
+    />
+  );
 
-  // Cargar datos existentes en el formulario cuando se edita
-  useEffect(() => {
-    if (existingReview && existingReview.review_answer) {
-      const existingAnswers = {};
-      existingReview.review_answer.forEach((answer) => {
-        if (answer.question_id) {
-          existingAnswers[answer.question_id] = {
-            rating: answer.rating_value || undefined,
-            textValue: answer.text_value || undefined,
-          };
-        }
-      });
-      setAnswers(existingAnswers);
-      setFreeComment(existingReview.free_comment || "");
-      setIsAnonymous(existingReview.is_anonymous || false);
-    }
-  }, [existingReview]);
-
-  // Tracking de pantalla con PostHog
   useEffect(() => {
     posthogLogger.logScreen("MyReviewScreen");
   }, []);
 
-  // Handlers
   const handleStartReview = useCallback(() => {
-    setAnswers({});
-    setFreeComment("");
-    setIsAnonymous(false);
-    fetchReviewQuestions();
-    setIsModalOpen(true);
-    setIsEditing(false);
-  }, [fetchReviewQuestions]);
+    onCreateReview?.();
+  }, [onCreateReview]);
 
   const handleEditReview = useCallback(() => {
-    fetchReviewQuestions();
-    setIsModalOpen(true);
-    setIsEditing(true);
-  }, [fetchReviewQuestions]);
+    onEditReview?.();
+  }, [onEditReview]);
 
-  const handleRatingChange = useCallback((questionId, rating) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: { ...prev[questionId], rating },
-    }));
-  }, []);
-
-  const handleTextChange = useCallback((questionId, textValue) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: { ...prev[questionId], textValue },
-    }));
-  }, []);
-
-  const handleSubmit = useCallback(async () => {
-    // Validar preguntas obligatorias
-    const unansweredRequired = reviewQuestions.filter((q) => {
-      if (q.is_optional) return false;
-      const answer = answers[q.id];
-      if (q.type === "rating") {
-        return !answer?.rating;
-      } else if (q.type === "text") {
-        return !answer?.textValue || answer?.textValue.trim() === "";
-      }
-      return true;
-    });
-
-    if (unansweredRequired.length > 0) {
-      Alert.alert(
-        "Preguntas obligatorias",
-        "Por favor, responde todas las preguntas obligatorias antes de enviar la reseña"
-      );
-      return;
-    }
-
-    // Formatear respuestas
-    const formattedAnswers = Object.entries(answers).map(
-      ([questionId, answer]) => ({
-        questionId,
-        rating: answer.rating,
-        textValue: answer.textValue,
-      })
-    );
-
-    let success = false;
-    if (existingReview) {
-      success = await handleUpdateReview(
-        existingReview.id,
-        formattedAnswers,
-        freeComment,
-        isAnonymous
-      );
-    } else {
-      const result = await handleCreateReview(
-        formattedAnswers,
-        freeComment,
-        isAnonymous
-      );
-      success = !!result;
-    }
-
-    if (success) {
-      setIsModalOpen(false);
-      // Si se creó una nueva review (no se estaba editando), notificar al padre
-      if (!existingReview && onReviewCreated) {
-        onReviewCreated();
-      }
+  useEffect(() => {
+    if (
+      autoOpenCreateReview &&
+      !existingReview &&
+      !loading &&
+      !loadingQuestions
+    ) {
+      onAutoOpenCreateReviewHandled?.();
+      handleStartReview();
     }
   }, [
-    reviewQuestions,
-    answers,
-    freeComment,
-    isAnonymous,
+    autoOpenCreateReview,
     existingReview,
-    handleCreateReview,
-    handleUpdateReview,
-    onReviewCreated,
+    loading,
+    loadingQuestions,
+    onAutoOpenCreateReviewHandled,
+    handleStartReview,
   ]);
-
-  const handleCancel = useCallback(() => {
-    setIsModalOpen(false);
-    setIsEditing(false);
-    clearError();
-    clearSuccess();
-  }, [clearError, clearSuccess]);
 
   const handleDelete = useCallback(async () => {
     if (!existingReview) return;
-
-    const success = await handleDeleteReview(existingReview.id);
-    if (success) {
+    const ok = await handleDeleteReview(existingReview.id);
+    if (ok) {
       setShowDeleteConfirmation(false);
-      setAnswers({});
-      setFreeComment("");
-      setIsAnonymous(false);
-      // Notificar al padre que se eliminó la review
-      if (onReviewDeleted) {
-        onReviewDeleted();
-      }
+      if (onReviewDeleted) onReviewDeleted();
     }
   }, [existingReview, handleDeleteReview, onReviewDeleted]);
 
-  // Si no es residente, mostrar mensaje
+  // ── Not a resident ──
   if (!isResident) {
     return (
-      <View style={styles.container}>
-        <View style={styles.messageCard}>
-          <View style={styles.iconCircle}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={48}
-              color={COLORS.ORANGE}
-            />
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.contentSurface}
+      >
+        <View style={styles.scrollContent}>
+          <View style={styles.messageCard}>
+            <View style={styles.messageIconWrap}>
+              <Ionicons name="alert-circle-outline" size={36} color={WARNING} />
+            </View>
+            <Text style={styles.messageTitle}>Solo para residentes</Text>
+            <Text style={styles.messageText}>
+              Esta funcionalidad está disponible únicamente para usuarios residentes.
+            </Text>
           </View>
-          <Text style={styles.messageTitle}>
-            Funcionalidad solo para residentes
-          </Text>
-          <Text style={styles.messageText}>
-            Esta funcionalidad está disponible únicamente para usuarios
-            residentes.
-          </Text>
         </View>
-      </View>
+      </ScreenScaffold>
     );
   }
 
-  // Si no tiene hospital o especialidad configurados
+  // ── Incomplete profile ──
   if (!hospital || !specialty) {
     return (
-      <View style={styles.container}>
-        <View style={styles.messageCard}>
-          <View style={styles.iconCircle}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={48}
-              color={COLORS.ORANGE}
-            />
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.contentSurface}
+      >
+        <View style={styles.scrollContent}>
+          <View style={styles.messageCard}>
+            <View style={styles.messageIconWrap}>
+              <Ionicons name="alert-circle-outline" size={36} color={WARNING} />
+            </View>
+            <Text style={styles.messageTitle}>Perfil incompleto</Text>
+            <Text style={styles.messageText}>
+              Para crear una reseña necesitas tener asignado un hospital y una
+              especialidad en tu perfil.
+            </Text>
           </View>
-          <Text style={styles.messageTitle}>Perfil incompleto</Text>
-          <Text style={styles.messageText}>
-            Para crear una reseña, necesitas tener asignado un hospital y una
-            especialidad en tu perfil.
-          </Text>
         </View>
-      </View>
+      </ScreenScaffold>
+    );
+  }
+
+  if (reviewWritingDisabled) {
+    const isLocked = isResidentLockedMissingCorporateEmail(userProfile);
+    return (
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.contentSurface}
+      >
+        <View style={styles.scrollContent}>
+          <View style={styles.messageCard}>
+            <View style={styles.messageIconWrap}>
+              <Ionicons
+                name={isLocked ? "mail-outline" : "time-outline"}
+                size={36}
+                color={WARNING}
+              />
+            </View>
+            <Text style={styles.messageTitle}>
+              {isLocked ? "Correo corporativo requerido" : "Reseña temporalmente bloqueada"}
+            </Text>
+            <Text style={styles.messageText}>
+              {isLocked
+                ? "La ventana MIR temporal ya ha terminado. Añade tu correo corporativo en tu perfil para continuar."
+                : `Mientras estás en alta temporal MIR puedes usar el resto de funciones de residente, pero no publicar la reseña del hospital. Fecha límite actual: ${formatResidentTransitionDeadline(
+                    userProfile?.resident_transition_expires_at
+                  ) || "pendiente de configurar"}.`}
+            </Text>
+          </View>
+        </View>
+      </ScreenScaffold>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <ScreenHeader
-        title="Mi Reseña"
-        subtitle={
-          existingReview
-            ? "Gestiona tu reseña del hospital"
-            : "Comparte tu experiencia como residente"
-        }
-        notificationCount={notificationCount}
-        onNotificationPress={() => navigation?.navigate("notifications")}
-      />
-
+    <ScreenScaffold
+      header={header}
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.contentSurface}
+    >
       <ScrollView
-        style={styles.scrollView}
+        style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Success Alert */}
+        {/* Alerts */}
         {success && (
-          <View style={styles.successAlert}>
-            <Ionicons name="checkmark-circle" size={20} color={COLORS.GREEN} />
-            <View style={styles.alertTextContainer}>
-              <Text style={styles.alertTitle}>
-                {!existingReview
-                  ? "Reseña eliminada"
-                  : isEditing
-                  ? "Reseña actualizada"
-                  : "Reseña creada"}
-              </Text>
-              <Text style={styles.alertText}>
-                {!existingReview
-                  ? "Tu reseña ha sido eliminada correctamente."
-                  : `Tu reseña ha sido ${
-                      isEditing ? "actualizada" : "enviada"
-                    } correctamente y está pendiente de moderación.`}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={clearSuccess} style={styles.alertClose}>
-              <Ionicons name="close" size={20} color={COLORS.GREEN} />
+          <View style={styles.alertSuccess}>
+            <Ionicons name="checkmark-circle" size={18} color={SECONDARY} />
+            <Text style={styles.alertText}>
+              {existingReview
+                ? "Reseña eliminada correctamente."
+                : "Operación completada correctamente."}
+            </Text>
+            <TouchableOpacity onPress={clearSuccess}>
+              <Ionicons name="close" size={18} color={SECONDARY} />
             </TouchableOpacity>
           </View>
         )}
-
-        {/* Error Alert */}
         {error && (
-          <View style={styles.errorAlert}>
-            <Ionicons name="alert-circle" size={20} color={COLORS.RED} />
-            <View style={styles.alertTextContainer}>
-              <Text style={styles.alertTitle}>Error</Text>
-              <Text style={styles.alertText}>{error}</Text>
-            </View>
-            <TouchableOpacity onPress={clearError} style={styles.alertClose}>
-              <Ionicons name="close" size={20} color={COLORS.RED} />
+          <View style={styles.alertError}>
+            <Ionicons name="alert-circle" size={18} color={ERROR} />
+            <Text style={[styles.alertText, { color: ERROR }]}>{error}</Text>
+            <TouchableOpacity onPress={clearError}>
+              <Ionicons name="close" size={18} color={ERROR} />
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Hospital y Especialidad Info */}
-        <View style={styles.infoRow}>
-          <View style={[styles.infoCard, styles.hospitalCard]}>
-            <View style={styles.infoHeader}>
-              <Ionicons name="business" size={24} color={COLORS.PRIMARY} />
-              <Text style={styles.infoTitle}>Tu Hospital</Text>
+        {/* Hospital & Specialty cards */}
+        <View style={styles.infoCardsRow}>
+          <View style={[styles.infoCard, styles.infoCardPrimary]}>
+            <View style={styles.infoCardHeader}>
+              <Ionicons name="business" size={20} color={PRIMARY} />
+              <Text style={styles.infoCardLabel}>Tu Hospital</Text>
             </View>
-            <Text style={styles.infoValue}>{hospital.name}</Text>
-            <Text style={styles.infoSubtext}>
+            <Text style={styles.infoCardValue} numberOfLines={2}>
+              {hospital.name}
+            </Text>
+            <Text style={styles.infoCardSub}>
               {hospital.city}, {hospital.region}
             </Text>
           </View>
 
-          <View style={[styles.infoCard, styles.specialtyCard]}>
-            <View style={styles.infoHeader}>
-              <Ionicons name="school" size={24} color={COLORS.PURPLE} />
-              <Text style={styles.infoTitle}>Tu Especialidad</Text>
+          <View style={[styles.infoCard, styles.infoCardSecondary]}>
+            <View style={styles.infoCardHeader}>
+              <Ionicons name="school" size={20} color={SECONDARY} />
+              <Text style={[styles.infoCardLabel, { color: SECONDARY }]}>
+                Tu Especialidad
+              </Text>
             </View>
-            <Text style={styles.infoValue}>{specialty.name}</Text>
-            <Text style={styles.infoSubtext}>
-              Año de residencia: R{userProfile.resident_year || "N/A"}
+            <Text style={styles.infoCardValue} numberOfLines={2}>
+              {specialty.name}
+            </Text>
+            <Text style={styles.infoCardSub}>
+              R{userProfile.resident_year || "–"}
             </Text>
           </View>
         </View>
 
-        {/* Estado de la Reseña */}
-        <View style={styles.reviewStatusCard}>
+        {/* Review status card */}
+        <View style={styles.card}>
           {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-              <Text style={styles.loadingText}>
-                Cargando información de reseña...
-              </Text>
+            <View style={styles.loadingInCard}>
+              <ActivityIndicator size="small" color={PRIMARY} />
+              <Text style={styles.loadingText}>Cargando reseña...</Text>
             </View>
           ) : existingReview ? (
-            // Reseña existente
+            // ── Existing review ──
             <View>
-              <View style={styles.reviewHeader}>
-                <View>
-                  <Text style={styles.reviewTitle}>Tu Reseña</Text>
+              <View style={styles.reviewHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardTitle}>Tu Reseña</Text>
                   <Text style={styles.reviewDate}>
                     Creada el {formatShortDate(existingReview.created_at)}
                   </Text>
-                  <View style={styles.badgesRow}>
-                    <View
-                      style={[
-                        styles.badge,
-                        existingReview.is_approved
-                          ? styles.badgeApproved
-                          : styles.badgePending,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.badgeText,
-                          existingReview.is_approved
-                            ? styles.badgeTextApproved
-                            : styles.badgeTextPending,
-                        ]}
-                      >
-                        {existingReview.is_approved
-                          ? "Aprobada"
-                          : "Pendiente de moderación"}
-                      </Text>
+                  {existingReview.is_anonymous && (
+                    <View style={styles.anonBadge}>
+                      <Ionicons name="eye-off-outline" size={12} color={PRIMARY} />
+                      <Text style={styles.anonBadgeText}>Anónima</Text>
                     </View>
-                    {existingReview.is_anonymous && (
-                      <View style={[styles.badge, styles.badgeAnonymous]}>
-                        <Text
-                          style={[styles.badgeText, styles.badgeTextAnonymous]}
-                        >
-                          Anónima
-                        </Text>
-                      </View>
-                    )}
-                  </View>
+                  )}
                 </View>
                 <View style={styles.reviewActions}>
                   <TouchableOpacity
+                    style={styles.editBtn}
                     onPress={handleEditReview}
-                    style={[styles.actionButton, styles.editButton]}
+                    activeOpacity={0.85}
                   >
-                    <Ionicons name="pencil" size={16} color="#FFFFFF" />
-                    <Text style={styles.actionButtonText}>Editar</Text>
+                    <Ionicons name="pencil" size={15} color={WHITE} />
+                    <Text style={styles.editBtnText}>Editar</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
+                    style={styles.deleteBtn}
                     onPress={() => setShowDeleteConfirmation(true)}
-                    style={[styles.actionButton, styles.deleteButton]}
+                    activeOpacity={0.85}
                   >
-                    <Ionicons name="trash" size={16} color="#FFFFFF" />
-                    <Text style={styles.actionButtonText}>Eliminar</Text>
+                    <Ionicons name="trash-outline" size={15} color={ERROR} />
                   </TouchableOpacity>
                 </View>
               </View>
 
-              {/* Mostrar respuestas existentes */}
-              {existingReview.review_answer &&
-                existingReview.review_answer.length > 0 && (
-                  <View style={styles.answersSection}>
-                    <Text style={styles.sectionTitle}>Respuestas:</Text>
-                    {existingReview.review_answer.map((answer) => (
-                      <View key={answer.question_id} style={styles.answerCard}>
-                        <View style={styles.answerHeader}>
-                          <Text style={styles.answerQuestion}>
-                            {answer.question?.text}
-                          </Text>
-                          <View
-                            style={[
-                              styles.answerBadge,
-                              answer.question?.type === "rating"
-                                ? styles.answerBadgeRating
-                                : styles.answerBadgeText,
-                            ]}
-                          >
-                            <Text style={styles.answerBadgeText}>
-                              {answer.question?.type === "rating"
-                                ? "Rating"
-                                : "Texto"}
-                            </Text>
-                          </View>
-                        </View>
-                        {answer.question?.type === "rating" &&
-                          answer.rating_value && (
-                            <View style={styles.answerRating}>
-                              <StarRating
-                                rating={answer.rating_value}
-                                size={16}
-                                disabled
-                              />
-                              <Text style={styles.ratingText}>
-                                ({answer.rating_value}/5)
-                              </Text>
-                            </View>
-                          )}
-                        {answer.question?.type === "text" &&
-                          answer.text_value && (
-                            <View style={styles.answerTextBox}>
-                              <Text style={styles.answerText}>
-                                {answer.text_value}
-                              </Text>
-                            </View>
-                          )}
-                      </View>
-                    ))}
+              {/* Answers */}
+              {existingReview.review_answer && existingReview.review_answer.length > 0 && (
+                <View style={styles.answersSection}>
+                  <View style={styles.sectionLabelRow}>
+                    <View style={styles.sectionBar} />
+                    <Text style={styles.sectionLabelText}>Respuestas</Text>
                   </View>
-                )}
+                  {existingReview.review_answer.map((answer) => (
+                    <View key={answer.question_id} style={styles.answerItem}>
+                      <View style={styles.answerHeaderRow}>
+                        <Text style={styles.answerQuestion} numberOfLines={3}>
+                          {answer.question?.text}
+                        </Text>
+                        <View
+                          style={[
+                            styles.typeBadge,
+                            answer.question?.type === "rating"
+                              ? styles.typeBadgeRating
+                              : styles.typeBadgeText,
+                          ]}
+                        >
+                          <Text style={styles.typeBadgeLabel}>
+                            {answer.question?.type === "rating" ? "Rating" : "Texto"}
+                          </Text>
+                        </View>
+                      </View>
+                      {answer.question?.type === "rating" && answer.rating_value && (
+                        <View style={styles.answerRatingRow}>
+                          <StarRating
+                            rating={answer.rating_value}
+                            size={16}
+                            disabled
+                          />
+                          <Text style={styles.ratingValue}>
+                            ({answer.rating_value}/5)
+                          </Text>
+                        </View>
+                      )}
+                      {answer.question?.type === "text" && answer.text_value && (
+                        <View style={styles.answerTextBox}>
+                          <Text style={styles.answerTextValue}>
+                            {answer.text_value}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
 
-              {/* Comentario libre */}
+              {/* Free comment */}
               {existingReview.free_comment && (
-                <View style={styles.freeCommentSection}>
-                  <Text style={styles.sectionTitle}>Comentario adicional:</Text>
-                  <Text style={styles.freeCommentText}>
-                    {existingReview.free_comment}
-                  </Text>
+                <View style={styles.freeCommentBlock}>
+                  <View style={styles.sectionLabelRow}>
+                    <View style={[styles.sectionBar, { backgroundColor: SECONDARY }]} />
+                    <Text style={styles.sectionLabelText}>Comentario adicional</Text>
+                  </View>
+                  <View style={styles.commentBox}>
+                    <Text style={styles.commentText}>
+                      {existingReview.free_comment}
+                    </Text>
+                  </View>
                 </View>
               )}
             </View>
           ) : (
-            // Sin reseña - Prompt para crear
+            // ── No review yet ──
             <View>
               <View style={styles.warningBanner}>
-                <Ionicons name="alert-circle" size={20} color={COLORS.RED} />
-                <View style={styles.warningTextContainer}>
+                <Ionicons name="alert-circle-outline" size={18} color={ERROR} />
+                <View style={{ flex: 1 }}>
                   <Text style={styles.warningTitle}>Completa tu reseña</Text>
                   <Text style={styles.warningText}>
-                    Para desbloquear todas las funcionalidades de la plataforma,
-                    por favor añade tu reseña. ¡Ayudarás mucho a otros
-                    estudiantes!
+                    Para desbloquear todas las funcionalidades, añade tu reseña. ¡Ayudarás a otros estudiantes!
                   </Text>
                 </View>
               </View>
 
-              <View style={styles.createReviewSection}>
-                <View style={styles.createReviewIcon}>
-                  <Ionicons name="star" size={32} color="#FFFFFF" />
+              <View style={styles.createSection}>
+                <View style={styles.createIconWrap}>
+                  <Ionicons name="star" size={28} color={WHITE} />
                 </View>
-                <Text style={styles.createReviewTitle}>
-                  ¡Crea tu primera reseña!
-                </Text>
-                <Text style={styles.createReviewText}>
-                  Ayuda a otros residentes compartiendo tu experiencia en{" "}
-                  {hospital.name} - {specialty.name}
+                <Text style={styles.createTitle}>¡Crea tu primera reseña!</Text>
+                <Text style={styles.createSubtitle}>
+                  Comparte tu experiencia en {hospital.name} · {specialty.name}
                 </Text>
                 <TouchableOpacity
+                  style={styles.createBtn}
                   onPress={handleStartReview}
-                  style={styles.createReviewButton}
+                  activeOpacity={0.85}
                 >
-                  <Ionicons name="add" size={20} color="#FFFFFF" />
-                  <Text style={styles.createReviewButtonText}>
-                    Añadir Reseña
-                  </Text>
+                  <Ionicons name="add" size={20} color={WHITE} />
+                  <Text style={styles.createBtnText}>Añadir Reseña</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -515,804 +438,704 @@ export default function MyReviewScreen({
         </View>
       </ScrollView>
 
-      {/* Modal de formulario de reseña */}
-      <Modal
-        visible={isModalOpen}
-        animationType="slide"
-        onRequestClose={handleCancel}
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>
-              {isEditing ? "Editar Reseña" : "Nueva Reseña"}
-            </Text>
-            <TouchableOpacity
-              style={[
-                styles.headerActionButton,
-                loading && styles.headerActionButtonDisabled,
-              ]}
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color={COLORS.PRIMARY} />
-              ) : (
-                <Text style={styles.headerActionButtonText}>
-                  {isEditing ? "Actualizar" : "Enviar"}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {loadingQuestions ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-              <Text style={styles.loadingText}>Cargando preguntas...</Text>
-            </View>
-          ) : (
-            <ScrollView
-              style={styles.modalContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Toggle Anónimo */}
-              <View style={styles.anonymousCard}>
-                <View style={styles.anonymousHeader}>
-                  <View style={styles.anonymousIcon}>
-                    <Ionicons name="star" size={20} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.anonymousTextContainer}>
-                    <Text style={styles.anonymousTitle}>Reseña Anónima</Text>
-                    <Text style={styles.anonymousSubtitle}>
-                      Tu reseña se mostrará de forma anónima a otros usuarios
-                    </Text>
-                  </View>
-                  <Switch
-                    value={isAnonymous}
-                    onValueChange={setIsAnonymous}
-                    trackColor={{
-                      false: "#D1D5DB",
-                      true: COLORS.PRIMARY,
-                    }}
-                    thumbColor="#FFFFFF"
-                  />
-                </View>
-                {isAnonymous && (
-                  <View style={styles.anonymousInfo}>
-                    <Text style={styles.anonymousInfoText}>
-                      <Text style={styles.anonymousInfoBold}>Información:</Text>{" "}
-                      Tu reseña será visible para otros usuarios pero sin
-                      mostrar tu nombre. Los administradores podrán ver tu
-                      identidad para moderación.
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Preguntas */}
-              <View style={styles.questionsSection}>
-                <Text style={styles.questionsSectionTitle}>
-                  Evalúa los siguientes aspectos:
-                </Text>
-                {reviewQuestions.map((question) => (
-                  <View key={question.id} style={styles.questionCard}>
-                    <View style={styles.questionHeader}>
-                      <View style={styles.questionTextContainer}>
-                        <Text style={styles.questionText}>{question.text}</Text>
-                        {question.is_optional && (
-                          <Text style={styles.optionalText}>
-                            ⓘ Esta pregunta es opcional
-                          </Text>
-                        )}
-                      </View>
-                      <View
-                        style={[
-                          styles.questionTypeBadge,
-                          question.type === "rating"
-                            ? styles.ratingBadge
-                            : styles.textBadge,
-                        ]}
-                      >
-                        <Text style={styles.questionTypeBadgeText}>
-                          {question.type === "rating" ? "Rating" : "Texto"}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {question.type === "rating" ? (
-                      <View style={styles.ratingContainer}>
-                        <StarRating
-                          rating={answers[question.id]?.rating || 0}
-                          onRatingChange={(rating) =>
-                            handleRatingChange(question.id, rating)
-                          }
-                          size={28}
-                        />
-                        <Text style={styles.ratingLabel}>
-                          {answers[question.id]?.rating
-                            ? `${answers[question.id]?.rating}/5`
-                            : "Sin calificar"}
-                        </Text>
-                      </View>
-                    ) : (
-                      <TextInput
-                        style={styles.textInput}
-                        multiline
-                        numberOfLines={3}
-                        value={answers[question.id]?.textValue || ""}
-                        onChangeText={(text) =>
-                          handleTextChange(question.id, text)
-                        }
-                        placeholder="Escribe tu respuesta aquí..."
-                        placeholderTextColor={COLORS.GRAY}
-                      />
-                    )}
-                  </View>
-                ))}
-              </View>
-
-              {/* Comentario libre */}
-              <View style={styles.freeCommentContainer}>
-                <Text style={styles.freeCommentLabel}>
-                  Comentario adicional (opcional)
-                </Text>
-                <TextInput
-                  style={[styles.textInput, styles.freeCommentInput]}
-                  multiline
-                  numberOfLines={4}
-                  value={freeComment}
-                  onChangeText={setFreeComment}
-                  placeholder="Comparte detalles adicionales sobre tu experiencia..."
-                  placeholderTextColor={COLORS.GRAY}
-                />
-              </View>
-            </ScrollView>
-          )}
-        </View>
-      </Modal>
-
-      {/* Modal de confirmación de eliminación */}
+      {/* ── Delete confirmation modal ── */}
       <Modal
         visible={showDeleteConfirmation}
         transparent
         animationType="fade"
         onRequestClose={() => setShowDeleteConfirmation(false)}
       >
-        <View style={styles.deleteModalOverlay}>
-          <View style={styles.deleteModalContainer}>
-            <Text style={styles.deleteModalTitle}>Confirmar Eliminación</Text>
-            <Text style={styles.deleteModalText}>
-              ¿Estás seguro de que quieres eliminar tu reseña? Esta acción no se
-              puede deshacer y perderás todas las respuestas asociadas.
+        <View style={styles.deleteOverlay}>
+          <View style={styles.deleteSheet}>
+            <View style={styles.deleteIconWrap}>
+              <Ionicons name="trash-outline" size={28} color={ERROR} />
+            </View>
+            <Text style={styles.deleteTitle}>Eliminar reseña</Text>
+            <Text style={styles.deleteSubtitle}>
+              ¿Estás seguro? Esta acción no se puede deshacer y perderás todas las respuestas.
             </Text>
-            <View style={styles.deleteModalActions}>
+            <View style={styles.deleteActions}>
               <TouchableOpacity
+                style={styles.deleteCancelBtn}
                 onPress={() => setShowDeleteConfirmation(false)}
-                style={[
-                  styles.deleteModalButton,
-                  styles.deleteModalCancelButton,
-                ]}
                 disabled={loading}
               >
-                <Text style={styles.deleteModalCancelText}>Cancelar</Text>
+                <Text style={styles.deleteCancelText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                style={styles.deleteConfirmBtn}
                 onPress={handleDelete}
-                style={[
-                  styles.deleteModalButton,
-                  styles.deleteModalConfirmButton,
-                ]}
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator size="small" color={WHITE} />
                 ) : (
-                  <Text style={styles.deleteModalConfirmText}>Eliminar</Text>
+                  <Text style={styles.deleteConfirmText}>Eliminar</Text>
                 )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </View>
+    </ScreenScaffold>
   );
 }
+
+// ============================================================================
+// STYLES
+// ============================================================================
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: BG_LIGHT,
   },
-  header: {
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+  contentSurface: {
+    flex: 1,
+    backgroundColor: BG_LIGHT,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: "#666",
-  },
-  scrollView: {
+  scroll: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
+    paddingBottom: 32,
   },
-  messageCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 32,
+
+  statusChip: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: 32,
-    shadowColor: "#000",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  statusChipGreen: {
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(255,255,255,0.24)",
+  },
+  statusChipOrange: {
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderColor: "rgba(255,255,255,0.28)",
+  },
+  statusChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  statusChipTextGreen: {
+    color: "#FFFFFF",
+  },
+  statusChipTextOrange: {
+    color: "#FFFFFF",
+  },
+
+  // ── Alerts ──
+  alertSuccess: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: `${SECONDARY}12`,
+    borderWidth: 1,
+    borderColor: `${SECONDARY}30`,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
+  alertError: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: `${ERROR}0D`,
+    borderWidth: 1,
+    borderColor: `${ERROR}30`,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
+  alertText: {
+    flex: 1,
+    fontSize: 13,
+    color: SECONDARY,
+    lineHeight: 18,
+  },
+
+  // ── Info cards ──
+  infoCardsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 14,
+  },
+  infoCard: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+  },
+  infoCardPrimary: {
+    backgroundColor: `${PRIMARY}08`,
+    borderColor: `${PRIMARY}20`,
+  },
+  infoCardSecondary: {
+    backgroundColor: `${SECONDARY}10`,
+    borderColor: `${SECONDARY}25`,
+  },
+  infoCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+  },
+  infoCardLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: PRIMARY,
+    letterSpacing: 0.3,
+  },
+  infoCardValue: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: ACCENT,
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  infoCardSub: {
+    fontSize: 11,
+    color: TEXT_MEDIUM,
+  },
+
+  // ── Card ──
+  card: {
+    backgroundColor: WHITE,
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: BORDER,
+    shadowColor: ACCENT,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    marginBottom: 14,
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: ACCENT,
+    letterSpacing: -0.1,
+  },
+
+  // ── Loading ──
+  loadingInCard: {
+    alignItems: "center",
+    paddingVertical: 32,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: TEXT_MEDIUM,
+  },
+
+  // ── Review header ──
+  reviewHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 16,
+    gap: 12,
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: TEXT_MEDIUM,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  anonBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    backgroundColor: `${PRIMARY}10`,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}20`,
+  },
+  anonBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: PRIMARY,
+  },
+  reviewActions: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  editBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: PRIMARY,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
+  },
+  editBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: WHITE,
+  },
+  deleteBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: `${ERROR}0D`,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: `${ERROR}25`,
+  },
+
+  // ── Answers display ──
+  answersSection: {
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  sectionLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  sectionBar: {
+    width: 4,
+    height: 18,
+    borderRadius: 2,
+    backgroundColor: PRIMARY,
+  },
+  sectionLabelText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: ACCENT,
+  },
+  answerItem: {
+    borderLeftWidth: 3,
+    borderLeftColor: `${PRIMARY}40`,
+    paddingLeft: 12,
+    marginBottom: 14,
+  },
+  answerHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+    gap: 8,
+  },
+  answerQuestion: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "500",
+    color: ACCENT,
+    lineHeight: 18,
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    flexShrink: 0,
+  },
+  typeBadgeRating: {
+    backgroundColor: "#FEF3C7",
+  },
+  typeBadgeText: {
+    backgroundColor: `${PRIMARY}10`,
+  },
+  typeBadgeLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: ACCENT,
+  },
+  answerRatingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  ratingValue: {
+    fontSize: 12,
+    color: TEXT_MEDIUM,
+    fontWeight: "600",
+  },
+  answerTextBox: {
+    backgroundColor: BG_LIGHT,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  answerTextValue: {
+    fontSize: 13,
+    color: ACCENT,
+    lineHeight: 19,
+  },
+
+  // ── Free comment display ──
+  freeCommentBlock: {
+    marginTop: 8,
+  },
+  commentBox: {
+    backgroundColor: `${PRIMARY}08`,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}18`,
+  },
+  commentText: {
+    fontSize: 13,
+    color: ACCENT,
+    lineHeight: 19,
+  },
+
+  // ── No review (create prompt) ──
+  warningBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: `${ERROR}0D`,
+    borderWidth: 1,
+    borderColor: `${ERROR}25`,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+  },
+  warningTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: ERROR,
+    marginBottom: 3,
+  },
+  warningText: {
+    fontSize: 12,
+    color: ERROR,
+    lineHeight: 17,
+    opacity: 0.85,
+  },
+  createSection: {
+    alignItems: "center",
+    paddingVertical: 24,
+  },
+  createIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  createTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
+    marginBottom: 8,
+  },
+  createSubtitle: {
+    fontSize: 13,
+    color: TEXT_MEDIUM,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 19,
+    paddingHorizontal: 16,
+  },
+  createBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: PRIMARY,
+    paddingHorizontal: 24,
+    paddingVertical: 13,
+    borderRadius: 14,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
   },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  createBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: WHITE,
+  },
+
+  // ── Message card ──
+  messageCard: {
+    backgroundColor: WHITE,
+    borderRadius: 18,
+    padding: 32,
+    alignItems: "center",
+    marginTop: 24,
+    borderWidth: 1,
+    borderColor: BORDER,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  messageIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: "#FEF3C7",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
   },
   messageTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
     marginBottom: 8,
     textAlign: "center",
   },
   messageText: {
     fontSize: 14,
-    color: COLORS.GRAY,
+    color: TEXT_MEDIUM,
     textAlign: "center",
     lineHeight: 20,
   },
-  successAlert: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#ECFDF5",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-  },
-  errorAlert: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FCA5A5",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-  },
-  alertTextContainer: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  alertTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  alertText: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  alertClose: {
-    padding: 4,
-  },
-  infoRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
-  },
-  infoCard: {
-    flex: 1,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-  },
-  hospitalCard: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#BFDBFE",
-  },
-  specialtyCard: {
-    backgroundColor: "#F5F3FF",
-    borderColor: "#DDD6FE",
-  },
-  infoHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    gap: 8,
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 4,
-  },
-  infoSubtext: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-  },
-  reviewStatusCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  loadingContainer: {
-    alignItems: "center",
-    paddingVertical: 32,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: COLORS.GRAY,
-  },
-  reviewHeader: {
-    marginBottom: 20,
-  },
-  reviewTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 4,
-  },
-  reviewDate: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    marginBottom: 12,
-  },
-  badgesRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  badge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  badgeApproved: {
-    backgroundColor: "#ECFDF5",
-  },
-  badgePending: {
-    backgroundColor: "#FEF3C7",
-  },
-  badgeAnonymous: {
-    backgroundColor: "#EFF6FF",
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  badgeTextApproved: {
-    color: "#059669",
-  },
-  badgeTextPending: {
-    color: "#D97706",
-  },
-  badgeTextAnonymous: {
-    color: "#2563EB",
-  },
-  reviewActions: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 16,
-  },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 6,
-  },
-  editButton: {
-    backgroundColor: COLORS.PRIMARY,
-  },
-  deleteButton: {
-    backgroundColor: COLORS.RED,
-  },
-  actionButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  answersSection: {
-    marginTop: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 12,
-  },
-  answerCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.PRIMARY,
-    paddingLeft: 12,
-    marginBottom: 16,
-  },
-  answerHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 8,
-  },
-  answerQuestion: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "500",
-    color: COLORS.GRAY_DARK,
-    marginRight: 8,
-  },
-  answerBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  answerBadgeRating: {
-    backgroundColor: "#FEF3C7",
-  },
-  answerBadgeText: {
-    backgroundColor: "#F5F3FF",
-  },
-  answerRating: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  ratingText: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-  },
-  answerTextBox: {
-    backgroundColor: "#F9FAFB",
-    padding: 12,
-    borderRadius: 8,
-  },
-  answerText: {
-    fontSize: 14,
-    color: COLORS.GRAY_DARK,
-    lineHeight: 20,
-  },
-  freeCommentSection: {
-    marginTop: 20,
-    padding: 16,
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-  },
-  freeCommentText: {
-    fontSize: 14,
-    color: COLORS.GRAY_DARK,
-    lineHeight: 20,
-  },
-  warningBanner: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FCA5A5",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 20,
-  },
-  warningTextContainer: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  warningTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#991B1B",
-    marginBottom: 4,
-  },
-  warningText: {
-    fontSize: 13,
-    color: "#7F1D1D",
-    lineHeight: 18,
-  },
-  createReviewSection: {
-    alignItems: "center",
-    paddingVertical: 32,
-  },
-  createReviewIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: COLORS.PRIMARY,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  createReviewTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 8,
-  },
-  createReviewText: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    textAlign: "center",
-    marginBottom: 20,
-    paddingHorizontal: 20,
-    lineHeight: 20,
-  },
-  createReviewButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.PRIMARY,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  createReviewButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
+
+  // ── Form modal ──
   modalContainer: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: WHITE,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: BORDER,
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: BG_LIGHT,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
     flex: 1,
+    fontSize: 17,
+    fontWeight: "700",
+    color: ACCENT,
     textAlign: "center",
-    marginHorizontal: 16,
+    marginHorizontal: 12,
   },
-  closeButton: {
-    padding: 4,
-  },
-  headerActionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  modalSubmitBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: PRIMARY,
     minWidth: 80,
     alignItems: "center",
   },
-  headerActionButtonDisabled: {
+  modalSubmitBtnDisabled: {
     opacity: 0.5,
   },
-  headerActionButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.PRIMARY,
+  modalSubmitText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: WHITE,
   },
-  modalContent: {
+  modalScroll: {
     flex: 1,
-    padding: 20,
   },
-  anonymousCard: {
-    backgroundColor: "#EFF6FF",
+  modalScrollContent: {
+    padding: 20,
+    paddingBottom: 32,
+  },
+
+  // ── Anonymous card (in form) ──
+  anonCard: {
+    backgroundColor: `${PRIMARY}08`,
     borderWidth: 1,
-    borderColor: "#BFDBFE",
-    borderRadius: 12,
+    borderColor: `${PRIMARY}20`,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 20,
   },
-  anonymousHeader: {
+  anonCardRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
-  anonymousIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: COLORS.PRIMARY,
+  anonCardIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: PRIMARY,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
-  anonymousTextContainer: {
-    flex: 1,
-  },
-  anonymousTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
+  anonCardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: ACCENT,
     marginBottom: 2,
   },
-  anonymousSubtitle: {
-    fontSize: 13,
-    color: COLORS.GRAY,
+  anonCardSubtitle: {
+    fontSize: 12,
+    color: TEXT_MEDIUM,
+    lineHeight: 17,
   },
-  anonymousInfo: {
+  anonInfo: {
     marginTop: 12,
-    padding: 12,
-    backgroundColor: "#DBEAFE",
+    padding: 10,
+    backgroundColor: `${PRIMARY}10`,
     borderRadius: 8,
   },
-  anonymousInfoText: {
-    fontSize: 13,
-    color: "#1E40AF",
-    lineHeight: 18,
+  anonInfoText: {
+    fontSize: 12,
+    color: ACCENT,
+    lineHeight: 17,
   },
-  anonymousInfoBold: {
-    fontWeight: "600",
-  },
+
+  // ── Questions ──
   questionsSection: {
     marginBottom: 20,
   },
-  questionsSectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 16,
-  },
   questionCard: {
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
+    borderColor: BORDER,
+    borderRadius: 14,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
+    backgroundColor: WHITE,
   },
-  questionHeader: {
+  questionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: 12,
   },
-  questionTextContainer: {
-    flex: 1,
-    marginRight: 12,
-  },
   questionText: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 4,
+    fontSize: 14,
+    fontWeight: "600",
+    color: ACCENT,
+    lineHeight: 20,
+    marginBottom: 3,
   },
   optionalText: {
-    fontSize: 13,
-    color: COLORS.PRIMARY,
-  },
-  questionTypeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  ratingBadge: {
-    backgroundColor: "#FEF3C7",
-  },
-  textBadge: {
-    backgroundColor: "#F5F3FF",
-  },
-  questionTypeBadgeText: {
     fontSize: 11,
-    fontWeight: "600",
+    color: PRIMARY,
+    fontWeight: "500",
   },
-  ratingContainer: {
+  ratingRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-  },
-  ratingLabel: {
-    fontSize: 13,
-    color: COLORS.GRAY,
   },
   textInput: {
     borderWidth: 1,
-    borderColor: "#D1D5DB",
+    borderColor: "#E2E8F0",
     borderRadius: 12,
     padding: 12,
-    fontSize: 15,
-    color: COLORS.GRAY_DARK,
+    fontSize: 14,
+    color: ACCENT,
     textAlignVertical: "top",
+    backgroundColor: BG_LIGHT,
   },
-  freeCommentContainer: {
-    marginBottom: 20,
+
+  // ── Free comment form ──
+  freeCommentFormBlock: {
+    marginBottom: 8,
   },
-  freeCommentLabel: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 12,
-  },
-  freeCommentInput: {
-    minHeight: 100,
-  },
-  deleteModalOverlay: {
+
+  // ── Delete modal ──
+  deleteOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
-  },
-  deleteModalContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
     padding: 24,
-    maxWidth: 400,
+  },
+  deleteSheet: {
+    backgroundColor: WHITE,
+    borderRadius: 20,
+    padding: 24,
     width: "100%",
-  },
-  deleteModalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 12,
-  },
-  deleteModalText: {
-    fontSize: 14,
-    color: COLORS.GRAY,
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  deleteModalActions: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  deleteModalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    maxWidth: 380,
     alignItems: "center",
   },
-  deleteModalCancelButton: {
-    backgroundColor: "#F3F4F6",
+  deleteIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: `${ERROR}10`,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
   },
-  deleteModalCancelText: {
+  deleteTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  deleteSubtitle: {
+    fontSize: 14,
+    color: TEXT_MEDIUM,
+    lineHeight: 20,
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  deleteActions: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  deleteCancelBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: BG_LIGHT,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  deleteCancelText: {
     fontSize: 15,
     fontWeight: "600",
-    color: COLORS.GRAY_DARK,
+    color: ACCENT,
   },
-  deleteModalConfirmButton: {
-    backgroundColor: COLORS.RED,
+  deleteConfirmBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: ERROR,
+    shadowColor: ERROR,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  deleteModalConfirmText: {
+  deleteConfirmText: {
     fontSize: 15,
-    fontWeight: "600",
-    color: "#FFFFFF",
+    fontWeight: "700",
+    color: WHITE,
   },
 });

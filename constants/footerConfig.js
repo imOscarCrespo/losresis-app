@@ -1,95 +1,87 @@
 /**
- * Configuración del Footer según el tipo de usuario
- * Estilo Zara: 5 elementos (iconos + texto MENU en el medio)
+ * Configuración del Footer v2
+ * Estudiantes: Inicio, Hospitales, MIR, Chats, Perfil
+ * Residentes: Inicio, Agenda, Chats, Perfil
+ * Doctores: Inicio, Agenda, Chats, Reseñas, Perfil
  */
 
-// Configuración para estudiantes
 export const STUDENT_FOOTER_ITEMS = [
   {
+    id: "inicio",
+    icon: "home",
+    label: "Inicio",
+    screen: "inicio",
+  },
+  {
     id: "hospitales",
-    icon: "business", // edificio
+    icon: "medkit",
     label: "Hospitales",
-    screen: "hospitales", // pantalla existente
+    screen: "hospitales",
   },
   {
     id: "nota-mir",
-    icon: "school", // simulador MIR
-    label: "Simulador",
-    screen: "nota-mir", // pantalla existente
+    icon: "bar-chart",
+    label: "MIR",
+    screen: "nota-mir",
   },
   {
-    id: "menu",
-    icon: null, // texto MENU
-    label: "MENU",
-    screen: "menu", // pantalla en blanco
-  },
-  {
-    id: "preferencias",
-    icon: "heart", // corazón
-    label: "Preferencias",
-    screen: "myPreferences", // pantalla en blanco
+    id: "grupos",
+    icon: "chatbubbles",
+    label: "Chats",
+    screen: "grupos",
   },
   {
     id: "usuario",
-    icon: "person", // perfil
+    icon: "person",
     label: "Perfil",
-    screen: "usuario", // pantalla existente
+    screen: "usuario",
   },
 ];
 
-// Configuración para residentes
 export const RESIDENT_FOOTER_ITEMS = [
   {
-    id: "comunidad",
-    icon: "people", // comunidad
-    label: "Comunidad",
-    screen: "comunity", // pantalla en blanco
+    id: "inicio",
+    icon: "home",
+    label: "Inicio",
+    screen: "inicio",
   },
   {
-    id: "mi-resena",
-    icon: "star", // estrella
-    label: "Mi Reseña",
-    screen: "myReview", // pantalla en blanco
+    id: "agenda",
+    icon: "calendar",
+    label: "Agenda",
+    screen: "agenda",
   },
   {
-    id: "menu",
-    icon: null, // texto MENU
-    label: "MENU",
-    screen: "menu", // pantalla en blanco
+    id: "grupos",
+    icon: "chatbubbles",
+    label: "Chats",
+    screen: "grupos",
   },
   {
-    id: "libro-residente",
-    icon: "book", // libro
-    label: "Libro",
-    screen: "residenceLibrary", // pantalla en blanco
+    id: "reseñas",
+    icon: "document-text",
+    label: "Reseñas",
+    screen: "reseñas",
   },
   {
     id: "usuario",
-    icon: "person", // perfil
+    icon: "person",
     label: "Perfil",
-    screen: "usuario", // pantalla existente
+    screen: "usuario",
   },
 ];
 
 /**
- * Obtiene la configuración del footer según el perfil del usuario
+ * Obtiene la configuración del footer según el tipo de usuario
  */
 export const getFooterConfig = (userProfile) => {
-  if (!userProfile) {
-    // Por defecto, mostrar footer de estudiante si no hay perfil
-    return STUDENT_FOOTER_ITEMS;
+  if (userProfile?.is_resident) {
+    return RESIDENT_FOOTER_ITEMS.filter((item) => item.id !== "reseñas");
   }
 
-  // Si es estudiante, mostrar footer de estudiante
-  if (userProfile.is_student) {
-    return STUDENT_FOOTER_ITEMS;
-  }
-
-  // Si es residente, mostrar footer de residente
-  if (userProfile.is_resident) {
+  if (userProfile?.is_doctor) {
     return RESIDENT_FOOTER_ITEMS;
   }
 
-  // Por defecto, footer de estudiante
   return STUDENT_FOOTER_ITEMS;
 };

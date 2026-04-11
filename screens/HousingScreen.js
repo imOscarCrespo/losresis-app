@@ -1,32 +1,68 @@
-import React, { useMemo, memo, useCallback, useEffect } from "react";
+import React, { useMemo, memo, useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
+  FlatList,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   Image,
+  Modal,
+  Pressable,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
   RefreshControl,
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHousingAds } from "../hooks/useHousingAds";
 import { useHospitals } from "../hooks/useHospitals";
-import { Filters } from "../components/Filters";
 import { FloatingActionButton } from "../components/FloatingActionButton";
-import { prepareHospitalOptions } from "../utils/profileOptions";
-import { formatLongDate, formatDateOnly } from "../utils/dateUtils";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import { COLORS } from "../constants/colors";
+import { formatDateOnly } from "../utils/dateUtils";
 import posthogLogger from "../services/posthogService";
+
+// ============================================================================
+// COLORS
+// ============================================================================
+
+const PRIMARY = "#670CF5";
+const SECONDARY = PRIMARY;
+const ACCENT = "#1B0977";
+const BG_LIGHT = COLORS.BACKGROUND;
+const WHITE = "#FFFFFF";
+const TEXT_MEDIUM = "#64748B";
+const TEXT_LIGHT = "#94A3B8";
+const BORDER = "#F1F5F9";
+const ERROR = "#EF4444";
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+
+// ============================================================================
+// FILTER OPTIONS
+// ============================================================================
+
+const KIND_OPTIONS = [
+  { id: "offer", name: "Oferta" },
+  { id: "seek", name: "Búsqueda" },
+];
+
+const PRICE_OPTIONS = [
+  { id: "300", name: "Hasta 300 €" },
+  { id: "500", name: "Hasta 500 €" },
+  { id: "800", name: "Hasta 800 €" },
+  { id: "1200", name: "Hasta 1.200 €" },
+  { id: "1800", name: "Hasta 1.800 €" },
+];
 
 // ============================================================================
 // UTILITIES
 // ============================================================================
 
-/**
- * Formatea el precio en euros
- */
 const formatPrice = (price) => {
   if (!price) return null;
   return new Intl.NumberFormat("es-ES", {
@@ -36,267 +72,325 @@ const formatPrice = (price) => {
   }).format(price);
 };
 
-/**
- * Obtiene el nombre de visualización del tipo de anuncio
- */
-const getKindDisplayName = (kind) => {
-  if (kind === "offer") return "Oferta";
-  if (kind === "seek") return "Búsqueda";
-  return kind || "Desconocido";
+const getInitials = (name, surname) => {
+  const first = name ? name[0].toUpperCase() : "";
+  const last = surname ? surname[0].toUpperCase() : "";
+  return first + last || "?";
+};
+
+const getFirstImageUrl = (ad) => {
+  if (!ad.images || ad.images.length === 0) return null;
+  const img = ad.images[0];
+  if (!img.object_path) return null;
+  return `${SUPABASE_URL}/storage/v1/object/public/housing_ad/${img.object_path}`;
 };
 
 // ============================================================================
-// COMPONENTS
+// RADIO DOT — exact copy from HospitalsScreen
 // ============================================================================
 
-/**
- * Card de anuncio de vivienda
- * Memoizado para evitar re-renders innecesarios
- */
-const HousingAdCard = memo(
-  ({ ad, currentUserId, onPress, onDelete, onEdit }) => {
-    const handlePress = useCallback(() => {
-      if (onPress) {
-        onPress(ad.id);
-      }
-    }, [ad.id, onPress]);
+function RadioDot({ selected }) {
+  return (
+    <View
+      style={[
+        modal.radioDot,
+        selected ? modal.radioDotSelected : modal.radioDotUnselected,
+      ]}
+    >
+      {selected && <View style={modal.radioDotInner} />}
+    </View>
+  );
+}
 
-    const handleDelete = useCallback(
-      (e) => {
-        e.stopPropagation(); // Evitar que se active el onPress del card
-        if (onDelete) {
-          onDelete(ad.id);
-        }
-      },
-      [ad.id, onDelete]
-    );
+// ============================================================================
+// FILTER MODAL — exact copy from HospitalsScreen
+// ============================================================================
 
-    const handleEdit = useCallback(
-      (e) => {
-        e.stopPropagation(); // Evitar que se active el onPress del card
-        if (onEdit) {
-          onEdit(ad.id);
-        }
-      },
-      [ad.id, onEdit]
-    );
+function FilterModal({ visible, onClose, title, options, value, onSelect, placeholder }) {
+  const insets = useSafeAreaInsets();
+  const [search, setSearch] = useState("");
+  const [tempValue, setTempValue] = useState(value);
 
-    const isMyAd = ad.user_id === currentUserId;
-    const kindColor = ad.kind === "offer" ? COLORS.SUCCESS : COLORS.PRIMARY;
+  useEffect(() => {
+    if (visible) setTempValue(value);
+  }, [visible, value]);
 
-    return (
-      <TouchableOpacity
-        style={[styles.adCard, isMyAd && styles.adCardMine]}
-        onPress={handlePress}
-        activeOpacity={0.7}
+  const handleClose = () => {
+    setSearch("");
+    onClose();
+  };
+
+  const handleConfirm = () => {
+    onSelect(tempValue);
+    setSearch("");
+    onClose();
+  };
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return options;
+    const lower = search.toLowerCase();
+    return options.filter((o) => o.name.toLowerCase().includes(lower));
+  }, [options, search]);
+
+  const listData = useMemo(() => {
+    const data = [];
+    if (value) data.push({ id: "", name: placeholder });
+    data.push(...filtered);
+    return data;
+  }, [filtered, value, placeholder]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={false}
+      animationType="slide"
+      onRequestClose={handleClose}
+    >
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: "#FFF" }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {/* Header con badges y botón eliminar */}
-        <View style={styles.cardHeader}>
-          <View style={styles.badgesContainer}>
-            <View
-              style={[
-                styles.kindBadge,
-                {
-                  backgroundColor:
-                    kindColor === COLORS.SUCCESS
-                      ? COLORS.SUCCESS_LIGHT
-                      : COLORS.BADGE_BLUE_BG,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.kindBadgeText,
-                  {
-                    color:
-                      kindColor === COLORS.SUCCESS
-                        ? COLORS.SUCCESS
-                        : COLORS.BADGE_BLUE_TEXT,
-                  },
-                ]}
-              >
-                {getKindDisplayName(ad.kind)}
-              </Text>
-            </View>
-            {isMyAd && (
-              <View style={styles.myAdBadge}>
-                <Text style={styles.myAdBadgeText}>✨ Mío</Text>
-              </View>
-            )}
-            {!ad.is_active && (
-              <View style={styles.inactiveBadge}>
-                <Ionicons
-                  name="eye-off-outline"
-                  size={12}
-                  color={COLORS.GRAY}
-                />
-                <Text style={styles.inactiveBadgeText}>Inactivo</Text>
-              </View>
-            )}
-            {ad.images && ad.images.length > 0 && (
-              <View style={styles.imagesBadge}>
-                <Ionicons
-                  name="images-outline"
-                  size={12}
-                  color={COLORS.SUCCESS}
-                />
-                <Text style={styles.imagesBadgeText}>
-                  {ad.images.length} img
-                </Text>
-              </View>
+        {/* Header */}
+        <View style={[modal.header, { paddingTop: Math.max(insets.top, 16) }]}>
+          <TouchableOpacity style={modal.backBtn} onPress={handleClose}>
+            <Ionicons name="arrow-back" size={24} color={ACCENT} />
+          </TouchableOpacity>
+          <Text style={modal.title}>{title}</Text>
+          <View style={modal.backBtn} />
+        </View>
+
+        {/* Search */}
+        <View style={modal.searchWrap}>
+          <View style={modal.searchInner}>
+            <Ionicons name="search" size={20} color="#94A3B8" />
+            <TextInput
+              style={modal.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Buscar..."
+              placeholderTextColor="#94A3B8"
+              returnKeyType="done"
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch("")}>
+                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+              </TouchableOpacity>
             )}
           </View>
-          {/* Botones de acción para mis anuncios */}
-          {isMyAd && (onEdit || onDelete) && (
-            <View style={styles.actionButtons}>
+        </View>
+
+        {/* Options list */}
+        <FlatList
+          data={listData}
+          keyExtractor={(item, i) => String(item.id ?? "") + i}
+          keyboardShouldPersistTaps="always"
+          contentContainerStyle={modal.listContent}
+          renderItem={({ item }) => {
+            const isSelected = item.id !== "" && item.id === tempValue;
+            const isClear = item.id === "";
+            return (
+              <Pressable
+                style={({ pressed }) => [
+                  modal.option,
+                  isSelected && modal.optionSelected,
+                  isClear && modal.optionClear,
+                  pressed && { opacity: 0.75 },
+                ]}
+                onPress={() => setTempValue(isClear ? "" : item.id)}
+              >
+                <View style={modal.optionBody}>
+                  <Text
+                    style={[
+                      modal.optionName,
+                      isSelected && modal.optionNameSelected,
+                      isClear && modal.optionNameClear,
+                    ]}
+                  >
+                    {item.name}
+                  </Text>
+                </View>
+                {!isClear && <RadioDot selected={isSelected} />}
+              </Pressable>
+            );
+          }}
+          ListEmptyComponent={
+            <View style={modal.empty}>
+              <Text style={modal.emptyText}>Sin resultados</Text>
+            </View>
+          }
+        />
+
+        {/* Confirm button */}
+        <View style={[modal.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <TouchableOpacity
+            style={modal.confirmBtn}
+            onPress={handleConfirm}
+            activeOpacity={0.85}
+          >
+            <Text style={modal.confirmText}>Confirmar selección</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ============================================================================
+// HOUSING AD CARD
+// ============================================================================
+
+const HousingAdCard = memo(({ ad, currentUserId, onPress, onDelete, onEdit }) => {
+  const isMyAd = ad.user_id === currentUserId;
+  const imageUrl = getFirstImageUrl(ad);
+
+  const handlePress = useCallback(() => onPress?.(ad.id), [ad.id, onPress]);
+  const handleEdit = useCallback(
+    (e) => { e.stopPropagation(); onEdit?.(ad.id); },
+    [ad.id, onEdit]
+  );
+  const handleDelete = useCallback(
+    (e) => { e.stopPropagation(); onDelete?.(ad.id); },
+    [ad.id, onDelete]
+  );
+
+  const kindIsOffer = ad.kind === "offer";
+  const kindColor = kindIsOffer ? SECONDARY : PRIMARY;
+  const kindLabel = kindIsOffer ? "Oferta" : "Búsqueda";
+
+  const locationText = useMemo(() => {
+    const parts = [];
+    if (ad.city) parts.push(ad.city);
+    if (ad.hospital?.name) parts.push(`Cerca de ${ad.hospital.name}`);
+    return parts.join(" · ");
+  }, [ad.city, ad.hospital]);
+
+  return (
+    <TouchableOpacity
+      style={[styles.card, !ad.is_active && styles.cardInactive]}
+      onPress={handlePress}
+      activeOpacity={0.88}
+    >
+      {/* Photo */}
+      {imageUrl ? (
+        <Image source={{ uri: imageUrl }} style={styles.cardImage} resizeMode="cover" />
+      ) : (
+        <View style={styles.cardImagePlaceholder}>
+          <Ionicons name="home-outline" size={36} color="#CBD5E1" />
+        </View>
+      )}
+
+      <View style={[styles.kindBadge, { backgroundColor: kindColor }]}>
+        <Text style={styles.kindBadgeText}>{kindLabel}</Text>
+      </View>
+
+      {isMyAd && (
+        <View style={styles.myAdBadge}>
+          <Text style={styles.myAdBadgeText}>✦ Mío</Text>
+        </View>
+      )}
+
+      {!ad.is_active && (
+        <View style={styles.inactiveBadge}>
+          <Ionicons name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
+          <Text style={styles.inactiveBadgeText}>Inactivo</Text>
+        </View>
+      )}
+
+      <View style={styles.cardContent}>
+        <View style={styles.titlePriceRow}>
+          <Text style={styles.cardTitle} numberOfLines={1}>{ad.title}</Text>
+          {ad.price_eur ? (
+            <Text style={styles.priceText}>{formatPrice(ad.price_eur)}/mes</Text>
+          ) : null}
+        </View>
+
+        {locationText ? (
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={13} color={TEXT_MEDIUM} />
+            <Text style={styles.locationText} numberOfLines={1}>{locationText}</Text>
+          </View>
+        ) : null}
+
+        <Text style={styles.cardDescription} numberOfLines={2}>{ad.description}</Text>
+
+        {(ad.available_from || ad.available_to) ? (
+          <View style={styles.datesRow}>
+            <Ionicons name="calendar-outline" size={12} color={TEXT_LIGHT} />
+            <Text style={styles.datesText}>
+              {ad.available_from && `Desde ${formatDateOnly(ad.available_from)}`}
+              {ad.available_from && ad.available_to && "  —  "}
+              {ad.available_to && `Hasta ${formatDateOnly(ad.available_to)}`}
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={styles.cardFooter}>
+          {!isMyAd && ad.user ? (
+            <View style={styles.authorRow}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {getInitials(ad.user.name, ad.user.surname)}
+                </Text>
+              </View>
+              <Text style={styles.authorName} numberOfLines={1}>
+                {ad.user.name} {ad.user.surname}
+              </Text>
+            </View>
+          ) : isMyAd ? (
+            <View style={styles.authorRow}>
+              <View style={[styles.avatar, { backgroundColor: PRIMARY + "18" }]}>
+                <Ionicons name="person" size={13} color={PRIMARY} />
+              </View>
+              <Text style={[styles.authorName, { color: PRIMARY }]}>Mi anuncio</Text>
+            </View>
+          ) : (
+            <View style={{ flex: 1 }} />
+          )}
+
+          {isMyAd ? (
+            <View style={styles.ownAdActions}>
               {onEdit && (
-                <TouchableOpacity
-                  style={styles.editButton}
-                  onPress={handleEdit}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name="pencil-outline"
-                    size={20}
-                    color={COLORS.PRIMARY}
-                  />
+                <TouchableOpacity style={styles.iconBtn} onPress={handleEdit} activeOpacity={0.7}>
+                  <Ionicons name="pencil-outline" size={17} color={PRIMARY} />
                 </TouchableOpacity>
               )}
               {onDelete && (
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={handleDelete}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name="trash-outline"
-                    size={20}
-                    color={COLORS.ERROR}
-                  />
+                <TouchableOpacity style={styles.iconBtn} onPress={handleDelete} activeOpacity={0.7}>
+                  <Ionicons name="trash-outline" size={17} color={ERROR} />
                 </TouchableOpacity>
               )}
             </View>
+          ) : (
+            <TouchableOpacity style={styles.contactBtn} onPress={handlePress} activeOpacity={0.8}>
+              <Text style={styles.contactBtnText}>Ver detalles</Text>
+            </TouchableOpacity>
           )}
         </View>
-
-        {/* Título */}
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {ad.title}
-        </Text>
-
-        {/* Ciudad y precio */}
-        <View style={styles.locationPriceContainer}>
-          <View style={styles.locationContainer}>
-            <Ionicons name="location-outline" size={16} color={COLORS.GRAY} />
-            <Text style={styles.locationText} numberOfLines={1}>
-              {ad.city}
-            </Text>
-          </View>
-          {ad.price_eur && (
-            <View style={styles.priceContainer}>
-              <Ionicons name="cash-outline" size={16} color={COLORS.GRAY} />
-              <Text style={styles.priceText}>
-                {formatPrice(ad.price_eur)}/mes
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Descripción */}
-        <Text style={styles.cardDescription} numberOfLines={2}>
-          {ad.description}
-        </Text>
-
-        {/* Fechas disponibles */}
-        {(ad.available_from || ad.available_to) && (
-          <View style={styles.dateContainer}>
-            <Ionicons name="calendar-outline" size={14} color={COLORS.GRAY} />
-            <Text style={styles.dateText}>
-              {ad.available_from &&
-                `Desde: ${formatDateOnly(ad.available_from)}`}
-              {ad.available_from && ad.available_to && " - "}
-              {ad.available_to && `Hasta: ${formatDateOnly(ad.available_to)}`}
-            </Text>
-          </View>
-        )}
-
-        {/* Información del usuario (si no es mi anuncio) */}
-        {!isMyAd && ad.user && (
-          <View style={styles.userContainer}>
-            <Text style={styles.userText}>
-              Por: {ad.user.name} {ad.user.surname}
-            </Text>
-          </View>
-        )}
-
-        {/* Información de contacto (si no es mi anuncio) */}
-        {!isMyAd && (ad.contact_email || ad.contact_phone) && (
-          <View style={styles.contactContainer}>
-            <Text style={styles.contactLabel}>Contacto:</Text>
-            <View style={styles.contactItems}>
-              {ad.contact_email && (
-                <View style={styles.contactItem}>
-                  <Ionicons name="mail-outline" size={12} color={COLORS.GRAY} />
-                  <Text style={styles.contactText} numberOfLines={1}>
-                    {ad.contact_email}
-                  </Text>
-                </View>
-              )}
-              {ad.contact_phone && (
-                <View style={styles.contactItem}>
-                  <Ionicons name="call-outline" size={12} color={COLORS.GRAY} />
-                  <Text style={styles.contactText} numberOfLines={1}>
-                    {ad.contact_phone}
-                  </Text>
-                </View>
-              )}
-            </View>
-            {ad.preferred_contact && (
-              <Text style={styles.preferredContactText}>
-                Preferido:{" "}
-                {ad.preferred_contact === "email" ? "Email" : "Teléfono"}
-              </Text>
-            )}
-          </View>
-        )}
-
-        {/* Footer con fecha de creación */}
-        <View style={styles.cardFooter}>
-          <Text style={styles.createdDateText}>
-            {formatDateOnly(ad.created_at)}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
-  }
-);
+      </View>
+    </TouchableOpacity>
+  );
+});
 
 HousingAdCard.displayName = "HousingAdCard";
 
 // ============================================================================
-// MAIN COMPONENT
+// MAIN SCREEN
 // ============================================================================
 
-/**
- * Pantalla de listado de anuncios de vivienda
- */
-export default function HousingScreen({
-  onSectionChange,
-  currentSection,
-  userProfile,
-}) {
+export default function HousingScreen({ onSectionChange, onBack }) {
   const {
     housingAds,
     loading,
     error,
     hasMore,
     totalCount,
+    filtersLoading,
     city,
     setCity,
     kind,
     setKind,
-    hospitalId,
-    setHospitalId,
+    maxPrice,
+    setMaxPrice,
     showMyAds,
     setShowMyAds,
     clearFilters,
@@ -306,110 +400,49 @@ export default function HousingScreen({
     currentUserId,
   } = useHousingAds();
 
-  const { hospitals } = useHospitals();
-  const [refreshing, setRefreshing] = React.useState(false);
+  const { uniqueCities } = useHospitals();
+  const [refreshing, setRefreshing] = useState(false);
+  const [openModal, setOpenModal] = useState(null); // "city" | "kind" | "price" | null
 
-  // Tracking de pantalla con PostHog
   useEffect(() => {
     posthogLogger.logScreen("HousingScreen");
   }, []);
 
-  // Preparar opciones para los filtros
-  const hospitalOptions = useMemo(() => {
-    const prepared = prepareHospitalOptions(hospitals);
-    return [{ id: "", name: "Todos los hospitales" }, ...prepared];
-  }, [hospitals]);
+  const cityOptions = useMemo(() => {
+    return [...(uniqueCities || [])].sort().map((c) => ({ id: c, name: c }));
+  }, [uniqueCities]);
 
-  const kindOptions = useMemo(
-    () => [
-      { id: "", name: "Todos los tipos" },
-      { id: "offer", name: "Oferta" },
-      { id: "seek", name: "Búsqueda" },
-    ],
-    []
-  );
+  const hasActiveFilters = !!(city || kind || maxPrice || showMyAds);
+  const adCountLabel = `${totalCount} ${
+    totalCount === 1 ? "anuncio" : "anuncios"
+  }`;
 
-  // Configurar los filtros para el componente genérico
-  const filtersConfig = useMemo(() => {
-    return [
-      {
-        id: "city",
-        type: "search",
-        label: "Ciudad",
-        value: city,
-        onChange: setCity,
-        placeholder: "Madrid, Barcelona...",
-      },
-      {
-        id: "kind",
-        type: "select",
-        label: "Tipo de anuncio",
-        value: kind,
-        onSelect: setKind,
-        options: kindOptions,
-        placeholder: "Seleccionar tipo",
-      },
-      {
-        id: "hospital",
-        type: "select",
-        label: "Hospital más cercano",
-        value: hospitalId,
-        onSelect: setHospitalId,
-        options: hospitalOptions,
-        placeholder: "Seleccionar hospital",
-      },
-    ];
-  }, [
-    city,
-    setCity,
-    kind,
-    setKind,
-    hospitalId,
-    setHospitalId,
-    kindOptions,
-    hospitalOptions,
-  ]);
+  // Display labels for chips
+  const kindLabel = kind
+    ? KIND_OPTIONS.find((o) => o.id === kind)?.name ?? "Tipo"
+    : "Tipo";
+  const priceLabel = maxPrice
+    ? PRICE_OPTIONS.find((o) => o.id === String(maxPrice))?.name ?? "Precio"
+    : "Precio";
 
-  // Verificar si hay filtros activos
-  const hasActiveFilters = useMemo(() => {
-    return !!(city || kind || hospitalId || showMyAds);
-  }, [city, kind, hospitalId, showMyAds]);
-
-  // Manejar refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refreshHousingAds();
     setRefreshing(false);
   }, [refreshHousingAds]);
 
-  // Manejar press en un anuncio
   const handleAdPress = useCallback(
-    (adId) => {
-      if (onSectionChange && adId) {
-        onSectionChange("housingDetail", { adId });
-      }
-    },
+    (adId) => { onSectionChange?.("housingDetail", { adId }); },
     [onSectionChange]
   );
-
-  // Manejar creación de nuevo anuncio
-  const handleCreateAd = useCallback(() => {
-    if (onSectionChange) {
-      onSectionChange("createHousingAd");
-    }
-  }, [onSectionChange]);
-
-  // Manejar edición de anuncio
+  const handleCreateAd = useCallback(
+    () => { onSectionChange?.("createHousingAd"); },
+    [onSectionChange]
+  );
   const handleEditAd = useCallback(
-    (adId) => {
-      if (onSectionChange && adId) {
-        onSectionChange("editHousingAd", { adId });
-      }
-    },
+    (adId) => { onSectionChange?.("editHousingAd", { adId }); },
     [onSectionChange]
   );
-
-  // Manejar eliminación de anuncio
   const handleDeleteAd = useCallback(
     async (adId) => {
       Alert.alert(
@@ -422,11 +455,7 @@ export default function HousingScreen({
             style: "destructive",
             onPress: async () => {
               const success = await deleteHousingAd(adId);
-              if (success) {
-                Alert.alert("Éxito", "Anuncio eliminado correctamente");
-              } else {
-                Alert.alert("Error", "No se pudo eliminar el anuncio");
-              }
+              if (!success) Alert.alert("Error", "No se pudo eliminar el anuncio");
             },
           },
         ]
@@ -435,134 +464,242 @@ export default function HousingScreen({
     [deleteHousingAd]
   );
 
-  return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.title}>Vivienda</Text>
-            <Text style={styles.resultsText}>
-              Mostrando{" "}
-              <Text style={styles.resultsNumber}>{housingAds.length}</Text> de{" "}
-              {totalCount} anuncios
-            </Text>
-          </View>
-          {/* Toggle Mis Anuncios */}
-          <TouchableOpacity
-            style={[styles.myAdsToggle, showMyAds && styles.myAdsToggleActive]}
-            onPress={() => setShowMyAds(!showMyAds)}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={showMyAds ? "person" : "person-outline"}
-              size={18}
-              color={showMyAds ? COLORS.WHITE : COLORS.PRIMARY}
-            />
-            <Text
-              style={[
-                styles.myAdsToggleText,
-                showMyAds && styles.myAdsToggleTextActive,
-              ]}
-            >
-              Mis anuncios
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Filters Section */}
-      <Filters
-        filters={filtersConfig}
-        onClearFilters={clearFilters}
-        hasActiveFilters={hasActiveFilters}
+  const renderItem = useCallback(
+    ({ item }) => (
+      <HousingAdCard
+        ad={item}
+        currentUserId={currentUserId}
+        onPress={handleAdPress}
+        onEdit={handleEditAd}
+        onDelete={handleDeleteAd}
       />
+    ),
+    [currentUserId, handleAdPress, handleEditAd, handleDeleteAd]
+  );
 
-      {/* Content */}
-      {loading && housingAds.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+  const ListHeader = (
+    <View style={styles.listHeader}>
+      {/* Filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filtersScroll}
+        contentContainerStyle={styles.filtersRow}
+      >
+        {/* Ciudad */}
+        <TouchableOpacity
+          style={[styles.chip, city && styles.chipActive]}
+          onPress={() => setOpenModal("city")}
+        >
+          <Ionicons name="business" size={16} color={city ? PRIMARY : ACCENT} />
+          <Text
+            style={[styles.chipText, city && styles.chipTextActive]}
+            numberOfLines={1}
+          >
+            {city || "Ciudad"}
+          </Text>
+          <Ionicons name="chevron-down" size={16} color={city ? PRIMARY : ACCENT} />
+        </TouchableOpacity>
+
+        {/* Tipo */}
+        <TouchableOpacity
+          style={[styles.chip, kind && styles.chipActive]}
+          onPress={() => setOpenModal("kind")}
+        >
+          <Ionicons name="home" size={16} color={kind ? PRIMARY : ACCENT} />
+          <Text
+            style={[styles.chipText, kind && styles.chipTextActive]}
+            numberOfLines={1}
+          >
+            {kindLabel}
+          </Text>
+          <Ionicons name="chevron-down" size={16} color={kind ? PRIMARY : ACCENT} />
+        </TouchableOpacity>
+
+        {/* Precio */}
+        <TouchableOpacity
+          style={[styles.chip, maxPrice && styles.chipActive]}
+          onPress={() => setOpenModal("price")}
+        >
+          <Ionicons name="cash" size={16} color={maxPrice ? PRIMARY : ACCENT} />
+          <Text
+            style={[styles.chipText, maxPrice && styles.chipTextActive]}
+            numberOfLines={1}
+          >
+            {priceLabel}
+          </Text>
+          <Ionicons name="chevron-down" size={16} color={maxPrice ? PRIMARY : ACCENT} />
+        </TouchableOpacity>
+
+      </ScrollView>
+
+      {/* Section label */}
+      <View style={styles.sectionRow}>
+        <Text style={styles.sectionLabel}>
+          {hasActiveFilters ? adCountLabel : "Anuncios disponibles"}
+        </Text>
+        {hasActiveFilters ? (
+          <TouchableOpacity
+            style={styles.sectionAction}
+            onPress={clearFilters}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.sectionActionText}>Restablecer filtros</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.sectionCount}>{adCountLabel}</Text>
+        )}
+      </View>
+    </View>
+  );
+
+  const ListEmpty = (
+    <View style={styles.emptyContainer}>
+      <View style={styles.emptyIconWrap}>
+        <Ionicons name="home-outline" size={40} color={PRIMARY} />
+      </View>
+      <Text style={styles.emptyTitle}>Sin anuncios disponibles</Text>
+      <Text style={styles.emptySubtitle}>
+        {hasActiveFilters
+          ? "Prueba con otros filtros o limpia la búsqueda"
+          : "Sé el primero en publicar un anuncio de vivienda"}
+      </Text>
+    </View>
+  );
+
+  const ListFooter =
+    loading && hasMore ? (
+      <View style={styles.loadingMore}>
+        <ActivityIndicator size="small" color={PRIMARY} />
+        <Text style={styles.loadingMoreText}>Cargando más...</Text>
+      </View>
+    ) : (
+      <View style={{ height: 100 }} />
+    );
+  const header = (
+    <ScreenHeader
+      title="Vivienda"
+      onBack={onBack}
+      compact
+      variant="brand"
+      rightSlot={
+        <TouchableOpacity
+          style={[styles.myAdsChip, showMyAds && styles.myAdsChipActive]}
+          onPress={() => setShowMyAds(!showMyAds)}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={showMyAds ? "person" : "person-outline"}
+            size={14}
+            color={showMyAds ? WHITE : ACCENT}
+          />
+          <Text style={[styles.myAdsChipText, showMyAds && styles.myAdsChipTextActive]}>
+            Mis anuncios
+          </Text>
+        </TouchableOpacity>
+      }
+    />
+  );
+
+  if ((loading || filtersLoading) && housingAds.length === 0) {
+    return (
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.contentSurface}
+      >
+        <View style={styles.stateContainer}>
+          <ActivityIndicator size="large" color={PRIMARY} />
           <Text style={styles.loadingText}>Cargando anuncios...</Text>
         </View>
-      ) : error ? (
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={COLORS.ERROR} />
+      </ScreenScaffold>
+    );
+  }
+
+  if (error) {
+    return (
+      <ScreenScaffold
+        header={header}
+        headerShellVariant="brand"
+        contentSurfaceStyle={styles.contentSurface}
+      >
+        <View style={styles.stateContainer}>
+          <Ionicons name="alert-circle" size={48} color={ERROR} />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            onPress={refreshHousingAds}
-            style={styles.retryButton}
-          >
+          <TouchableOpacity style={styles.retryButton} onPress={refreshHousingAds}>
             <Text style={styles.retryButtonText}>Reintentar</Text>
           </TouchableOpacity>
         </View>
-      ) : housingAds.length === 0 ? (
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.emptyContentContainer}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[COLORS.PRIMARY]}
-            />
-          }
-        >
-          <View style={styles.emptyContainer}>
-            <Ionicons name="home-outline" size={64} color={COLORS.GRAY} />
-            <Text style={styles.emptyTitle}>No hay anuncios disponibles</Text>
-            <Text style={styles.emptySubtitle}>
-              Sé el primero en publicar un anuncio de vivienda
-            </Text>
-          </View>
-        </ScrollView>
-      ) : (
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[COLORS.PRIMARY]}
-            />
-          }
-          onScrollEndDrag={() => {
-            if (hasMore && !loading) {
-              loadMoreHousingAds();
-            }
-          }}
-          onEndReached={loadMoreHousingAds}
-          onEndReachedThreshold={0.5}
-          showsVerticalScrollIndicator={false}
-        >
-          {housingAds.map((ad) => (
-            <HousingAdCard
-              key={ad.id}
-              ad={ad}
-              currentUserId={currentUserId}
-              onPress={handleAdPress}
-              onEdit={handleEditAd}
-              onDelete={handleDeleteAd}
-            />
-          ))}
-          {loading && hasMore && (
-            <View style={styles.loadingMoreContainer}>
-              <ActivityIndicator size="small" color={COLORS.PRIMARY} />
-              <Text style={styles.loadingMoreText}>
-                Cargando más anuncios...
-              </Text>
-            </View>
-          )}
-        </ScrollView>
-      )}
+      </ScreenScaffold>
+    );
+  }
 
-      {/* Botón flotante para crear nuevo anuncio */}
+  return (
+    <ScreenScaffold
+      header={header}
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.contentSurface}
+    >
+      <FlatList
+        data={housingAds}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={ListEmpty}
+        ListFooterComponent={ListFooter}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={PRIMARY}
+            colors={[PRIMARY]}
+          />
+        }
+        onEndReached={() => { if (hasMore && !loading) loadMoreHousingAds(); }}
+        onEndReachedThreshold={0.4}
+      />
+
       <FloatingActionButton
         onPress={handleCreateAd}
         icon="add"
-        backgroundColor={COLORS.PRIMARY}
+        backgroundColor={SECONDARY}
       />
-    </View>
+
+      {/* City modal */}
+      <FilterModal
+        visible={openModal === "city"}
+        onClose={() => setOpenModal(null)}
+        title="Filtrar por ciudad"
+        options={cityOptions}
+        value={city}
+        onSelect={setCity}
+        placeholder="Todas las ciudades"
+      />
+
+      {/* Kind modal */}
+      <FilterModal
+        visible={openModal === "kind"}
+        onClose={() => setOpenModal(null)}
+        title="Tipo de anuncio"
+        options={KIND_OPTIONS}
+        value={kind}
+        onSelect={setKind}
+        placeholder="Todos los tipos"
+      />
+
+      {/* Price modal */}
+      <FilterModal
+        visible={openModal === "price"}
+        onClose={() => setOpenModal(null)}
+        title="Filtrar por precio"
+        options={PRICE_OPTIONS}
+        value={maxPrice ? String(maxPrice) : ""}
+        onSelect={(id) => setMaxPrice(id ? Number(id) : null)}
+        placeholder="Todos los precios"
+      />
+    </ScreenScaffold>
   );
 }
 
@@ -573,342 +710,534 @@ export default function HousingScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND_LIGHT,
+    backgroundColor: BG_LIGHT,
   },
-  header: {
-    backgroundColor: COLORS.WHITE,
+  contentSurface: {
+    flex: 1,
+    backgroundColor: BG_LIGHT,
+  },
+  listContent: {
+    paddingBottom: 16,
+  },
+  listHeader: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    paddingBottom: 4,
   },
-  headerTop: {
+
+  myAdsChip: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    backgroundColor: "rgba(255,255,255,0.14)",
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: COLORS.TEXT_DARK,
+  myAdsChipActive: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#FFFFFF",
+  },
+  myAdsChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: WHITE,
+  },
+  myAdsChipTextActive: {
+    color: PRIMARY,
+  },
+
+  // ── Filter chips — same as HospitalsScreen ──
+  filtersScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
     marginBottom: 4,
   },
-  myAdsToggle: {
+  filtersRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingBottom: 12,
+    paddingRight: 24,
+  },
+  chip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: COLORS.PRIMARY,
-    backgroundColor: COLORS.WHITE,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
-  myAdsToggleActive: {
-    backgroundColor: COLORS.PRIMARY,
-    borderColor: COLORS.PRIMARY,
+  chipActive: {
+    backgroundColor: `${PRIMARY}12`,
+    borderColor: `${PRIMARY}30`,
   },
-  myAdsToggleText: {
+  chipText: {
     fontSize: 13,
     fontWeight: "600",
-    color: COLORS.PRIMARY,
+    color: ACCENT,
+    flexShrink: 1,
+    maxWidth: 110,
   },
-  myAdsToggleTextActive: {
-    color: COLORS.WHITE,
+  chipTextActive: {
+    color: PRIMARY,
   },
-  resultsText: {
-    fontSize: 14,
-    color: COLORS.TEXT_MEDIUM,
+  chipClear: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
   },
-  resultsNumber: {
-    color: COLORS.PRIMARY,
+  chipClearText: {
+    fontSize: 13,
     fontWeight: "600",
+    color: ERROR,
   },
-  content: {
-    flex: 1,
+
+  // ── Section label ──
+  sectionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingVertical: 6,
   },
-  listContent: {
-    padding: 16,
+  sectionLabel: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
+  sectionCount: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: PRIMARY,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  sectionAction: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: `${PRIMARY}10`,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}20`,
+  },
+  sectionActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: PRIMARY,
+  },
+
+  // ── Card ──
+  card: {
+    backgroundColor: WHITE,
+    borderRadius: 18,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    overflow: "hidden",
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  cardInactive: {
+    opacity: 0.6,
+  },
+  cardImage: {
+    width: "100%",
+    height: 170,
+    backgroundColor: "#F1F5F9",
+  },
+  cardImagePlaceholder: {
+    width: "100%",
+    height: 140,
+    backgroundColor: "#F8FAFC",
     alignItems: "center",
-    backgroundColor: COLORS.WHITE,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: COLORS.TEXT_MEDIUM,
-  },
-  errorContainer: {
-    flex: 1,
     justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: COLORS.WHITE,
-    padding: 20,
   },
-  errorText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: COLORS.ERROR,
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  retryButton: {
-    backgroundColor: COLORS.PRIMARY,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+  kindBadge: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 10,
   },
-  retryButtonText: {
-    color: COLORS.WHITE,
-    fontSize: 16,
-    fontWeight: "600",
+  kindBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: WHITE,
+    letterSpacing: 0.3,
   },
-  emptyContentContainer: {
-    flexGrow: 1,
+  myAdBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    backgroundColor: "#FFF4E0",
+    borderWidth: 1,
+    borderColor: "#FBBF24",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  myAdBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#D97706",
+  },
+  inactiveBadge: {
+    position: "absolute",
+    top: 42,
+    left: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  inactiveBadgeText: {
+    fontSize: 11,
+    color: TEXT_MEDIUM,
+    fontWeight: "500",
+  },
+  cardContent: {
+    padding: 14,
+  },
+  titlePriceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 6,
+  },
+  cardTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "700",
+    color: ACCENT,
+    lineHeight: 22,
+  },
+  priceText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: SECONDARY,
+    flexShrink: 0,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 8,
+  },
+  locationText: {
+    flex: 1,
+    fontSize: 13,
+    color: TEXT_MEDIUM,
+  },
+  cardDescription: {
+    fontSize: 13,
+    color: TEXT_MEDIUM,
+    lineHeight: 19,
+    marginBottom: 10,
+  },
+  datesRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 10,
+  },
+  datesText: {
+    fontSize: 12,
+    color: TEXT_LIGHT,
+  },
+  cardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+  },
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+    minWidth: 0,
+  },
+  avatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: SECONDARY + "20",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  avatarText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: SECONDARY,
+  },
+  authorName: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: TEXT_MEDIUM,
+    flex: 1,
+  },
+  contactBtn: {
+    backgroundColor: SECONDARY,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexShrink: 0,
+  },
+  contactBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: WHITE,
+  },
+  ownAdActions: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  iconBtn: {
+    padding: 7,
+    borderRadius: 10,
+    backgroundColor: "#F8F9FE",
+  },
+
+  // ── States ──
+  stateContainer: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 60,
-    paddingHorizontal: 20,
+    backgroundColor: BG_LIGHT,
+    gap: 12,
+    padding: 24,
+  },
+  loadingText: {
+    fontSize: 15,
+    color: TEXT_MEDIUM,
+  },
+  errorText: {
+    fontSize: 15,
+    color: ERROR,
+    textAlign: "center",
+  },
+  retryButton: {
+    backgroundColor: PRIMARY,
+    paddingVertical: 11,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  retryButtonText: {
+    color: WHITE,
+    fontSize: 15,
+    fontWeight: "600",
   },
   emptyContainer: {
     alignItems: "center",
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    paddingVertical: 48,
+    paddingHorizontal: 32,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: PRIMARY + "10",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: COLORS.TEXT_DARK,
-    marginTop: 16,
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
     marginBottom: 8,
     textAlign: "center",
   },
   emptySubtitle: {
     fontSize: 14,
-    color: COLORS.TEXT_MEDIUM,
+    color: TEXT_MEDIUM,
     textAlign: "center",
-  },
-  adCard: {
-    backgroundColor: COLORS.CARD_BACKGROUND,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: COLORS.BORDER,
-  },
-  adCardMine: {
-    borderWidth: 2,
-    borderColor: COLORS.WARNING,
-    backgroundColor: "#FFFBF0",
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12,
-  },
-  badgesContainer: {
-    flex: 1,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    alignItems: "center",
-  },
-  actionButtons: {
-    flexDirection: "row",
-    gap: 8,
-    marginLeft: 8,
-  },
-  editButton: {
-    padding: 8,
-  },
-  deleteButton: {
-    padding: 8,
-  },
-  kindBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  kindBadgeText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  myAdBadge: {
-    backgroundColor: COLORS.WARNING,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  myAdBadgeText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.WHITE,
-  },
-  inactiveBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: COLORS.GRAY_LIGHT,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  inactiveBadgeText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: COLORS.GRAY,
-  },
-  imagesBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: COLORS.SUCCESS_LIGHT,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  imagesBadgeText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: COLORS.SUCCESS,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: COLORS.TEXT_DARK,
-    marginBottom: 8,
-  },
-  locationPriceContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    marginBottom: 12,
-    flexWrap: "wrap",
-  },
-  locationContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flex: 1,
-    minWidth: 100,
-  },
-  locationText: {
-    fontSize: 14,
-    color: COLORS.TEXT_MEDIUM,
-  },
-  priceContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  priceText: {
-    fontSize: 14,
-    color: COLORS.TEXT_MEDIUM,
-    fontWeight: "600",
-  },
-  cardDescription: {
-    fontSize: 14,
-    color: COLORS.TEXT_DARK,
     lineHeight: 20,
-    marginBottom: 12,
   },
-  dateContainer: {
+  loadingMore: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 8,
-  },
-  dateText: {
-    fontSize: 13,
-    color: COLORS.TEXT_MEDIUM,
-  },
-  userContainer: {
-    marginBottom: 8,
-  },
-  userText: {
-    fontSize: 13,
-    color: COLORS.TEXT_MEDIUM,
-  },
-  contactContainer: {
-    borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
-    paddingTop: 12,
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  contactLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.TEXT_DARK,
-    marginBottom: 8,
-  },
-  contactItems: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 4,
-  },
-  contactItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: COLORS.BACKGROUND_LIGHT,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    maxWidth: 200,
-  },
-  contactText: {
-    fontSize: 12,
-    color: COLORS.TEXT_DARK,
-  },
-  preferredContactText: {
-    fontSize: 11,
-    color: COLORS.TEXT_LIGHT,
-    marginTop: 4,
-  },
-  cardFooter: {
-    borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
-    paddingTop: 12,
-    marginTop: 8,
-  },
-  createdDateText: {
-    fontSize: 12,
-    color: COLORS.TEXT_LIGHT,
-  },
-  loadingMoreContainer: {
-    paddingVertical: 20,
-    flexDirection: "row",
     justifyContent: "center",
-    alignItems: "center",
     gap: 10,
+    paddingVertical: 20,
   },
   loadingMoreText: {
     fontSize: 14,
-    color: COLORS.TEXT_MEDIUM,
+    color: TEXT_MEDIUM,
+  },
+});
+
+// ============================================================================
+// MODAL STYLES — exact copy from HospitalsScreen
+// ============================================================================
+
+const modal = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+    paddingBottom: 12,
+    paddingTop: 16,
+    backgroundColor: "#FFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 22,
+  },
+  title: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "800",
+    color: ACCENT,
+    textAlign: "center",
+    letterSpacing: -0.3,
+  },
+  searchWrap: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#FFF",
+  },
+  searchInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "500",
+    color: ACCENT,
+    padding: 0,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 10,
+  },
+  option: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 16,
+  },
+  optionSelected: {
+    borderWidth: 2,
+    borderColor: PRIMARY,
+    backgroundColor: `${PRIMARY}08`,
+  },
+  optionClear: {
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
+  },
+  optionBody: {
+    flex: 1,
+  },
+  optionName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: ACCENT,
+  },
+  optionNameSelected: {
+    color: PRIMARY,
+    fontWeight: "700",
+  },
+  optionNameClear: {
+    color: "#EF4444",
+    fontWeight: "600",
+  },
+  radioDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  radioDotSelected: {
+    borderColor: PRIMARY,
+    backgroundColor: PRIMARY,
+  },
+  radioDotUnselected: {
+    borderColor: "#CBD5E1",
+    backgroundColor: "transparent",
+  },
+  radioDotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FFF",
+  },
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    backgroundColor: "#FFF",
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  confirmBtn: {
+    backgroundColor: PRIMARY,
+    borderRadius: 14,
+    height: 54,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  confirmText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  empty: {
+    padding: 32,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 15,
+    color: "#94A3B8",
   },
 });

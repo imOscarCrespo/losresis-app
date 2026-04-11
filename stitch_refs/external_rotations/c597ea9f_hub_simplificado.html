@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Rotaciones Externas - Medical Hub</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary-dim": "#005a4d",
+              "surface-container-high": "#dfe3e7",
+              "surface-bright": "#f5f7fa",
+              "on-primary-fixed": "#000000",
+              "on-primary-container": "#2a0070",
+              "inverse-on-surface": "#9a9da0",
+              "secondary-fixed-dim": "#f5a9ff",
+              "surface-container": "#e5e8ec",
+              "surface-container-lowest": "#ffffff",
+              "error": "#b41340",
+              "on-error": "#ffefef",
+              "outline-variant": "#abadb0",
+              "on-surface": "#2c2f32",
+              "primary-fixed": "#ac8eff",
+              "on-error-container": "#510017",
+              "surface-container-low": "#eef1f4",
+              "surface-tint": "#6b18f8",
+              "on-tertiary-fixed": "#004a3f",
+              "primary-container": "#ac8eff",
+              "background": "#f5f7fa",
+              "surface-container-highest": "#d9dde1",
+              "outline": "#74777a",
+              "on-tertiary": "#c2ffef",
+              "secondary-container": "#f9beff",
+              "on-secondary": "#ffeefc",
+              "inverse-surface": "#0b0f11",
+              "tertiary-fixed-dim": "#5aeed2",
+              "surface-dim": "#d0d5d9",
+              "on-primary-fixed-variant": "#350088",
+              "on-primary": "#f7f0ff",
+              "tertiary": "#006859",
+              "primary": "#6b18f8",
+              "on-secondary-container": "#7b0094",
+              "secondary-fixed": "#f9beff",
+              "tertiary-fixed": "#6bfde0",
+              "on-background": "#2c2f32",
+              "surface-variant": "#d9dde1",
+              "on-secondary-fixed": "#5c0070",
+              "secondary-dim": "#8800a4",
+              "on-surface-variant": "#595c5e",
+              "on-secondary-fixed-variant": "#8a00a6",
+              "error-dim": "#a70138",
+              "primary-fixed-dim": "#a07dff",
+              "surface": "#f5f7fa",
+              "on-tertiary-fixed-variant": "#006a5a",
+              "primary-dim": "#5e00e3",
+              "secondary": "#9b00bb",
+              "on-tertiary-container": "#005f51",
+              "inverse-primary": "#9d79ff",
+              "error-container": "#f74b6d",
+              "tertiary-container": "#6bfde0"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "1.5rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+        .primary-gradient {
+            background: linear-gradient(135deg, #6b18f8 0%, #ac8eff 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background font-body text-on-surface selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="sticky top-0 z-40 bg-[#eef1f4] dark:bg-slate-900 w-full transition-colors duration-200">
+<div class="flex justify-between items-center w-full px-6 py-4 max-w-7xl mx-auto">
+<div class="flex items-center gap-4">
+<button class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#dfe3e7] dark:hover:bg-slate-800 transition-colors duration-200">
+<span class="material-symbols-outlined text-on-surface" data-icon="menu">menu</span>
+</button>
+<h1 class="text-2xl font-bold text-[#6b18f8] dark:text-[#ac8eff] font-headline">Rotaciones Externas</h1>
+</div>
+<div class="flex items-center gap-3">
+<div class="hidden md:flex items-center gap-6 mr-6">
+<a class="text-[#6b18f8] dark:text-[#ac8eff] font-bold font-label text-sm tracking-wide" href="#">Hub</a>
+<a class="text-[#595c5e] dark:text-slate-400 hover:text-[#6b18f8] transition-colors font-label text-sm tracking-wide" href="#">Explorar</a>
+<a class="text-[#595c5e] dark:text-slate-400 hover:text-[#6b18f8] transition-colors font-label text-sm tracking-wide" href="#">Housing</a>
+</div>
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container-highest ring-2 ring-primary-container/20">
+<img alt="Resident Profile" class="w-full h-full object-cover" data-alt="Close up of a medical professional portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCInG-YUlJaU_d5jdB3kUsFNEKRRbi_he1sXLyyXoO04pAkTF2gi8x6DWl9xjrOv8UQdEPxJ_O3bpbwbCCnVcThIURpTAfUxtPkG9mlmvYMW5DxKYQAZKr8rXHJ_sWFSvplXXrNA8WiiMzfJj3rCWJ3ppqqd03aPKdayqfeRkeGN1W6rnXjPvWMDrROH2l68gaLa-9Ijs7bmLsd3LJH6cJoZYgmqzcgLrnv3pLfggF3iKV96C4YEIRvvvNnCnQsIm4uq-V5YQ_X6tcX"/>
+</div>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto px-6 pt-8 pb-32">
+<!-- Hero Section -->
+<section class="mb-12">
+<div class="relative overflow-hidden rounded-[2rem] p-8 md:p-12 mb-8 bg-surface-container-lowest shadow-[0_8px_32px_rgba(53,0,136,0.04)]">
+<div class="relative z-10 max-w-2xl">
+<h2 class="text-4xl md:text-5xl font-extrabold font-headline tracking-tight text-on-surface mb-4 leading-tight">
+                        Descubre, conecta y decide mejor tu rotación.
+                    </h2>
+<p class="text-lg text-on-surface-variant max-w-lg mb-8">
+                        La red colaborativa para residentes MIR. Encuentra destinos, compañeros de viaje y experiencias reales.
+                    </p>
+</div>
+<div class="absolute top-0 right-0 w-1/2 h-full hidden lg:block">
+<div class="absolute inset-0 bg-gradient-to-l from-surface-container-lowest to-transparent z-10"></div>
+<img alt="Medical background" class="w-full h-full object-cover opacity-20" data-alt="High tech medical laboratory equipment background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJHC2poTGJkgAXl1sVS4UA2ffzGYK8zsql2u3tXt5cW6112-FxxAyYgtAqV0jYbv-u-vryPMH8Fl5xqMSPn5uwoZM0AqbyHVNTgZRGQLx-eObIIlcp1f1Bj4vgHxIV820FIKFUksnUsEI5WCT7psSxCGC54xhmMHZZZgvXv2SoVhTujH_oNzdPN_2U5xGiHdOEQHMJ2KvlD5bMgzmpqAhiL23gFqeimeJQAC20NbDBMLrLI6Ejhyc88RzHPUr47eSKbiC9NbT5QVcZ"/>
+</div>
+</div>
+<!-- Bento Grid Action Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Action Card 1 -->
+<div class="group relative flex flex-col justify-between p-8 rounded-[2rem] bg-surface-container-lowest shadow-[0_4px_24px_rgba(53,0,136,0.03)] hover:shadow-[0_12px_48px_rgba(53,0,136,0.08)] transition-all duration-300 transform hover:-translate-y-1">
+<div class="mb-8">
+<div class="w-14 h-14 rounded-2xl bg-primary-container/10 flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="search">search</span>
+</div>
+<h3 class="text-xl font-bold font-headline mb-3 text-on-surface">Explorar futura rotación</h3>
+<p class="text-on-surface-variant leading-relaxed">Investiga qué opciones tienes. Filtra por hospitales, ciudades y especialidades.</p>
+</div>
+<button class="w-full py-4 primary-gradient text-white rounded-full font-bold tracking-wide active:scale-95 transition-all">
+                        Empezar a buscar
+                    </button>
+</div>
+<!-- Action Card 2 -->
+<div class="group relative flex flex-col justify-between p-8 rounded-[2rem] bg-surface-container-lowest shadow-[0_4px_24px_rgba(53,0,136,0.03)] hover:shadow-[0_12px_48px_rgba(53,0,136,0.08)] transition-all duration-300 transform hover:-translate-y-1">
+<div class="mb-8">
+<div class="w-14 h-14 rounded-2xl bg-secondary-container/20 flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-secondary text-3xl" data-icon="group_add">group_add</span>
+</div>
+<h3 class="text-xl font-bold font-headline mb-3 text-on-surface">Añadir mi futura rotación</h3>
+<p class="text-on-surface-variant leading-relaxed">No vayas solo, encuentra tus compañeros MIR para compartir piso y gastos.</p>
+</div>
+<button class="w-full py-4 bg-surface-container-low text-primary hover:bg-surface-container-high rounded-full font-bold tracking-wide active:scale-95 transition-all">
+                        Registrar planes
+                    </button>
+</div>
+<!-- Action Card 3 -->
+<div class="group relative flex flex-col justify-between p-8 rounded-[2rem] bg-surface-container-lowest shadow-[0_4px_24px_rgba(53,0,136,0.03)] hover:shadow-[0_12px_48px_rgba(53,0,136,0.08)] transition-all duration-300 transform hover:-translate-y-1">
+<div class="mb-8">
+<div class="w-14 h-14 rounded-2xl bg-tertiary-container/30 flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-tertiary text-3xl" data-icon="rate_review">rate_review</span>
+</div>
+<h3 class="text-xl font-bold font-headline mb-3 text-on-surface">Añadir mi experiencia</h3>
+<p class="text-on-surface-variant leading-relaxed">Ayuda a los que vienen detrás contando tu paso por el centro y el servicio.</p>
+</div>
+<button class="w-full py-4 bg-tertiary text-white rounded-full font-bold tracking-wide active:scale-95 transition-all">
+                        Escribir reseña
+                    </button>
+</div>
+</div>
+</section>
+<!-- Practical Layout: Recent Activity / Trending -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<div class="lg:col-span-2">
+<div class="flex items-center justify-between mb-6">
+<h4 class="text-xl font-bold font-headline">Rotaciones guardadas</h4>
+<button class="text-primary font-bold text-sm">Ver todos</button>
+</div>
+<div class="space-y-4">
+<!-- City Item 1 -->
+<div class="flex items-center p-4 bg-surface-container-lowest rounded-2xl shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+<div class="flex-grow">
+<h5 class="font-bold">St Thomas' Hospital</h5>
+<p class="text-xs text-on-surface-variant">Londres, Reino Unido • UCI &amp; Trauma</p>
+</div>
+<div class="text-right">
+<div class="flex items-center text-primary font-bold">
+<span class="material-symbols-outlined text-sm mr-1" data-icon="star" style="font-variation-settings: 'FILL' 1;">star</span>
+                                4.9
+                            </div>
+<p class="text-[10px] text-on-surface-variant">24 reseñas</p>
+</div>
+</div>
+<!-- City Item 2 -->
+<div class="flex items-center p-4 bg-surface-container-lowest rounded-2xl shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+<div class="flex-grow">
+<h5 class="font-bold">Mount Sinai Hospital</h5>
+<p class="text-xs text-on-surface-variant">Toronto, Canadá • Obstetricia &amp; Gin.</p>
+</div>
+<div class="text-right">
+<div class="flex items-center text-primary font-bold">
+<span class="material-symbols-outlined text-sm mr-1" data-icon="star" style="font-variation-settings: 'FILL' 1;">star</span>
+                                4.8
+                            </div>
+<p class="text-[10px] text-on-surface-variant">18 reseñas</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Sidebar / Tips -->
+<div class="space-y-6">
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl flex justify-around items-center px-4 pb-6 pt-3 rounded-t-[24px] shadow-[0_-8px_24px_rgba(53,0,136,0.06)]">
+<!-- Hub Item (Active) -->
+<a class="flex flex-col items-center justify-center bg-[#ac8eff]/20 text-[#6b18f8] dark:text-[#ac8eff] rounded-2xl px-4 py-1 transition-all duration-300 ease-out active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="grid_view" style="font-variation-settings: 'FILL' 1;">grid_view</span>
+<span class="text-[0.75rem] font-medium tracking-wide font-label mt-1">Hub</span>
+</a>
+<!-- Explorar -->
+<a class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-400 px-4 py-1 hover:text-[#6b18f8] dark:hover:text-[#ac8eff] transition-all duration-300 ease-out active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+<span class="text-[0.75rem] font-medium tracking-wide font-label mt-1">Explorar</span>
+</a>
+<!-- Housing -->
+<a class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-400 px-4 py-1 hover:text-[#6b18f8] dark:hover:text-[#ac8eff] transition-all duration-300 ease-out active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="home_work">home_work</span>
+<span class="text-[0.75rem] font-medium tracking-wide font-label mt-1">Housing</span>
+</a>
+<!-- Tips -->
+<a class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-400 px-4 py-1 hover:text-[#6b18f8] dark:hover:text-[#ac8eff] transition-all duration-300 ease-out active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="lightbulb">lightbulb</span>
+<span class="text-[0.75rem] font-medium tracking-wide font-label mt-1">Tips</span>
+</a>
+<!-- Match -->
+<a class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-400 px-4 py-1 hover:text-[#6b18f8] dark:hover:text-[#ac8eff] transition-all duration-300 ease-out active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="group_add">group_add</span>
+<span class="text-[0.75rem] font-medium tracking-wide font-label mt-1">Match</span>
+</a>
+</nav>
+</body></html>

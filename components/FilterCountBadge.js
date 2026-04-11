@@ -7,6 +7,7 @@
  */
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { COLORS } from "../constants/colors";
 
 export const FilterCountBadge = ({ count = 0, style, variant = "badge" }) => {
   if (count === 0) {
@@ -30,7 +31,7 @@ export const FilterCountBadge = ({ count = 0, style, variant = "badge" }) => {
 
 const styles = StyleSheet.create({
   badge: {
-    backgroundColor: "#007AFF",
+    backgroundColor: COLORS.PRIMARY,
     borderRadius: 12,
     minWidth: 24,
     height: 24,
@@ -40,13 +41,13 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   badgeText: {
-    color: "#ffffff",
+    color: COLORS.WHITE,
     fontSize: 12,
     fontWeight: "600",
   },
   textBadge: {
     fontSize: 13,
-    color: "#666",
+    color: COLORS.TEXT_LIGHT,
     marginLeft: 8,
     fontWeight: "400",
   },

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#00c27b",
+                        "background-light": "#f5f8f7",
+                        "background-dark": "#0f231c",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .fill-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+<header class="sticky top-0 z-10 bg-background-light dark:bg-background-dark border-b border-primary/10">
+<div class="flex items-center justify-between px-4 py-3">
+<button class="p-2 hover:bg-primary/10 rounded-full transition-colors">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">account_circle</span>
+</button>
+<h1 class="text-xl font-bold tracking-tight text-primary">Roomies MIR</h1>
+<button class="p-2 hover:bg-primary/10 rounded-full transition-colors">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">tune</span>
+</button>
+</div>
+<div class="flex px-4 border-b border-primary/5">
+<button class="flex-1 py-3 text-sm font-bold border-b-2 border-primary text-primary">
+                Personas (Swipe)
+            </button>
+<button class="flex-1 py-3 text-sm font-medium text-slate-500 dark:text-slate-400 border-b-2 border-transparent">
+                Pisos (Feed)
+            </button>
+</div>
+</header>
+<main class="flex-1 flex flex-col items-center justify-center p-4 gap-6 max-w-md mx-auto w-full">
+<div class="relative w-full aspect-[3/4] rounded-xl overflow-hidden shadow-2xl bg-slate-200 dark:bg-slate-800 group">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Portrait of a young female doctor in medical attire smiling" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDJReJNtOErgqEnV4AomcC6Gi8Kp1qaRcwcsM4JiELoOFxaA-Wms59MxlS5x98cKNGfJamE3M5kJJP0kTaKcEz6nzJPKuTnnxXDVWMlyRcoEmebzzqs935e9d0KLv3z6bScZEtZ_8QsIsTtWViwmdGQEx-OrBZFmB-l-aQJp9qGMWnhbY4aFXdhiU76OE76ekUFryQ6u4T3SM7YAkAYNdTKNjjlVUdKov7KSaz0-PrITYMn9jYdlpIlxXEVqhdTbv3yCuekOaMgO6A')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute top-4 right-4 bg-primary/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-2">
+<div class="size-2 bg-white rounded-full animate-pulse"></div>
+<span class="text-white text-xs font-bold uppercase tracking-wider">82% Compatibilidad</span>
+</div>
+<div class="absolute bottom-0 left-0 right-0 p-6 flex flex-col gap-3">
+<div class="flex items-center gap-2">
+<h2 class="text-3xl font-bold text-white">Lucía, 24</h2>
+<span class="material-symbols-outlined text-primary fill-icon text-2xl">verified</span>
+</div>
+<div class="space-y-1">
+<p class="text-white/90 text-lg font-medium flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">medical_services</span>
+                        R1 Pediatría - La Paz
+                    </p>
+<p class="text-white/80 text-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">location_on</span>
+                        Madrid
+                    </p>
+</div>
+<div class="flex flex-wrap gap-2 py-2">
+<span class="px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-medium">no fumadora</span>
+<span class="px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-medium">gato</span>
+<span class="px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-medium">madrugadora</span>
+</div>
+<p class="text-white/90 italic text-sm leading-relaxed bg-white/5 p-3 rounded-lg border-l-2 border-primary">
+                    "Busco piso tranquilo cerca del hospital para poder descansar bien post-guardia."
+                </p>
+</div>
+</div>
+<div class="flex items-center justify-between w-full max-w-[320px] pb-6">
+<button class="size-14 flex items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-lg text-rose-500 hover:scale-110 active:scale-95 transition-transform border border-slate-100 dark:border-slate-700">
+<span class="material-symbols-outlined text-3xl font-bold">close</span>
+</button>
+<button class="size-12 flex items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-lg text-amber-400 hover:scale-110 active:scale-95 transition-transform border border-slate-100 dark:border-slate-700">
+<span class="material-symbols-outlined text-2xl fill-icon">star</span>
+</button>
+<button class="size-14 flex items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/30 hover:scale-110 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-3xl fill-icon">chat_bubble</span>
+</button>
+</div>
+</main>
+<nav class="sticky bottom-0 bg-white dark:bg-background-dark border-t border-primary/10 px-6 py-2">
+<div class="flex items-center justify-between max-w-md mx-auto">
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined fill-icon">style</span>
+<span class="text-[10px] font-bold uppercase">Swipe</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">favorite</span>
+<span class="text-[10px] font-medium uppercase">Likes</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">forum</span>
+<span class="text-[10px] font-medium uppercase">Chats</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-medium uppercase">Perfil</span>
+</a>
+</div>
+</nav>
+</body></html>

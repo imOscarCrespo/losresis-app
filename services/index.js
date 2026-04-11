@@ -4,4 +4,5 @@ export * from "./hospitalService";
 export * from "./communityService";
 export * from "./reviewService";
 export * from "./shiftService";
+export * from "./agendaService";
 export { calculateMIRProbabilities } from "./mirSimulatorService";

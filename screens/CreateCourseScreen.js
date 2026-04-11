@@ -1,30 +1,31 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
   Keyboard,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { SelectFilter } from "../components/SelectFilter";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
+import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
+import { ScreenHeader } from "../components/ScreenHeader";
+import { ScreenScaffold } from "../components/ScreenScaffold";
 import {
   KeyboardDismissAccessory,
   KEYBOARD_DISMISS_ACCESSORY_ID,
-  KEYBOARD_DISMISS_ACCESSORY_ID_2,
 } from "../components/KeyboardDismissAccessory";
+import { COLORS } from "../constants/colors";
 import { useHospitals } from "../hooks/useHospitals";
-import {
-  prepareHospitalOptions,
-  prepareSpecialtyOptions,
-} from "../utils/profileOptions";
 import {
   getCourseById,
   createCourse,
@@ -32,38 +33,193 @@ import {
 } from "../services/lectureService";
 import { getCachedUserId } from "../services/authService";
 import { formatShortDate } from "../utils/dateUtils";
-import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
+
+const PRIMARY = "#670CF5";
+const ACCENT = "#1B0977";
+const BG_LIGHT = COLORS.BACKGROUND;
+const CARD_BORDER = "#F1F5F9";
+const MUTED = "#64748B";
+const MUTED_LIGHT = "#94A3B8";
+const DANGER = "#EF4444";
+const PUBLISHED_STATUS = "published";
+
+function SectionHeader({ title, subtitle }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {subtitle ? <Text style={styles.sectionText}>{subtitle}</Text> : null}
+    </View>
+  );
+}
 
 const initialFormData = {
   title: "",
   event_dates: [],
-  teaching_hours: "",
   price_text: "",
-  course_directors: "",
-  organization: "",
   venue_name: "",
-  venue_address: "",
-  seats_available: "",
-  course_code: "",
   more_info: "",
-  objectives: "",
   registration_url: "",
-  hospital_id: "",
   speciality_id: "",
 };
 
-/**
- * Pantalla para crear o editar un curso
- * @param {string} courseId - ID del curso a editar (opcional)
- */
+function RadioDot({ selected }) {
+  return (
+    <View
+      style={[
+        sheet.radioDot,
+        selected ? sheet.radioDotSelected : sheet.radioDotUnselected,
+      ]}
+    >
+      {selected ? <View style={sheet.radioDotInner} /> : null}
+    </View>
+  );
+}
+
+function SelectionModal({
+  visible,
+  onClose,
+  title,
+  options,
+  value,
+  onSelect,
+  placeholder,
+}) {
+  const insets = useSafeAreaInsets();
+  const [search, setSearch] = useState("");
+  const [tempValue, setTempValue] = useState(value);
+
+  useEffect(() => {
+    if (visible) {
+      setTempValue(value);
+    }
+  }, [value, visible]);
+
+  const filteredOptions = useMemo(() => {
+    if (!search.trim()) return options;
+    const lower = search.toLowerCase();
+    return options.filter((option) => option.name.toLowerCase().includes(lower));
+  }, [options, search]);
+
+  const listData = useMemo(() => {
+    const data = [];
+    if (value) {
+      data.push({ id: "", name: placeholder });
+    }
+    data.push(...filteredOptions);
+    return data;
+  }, [filteredOptions, placeholder, value]);
+
+  const handleClose = useCallback(() => {
+    setSearch("");
+    onClose();
+  }, [onClose]);
+
+  const handleConfirm = useCallback(() => {
+    onSelect(tempValue);
+    setSearch("");
+    onClose();
+  }, [onClose, onSelect, tempValue]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={false}
+      animationType="slide"
+      onRequestClose={handleClose}
+    >
+      <View style={sheet.container}>
+        <View style={[sheet.header, { paddingTop: Math.max(insets.top, 16) }]}>
+          <TouchableOpacity style={sheet.backBtn} onPress={handleClose}>
+            <Ionicons name="arrow-back" size={24} color={ACCENT} />
+          </TouchableOpacity>
+          <Text style={sheet.title}>{title}</Text>
+          <View style={sheet.backBtn} />
+        </View>
+
+        <View style={sheet.searchWrap}>
+          <View style={sheet.searchInner}>
+            <Ionicons name="search" size={20} color={MUTED_LIGHT} />
+            <TextInput
+              style={sheet.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Buscar..."
+              placeholderTextColor={MUTED_LIGHT}
+              returnKeyType="done"
+            />
+            {search.length > 0 ? (
+              <TouchableOpacity onPress={() => setSearch("")}>
+                <Ionicons name="close-circle" size={18} color={MUTED_LIGHT} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+
+        <ScrollView contentContainerStyle={sheet.listContent}>
+          {listData.map((item, index) => {
+            const isClear = item.id === "";
+            const isSelected = !isClear && item.id === tempValue;
+            return (
+              <Pressable
+                key={`${String(item.id ?? "")}-${index}`}
+                style={({ pressed }) => [
+                  sheet.option,
+                  isSelected && sheet.optionSelected,
+                  isClear && sheet.optionClear,
+                  pressed && { opacity: 0.78 },
+                ]}
+                onPress={() => setTempValue(isClear ? "" : item.id)}
+              >
+                <Text
+                  style={[
+                    sheet.optionName,
+                    isSelected && sheet.optionNameSelected,
+                    isClear && sheet.optionNameClear,
+                  ]}
+                >
+                  {item.name}
+                </Text>
+                {isClear ? null : <RadioDot selected={isSelected} />}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <View style={[sheet.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <TouchableOpacity style={sheet.confirmBtn} onPress={handleConfirm}>
+            <Text style={sheet.confirmText}>Confirmar selección</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function FieldCard({
+  label,
+  required = false,
+  children,
+  hint,
+}) {
+  return (
+    <View style={styles.fieldCard}>
+      <Text style={styles.fieldLabel}>
+        {label}
+        {required ? <Text style={styles.required}> *</Text> : null}
+      </Text>
+      {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
+      {children}
+    </View>
+  );
+}
+
 export default function CreateCourseScreen({
   courseId,
   onBack,
   onSuccess,
-  userProfile,
 }) {
-  const isEditMode = !!courseId;
+  const isEditMode = Boolean(courseId);
   const [formData, setFormData] = useState(initialFormData);
   const [loading, setLoading] = useState(false);
   const [loadingCourse, setLoadingCourse] = useState(isEditMode);
@@ -71,70 +227,76 @@ export default function CreateCourseScreen({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDateIndex, setSelectedDateIndex] = useState(null);
   const [tempSelectedDate, setTempSelectedDate] = useState(null);
+  const [openModal, setOpenModal] = useState(null);
 
-  const { hospitals, specialties } = useHospitals();
+  const { specialties } = useHospitals();
 
   useEffect(() => {
     const name = isEditMode
       ? "CreateCourseScreen_Edit"
       : "CreateCourseScreen_Create";
     posthogLogger.logScreen(name, { courseId, isEditMode });
-  }, [isEditMode, courseId]);
+  }, [courseId, isEditMode]);
 
   useEffect(() => {
-    if (isEditMode && courseId) {
-      const load = async () => {
-        try {
-          setLoadingCourse(true);
-          const course = await getCourseById(courseId);
-          setFormData({
-            title: course.title || "",
-            event_dates: Array.isArray(course.event_dates)
-              ? [...course.event_dates]
-              : [],
-            teaching_hours: course.teaching_hours ?? "",
-            price_text: course.price_text ?? "",
-            course_directors: course.course_directors ?? "",
-            organization: course.organization ?? "",
-            venue_name: course.venue_name ?? "",
-            venue_address: course.venue_address ?? "",
-            seats_available:
-              course.seats_available != null
-                ? String(course.seats_available)
-                : "",
-            course_code: course.course_code ?? "",
-            more_info: course.more_info ?? "",
-            objectives: course.objectives ?? "",
-            registration_url: course.registration_url ?? "",
-            hospital_id: course.hospital_id ?? "",
-            speciality_id: course.speciality_id ?? "",
-          });
-        } catch (err) {
-          console.error("Error loading course:", err);
-          setError("Error al cargar el curso");
-        } finally {
-          setLoadingCourse(false);
-        }
-      };
-      load();
-    }
-  }, [isEditMode, courseId]);
+    if (!isEditMode || !courseId) return;
+
+    const loadCourse = async () => {
+      try {
+        setLoadingCourse(true);
+        const course = await getCourseById(courseId);
+        setFormData({
+          title: course.title || "",
+          event_dates: Array.isArray(course.event_dates) ? [...course.event_dates] : [],
+          price_text: course.price_text ?? "",
+          venue_name: course.venue_name ?? "",
+          more_info: course.more_info ?? "",
+          registration_url: course.registration_url ?? "",
+          speciality_id: course.speciality_id ?? "",
+        });
+      } catch (err) {
+        console.error("Error loading course:", err);
+        setError("No se pudo cargar el curso");
+      } finally {
+        setLoadingCourse(false);
+      }
+    };
+
+    loadCourse();
+  }, [courseId, isEditMode]);
+
+  const specialtyOptions = useMemo(
+    () =>
+      specialties
+        .filter((specialty) => specialty?.id && specialty?.name)
+        .map((specialty) => ({ id: specialty.id, name: specialty.name })),
+    [specialties]
+  );
+
+  const selectedSpecialtyName = useMemo(
+    () => specialtyOptions.find((item) => item.id === formData.speciality_id)?.name,
+    [formData.speciality_id, specialtyOptions]
+  );
 
   const updateField = useCallback((field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setError("");
   }, []);
 
+  const resetDatePickerState = useCallback(() => {
+    setShowDatePicker(false);
+    setSelectedDateIndex(null);
+    setTempSelectedDate(null);
+  }, []);
+
   const handleAddDate = useCallback(() => {
     Keyboard.dismiss();
     setSelectedDateIndex(formData.event_dates.length);
-    const defaultDate =
+    const referenceDate =
       formData.event_dates.length > 0
-        ? new Date(
-            formData.event_dates[formData.event_dates.length - 1] + "T00:00:00"
-          )
+        ? new Date(`${formData.event_dates[formData.event_dates.length - 1]}T00:00:00`)
         : new Date();
-    setTempSelectedDate(defaultDate);
+    setTempSelectedDate(referenceDate);
     setShowDatePicker(true);
   }, [formData.event_dates]);
 
@@ -142,9 +304,7 @@ export default function CreateCourseScreen({
     (index) => {
       Keyboard.dismiss();
       setSelectedDateIndex(index);
-      setTempSelectedDate(
-        new Date(formData.event_dates[index] + "T00:00:00")
-      );
+      setTempSelectedDate(new Date(`${formData.event_dates[index]}T00:00:00`));
       setShowDatePicker(true);
     },
     [formData.event_dates]
@@ -153,85 +313,90 @@ export default function CreateCourseScreen({
   const handleRemoveDate = useCallback((index) => {
     setFormData((prev) => ({
       ...prev,
-      event_dates: prev.event_dates.filter((_, i) => i !== index),
+      event_dates: prev.event_dates.filter((_, currentIndex) => currentIndex !== index),
     }));
   }, []);
 
-  const handleConfirmDate = useCallback(() => {
-    if (!tempSelectedDate) return;
-    const y = tempSelectedDate.getFullYear();
-    const m = String(tempSelectedDate.getMonth() + 1).padStart(2, "0");
-    const d = String(tempSelectedDate.getDate()).padStart(2, "0");
-    const dateString = `${y}-${m}-${d}`;
-    setFormData((prev) => {
-      const newDates = [...prev.event_dates];
-      if (
-        selectedDateIndex !== null &&
-        selectedDateIndex < newDates.length
-      ) {
-        newDates[selectedDateIndex] = dateString;
-      } else {
-        newDates.push(dateString);
-      }
-      return { ...prev, event_dates: newDates.sort() };
-    });
-    setShowDatePicker(false);
-    setSelectedDateIndex(null);
-    setTempSelectedDate(null);
-  }, [selectedDateIndex, tempSelectedDate]);
+  const upsertDate = useCallback(
+    (value) => {
+      const year = value.getFullYear();
+      const month = String(value.getMonth() + 1).padStart(2, "0");
+      const day = String(value.getDate()).padStart(2, "0");
+      const normalized = `${year}-${month}-${day}`;
 
-  const handleDateChange = useCallback(
-    (event, selectedDate) => {
-      if (Platform.OS === "android") setShowDatePicker(false);
-      if (event.type === "set" && selectedDate) {
-        if (Platform.OS === "ios") {
-          setTempSelectedDate(selectedDate);
+      setFormData((prev) => {
+        const nextDates = [...prev.event_dates];
+
+        if (selectedDateIndex !== null && selectedDateIndex < nextDates.length) {
+          nextDates[selectedDateIndex] = normalized;
         } else {
-          const y = selectedDate.getFullYear();
-          const m = String(selectedDate.getMonth() + 1).padStart(2, "0");
-          const d = String(selectedDate.getDate()).padStart(2, "0");
-          const dateString = `${y}-${m}-${d}`;
-          setFormData((prev) => {
-            const newDates = [...prev.event_dates];
-            if (
-              selectedDateIndex !== null &&
-              selectedDateIndex < newDates.length
-            ) {
-              newDates[selectedDateIndex] = dateString;
-            } else {
-              newDates.push(dateString);
-            }
-            return { ...prev, event_dates: newDates.sort() };
-          });
-          setSelectedDateIndex(null);
+          nextDates.push(normalized);
         }
-      } else if (event.type === "dismissed") {
-        setShowDatePicker(false);
-        setSelectedDateIndex(null);
-        setTempSelectedDate(null);
-      }
+
+        return { ...prev, event_dates: nextDates.sort() };
+      });
     },
     [selectedDateIndex]
   );
+
+  const handleDateChange = useCallback(
+    (event, selectedDate) => {
+      if (Platform.OS === "android") {
+        if (event.type === "set" && selectedDate) {
+          upsertDate(selectedDate);
+        }
+        resetDatePickerState();
+        return;
+      }
+
+      if (selectedDate) {
+        setTempSelectedDate(selectedDate);
+      }
+    },
+    [resetDatePickerState, upsertDate]
+  );
+
+  const handleConfirmDate = useCallback(() => {
+    if (!tempSelectedDate) return;
+    upsertDate(tempSelectedDate);
+    resetDatePickerState();
+  }, [resetDatePickerState, tempSelectedDate, upsertDate]);
 
   const validate = useCallback(() => {
     if (!formData.title.trim()) {
       setError("El título es obligatorio");
       return false;
     }
-    if (!formData.event_dates || formData.event_dates.length === 0) {
+
+    if (formData.event_dates.length === 0) {
       setError("Debes añadir al menos una fecha");
       return false;
     }
-    const rawSpeciality =
-      typeof formData.speciality_id === "string" && formData.speciality_id.trim();
-    if (!rawSpeciality) {
+
+    if (!formData.speciality_id?.trim()) {
       setError("La especialidad es obligatoria");
       return false;
     }
+
+    if (!formData.venue_name.trim()) {
+      setError("El lugar del evento es obligatorio");
+      return false;
+    }
+
+    if (!formData.registration_url.trim()) {
+      setError("La URL de inscripción es obligatoria");
+      return false;
+    }
+
     setError("");
     return true;
-  }, [formData.title, formData.event_dates, formData.speciality_id]);
+  }, [
+    formData.event_dates.length,
+    formData.registration_url,
+    formData.speciality_id,
+    formData.title,
+    formData.venue_name,
+  ]);
 
   const handleSubmit = useCallback(async () => {
     if (!validate()) return;
@@ -240,645 +405,628 @@ export default function CreateCourseScreen({
     setError("");
 
     try {
-      const rawSeats = formData.seats_available.trim();
-      const rawHospitalId =
-        typeof formData.hospital_id === "string" &&
-        formData.hospital_id.trim();
-      const rawSpecialityId =
-        typeof formData.speciality_id === "string" &&
-        formData.speciality_id.trim();
       const createdBy = !isEditMode ? await getCachedUserId() : undefined;
       const payload = {
-        ...(createdBy && { created_by_id: createdBy }),
+        ...(createdBy ? { created_by_id: createdBy } : {}),
         title: formData.title.trim(),
         event_dates: formData.event_dates,
-        teaching_hours: formData.teaching_hours.trim() || null,
         price_text: formData.price_text.trim() || null,
-        course_directors: formData.course_directors.trim() || null,
-        organization: formData.organization.trim() || null,
         venue_name: formData.venue_name.trim() || null,
-        venue_address: formData.venue_address.trim() || null,
-        seats_available: rawSeats ? parseInt(rawSeats, 10) : null,
-        course_code: formData.course_code.trim() || null,
         more_info: formData.more_info.trim() || null,
-        objectives: formData.objectives.trim() || null,
         registration_url: formData.registration_url.trim() || null,
-        hospital_id: rawHospitalId || null,
-        speciality_id: rawSpecialityId || null,
+        speciality_id: formData.speciality_id?.trim() || null,
+        status: PUBLISHED_STATUS,
+        ...(!isEditMode ? { published_at: new Date().toISOString() } : {}),
       };
 
-      if (isEditMode && courseId) {
+      if (isEditMode) {
         await updateCourse(courseId, payload);
-        Alert.alert(
-          "Curso actualizado",
-          "El curso se ha actualizado correctamente",
-          [{ text: "OK", onPress: () => { onSuccess?.(); onBack?.(); } }]
-        );
+        Alert.alert("Publicación actualizada", "Los cambios se han guardado correctamente.", [
+          {
+            text: "OK",
+            onPress: () => {
+              onSuccess?.();
+              onBack?.();
+            },
+          },
+        ]);
       } else {
         await createCourse(payload);
-        Alert.alert(
-          "Curso creado",
-          "El curso se ha creado correctamente",
-          [{ text: "OK", onPress: () => { onSuccess?.(); onBack?.(); } }]
-        );
+        Alert.alert("Publicación creada", "El curso o congreso se ha publicado correctamente.", [
+          {
+            text: "OK",
+            onPress: () => {
+              onSuccess?.();
+              onBack?.();
+            },
+          },
+        ]);
       }
     } catch (err) {
       console.error("Error saving course:", err);
-      setError(
-        isEditMode
-          ? "Error al actualizar el curso. Intenta de nuevo."
-          : "Error al crear el curso. Intenta de nuevo."
-      );
+      const fallbackMessage =
+        err?.code === "RESIDENT_FALLBACK_ORG_MISSING" && err?.message
+          ? err.message
+          : isEditMode
+            ? "No se pudo actualizar el curso. Inténtalo de nuevo."
+            : "No se pudo crear el curso. Inténtalo de nuevo.";
+
+      setError(fallbackMessage);
     } finally {
       setLoading(false);
     }
-  }, [formData, isEditMode, courseId, validate, onSuccess, onBack]);
-
-  const hospitalOptions = prepareHospitalOptions(hospitals);
-
-  const specialtyOptions = prepareSpecialtyOptions(specialties);
+  }, [courseId, formData, isEditMode, onBack, onSuccess, validate]);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={0}
+    <ScreenScaffold
+      headerShellVariant="brand"
+      contentSurfaceStyle={styles.contentSurface}
+      header={
+        <ScreenHeader
+          title={isEditMode ? "Editar curso o congreso" : "Nuevo curso o congreso"}
+          onBack={onBack}
+          compact
+          variant="brand"
+        />
+      }
     >
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={onBack}
-          activeOpacity={0.7}
-          disabled={loading}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.PRIMARY} />
-          <Text style={styles.backButtonText}>Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {isEditMode ? "Editar Curso" : "Crear Curso"}
-        </Text>
-        <View style={styles.headerPlaceholder} />
-      </View>
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+      <KeyboardAwareScrollView
+        style={styles.formScroll}
+        contentContainerStyle={styles.formScrollContent}
+        bottomPadding={40}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
       >
-        {loadingCourse ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-            <Text style={styles.loadingText}>Cargando curso...</Text>
-          </View>
-        ) : (
-          <>
-            {error ? (
-              <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={20} color={COLORS.ERROR} />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Información básica</Text>
+        <View style={styles.content}>
+          {loadingCourse ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={PRIMARY} />
+              <Text style={styles.loadingText}>Cargando curso...</Text>
             </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>
-                Título del curso <Text style={styles.required}>*</Text>
-              </Text>
-              <TextInput
-                style={styles.input}
-                value={formData.title}
-                onChangeText={(t) => updateField("title", t)}
-                placeholder="Ej: Curso de Radiología Avanzada"
-                placeholderTextColor={COLORS.GRAY}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>
-                Fechas del curso <Text style={styles.required}>*</Text>
-              </Text>
-              {formData.event_dates.length > 0 && (
-                <View style={styles.datesList}>
-                  {formData.event_dates.map((date, index) => (
-                    <View key={index} style={styles.dateItem}>
-                      <TouchableOpacity
-                        onPress={() => handleEditDate(index)}
-                        style={styles.dateItemContent}
-                      >
-                        <Ionicons
-                          name="calendar"
-                          size={16}
-                          color={COLORS.PRIMARY}
-                        />
-                        <Text style={styles.dateText}>
-                          {formatShortDate(date)}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleRemoveDate(index)}
-                        style={styles.removeDateBtn}
-                      >
-                        <Ionicons
-                          name="close-circle"
-                          size={20}
-                          color={COLORS.ERROR}
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
+          ) : (
+            <>
+              {error ? (
+                <View style={styles.errorCard}>
+                  <Ionicons name="alert-circle" size={20} color={DANGER} />
+                  <Text style={styles.errorText}>{error}</Text>
                 </View>
-              )}
-              <TouchableOpacity
-                onPress={handleAddDate}
-                style={styles.addDateButton}
-              >
-                <Ionicons name="add-circle" size={20} color={COLORS.PRIMARY} />
-                <Text style={styles.addDateButtonText}>Añadir fecha</Text>
-              </TouchableOpacity>
-            </View>
+              ) : null}
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Duración</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.teaching_hours}
-                onChangeText={(t) => updateField("teaching_hours", t)}
-                placeholder="Ej: 3 días, 20 horas"
-                placeholderTextColor={COLORS.GRAY}
+              <SectionHeader
+                title="Información principal"
+                subtitle="Solo te pedimos lo esencial para publicar rápido."
               />
-            </View>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Código del curso</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.course_code}
-                onChangeText={(t) => updateField("course_code", t)}
-                placeholder="Ej: AC1318"
-                placeholderTextColor={COLORS.GRAY}
-              />
-            </View>
+              <FieldCard label="Título" required>
+                <KeyboardAwareTextInput
+                  style={styles.input}
+                  value={formData.title}
+                  onChangeText={(text) => updateField("title", text)}
+                  placeholder="Ej. Curso de Radiología Intervencionista o Congreso SEMI"
+                  placeholderTextColor={MUTED_LIGHT}
+                />
+              </FieldCard>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Organización</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.organization}
-                onChangeText={(t) => updateField("organization", t)}
-                placeholder="Ej: CDI Centro de Diagnóstico por la Imagen"
-                placeholderTextColor={COLORS.GRAY}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>Directores del curso</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.course_directors}
-                onChangeText={(t) => updateField("course_directors", t)}
-                placeholder="Ej: Dr. Pablo Aguiar, Dra. Aida Niñerola"
-                placeholderTextColor={COLORS.GRAY}
-              />
-            </View>
-
-            <View style={[styles.section, styles.sectionTop]}>
-              <Text style={styles.sectionTitle}>Ubicación</Text>
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>Lugar del evento</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.venue_name}
-                onChangeText={(t) => updateField("venue_name", t)}
-                placeholder="Ej: Centro Esther Koplowitz (CEK)"
-                placeholderTextColor={COLORS.GRAY}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <SelectFilter
-                label="Hospital"
-                value={formData.hospital_id}
-                onSelect={(v) => updateField("hospital_id", v)}
-                options={hospitalOptions}
-                placeholder="Seleccionar hospital (opcional)"
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>Dirección del evento</Text>
-              <TextInput
-                style={[styles.input, styles.inputMultiline]}
-                value={formData.venue_address}
-                onChangeText={(t) => updateField("venue_address", t)}
-                placeholder="Dirección completa"
-                placeholderTextColor={COLORS.GRAY}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
-            </View>
-
-            <View style={[styles.section, styles.sectionTop]}>
-              <Text style={styles.sectionTitle}>Información adicional</Text>
-            </View>
-
-            <View style={styles.field}>
-              <SelectFilter
-                label="Especialidad"
-                value={formData.speciality_id}
-                onSelect={(v) => updateField("speciality_id", v)}
-                options={specialtyOptions}
-                placeholder="Seleccionar especialidad"
+              <FieldCard
+                label="Fechas"
                 required
-              />
-            </View>
+                hint="Añade una o varias fechas. Si dura varios días, incorpora todas."
+              >
+                {formData.event_dates.length > 0 ? (
+                  <View style={styles.dateList}>
+                    {formData.event_dates.map((date, index) => (
+                      <View key={`${date}-${index}`} style={styles.dateItem}>
+                        <TouchableOpacity
+                          style={styles.dateItemBody}
+                          onPress={() => handleEditDate(index)}
+                        >
+                          <Ionicons name="calendar-outline" size={16} color={PRIMARY} />
+                          <Text style={styles.dateItemText}>{formatShortDate(date)}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.dateDeleteButton}
+                          onPress={() => handleRemoveDate(index)}
+                        >
+                          <Ionicons name="close-circle" size={20} color={DANGER} />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Plazas disponibles</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.seats_available}
-                onChangeText={(t) => updateField("seats_available", t)}
-                placeholder="Ej: 50"
-                placeholderTextColor={COLORS.GRAY}
-                keyboardType="numeric"
-              />
-            </View>
+                <TouchableOpacity style={styles.addDateButton} onPress={handleAddDate}>
+                  <Ionicons name="add-circle-outline" size={18} color={PRIMARY} />
+                  <Text style={styles.addDateText}>Añadir fecha</Text>
+                </TouchableOpacity>
+              </FieldCard>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Precio</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.price_text}
-                onChangeText={(t) => updateField("price_text", t)}
-                placeholder="Ej: 450 euros. Incluye comidas y café."
-                placeholderTextColor={COLORS.GRAY}
-              />
-            </View>
+              <FieldCard label="Especialidad" required>
+                <TouchableOpacity
+                  style={styles.selector}
+                  onPress={() => setOpenModal("speciality")}
+                >
+                  <Text
+                    style={[
+                      styles.selectorText,
+                      !selectedSpecialtyName && styles.selectorPlaceholder,
+                    ]}
+                  >
+                    {selectedSpecialtyName || "Seleccionar especialidad"}
+                  </Text>
+                  <Ionicons name="chevron-down" size={18} color={MUTED_LIGHT} />
+                </TouchableOpacity>
+              </FieldCard>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>URL de inscripción</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.registration_url}
-                onChangeText={(t) => updateField("registration_url", t)}
-                placeholder="https://..."
-                placeholderTextColor={COLORS.GRAY}
-                keyboardType="url"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
+              <FieldCard
+                label="Lugar del evento"
+                required
+                hint="Indica ciudad, sede o ambos. Ej. Madrid · Hospital La Paz"
+              >
+                <KeyboardAwareTextInput
+                  style={styles.input}
+                  value={formData.venue_name}
+                  onChangeText={(text) => updateField("venue_name", text)}
+                  placeholder="Ciudad y/o sede"
+                  placeholderTextColor={MUTED_LIGHT}
+                />
+              </FieldCard>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Objetivos del curso</Text>
-              <TextInput
-                inputAccessoryViewID={KEYBOARD_DISMISS_ACCESSORY_ID}
-                style={[styles.input, styles.inputMultiline]}
-                value={formData.objectives}
-                onChangeText={(t) => updateField("objectives", t)}
-                placeholder="Describe los objetivos del curso..."
-                placeholderTextColor={COLORS.GRAY}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-              />
-            </View>
+              <FieldCard
+                label="Precio"
+                hint="Opcional"
+              >
+                <KeyboardAwareTextInput
+                  style={styles.input}
+                  value={formData.price_text}
+                  onChangeText={(text) => updateField("price_text", text)}
+                  placeholder="Ej. 450 €"
+                  placeholderTextColor={MUTED_LIGHT}
+                />
+              </FieldCard>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Más información</Text>
-              <TextInput
-                inputAccessoryViewID={KEYBOARD_DISMISS_ACCESSORY_ID_2}
-                style={[styles.input, styles.inputMultiline]}
-                value={formData.more_info}
-                onChangeText={(t) => updateField("more_info", t)}
-                placeholder="Información de contacto, teléfono, email..."
-                placeholderTextColor={COLORS.GRAY}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-              />
-            </View>
+              <FieldCard label="URL de inscripción" required>
+                <KeyboardAwareTextInput
+                  style={styles.input}
+                  value={formData.registration_url}
+                  onChangeText={(text) => updateField("registration_url", text)}
+                  placeholder="https://..."
+                  placeholderTextColor={MUTED_LIGHT}
+                  keyboardType="url"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </FieldCard>
 
-            <TouchableOpacity
-              style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-              onPress={handleSubmit}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color={COLORS.WHITE} />
-              ) : (
-                <Text style={styles.submitButtonText}>
-                  {isEditMode ? "Actualizar Curso" : "Crear Curso"}
-                </Text>
-              )}
-            </TouchableOpacity>
+              <FieldCard label="Más información" hint="Opcional">
+                <KeyboardAwareTextInput
+                  inputAccessoryViewID={KEYBOARD_DISMISS_ACCESSORY_ID}
+                  style={[styles.input, styles.inputMultiline]}
+                  value={formData.more_info}
+                  onChangeText={(text) => updateField("more_info", text)}
+                  placeholder="Contacto, notas o condiciones"
+                  placeholderTextColor={MUTED_LIGHT}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  keyboardAwareOptions={{ extraScrollSpace: 40 }}
+                />
+              </FieldCard>
 
-            <View style={styles.bottomSpacing} />
-          </>
-        )}
-      </ScrollView>
+              <TouchableOpacity
+                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                onPress={handleSubmit}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.submitButtonText}>
+                      {isEditMode ? "Guardar cambios" : "Publicar curso"}
+                    </Text>
+                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </KeyboardAwareScrollView>
 
       <KeyboardDismissAccessory />
 
-      {showDatePicker && (
-        <View style={styles.datePickerOverlay}>
-          <TouchableOpacity
-            style={styles.datePickerOverlayTouchable}
-            activeOpacity={1}
-            onPress={() => {
-              setShowDatePicker(false);
-              setSelectedDateIndex(null);
-              setTempSelectedDate(null);
-            }}
-          />
-          {Platform.OS === "ios" ? (
-            <View style={styles.datePickerModalContainer}>
-              <View style={styles.datePickerHeader}>
-                <TouchableOpacity
-                  onPress={() => {
-                    setShowDatePicker(false);
-                    setSelectedDateIndex(null);
-                    setTempSelectedDate(null);
-                  }}
-                  style={styles.datePickerCancelButton}
-                >
-                  <Text style={styles.datePickerCancelText}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleConfirmDate}
-                  style={styles.datePickerDoneButton}
-                >
-                  <Text style={styles.datePickerDoneText}>Seleccionar</Text>
-                </TouchableOpacity>
-              </View>
+      <SelectionModal
+        visible={openModal === "speciality"}
+        onClose={() => setOpenModal(null)}
+        title="Seleccionar especialidad"
+        options={specialtyOptions}
+        value={formData.speciality_id}
+        onSelect={(value) => updateField("speciality_id", value)}
+        placeholder="Sin especialidad"
+      />
+
+      {showDatePicker ? (
+        <View style={styles.dateOverlay}>
+          <TouchableOpacity style={styles.dateOverlayTouch} onPress={resetDatePickerState} />
+          <View style={styles.dateSheet}>
+            {Platform.OS === "ios" ? (
+              <>
+                <View style={styles.dateSheetHeader}>
+                  <TouchableOpacity onPress={resetDatePickerState}>
+                    <Text style={styles.dateSheetCancel}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleConfirmDate}>
+                    <Text style={styles.dateSheetConfirm}>Seleccionar</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={tempSelectedDate || new Date()}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDateChange}
+                  locale="es-ES"
+                  minimumDate={new Date()}
+                />
+              </>
+            ) : (
               <DateTimePicker
                 value={tempSelectedDate || new Date()}
-                mode="date"
-                display="spinner"
-                onChange={(event, selectedDate) => {
-                  if (selectedDate) setTempSelectedDate(selectedDate);
-                }}
-                locale="es-ES"
-                minimumDate={new Date()}
-              />
-            </View>
-          ) : (
-            <View style={styles.datePickerModalContainer}>
-              <View style={styles.datePickerHeader}>
-                <Text style={styles.datePickerCancelText}>
-                  Seleccionar fecha
-                </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setShowDatePicker(false);
-                    setSelectedDateIndex(null);
-                    setTempSelectedDate(null);
-                  }}
-                >
-                  <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
-                </TouchableOpacity>
-              </View>
-              <DateTimePicker
-                value={
-                  selectedDateIndex !== null &&
-                  formData.event_dates[selectedDateIndex]
-                    ? new Date(
-                        formData.event_dates[selectedDateIndex] + "T00:00:00"
-                      )
-                    : new Date()
-                }
                 mode="date"
                 display="default"
                 onChange={handleDateChange}
                 locale="es-ES"
                 minimumDate={new Date()}
               />
-            </View>
-          )}
+            )}
+          </View>
         </View>
-      )}
-    </KeyboardAvoidingView>
+      ) : null}
+    </ScreenScaffold>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.BACKGROUND_LIGHT,
+    backgroundColor: BG_LIGHT,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: COLORS.WHITE,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+  contentSurface: {
+    flex: 1,
+    backgroundColor: BG_LIGHT,
   },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: COLORS.PRIMARY,
-    fontWeight: "500",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-  },
-  headerPlaceholder: {
-    width: 80,
-  },
-  scroll: {
+  formScroll: {
     flex: 1,
   },
-  scrollContent: {
-    padding: 20,
+  formScrollContent: {
+    paddingBottom: 0,
+  },
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    gap: 14,
   },
   loadingContainer: {
-    paddingVertical: 60,
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
-    color: COLORS.GRAY,
+    color: MUTED,
+    fontSize: 15,
   },
-  errorContainer: {
+  errorCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    backgroundColor: `${COLORS.ERROR}15`,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
+    gap: 10,
+    backgroundColor: "#FEF2F2",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: `${COLORS.ERROR}30`,
+    borderColor: "#FECACA",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   errorText: {
     flex: 1,
     fontSize: 14,
-    color: COLORS.ERROR,
+    color: DANGER,
+    lineHeight: 20,
   },
-  section: {
-    marginBottom: 16,
-  },
-  sectionTop: {
-    marginTop: 8,
+  sectionHeader: {
+    marginTop: 6,
+    marginBottom: 2,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
+    fontWeight: "700",
+    color: ACCENT,
   },
-  field: {
-    marginBottom: 20,
-  },
-  label: {
+  sectionText: {
+    marginTop: 4,
     fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.GRAY_DARK,
-    marginBottom: 8,
+    color: MUTED,
+    lineHeight: 20,
+  },
+  fieldCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    padding: 16,
+  },
+  fieldLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: ACCENT,
+  },
+  fieldHint: {
+    marginTop: 4,
+    marginBottom: 12,
+    fontSize: 13,
+    color: MUTED,
+    lineHeight: 19,
   },
   required: {
-    color: COLORS.ERROR,
+    color: DANGER,
   },
   input: {
+    marginTop: 12,
     borderWidth: 1,
-    borderColor: COLORS.BORDER,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-    color: COLORS.GRAY_DARK,
-    backgroundColor: COLORS.WHITE,
+    borderColor: CARD_BORDER,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 15,
+    color: ACCENT,
   },
   inputMultiline: {
-    minHeight: 100,
-    paddingTop: 12,
+    minHeight: 110,
+    paddingTop: 14,
   },
-  datesList: {
-    marginBottom: 12,
+  selector: {
+    marginTop: 12,
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  selectorText: {
+    flex: 1,
+    fontSize: 15,
+    color: ACCENT,
+    fontWeight: "600",
+  },
+  selectorPlaceholder: {
+    color: MUTED_LIGHT,
+    fontWeight: "500",
+  },
+  dateList: {
+    marginTop: 12,
     gap: 8,
   },
   dateItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: `${COLORS.PRIMARY}15`,
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: `${COLORS.PRIMARY}30`,
+    backgroundColor: `${PRIMARY}10`,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  dateItemContent: {
+  dateItemBody: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     flex: 1,
   },
-  dateText: {
+  dateItemText: {
     fontSize: 14,
-    fontWeight: "500",
-    color: COLORS.GRAY_DARK,
+    fontWeight: "700",
+    color: PRIMARY,
   },
-  removeDateBtn: {
-    padding: 4,
+  dateDeleteButton: {
+    paddingLeft: 12,
   },
   addDateButton: {
+    marginTop: 12,
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: `${COLORS.PRIMARY}15`,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: `${COLORS.PRIMARY}30`,
-    borderStyle: "dashed",
+    borderColor: `${PRIMARY}26`,
   },
-  addDateButtonText: {
+  addDateText: {
+    color: PRIMARY,
     fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.PRIMARY,
+    fontWeight: "700",
   },
   submitButton: {
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
     marginTop: 8,
+    backgroundColor: PRIMARY,
+    minHeight: 56,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
   },
   submitButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   submitButtonText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.WHITE,
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
   },
-  bottomSpacing: {
-    height: 32,
-  },
-  datePickerOverlay: {
+  dateOverlay: {
     position: "absolute",
     top: 0,
-    left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    left: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.28)",
     justifyContent: "flex-end",
-    zIndex: 1000,
-    elevation: 1000,
   },
-  datePickerOverlayTouchable: {
+  dateOverlayTouch: {
     flex: 1,
   },
-  datePickerModalContainer: {
-    backgroundColor: COLORS.WHITE,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: Platform.OS === "ios" ? 34 : 20,
-    maxHeight: "50%",
+  dateSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: Platform.OS === "ios" ? 28 : 12,
   },
-  datePickerHeader: {
+  dateSheetHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingTop: 16,
+  },
+  dateSheetCancel: {
+    color: MUTED,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  dateSheetConfirm: {
+    color: PRIMARY,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+});
+
+const sheet = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: CARD_BORDER,
   },
-  datePickerCancelButton: {
-    paddingVertical: 8,
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
+  },
+  searchWrap: {
     paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  datePickerCancelText: {
-    fontSize: 16,
-    color: COLORS.GRAY_DARK,
-    fontWeight: "600",
+  searchInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  datePickerDoneButton: {
-    paddingVertical: 8,
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: ACCENT,
+    padding: 0,
+  },
+  listContent: {
     paddingHorizontal: 16,
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 8,
+    paddingBottom: 24,
   },
-  datePickerDoneText: {
-    fontSize: 16,
-    color: COLORS.WHITE,
+  option: {
+    minHeight: 58,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  optionSelected: {
+    borderColor: `${PRIMARY}40`,
+    backgroundColor: `${PRIMARY}10`,
+  },
+  optionClear: {
+    backgroundColor: "#F8FAFC",
+  },
+  optionName: {
+    flex: 1,
+    fontSize: 15,
     fontWeight: "600",
+    color: ACCENT,
+  },
+  optionNameSelected: {
+    color: PRIMARY,
+  },
+  optionNameClear: {
+    color: MUTED,
+  },
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: CARD_BORDER,
+  },
+  confirmBtn: {
+    backgroundColor: PRIMARY,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 15,
+  },
+  confirmText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  radioDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+  },
+  radioDotSelected: {
+    borderColor: PRIMARY,
+  },
+  radioDotUnselected: {
+    borderColor: "#CBD5E1",
+  },
+  radioDotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: PRIMARY,
   },
 });

@@ -15,8 +15,16 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-// Crear cliente de Supabase (similar a tu configuración en Next.js)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// En React Native hay que proporcionar un storage persistente explícito para
+// que la sesión sobreviva al cierre y reapertura de la app.
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+});
 
 // Claves para caché de verificación de versión
 const VERSION_CHECK_KEY = "@losresis:version_check";

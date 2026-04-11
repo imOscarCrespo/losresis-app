@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Roomies MIR - Onboarding Quiz 6</title>
+<!-- BEGIN: Tailwind CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- END: Tailwind CDN -->
+<!-- BEGIN: Tailwind Configuration -->
+<script data-purpose="tailwind-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brandPurple: '#A100C2',
+          }
+        }
+      }
+    }
+  </script>
+<!-- END: Tailwind Configuration -->
+<style data-purpose="custom-layouts">
+    /* Ensure the main content area accounts for the fixed footer button */
+    .content-scroll-area {
+      padding-bottom: 100px;
+    }
+    /* Subtle card hover/active effect */
+    .option-card {
+      transition: all 0.2s ease-in-out;
+      border: 2px solid transparent;
+    }
+    .option-card:active {
+      transform: scale(0.98);
+      border-color: #A100C2;
+    }
+  </style>
+</head>
+<body class="bg-white font-sans text-gray-900 min-h-screen flex flex-col">
+<!-- BEGIN: Header Navigation -->
+<header class="p-4 flex items-center justify-between bg-white sticky top-0 z-10">
+<button aria-label="Go back" class="p-2">
+<svg class="h-6 w-6 text-brandPurple" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+<!-- Progress Indicator Container -->
+<div class="flex-1 px-4 max-w-xs">
+<div class="w-full bg-gray-200 rounded-full h-1.5" data-purpose="progress-bar-background">
+<div class="bg-brandPurple h-1.5 rounded-full" data-purpose="progress-bar-fill" style="width: 85.7%"></div>
+</div>
+<p class="text-[10px] text-center mt-1 text-gray-500 font-medium">6 / 7</p>
+</div>
+<div class="w-10"></div> <!-- Spacer for centering progress -->
+</header>
+<!-- END: Header Navigation -->
+<!-- BEGIN: Main Content -->
+<main class="flex-1 px-6 pt-4 content-scroll-area">
+<!-- Typography Section -->
+<section class="mb-8" data-purpose="titles">
+<h1 class="text-3xl font-extrabold text-gray-900 mb-2">¿Fumar en casa?</h1>
+<p class="text-gray-500 text-lg">El olor que impregna TODO</p>
+</section>
+<!-- BEGIN: Smoking Options Grid -->
+<section class="grid grid-cols-1 gap-4" data-purpose="options-grid">
+<!-- Option 1: NO FUMADORES -->
+<button class="option-card w-full flex flex-col items-center justify-center p-6 bg-gray-50 rounded-2xl border-2 border-transparent hover:border-brandPurple focus:border-brandPurple outline-none group" data-purpose="option-non-smoker">
+<div class="mb-4 text-brandPurple bg-white p-4 rounded-full shadow-sm">
+<!-- No Smoking Sign Illustration Placeholder -->
+<svg class="h-12 w-12" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+</svg>
+</div>
+<span class="font-bold text-gray-800 tracking-wide">NO FUMADORES</span>
+</button>
+<!-- Option 2: FUERA -->
+<button class="option-card w-full flex flex-col items-center justify-center p-6 bg-gray-50 rounded-2xl border-2 border-transparent hover:border-brandPurple focus:border-brandPurple outline-none group" data-purpose="option-balcony">
+<div class="mb-4 text-brandPurple bg-white p-4 rounded-full shadow-sm">
+<!-- Balcony Illustration Placeholder -->
+<svg class="h-12 w-12" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+<rect height="4" rx="1" stroke-width="1.5" width="20" x="2" y="16"></rect>
+</svg>
+</div>
+<span class="font-bold text-gray-800 tracking-wide">FUERA</span>
+</button>
+<!-- Option 3: CASA OK -->
+<button class="option-card w-full flex flex-col items-center justify-center p-6 bg-gray-50 rounded-2xl border-2 border-transparent hover:border-brandPurple focus:border-brandPurple outline-none group" data-purpose="option-inside-ok">
+<div class="mb-4 text-brandPurple bg-white p-4 rounded-full shadow-sm">
+<!-- Sofa and Ashtray Illustration Placeholder -->
+<svg class="h-12 w-12" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6m16 0V8a2 2 0 00-2-2H6a2 2 0 00-2 2v4m16 0h-2m-12 0H4M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+<circle cx="12" cy="17" r="2" stroke-width="1.5"></circle>
+</svg>
+</div>
+<span class="font-bold text-gray-800 tracking-wide">CASA OK</span>
+</button>
+</section>
+<!-- END: Smoking Options Grid -->
+</main>
+<!-- END: Main Content -->
+<!-- BEGIN: Sticky Footer Action -->
+<footer class="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white to-transparent" data-purpose="sticky-footer">
+<button class="w-full bg-brandPurple text-white py-4 rounded-xl font-bold text-lg shadow-lg active:scale-[0.99] transition-transform" data-purpose="continue-button">
+      CONTINUAR
+    </button>
+</footer>
+<!-- END: Sticky Footer Action -->
+</body></html>

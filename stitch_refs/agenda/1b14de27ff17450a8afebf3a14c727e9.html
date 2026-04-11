@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#670CF5",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#0F081E",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Public Sans', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-[#0F081E] font-display text-slate-900 dark:text-slate-100">
+<div class="relative flex h-auto min-h-screen w-full max-w-md mx-auto flex-col bg-background-light dark:bg-[#0F081E] overflow-x-hidden shadow-2xl">
+<header class="sticky top-0 z-10 bg-gradient-to-r from-[#670CF5] to-[#8B44FF] px-4 py-4 flex items-center shadow-lg">
+<button class="flex items-center justify-center p-2 rounded-full hover:bg-white/20 text-white">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="flex-1 text-center text-lg font-bold tracking-tight pr-10 text-white">Nueva Investigación</h1>
+</header>
+<main class="flex flex-col gap-6 p-4">
+<div class="bg-white dark:bg-slate-900/40 p-5 rounded-2xl shadow-sm border border-primary/10">
+<div class="flex justify-between items-center mb-3">
+<p class="text-sm font-semibold uppercase tracking-wider text-primary/70">Progreso del registro</p>
+<p class="text-sm font-bold text-primary">60%</p>
+</div>
+<div class="w-full h-3 bg-primary/10 rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 60%;"></div>
+</div>
+</div>
+<section class="flex flex-col gap-5">
+<h2 class="text-xl font-bold px-1">Detalles de la Actividad</h2>
+<div class="flex flex-col gap-4">
+<div class="group flex flex-col gap-1.5">
+<label class="text-sm font-semibold px-1 text-slate-600 dark:text-slate-400">Título del Proyecto</label>
+<div class="relative">
+<input class="w-full h-14 px-4 bg-white dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:border-primary focus:ring-0 transition-all outline-none placeholder:text-slate-400" placeholder="Ej: Análisis de resultados post-quirúrgicos" type="text"/>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="text-sm font-semibold px-1 text-slate-600 dark:text-slate-400">Estado del Proyecto</label>
+<div class="grid grid-cols-2 gap-3">
+<label class="relative cursor-pointer">
+<input checked="" class="peer sr-only" name="status" type="radio"/>
+<div class="flex items-center justify-center h-12 rounded-xl border-2 border-slate-100 dark:border-slate-800 peer-checked:border-primary peer-checked:bg-primary/5 transition-all">
+<span class="text-sm font-medium peer-checked:text-primary">En curso</span>
+</div>
+</label>
+<label class="relative cursor-pointer">
+<input class="peer sr-only" name="status" type="radio"/>
+<div class="flex items-center justify-center h-12 rounded-xl border-2 border-slate-100 dark:border-slate-800 peer-checked:border-primary peer-checked:bg-primary/5 transition-all">
+<span class="text-sm font-medium">Publicado</span>
+</div>
+</label>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="text-sm font-semibold px-1 text-slate-600 dark:text-slate-400">Rol en la investigación</label>
+<div class="relative group">
+<select class="appearance-none w-full h-14 px-4 bg-white dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:border-primary focus:ring-0 transition-all outline-none">
+<option disabled="" selected="" value="">Selecciona tu rol</option>
+<option value="principal">Investigador Principal</option>
+<option value="co">Co-investigador</option>
+<option value="colaborador">Colaborador</option>
+<option value="tesista">Tesista</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">expand_more</span>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="text-sm font-semibold px-1 text-slate-600 dark:text-slate-400">Área de Especialidad</label>
+<div class="relative group">
+<input class="w-full h-14 px-4 bg-white dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-xl focus:border-primary focus:ring-0 transition-all outline-none placeholder:text-slate-400" placeholder="Ej: Cardiología" type="text"/>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">medical_services</span>
+</div>
+</div>
+</div>
+</section>
+<section class="mt-4">
+<div class="bg-primary/10 border border-primary/20 rounded-2xl p-4 flex gap-4 items-start">
+<span class="material-symbols-outlined text-primary mt-1">info</span>
+<p class="text-sm text-slate-600 dark:text-slate-300">
+                        Asegúrate de tener el aval del comité de ética antes de publicar resultados finales.
+                    </p>
+</div>
+</section>
+</main>
+<footer class="mt-auto p-4 bg-background-light dark:bg-background-dark">
+<div class="flex gap-3">
+<button class="flex-1 h-14 rounded-xl border-2 border-primary text-primary font-bold hover:bg-primary/5 transition-colors">
+                    Guardar borrador
+                </button>
+<button class="flex-[1.5] h-14 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/30 hover:opacity-90 transition-opacity">
+                    Continuar
+                </button>
+</div>
+</footer>
+<div class="h-6 w-full"></div>
+</div>
+</body></html>

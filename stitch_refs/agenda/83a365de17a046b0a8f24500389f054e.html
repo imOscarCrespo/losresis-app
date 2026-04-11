@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#640af5",
+                        "background-light": "#f7f5f8",
+                        "background-dark": "#171022",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Añadir a la Agenda - Los Resis</title>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100">
+<div class="relative flex h-screen w-full flex-col overflow-hidden">
+<!-- Header -->
+<div class="flex items-center bg-white dark:bg-slate-900 p-4 pb-2 justify-between border-b border-slate-100 dark:border-slate-800 blur-[2px]">
+<div class="text-slate-900 dark:text-slate-100 flex size-10 shrink-0 items-center justify-center">
+<span class="material-symbols-outlined">arrow_back</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Agenda de Residencia</h2>
+<div class="flex w-10 items-center justify-end">
+<span class="material-symbols-outlined text-slate-900 dark:text-slate-100">search</span>
+</div>
+</div>
+<!-- Background Calendar (Blurred) -->
+<div class="flex-1 p-4 blur-[2px] opacity-60">
+<div class="flex flex-col gap-4">
+<div class="flex items-center justify-between px-4">
+<span class="material-symbols-outlined">chevron_left</span>
+<p class="text-base font-bold">Octubre 2023</p>
+<span class="material-symbols-outlined">chevron_right</span>
+</div>
+<div class="grid grid-cols-7 text-center text-xs font-bold mb-2">
+<p>L</p><p>M</p><p>X</p><p>J</p><p>V</p><p>S</p><p>D</p>
+</div>
+<div class="grid grid-cols-7 gap-y-2">
+<!-- Placeholder days -->
+<div class="h-10 flex items-center justify-center text-slate-400">28</div>
+<div class="h-10 flex items-center justify-center text-slate-400">29</div>
+<div class="h-10 flex items-center justify-center text-slate-400">30</div>
+<div class="h-10 flex items-center justify-center">1</div>
+<div class="h-10 flex items-center justify-center">2</div>
+<div class="h-10 flex items-center justify-center">3</div>
+<div class="h-10 flex items-center justify-center">4</div>
+<div class="h-10 flex items-center justify-center bg-primary text-white rounded-full">5</div>
+<div class="h-10 flex items-center justify-center">6</div>
+<div class="h-10 flex items-center justify-center">7</div>
+<div class="h-10 flex items-center justify-center">8</div>
+<div class="h-10 flex items-center justify-center">9</div>
+<div class="h-10 flex items-center justify-center">10</div>
+<div class="h-10 flex items-center justify-center">11</div>
+</div>
+</div>
+</div>
+<!-- Overlay Dimmer -->
+<div class="absolute inset-0 bg-slate-900/40 z-10"></div>
+<!-- Bottom Sheet Menu -->
+<div class="absolute bottom-0 left-0 right-0 z-20 bg-white dark:bg-slate-900 rounded-t-[2rem] shadow-2xl flex flex-col max-h-[85vh]">
+<!-- Handle -->
+<div class="flex w-full items-center justify-center pt-3 pb-1">
+<div class="h-1.5 w-12 rounded-full bg-slate-200 dark:bg-slate-700"></div>
+</div>
+<!-- Title -->
+<div class="px-6 py-4 flex items-center justify-between border-b border-slate-50 dark:border-slate-800">
+<h2 class="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Añadir a la agenda</h2>
+<button class="bg-slate-100 dark:bg-slate-800 p-1 rounded-full text-slate-500">
+<span class="material-symbols-outlined text-sm">close</span>
+</button>
+</div>
+<!-- Options List -->
+<div class="overflow-y-auto px-4 py-2 pb-10">
+<div class="flex flex-col gap-1">
+<!-- 1. Guardia -->
+<button class="group flex items-center gap-4 p-4 rounded-xl active:bg-slate-50 dark:active:bg-slate-800 transition-colors text-left">
+<div class="flex h-12 w-12 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-2xl">medical_services</span>
+</div>
+<div class="flex flex-1 flex-col">
+<span class="text-lg font-semibold">Guardia</span>
+<span class="text-xs text-slate-500">Registrar turno de guardia</span>
+</div>
+<span class="material-symbols-outlined text-slate-300">chevron_right</span>
+</button>
+<!-- 2. Curso -->
+<button class="group flex items-center gap-4 p-4 rounded-xl active:bg-slate-50 dark:active:bg-slate-800 transition-colors text-left">
+<div class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 dark:bg-primary/20 text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-2xl">school</span>
+</div>
+<div class="flex flex-1 flex-col">
+<span class="text-lg font-semibold">Curso</span>
+<span class="text-xs text-slate-500">Formación y talleres</span>
+</div>
+<span class="material-symbols-outlined text-slate-300">chevron_right</span>
+</button>
+<!-- 3. Congreso -->
+<button class="group flex items-center gap-4 p-4 rounded-xl active:bg-slate-50 dark:active:bg-slate-800 transition-colors text-left">
+<div class="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-2xl">mic</span>
+</div>
+<div class="flex flex-1 flex-col">
+<span class="text-lg font-semibold">Congreso</span>
+<span class="text-xs text-slate-500">Eventos médicos y ponencias</span>
+</div>
+<span class="material-symbols-outlined text-slate-300">chevron_right</span>
+</button>
+<!-- 4. Estudio -->
+<button class="group flex items-center gap-4 p-4 rounded-xl active:bg-slate-50 dark:active:bg-slate-800 transition-colors text-left">
+<div class="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-2xl">menu_book</span>
+</div>
+<div class="flex flex-1 flex-col">
+<span class="text-lg font-semibold">Estudio</span>
+<span class="text-xs text-slate-500">Sesiones de estudio personal</span>
+</div>
+<span class="material-symbols-outlined text-slate-300">chevron_right</span>
+</button>
+<!-- 5. Investigación -->
+<button class="group flex items-center gap-4 p-4 rounded-xl active:bg-slate-50 dark:active:bg-slate-800 transition-colors text-left">
+<div class="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-2xl">biotech</span>
+</div>
+<div class="flex flex-1 flex-col">
+<span class="text-lg font-semibold">Investigación</span>
+<span class="text-xs text-slate-500">Protocolos y papers</span>
+</div>
+<span class="material-symbols-outlined text-slate-300">chevron_right</span>
+</button>
+<!-- 6. Rotación -->
+<button class="group flex items-center gap-4 p-4 rounded-xl active:bg-slate-50 dark:active:bg-slate-800 transition-colors text-left">
+<div class="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-2xl">domain</span>
+</div>
+<div class="flex flex-1 flex-col">
+<span class="text-lg font-semibold">Rotación</span>
+<span class="text-xs text-slate-500">Servicios externos u hospitales</span>
+</div>
+<span class="material-symbols-outlined text-slate-300">chevron_right</span>
+</button>
+<!-- 7. Recordatorio -->
+<button class="group flex items-center gap-4 p-4 rounded-xl active:bg-slate-50 dark:active:bg-slate-800 transition-colors text-left">
+<div class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-2xl">notifications</span>
+</div>
+<div class="flex flex-1 flex-col">
+<span class="text-lg font-semibold">Recordatorio</span>
+<span class="text-xs text-slate-500">Alertas y notas importantes</span>
+</div>
+<span class="material-symbols-outlined text-slate-300">chevron_right</span>
+</button><!-- 8. Fiesta -->
+<button class="group flex items-center gap-4 p-4 rounded-xl active:bg-slate-50 dark:active:bg-slate-800 transition-colors text-left">
+<div class="flex h-12 w-12 items-center justify-center rounded-xl group-hover:scale-110 transition-transform bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"><span class="material-symbols-outlined text-2xl">beach_access</span></div>
+<div class="flex flex-1 flex-col">
+<span class="text-lg font-semibold">Libranza</span>
+<span class="text-xs text-slate-500">Descanso y tiempo personal</span>
+</div>
+<span class="material-symbols-outlined text-slate-300">chevron_right</span>
+</button></div>
+</div>
+</div>
+<!-- Tab Bar (Inactive/Blurred) -->
+<div class="mt-auto flex border-t border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-4 pb-6 pt-3 blur-[2px]">
+<a class="flex flex-1 flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">home</span>
+<p class="text-[10px] font-medium">Inicio</p>
+</a>
+<a class="flex flex-1 flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1">calendar_month</span>
+<p class="text-[10px] font-medium">Agenda</p>
+</a>
+<a class="flex flex-1 flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">group</span>
+<p class="text-[10px] font-medium">Comunidad</p>
+</a>
+<a class="flex flex-1 flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+<p class="text-[10px] font-medium">Perfil</p>
+</a>
+</div>
+</div>
+</body></html>

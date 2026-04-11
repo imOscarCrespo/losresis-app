@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Conectar con residentes - Rotaciones Externas</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        h1, h2, h3, .headline-font {
+            font-family: 'Manrope', sans-serif;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .primary-gradient {
+            background: linear-gradient(135deg, #6b18f8 0%, #ac8eff 100%);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary-dim": "#005a4d",
+                        "surface-container-high": "#dfe3e7",
+                        "surface-bright": "#f5f7fa",
+                        "on-primary-fixed": "#000000",
+                        "on-primary-container": "#2a0070",
+                        "inverse-on-surface": "#9a9da0",
+                        "secondary-fixed-dim": "#f5a9ff",
+                        "surface-container": "#e5e8ec",
+                        "surface-container-lowest": "#ffffff",
+                        "error": "#b41340",
+                        "on-error": "#ffefef",
+                        "outline-variant": "#abadb0",
+                        "on-surface": "#2c2f32",
+                        "primary-fixed": "#ac8eff",
+                        "on-error-container": "#510017",
+                        "surface-container-low": "#eef1f4",
+                        "surface-tint": "#6b18f8",
+                        "on-tertiary-fixed": "#004a3f",
+                        "primary-container": "#ac8eff",
+                        "background": "#f5f7fa",
+                        "surface-container-highest": "#d9dde1",
+                        "outline": "#74777a",
+                        "on-tertiary": "#c2ffef",
+                        "secondary-container": "#f9beff",
+                        "on-secondary": "#ffeefc",
+                        "inverse-surface": "#0b0f11",
+                        "tertiary-fixed-dim": "#5aeed2",
+                        "surface-dim": "#d0d5d9",
+                        "on-primary-fixed-variant": "#350088",
+                        "on-primary": "#f7f0ff",
+                        "tertiary": "#006859",
+                        "primary": "#6b18f8",
+                        "on-secondary-container": "#7b0094",
+                        "secondary-fixed": "#f9beff",
+                        "tertiary-fixed": "#6bfde0",
+                        "on-background": "#2c2f32",
+                        "surface-variant": "#d9dde1",
+                        "on-secondary-fixed": "#5c0070",
+                        "secondary-dim": "#8800a4",
+                        "on-surface-variant": "#595c5e",
+                        "on-secondary-fixed-variant": "#8a00a6",
+                        "error-dim": "#a70138",
+                        "primary-fixed-dim": "#a07dff",
+                        "surface": "#f5f7fa",
+                        "on-tertiary-fixed-variant": "#006a5a",
+                        "primary-dim": "#5e00e3",
+                        "secondary": "#9b00bb",
+                        "on-tertiary-container": "#005f51",
+                        "inverse-primary": "#9d79ff",
+                        "error-container": "#f74b6d",
+                        "tertiary-container": "#6bfde0"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+          min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="sticky top-0 z-40 bg-[#f5f7fa] dark:bg-slate-950 no-border tonal-shift">
+<div class="flex justify-between items-center w-full px-6 py-4 max-w-7xl mx-auto">
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-[#dfe3e7] dark:hover:bg-slate-800 transition-colors rounded-full active:scale-95 duration-200">
+<span class="material-symbols-outlined text-primary dark:text-[#ac8eff]" data-icon="menu">menu</span>
+</button>
+<h1 class="text-2xl font-bold text-primary dark:text-[#ac8eff] tracking-tight">Conectar con residentes</h1>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden md:flex gap-6 mr-6">
+<a class="text-[#595c5e] dark:text-slate-400 hover:text-primary transition-colors font-medium" href="#">Hub</a>
+<a class="text-[#595c5e] dark:text-slate-400 hover:text-primary transition-colors font-medium" href="#">Explorar</a>
+<a class="text-[#6b18f8] dark:text-[#ac8eff] font-bold" href="#">Match</a>
+</div>
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-primary font-bold">
+                    EM
+                </div>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto px-6 pt-8 space-y-12">
+<!-- Hero Header -->
+<section class="space-y-2">
+<h2 class="text-4xl font-extrabold text-on-surface headline-font tracking-tight">No estás solo.</h2>
+<p class="text-on-surface-variant text-lg max-w-2xl">Conecta con otros residentes que comparten tu destino o que ya han recorrido el camino que estás por empezar.</p>
+</section>
+<!-- Section 1: Van en tus fechas -->
+<section class="space-y-6">
+<div class="flex items-center justify-between">
+<h3 class="text-xl font-bold text-on-surface headline-font flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="event_repeat">event_repeat</span>
+                    Van en tus fechas
+                </h3>
+<span class="text-sm font-medium text-primary px-3 py-1 bg-primary/10 rounded-full">3 Coincidencias</span>
+</div>
+<!-- Bento Grid for Active Rotations -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Resident Card 1 -->
+<div class="group bg-surface-container-lowest rounded-xl p-6 shadow-[0_8px_24px_rgba(53,0,136,0.04)] hover:shadow-lg transition-all duration-300">
+<div class="flex justify-between items-start mb-6">
+<div class="flex gap-4">
+<div>
+<h4 class="font-bold text-on-surface">Dra. Elena Martínez</h4>
+<p class="text-xs text-on-surface-variant font-medium">R3 Cardiología • Hospital Clínic</p>
+</div>
+</div>
+<button class="text-[10px] font-bold uppercase tracking-widest text-primary bg-primary/5 hover:bg-primary/10 px-2 py-1 rounded transition-colors">Hablar por chat</button>
+</div>
+<div class="bg-surface-container-low rounded-lg p-4 mb-6 space-y-2">
+<div class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-sm text-primary" data-icon="calendar_month">calendar_month</span>
+<span class="font-medium">Octubre - Diciembre 2024</span>
+</div>
+<div class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-sm text-primary" data-icon="location_on">location_on</span>
+<span class="text-on-surface-variant">Barcelona, España</span>
+</div>
+</div>
+<div class="flex gap-3 pt-2">
+<button class="text-sm font-bold text-primary flex items-center gap-1 hover:underline">
+                            Ver contacto <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Resident Card 2 -->
+<div class="group bg-surface-container-lowest rounded-xl p-6 shadow-[0_8px_24px_rgba(53,0,136,0.04)] hover:shadow-lg transition-all duration-300">
+<div class="flex justify-between items-start mb-6">
+<div class="flex gap-4">
+<div>
+<h4 class="font-bold text-on-surface">Dr. Marcos Silva</h4>
+<p class="text-xs text-on-surface-variant font-medium">R4 Intensivos • Hospital La Paz</p>
+</div>
+</div>
+<button class="text-[10px] font-bold uppercase tracking-widest text-secondary bg-secondary/5 hover:bg-secondary/10 px-2 py-1 rounded transition-colors">Hablar por chat</button>
+</div>
+<div class="bg-surface-container-low rounded-lg p-4 mb-6 space-y-2">
+<div class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-sm text-primary" data-icon="calendar_month">calendar_month</span>
+<span class="font-medium">Septiembre - Noviembre 2024</span>
+</div>
+<div class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-sm text-primary" data-icon="location_on">location_on</span>
+<span class="text-on-surface-variant">Madrid, España</span>
+</div>
+</div>
+<div class="flex gap-3 pt-2">
+<button class="text-sm font-bold text-primary flex items-center gap-1 hover:underline">
+                            Ver contacto <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Resident Card 3 -->
+<div class="group bg-surface-container-lowest rounded-xl p-6 shadow-[0_8px_24px_rgba(53,0,136,0.04)] hover:shadow-lg transition-all duration-300">
+<div class="flex justify-between items-start mb-6">
+<div class="flex gap-4">
+<div>
+<h4 class="font-bold text-on-surface">Dra. Lucía Torres</h4>
+<p class="text-xs text-on-surface-variant font-medium">R2 Pediatría • H. Niño Jesús</p>
+</div>
+</div>
+<button class="text-[10px] font-bold uppercase tracking-widest text-primary bg-primary/5 hover:bg-primary/10 px-2 py-1 rounded transition-colors">Hablar por chat</button>
+</div>
+<div class="bg-surface-container-low rounded-lg p-4 mb-6 space-y-2">
+<div class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-sm text-primary" data-icon="calendar_month">calendar_month</span>
+<span class="font-medium">Octubre 2024 - Enero 2025</span>
+</div>
+<div class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-sm text-primary" data-icon="location_on">location_on</span>
+<span class="text-on-surface-variant">Madrid, España</span>
+</div>
+</div>
+<div class="flex gap-3 pt-2">
+<button class="text-sm font-bold text-primary flex items-center gap-1 hover:underline">
+                            Ver contacto <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 2: Han estado antes -->
+<section class="space-y-6">
+<h3 class="text-xl font-bold text-on-surface headline-font flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary" data-icon="history_edu">history_edu</span>
+                Han estado antes
+            </h3>
+<div class="bg-surface-container-low rounded-[32px] p-8">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<!-- Experience Item 1 -->
+<div class="bg-surface-container-lowest rounded-2xl p-6 flex flex-col md:flex-row gap-6 items-start border border-outline-variant/10">
+<div class="flex-1 space-y-3">
+<div>
+<h4 class="font-bold text-on-surface">Dr. Javier Ruiz</h4>
+<p class="text-xs text-on-surface-variant font-medium">Rotó en Hospital Clínic (2023)</p>
+</div>
+<p class="text-sm italic text-on-surface/80 leading-relaxed">"La rotación en hemodinámica es intensa pero aprendes muchísimo. Si vas, busca alojamiento cerca de Sants, es lo mejor comunicado."</p>
+<div class="flex flex-wrap items-center gap-4 pt-2">
+<button class="text-sm font-bold text-primary flex items-center gap-1 hover:underline">
+                                    Contactar <span class="material-symbols-outlined text-sm" data-icon="arrow_forward">arrow_forward</span>
+</button>
+<button class="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">description</span>
+                                    Leer reseña
+                                </button>
+<span class="text-xs text-on-surface-variant flex items-center gap-1 ml-auto">
+<span class="material-symbols-outlined text-xs" data-icon="forum">forum</span> 12 respuestas
+                                </span>
+</div>
+</div>
+</div>
+<!-- Experience Item 2 -->
+<div class="bg-surface-container-lowest rounded-2xl p-6 flex flex-col md:flex-row gap-6 items-start border border-outline-variant/10">
+<div class="flex-1 space-y-3">
+<div>
+<h4 class="font-bold text-on-surface">Dra. Marta García</h4>
+<p class="text-xs text-on-surface-variant font-medium">Rotó en Mayo Clinic (2022)</p>
+</div>
+<p class="text-sm italic text-on-surface/80 leading-relaxed">"El proceso de visado es lo más tedioso. Tengo un PDF con todos los pasos que seguí para la J-1 si a alguien le sirve."</p>
+<div class="flex flex-wrap items-center gap-4 pt-2">
+<button class="text-sm font-bold text-primary flex items-center gap-1 hover:underline">
+                                    Contactar <span class="material-symbols-outlined text-sm" data-icon="arrow_forward">arrow_forward</span>
+</button>
+<button class="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">description</span>
+                                    Leer reseña
+                                </button>
+<span class="text-xs text-on-surface-variant flex items-center gap-1 ml-auto">
+<span class="material-symbols-outlined text-xs" data-icon="forum">forum</span> 45 respuestas
+                                </span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_-8px_24px_rgba(53,0,136,0.06)] rounded-t-[24px] md:hidden">
+<div class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-400 px-4 py-1 hover:text-[#6b18f8] transition-all duration-300">
+<span class="material-symbols-outlined text-2xl" data-icon="grid_view">grid_view</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Hub</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-400 px-4 py-1 hover:text-[#6b18f8] transition-all duration-300">
+<span class="material-symbols-outlined text-2xl" data-icon="search">search</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Explorar</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-400 px-4 py-1 hover:text-[#6b18f8] transition-all duration-300">
+<span class="material-symbols-outlined text-2xl" data-icon="home_work">home_work</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Housing</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#595c5e] dark:text-slate-400 px-4 py-1 hover:text-[#6b18f8] transition-all duration-300">
+<span class="material-symbols-outlined text-2xl" data-icon="lightbulb">lightbulb</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Tips</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-[#ac8eff]/20 text-[#6b18f8] dark:text-[#ac8eff] rounded-2xl px-4 py-1 transition-all duration-300">
+<span class="material-symbols-outlined text-2xl" data-icon="group_add" style="font-variation-settings: 'FILL' 1;">group_add</span>
+<span class="text-[0.75rem] font-medium tracking-wide">Match</span>
+</div>
+</nav>
+</body></html>

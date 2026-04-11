@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7C3AED",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#221610",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Public Sans', sans-serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display">
+<div class="relative flex h-auto min-h-screen w-full max-w-md mx-auto flex-col bg-background-light dark:bg-background-dark overflow-x-hidden">
+<div class="flex items-center bg-background-light dark:bg-background-dark p-4 pb-2 justify-between sticky top-0 z-10 border-b border-primary/20">
+<div class="text-slate-900 dark:text-slate-100 flex size-10 shrink-0 items-center justify-center cursor-pointer">
+<span class="material-symbols-outlined text-2xl">arrow_back</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center pr-10">Exportar resumen</h2>
+</div>
+<div class="px-4 pt-6 pb-2">
+<h1 class="text-slate-900 dark:text-slate-100 tracking-tight text-2xl font-bold leading-tight">Genera un resumen claro de tu actividad</h1>
+<p class="text-slate-600 dark:text-slate-400 text-sm mt-1">Selecciona el formato que mejor se adapte a tus necesidades de rotación.</p>
+</div>
+<div class="px-4 pt-6">
+<h3 class="text-slate-900 dark:text-slate-100 text-sm font-bold uppercase tracking-wider mb-4">Opciones de exportación</h3>
+<div class="flex flex-col gap-3">
+<label class="flex items-center gap-4 rounded-xl border border-primary/20 bg-white dark:bg-primary/5 p-4 flex-row-reverse cursor-pointer hover:border-primary transition-colors group">
+<input checked="" class="h-5 w-5 border-2 border-primary/30 bg-transparent text-primary focus:ring-primary focus:ring-offset-0 checked:border-primary" name="export-option" type="radio"/>
+<div class="flex grow flex-col">
+<p class="text-slate-900 dark:text-slate-100 text-base font-semibold leading-normal">PDF mensual</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal leading-normal">Ideal para revisiones periódicas con tu tutor</p>
+</div>
+</label>
+<label class="flex items-center gap-4 rounded-xl border border-primary/20 bg-white dark:bg-primary/5 p-4 flex-row-reverse cursor-pointer hover:border-primary transition-colors group">
+<input class="h-5 w-5 border-2 border-primary/30 bg-transparent text-primary focus:ring-primary focus:ring-offset-0 checked:border-primary" name="export-option" type="radio"/>
+<div class="flex grow flex-col">
+<p class="text-slate-900 dark:text-slate-100 text-base font-semibold leading-normal">PDF por categoría</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal leading-normal">Desglose detallado por especialidad técnica</p>
+</div>
+</label>
+<label class="flex items-center gap-4 rounded-xl border border-primary/20 bg-white dark:bg-primary/5 p-4 flex-row-reverse cursor-pointer hover:border-primary transition-colors group">
+<input class="h-5 w-5 border-2 border-primary/30 bg-transparent text-primary focus:ring-primary focus:ring-offset-0 checked:border-primary" name="export-option" type="radio"/>
+<div class="flex grow flex-col">
+<p class="text-slate-900 dark:text-slate-100 text-base font-semibold leading-normal">Resumen anual</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal leading-normal">Visión general consolidada del año académico</p>
+</div>
+</label>
+</div>
+</div>
+<div class="px-4 pt-8 pb-4">
+<h3 class="text-slate-900 dark:text-slate-100 text-sm font-bold uppercase tracking-wider mb-4">Vista previa del resumen</h3>
+<div class="rounded-xl border bg-white dark:bg-primary/10 overflow-hidden shadow-sm">
+<div class="bg-primary p-4 text-white">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-xs opacity-80 uppercase font-bold">Especialidad</p>
+<h4 class="text-lg font-bold">Cardiología Clínica</h4>
+</div>
+<span class="material-symbols-outlined">description</span>
+</div>
+</div>
+<div class="p-4 space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<div>
+<p class="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold">Año Residencia</p>
+<p class="text-slate-900 dark:text-slate-100 font-medium">MIR-3 (2023-24)</p>
+</div>
+<div>
+<p class="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold">Actividades</p>
+<p class="text-slate-900 dark:text-slate-100 font-medium">142 registradas</p>
+</div>
+</div>
+<div>
+<p class="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold mb-2">Categorías principales</p>
+<div class="flex flex-wrap gap-2">
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded-full border border-primary/20">Consultas (45%)</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded-full border border-primary/20">Urgencias (30%)</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded-full border border-primary/20">Pruebas (25%)</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-auto p-4 mb-6">
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-[0.98]">
+<span class="material-symbols-outlined">picture_as_pdf</span>
+                Generar PDF
+            </button>
+<p class="text-center text-slate-500 dark:text-slate-400 text-xs mt-4">
+                El archivo se guardará en tu carpeta de descargas
+            </p>
+</div>
+</div>
+</body></html>
