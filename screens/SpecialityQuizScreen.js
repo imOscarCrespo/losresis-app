@@ -16,6 +16,7 @@ import {
   saveQuizAnswer,
   finishQuizSession,
   getQuizHistoryForUser,
+  getTopSpecialitiesForSession,
 } from "../services/specialityQuizService";
 import posthogLogger from "../services/posthogService";
 import { MotionPressable } from "../components/MotionPressable";
@@ -123,6 +124,23 @@ const PROFILE_DEFINITIONS = {
 const PROFILE_ORDER = [1, 2, 3, 4];
 const PRIMARY = "#670CF5";
 const INDIGO = "#1B0977";
+const RESULT_TONES = [
+  {
+    background: "#EEF2FF",
+    badge: "#4F46E5",
+    accent: "#312E81",
+  },
+  {
+    background: "#ECFDF5",
+    badge: "#059669",
+    accent: "#064E3B",
+  },
+  {
+    background: "#FFF7ED",
+    badge: "#EA580C",
+    accent: "#9A3412",
+  },
+];
 
 const getDefinitionLabel = (definitionIndex) => {
   if (definitionIndex >= 4) return "Muy definido";
@@ -207,11 +225,73 @@ const buildQuizResults = (questions, allAnswers) => {
   };
 };
 
-const buildSpecialityResults = (results) => {
+const normalizeTopResults = (items) => {
+  const rankedItems = Array.isArray(items)
+    ? items
+        .filter(Boolean)
+        .map((item, index) => ({
+          ...item,
+          score: Number(item?.score || 0),
+          rank: Number(item?.rank || index + 1),
+        }))
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          return a.rank - b.rank;
+        })
+    : [];
+
+  if (!rankedItems.length) return [];
+
+  const totalScore = rankedItems.reduce((sum, item) => sum + item.score, 0);
+  let normalized = [];
+
+  if (totalScore <= 0) {
+    normalized = rankedItems.map((item, index) => ({
+      ...item,
+      percentage: index === 0 ? 34 : 33,
+    }));
+  } else {
+    const withFractions = rankedItems.map((item) => {
+      const exactPercentage = (item.score / totalScore) * 100;
+      return {
+        ...item,
+        percentage: Math.floor(exactPercentage),
+        fractional: exactPercentage - Math.floor(exactPercentage),
+      };
+    });
+
+    let remainder =
+      100 - withFractions.reduce((sum, item) => sum + item.percentage, 0);
+
+    withFractions
+      .sort((a, b) => {
+        if (b.fractional !== a.fractional) return b.fractional - a.fractional;
+        if (b.score !== a.score) return b.score - a.score;
+        return a.rank - b.rank;
+      })
+      .forEach((item) => {
+        if (remainder <= 0) return;
+        item.percentage += 1;
+        remainder -= 1;
+      });
+
+    normalized = withFractions.sort((a, b) => a.rank - b.rank);
+  }
+
+  return normalized.map((item, index) => ({
+    ...item,
+    rank: index + 1,
+    percentage: Number(item.percentage || 0),
+    tone: RESULT_TONES[index] || RESULT_TONES[RESULT_TONES.length - 1],
+  }));
+};
+
+const buildLegacySpecialityResults = (results) => {
   const profiles = PROFILE_ORDER.map((value) => {
     const definition = PROFILE_DEFINITIONS[value];
     const weightedScore = results?.rawScores?.weighted_scores?.[value] || 0;
-    const totalWeightedPoints = results?.rawScores?.summary?.total_weighted_points || 0;
+    const totalWeightedPoints =
+      results?.rawScores?.summary?.total_weighted_points || 0;
     const matchPercent = totalWeightedPoints
       ? Math.round((weightedScore / totalWeightedPoints) * 100)
       : 0;
@@ -245,10 +325,27 @@ const buildSpecialityResults = (results) => {
   return specialities
     .map((item) => ({
       ...item,
-      probability: totalScore ? Math.round((item.score / totalScore) * 100) : 0,
+      speciality_name: item.name,
+      percentage: totalScore ? Math.round((item.score / totalScore) * 100) : 0,
     }))
-    .sort((a, b) => b.probability - a.probability)
-    .slice(0, 8);
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+};
+
+const isPersistedSpecialityResult = (item) =>
+  !!(item?.speciality_name || item?.speciality_key);
+
+const getResultDisplayName = (item) =>
+  item?.speciality_name || item?.name || "Especialidad";
+
+const resolveSpecialityResults = (results) => {
+  const topResults = Array.isArray(results?.topResults) ? results.topResults : [];
+
+  if (topResults.length && topResults.every(isPersistedSpecialityResult)) {
+    return normalizeTopResults(topResults);
+  }
+
+  return normalizeTopResults(buildLegacySpecialityResults(results));
 };
 
 const getDimensionLabel = (dimension) => {
@@ -409,16 +506,36 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
     try {
       setSubmitting(true);
       const builtResults = buildQuizResults(questions, allAnswers);
-      setResults(builtResults);
+      let persistedTopResults = [];
+
+      if (sessionId) {
+        const topSpecialitiesRes = await getTopSpecialitiesForSession(sessionId);
+        if (topSpecialitiesRes.success && Array.isArray(topSpecialitiesRes.data)) {
+          persistedTopResults = normalizeTopResults(topSpecialitiesRes.data);
+        } else {
+          console.error(
+            "Error calculando top de especialidades desde Supabase:",
+            topSpecialitiesRes.error || "Respuesta inválida"
+          );
+        }
+      }
+
+      const finalTopResults = persistedTopResults.length
+        ? persistedTopResults
+        : normalizeTopResults(buildLegacySpecialityResults(builtResults));
 
       if (sessionId) {
         await finishQuizSession(
           sessionId,
-          builtResults.topResults,
+          finalTopResults,
           builtResults.rawScores
         );
       }
 
+      setResults({
+        ...builtResults,
+        topResults: finalTopResults,
+      });
       setStep("results");
     } catch (error) {
       console.error("Error finalizando test de especialidad:", error);
@@ -445,7 +562,8 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
 
   const handleOpenHistorySession = (session) => {
     const topResults = Array.isArray(session.top_results) ? session.top_results : [];
-    if (!topResults.length) return;
+    const hasLegacySummary = !!session.raw_scores?.summary;
+    if (!topResults.length && !hasLegacySummary) return;
 
     const summary = session.raw_scores?.summary || null;
 
@@ -585,8 +703,8 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
                       </View>
                       {first ? (
                         <Text style={styles.historyMain}>
-                          Dominante: {first.name}
-                          {second ? ` · Secundario: ${second.name}` : ""}
+                          Dominante: {getResultDisplayName(first)}
+                          {second ? ` · Secundario: ${getResultDisplayName(second)}` : ""}
                         </Text>
                       ) : (
                         <Text style={styles.historyEmpty}>
@@ -733,7 +851,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
 
     return (
       <View
-        key={`${item.name}-${index}`}
+        key={`${getResultDisplayName(item)}-${index}`}
         style={[styles.specialityCard, { borderColor: tone?.badge || "#E8EAF3" }]}
       >
         <View style={styles.specialityCardTopRow}>
@@ -745,10 +863,10 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
           >
             <Text style={styles.specialityRankText}>#{index + 1}</Text>
           </View>
-          <Text style={styles.specialityProbability}>{item.probability}%</Text>
+          <Text style={styles.specialityProbability}>{item.percentage}%</Text>
         </View>
 
-        <Text style={styles.specialityName}>{item.name}</Text>
+        <Text style={styles.specialityName}>{getResultDisplayName(item)}</Text>
         <Text style={styles.specialityMeta}>Afinidad orientativa según tus respuestas</Text>
 
         <View style={styles.matchBarBackground}>
@@ -756,7 +874,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
             style={[
               styles.matchBarFill,
               {
-                width: `${item.probability}%`,
+                width: `${item.percentage}%`,
                 backgroundColor: tone?.badge || COLORS.PRIMARY,
               },
             ]}
@@ -775,7 +893,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
               { color: tone?.accent || INDIGO },
             ]}
           >
-            Más alineada con el perfil {item.profileName}
+            Top {item.rank} del resultado final
           </Text>
         </View>
       </View>
@@ -785,7 +903,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
   const renderResults = () => {
     const top = results?.topResults || [];
     const summary = results?.summary || results?.rawScores?.summary || null;
-    const specialities = buildSpecialityResults(results);
+    const specialities = resolveSpecialityResults(results);
 
     return (
       <ScreenScaffold
@@ -822,10 +940,10 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
                       <Text style={styles.topRecommendationLabel}>Mejor encaje</Text>
                       <View style={styles.topRecommendationRow}>
                         <Text style={styles.topRecommendationName}>
-                          {specialities[0].name}
+                          {getResultDisplayName(specialities[0])}
                         </Text>
                         <Text style={styles.topRecommendationProbability}>
-                          {specialities[0].probability}%
+                          {specialities[0].percentage}%
                         </Text>
                       </View>
                     </View>

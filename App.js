@@ -17,7 +17,6 @@ import {
 import { isProfileComplete } from "./services/userService";
 import { checkResidentReview } from "./services/communityService";
 import posthogLogger from "./services/posthogService";
-import { checkVersionUpdate } from "./services/versionService";
 import {
   getResidentReviewGateConfig,
   incrementResidentReviewGateSession,
@@ -35,7 +34,6 @@ import { useRegisterPushToken } from "./src/hooks/useRegisterPushToken";
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [versionRefreshKey, setVersionRefreshKey] = useState(0);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [residentHasReview, setResidentHasReview] = useState(true); // Por defecto true para no bloquear
   const [residentReviewGateState, setResidentReviewGateState] = useState(null);
@@ -48,7 +46,8 @@ export default function App() {
     minVersion,
     updateUrl,
     isLoading: isVersionCheckLoading,
-  } = useVersionCheck(versionRefreshKey);
+    refreshVersionCheck,
+  } = useVersionCheck();
 
   useRegisterPushToken(currentUserId);
 
@@ -74,14 +73,16 @@ export default function App() {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
         supabase.auth.startAutoRefresh();
-        setVersionRefreshKey((value) => value + 1);
+        refreshVersionCheck({ force: true, reason: "resume" }).catch((error) => {
+          console.warn("Error verificando versión al reanudar:", error);
+        });
       } else {
         supabase.auth.stopAutoRefresh();
       }
     });
 
     return () => subscription.remove();
-  }, []);
+  }, [refreshVersionCheck]);
 
   const syncResidentReviewGate = async ({
     userId,
@@ -180,15 +181,16 @@ export default function App() {
       // La restauración con Face ID solo ocurre cuando el usuario presiona el botón explícitamente
 
       if (hasSession) {
-        // Verificar versión de la app al iniciar (si hay sesión activa)
-        // Esto asegura que siempre tengamos la versión más reciente cuando el usuario abre la app
+        // Forzar refresh al restaurar una sesión persistida para que el badge
+        // no dependa de un nuevo login.
         try {
-          await checkVersionUpdate(true); // forceRefresh = true para obtener la versión más reciente
+          await refreshVersionCheck({
+            force: true,
+            reason: "session_restore",
+          });
         } catch (error) {
           console.warn("Error verificando versión al iniciar:", error);
-          // No bloquear el flujo si falla la verificación de versión
         }
-        setVersionRefreshKey((value) => value + 1);
 
         // Verificar si el usuario tiene perfil completo
         const { success: userSuccess, user } = await getCurrentUser();
@@ -289,16 +291,15 @@ export default function App() {
   };
 
   const handleAuthSuccess = async () => {
-    // Verificar versión de la app después del login (siempre consultar al backend)
+    // Refrescar versión tras auth para cubrir logins explícitos y cambios de
+    // sesión sin depender del hook inicial.
     try {
       console.log("🔄 Verificando versión después del login...");
-      await checkVersionUpdate(true); // forceRefresh = true para ignorar caché y consultar Supabase
+      await refreshVersionCheck({ force: true, reason: "auth" });
       console.log("✅ Verificación de versión completada");
     } catch (error) {
       console.warn("Error verificando versión después del login:", error);
-      // No bloquear el flujo si falla la verificación de versión
     }
-    setVersionRefreshKey((value) => value + 1);
 
     // Después del login, verificar si necesita onboarding
     const { success: userSuccess, user } = await getCurrentUser();

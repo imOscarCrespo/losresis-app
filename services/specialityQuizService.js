@@ -97,9 +97,30 @@ export const saveQuizAnswer = async (sessionId, questionId, value) => {
 };
 
 /**
+ * Obtener el top 3 de especialidades calculado por la RPC de Supabase.
+ * @param {string} sessionId
+ * @returns {Promise<{success: boolean, data: any[], error: string|null}>}
+ */
+export const getTopSpecialitiesForSession = async (sessionId) => {
+  if (!sessionId) {
+    return {
+      success: false,
+      data: [],
+      error: "sessionId es obligatorio para calcular el top de especialidades",
+    };
+  }
+
+  return supabaseQuery(() =>
+    supabase.rpc("calculate_top_specialities", {
+      session_uuid: sessionId,
+    })
+  );
+};
+
+/**
  * Finalizar una sesión guardando los resultados calculados (top 3, scores).
  * @param {string} sessionId
- * @param {Array<{speciality_key: string, score: number}>} topResults
+ * @param {Array<{speciality_key?: string, speciality_name?: string, score?: number, rank?: number, percentage?: number}>} topResults
  * @param {Record<string, number>} rawScores
  * @returns {Promise<{success: boolean, data: any, error: string|null}>}
  */
