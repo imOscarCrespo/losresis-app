@@ -20,9 +20,10 @@ export const EmailReviewSection = ({
   isSubmitted,
 }) => {
   const instructions = [
-    "Verifica que el email que has puesto es realmente tu email de trabajo del hospital",
+    "Verifica que el email que has puesto es realmente tu email corporativo del hospital",
     'Haz clic en "Solicitar revisión manual" para que nuestro equipo revise tu caso',
-    "Te contactaremos pronto para confirmar tu email y activar tu cuenta",
+    "Mientras la solicitud esté pendiente no activaremos el acceso como residente",
+    "Te avisaremos por email cuando el equipo termine la validación",
   ];
 
   return (
@@ -32,11 +33,11 @@ export const EmailReviewSection = ({
           <Ionicons name="mail" size={24} color="#D97706" />
         </View>
         <View style={styles.headerText}>
-          <Text style={styles.title}>¿Tu email de trabajo no es válido?</Text>
+          <Text style={styles.title}>No pudimos validar tu email del hospital</Text>
           <Text style={styles.subtitle}>
-            No te preocupes, esto puede pasar. Si el email que has puesto es
-            realmente tu email de trabajo del hospital, podemos revisarlo
-            manualmente para ti.
+            Si este correo sí es tu email corporativo, puedes pedir una
+            revisión manual. El equipo lo comprobará y te avisará por correo
+            cuando podamos activar tu acceso como residente.
           </Text>
         </View>
       </View>
@@ -49,7 +50,7 @@ export const EmailReviewSection = ({
       </View>
 
       <View style={styles.instructionsBox}>
-        <Text style={styles.instructionsTitle}>¿Qué necesitas hacer?</Text>
+        <Text style={styles.instructionsTitle}>Qué pasará ahora</Text>
         <View style={styles.instructionsList}>
           {instructions.map((instruction, index) => (
             <View key={index} style={styles.instructionItem}>

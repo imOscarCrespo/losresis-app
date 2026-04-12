@@ -426,6 +426,20 @@ export const AgendaScreen = ({ userProfile }) => {
     return form.event_date || "";
   }, [form.event_type, form.hasDate, form.event_date, selectedDate]);
 
+  const residentLegendOptions = useMemo(() => {
+    if (!userProfile?.is_resident) {
+      return EVENT_TYPE_OPTIONS;
+    }
+
+    const eventTypesWithDate = new Set(
+      events
+        .filter((event) => event.event_date)
+        .map((event) => event.event_type)
+    );
+
+    return EVENT_TYPE_OPTIONS.filter((option) => eventTypesWithDate.has(option.id));
+  }, [events, userProfile?.is_resident]);
+
   const markedDates = useMemo(() => {
     const marks = {};
 
@@ -717,19 +731,21 @@ export const AgendaScreen = ({ userProfile }) => {
               renderHeader={() => <View />}
             />
 
-            <View style={styles.legend}>
-              {EVENT_TYPE_OPTIONS.map((option) => (
-                <View key={option.id} style={styles.legendItem}>
-                  <View
-                    style={[
-                      styles.legendDot,
-                      { backgroundColor: option.color },
-                    ]}
-                  />
-                  <Text style={styles.legendText}>{option.label}</Text>
-                </View>
-              ))}
-            </View>
+            {residentLegendOptions.length > 0 ? (
+              <View style={styles.legend}>
+                {residentLegendOptions.map((option) => (
+                  <View key={option.id} style={styles.legendItem}>
+                    <View
+                      style={[
+                        styles.legendDot,
+                        { backgroundColor: option.color },
+                      ]}
+                    />
+                    <Text style={styles.legendText}>{option.label}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
           </View>
 
           {pendingShiftRequests > 0 ? (

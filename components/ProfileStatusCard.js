@@ -12,7 +12,27 @@ export const ProfileStatusCard = ({ status, deadlineLabel = "" }) => {
   }
 
   const content =
-    status === "email_review_pending"
+    status === "resident_activation_pending"
+      ? {
+          icon: "mail-unread",
+          iconColor: "#D97706",
+          title: "Activación de residente pendiente",
+          titleColor: "#D97706",
+          subtitle:
+            "Estamos revisando tu email del hospital. Hasta que lo validemos no podrás acceder como residente. Te avisaremos por email en cuanto quede aprobado.",
+          subtitleColor: "#B45309",
+        }
+      : status === "resident_activation_pending_student"
+      ? {
+          icon: "swap-horizontal",
+          iconColor: "#2563EB",
+          title: "Cambio a residente pendiente",
+          titleColor: "#2563EB",
+          subtitle:
+            "Tu cambio desde estudiante a residente está en revisión. Mientras tanto seguirás entrando como estudiante y te avisaremos por email cuando activemos el perfil de residente.",
+          subtitleColor: "#1D4ED8",
+        }
+      : status === "email_review_pending"
       ? {
           icon: "time",
           iconColor: "#D97706",

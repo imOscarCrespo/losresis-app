@@ -78,6 +78,13 @@ const QUIZ_SPECIALITY_MAP = {
 };
 
 function getTopQuizSpeciality(session) {
+  const persistedTop = Array.isArray(session?.top_results)
+    ? session.top_results.find((item) => item?.speciality_name || item?.name)
+    : null;
+  if (persistedTop) {
+    return persistedTop.speciality_name || persistedTop.name || null;
+  }
+
   const weightedScores = session?.raw_scores?.weighted_scores;
   if (!weightedScores) return null;
 

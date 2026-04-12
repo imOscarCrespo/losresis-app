@@ -17,6 +17,9 @@ import {
   finishQuizSession,
   getQuizHistoryForUser,
   getTopSpecialitiesForSession,
+  getTopSpecialitiesForSessionV3,
+  QUIZ_VERSION_V2,
+  QUIZ_VERSION_V3,
 } from "../services/specialityQuizService";
 import posthogLogger from "../services/posthogService";
 import { MotionPressable } from "../components/MotionPressable";
@@ -28,8 +31,8 @@ const DIMENSION_WEIGHTS = {
   block_4_estilo_vida_equilibrio: 1.3,
   block_5_personalidad_profesional: 1.0,
   block_6_motivaciones_valores: 1.0,
-  block_7_orientacion_academica: 1.0,
 };
+const CURRENT_QUIZ_VERSION = QUIZ_VERSION_V3;
 
 const PROFILE_DEFINITIONS = {
   1: {
@@ -39,7 +42,7 @@ const PROFILE_DEFINITIONS = {
     category: "diagnostico_analitico",
     shortDescription: "Razonamiento clínico complejo y profundidad diagnóstica.",
     description:
-      "Disfrutas desentrañando casos complejos, profundizando en mecanismos fisiopatológicos y afinando el juicio clínico con información detallada.",
+      "Te motiva comprender mecanismos, resolver enigmas diagnósticos y analizar casos complejos.",
     relatedSpecialities: [
       "Medicina Interna",
       "Neurología",
@@ -61,7 +64,7 @@ const PROFILE_DEFINITIONS = {
     category: "procedimental_tecnico",
     shortDescription: "Acción directa, decisión rápida y destreza manual.",
     description:
-      "Tiendes a disfrutar los entornos intensos, los procedimientos exigentes y la resolución inmediata de problemas clínicos concretos.",
+      "Te motiva la acción directa, los procedimientos técnicos y ver resultados inmediatos.",
     relatedSpecialities: [
       "Cirugía General",
       "Traumatología",
@@ -83,7 +86,7 @@ const PROFILE_DEFINITIONS = {
     category: "relacional_humanista",
     shortDescription: "Relación longitudinal, acompañamiento y continuidad.",
     description:
-      "Tu motivación principal parece estar en el vínculo con pacientes, la continuidad asistencial y el acompañamiento en procesos humanos complejos.",
+      "Valoras el acompañamiento al paciente, las relaciones longitudinales y el impacto humano.",
     relatedSpecialities: [
       "Medicina de Familia",
       "Pediatría",
@@ -105,7 +108,7 @@ const PROFILE_DEFINITIONS = {
     category: "academico_innovador",
     shortDescription: "Investigación, docencia, innovación y sistemas.",
     description:
-      "Te atraen la mejora estructural, la investigación, la docencia y los contextos donde se generan nuevas ideas, técnicas o modelos de atención.",
+      "Te atrae la investigación, la docencia, la innovación y el impacto sistémico.",
     relatedSpecialities: [
       "Medicina Preventiva",
       "Salud Pública",
@@ -213,6 +216,13 @@ const buildQuizResults = (questions, allAnswers) => {
   };
 
   const rawScores = {
+    quiz_version: CURRENT_QUIZ_VERSION,
+    scores: {
+      A: Number(weightedScores[1].toFixed(2)),
+      B: Number(weightedScores[2].toFixed(2)),
+      C: Number(weightedScores[3].toFixed(2)),
+      D: Number(weightedScores[4].toFixed(2)),
+    },
     weighted_scores: weightedScores,
     raw_counts: rawCounts,
     summary,
@@ -362,8 +372,6 @@ const getDimensionLabel = (dimension) => {
       return "Personalidad profesional";
     case "block_6_motivaciones_valores":
       return "Motivaciones y valores";
-    case "block_7_orientacion_academica":
-      return "Orientación académica";
     default:
       return dimension?.replaceAll("_", " ") || "Bloque";
   }
@@ -389,7 +397,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
       try {
         setLoading(true);
         const [questionsRes, historyRes] = await Promise.all([
-          getQuizQuestions(),
+          getQuizQuestions(CURRENT_QUIZ_VERSION),
           userId
             ? getQuizHistoryForUser(userId, 3)
             : Promise.resolve({ success: true, data: [] }),
@@ -416,7 +424,8 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
         if (historyRes.success && Array.isArray(historyRes.data)) {
           const compatibleHistory = historyRes.data.filter(
             (session) =>
-              session?.meta?.version === "v2_profiles_abcd" ||
+              session?.meta?.version === QUIZ_VERSION_V2 ||
+              session?.meta?.version === QUIZ_VERSION_V3 ||
               !!session?.raw_scores?.summary
           );
           if (isMounted) {
@@ -447,6 +456,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
 
   const totalQuestions = questions.length;
   const currentQuestion = questions[currentIndex] || null;
+  const canStartQuiz = !!userId && totalQuestions > 0;
 
   const progress = useMemo(() => {
     if (!totalQuestions) return 0;
@@ -457,7 +467,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
     try {
       setSubmitting(true);
       const { success, data, error } = await startQuizSession(userId, {
-        version: "v2_profiles_abcd",
+        version: CURRENT_QUIZ_VERSION,
       });
 
       if (!success || !data) {
@@ -509,7 +519,9 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
       let persistedTopResults = [];
 
       if (sessionId) {
-        const topSpecialitiesRes = await getTopSpecialitiesForSession(sessionId);
+        const topSpecialitiesRes = CURRENT_QUIZ_VERSION === QUIZ_VERSION_V3
+          ? await getTopSpecialitiesForSessionV3(sessionId)
+          : await getTopSpecialitiesForSession(sessionId);
         if (topSpecialitiesRes.success && Array.isArray(topSpecialitiesRes.data)) {
           persistedTopResults = normalizeTopResults(topSpecialitiesRes.data);
         } else {
@@ -522,7 +534,9 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
 
       const finalTopResults = persistedTopResults.length
         ? persistedTopResults
-        : normalizeTopResults(buildLegacySpecialityResults(builtResults));
+        : CURRENT_QUIZ_VERSION === QUIZ_VERSION_V3
+          ? []
+          : normalizeTopResults(buildLegacySpecialityResults(builtResults));
 
       if (sessionId) {
         await finishQuizSession(
@@ -602,13 +616,13 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
                 Descubre las especialidades MIR más afines para ti
               </Text>
               <Text style={styles.heroText}>
-                Responde 28 preguntas y te mostraremos un ranking de
-                especialidades afines con su porcentaje según tus respuestas.
+                Responde 18 preguntas y te mostraremos un ranking de
+                especialidades afines según tus respuestas.
               </Text>
 
               <View style={styles.progressHeader}>
                 <Text style={styles.progressHeaderLabel}>Duración estimada</Text>
-                <Text style={styles.progressHeaderValue}>3-4 min</Text>
+                <Text style={styles.progressHeaderValue}>2-3 min</Text>
               </View>
 
               <View style={styles.stepBadgeRow}>
@@ -618,17 +632,17 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
                 </View>
                 <View style={styles.stepBadge}>
                   <Ionicons name="stats-chart-outline" size={14} color={PRIMARY} />
-                  <Text style={styles.stepBadgeText}>Porcentaje de afinidad</Text>
+                  <Text style={styles.stepBadgeText}>Ranking personalizado</Text>
                 </View>
               </View>
 
               <MotionPressable
                 style={[
                   styles.primaryAction,
-                  (submitting || !userId) && styles.primaryActionDisabled,
+                  (submitting || !canStartQuiz) && styles.primaryActionDisabled,
                 ]}
                 onPress={handleStart}
-                disabled={submitting || !userId}
+                disabled={submitting || !canStartQuiz}
                 scaleTo={0.985}
                 pressedOpacity={0.96}
               >
@@ -644,6 +658,12 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
                   Inicia sesión como estudiante para guardar tus resultados.
                 </Text>
               )}
+              {userId && !totalQuestions && !loading && (
+                <Text style={styles.heroSupportText}>
+                  El cuestionario todavía no está disponible. Revisa que la migración
+                  nueva esté aplicada en base de datos.
+                </Text>
+              )}
             </View>
 
             <View style={styles.card}>
@@ -655,7 +675,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
                 </View>
                 <View style={styles.featureRow}>
                   <Ionicons name="checkmark-circle-outline" size={18} color={PRIMARY} />
-                  <Text style={styles.featureText}>Un porcentaje orientativo para cada especialidad destacada.</Text>
+                  <Text style={styles.featureText}>Un orden claro de tus especialidades más afines.</Text>
                 </View>
                 <View style={styles.featureRow}>
                   <Ionicons name="checkmark-circle-outline" size={18} color={PRIMARY} />
@@ -863,23 +883,10 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
           >
             <Text style={styles.specialityRankText}>#{index + 1}</Text>
           </View>
-          <Text style={styles.specialityProbability}>{item.percentage}%</Text>
         </View>
 
         <Text style={styles.specialityName}>{getResultDisplayName(item)}</Text>
-        <Text style={styles.specialityMeta}>Afinidad orientativa según tus respuestas</Text>
-
-        <View style={styles.matchBarBackground}>
-          <View
-            style={[
-              styles.matchBarFill,
-              {
-                width: `${item.percentage}%`,
-                backgroundColor: tone?.badge || COLORS.PRIMARY,
-              },
-            ]}
-          />
-        </View>
+        <Text style={styles.specialityMeta}>Encaje destacado según tu patrón de respuestas</Text>
 
         <View
           style={[
@@ -932,8 +939,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
                   <Text style={styles.heroTitle}>Especialidades más afines para ti</Text>
                   <Text style={styles.heroText}>
                     Este ranking resume qué especialidades encajan mejor con tus
-                    respuestas. El porcentaje indica afinidad orientativa dentro de
-                    este test.
+                    respuestas.
                   </Text>
                   {specialities[0] && (
                     <View style={styles.topRecommendationCard}>
@@ -941,9 +947,6 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
                       <View style={styles.topRecommendationRow}>
                         <Text style={styles.topRecommendationName}>
                           {getResultDisplayName(specialities[0])}
-                        </Text>
-                        <Text style={styles.topRecommendationProbability}>
-                          {specialities[0].percentage}%
                         </Text>
                       </View>
                     </View>

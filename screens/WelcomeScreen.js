@@ -26,6 +26,7 @@ import {
   restoreSessionWithBiometric,
 } from "../services/authService";
 import { isProfileComplete } from "../services/userService";
+import { getEmailReviewRequest } from "../services/emailReviewService";
 import {
   checkBiometricAvailability,
   isBiometricEnabled,
@@ -279,8 +280,11 @@ export default function WelcomeScreen({ onAuthSuccess }) {
           );
 
           if (profileSuccess && profile) {
+            const { request: emailReviewRequest } = await getEmailReviewRequest(
+              user.id
+            );
             const complete = isProfileComplete(profile, {
-              hasActiveEmailReview: false,
+              emailReviewRequest,
               isEmailValid: true,
             });
 
@@ -520,8 +524,11 @@ export default function WelcomeScreen({ onAuthSuccess }) {
         );
 
         if (profileSuccess && profile) {
+          const { request: emailReviewRequest } = await getEmailReviewRequest(
+            user.id
+          );
           const complete = isProfileComplete(profile, {
-            hasActiveEmailReview: false,
+            emailReviewRequest,
             isEmailValid: true,
           });
 

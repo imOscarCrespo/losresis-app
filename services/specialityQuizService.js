@@ -13,20 +13,28 @@ import { supabase, supabaseQuery } from "../config/supabase";
 const TABLE_SESSION = "speciality_quiz_session";
 const TABLE_QUESTION = "speciality_quiz_question";
 const TABLE_ANSWER = "speciality_quiz_answer";
+export const QUIZ_VERSION_V2 = "v2_profiles_abcd";
+export const QUIZ_VERSION_V3 = "v3_profiles_abcd_18";
 
 /**
  * Obtener las preguntas del test con sus opciones.
  * @returns {Promise<{success: boolean, data: any, error: string|null}>}
  */
-export const getQuizQuestions = async () => {
-  return supabaseQuery(() =>
-    supabase
+export const getQuizQuestions = async (quizVersion = null) => {
+  return supabaseQuery(async () => {
+    let query = supabase
       .from(TABLE_QUESTION)
       .select(
-        "id, order_index, text, dimension, question_type, options:speciality_quiz_option(id, label, value, order_index)"
+        "id, order_index, text, dimension, question_type, quiz_version, options:speciality_quiz_option(id, label, value, order_index)"
       )
-      .order("order_index", { ascending: true })
-  );
+      .order("order_index", { ascending: true });
+
+    if (quizVersion) {
+      query = query.eq("quiz_version", quizVersion);
+    }
+
+    return query;
+  });
 };
 
 /**
@@ -112,6 +120,27 @@ export const getTopSpecialitiesForSession = async (sessionId) => {
 
   return supabaseQuery(() =>
     supabase.rpc("calculate_top_specialities", {
+      session_uuid: sessionId,
+    })
+  );
+};
+
+/**
+ * Obtener el top 3 de especialidades para la versión v3 del quiz.
+ * @param {string} sessionId
+ * @returns {Promise<{success: boolean, data: any[], error: string|null}>}
+ */
+export const getTopSpecialitiesForSessionV3 = async (sessionId) => {
+  if (!sessionId) {
+    return {
+      success: false,
+      data: [],
+      error: "sessionId es obligatorio para calcular el top de especialidades",
+    };
+  }
+
+  return supabaseQuery(() =>
+    supabase.rpc("calculate_top_specialities_v3", {
       session_uuid: sessionId,
     })
   );

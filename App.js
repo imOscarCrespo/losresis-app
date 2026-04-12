@@ -15,6 +15,7 @@ import {
   getUserProfile,
 } from "./services/authService";
 import { isProfileComplete } from "./services/userService";
+import { getEmailReviewRequest } from "./services/emailReviewService";
 import { checkResidentReview } from "./services/communityService";
 import posthogLogger from "./services/posthogService";
 import {
@@ -202,9 +203,12 @@ export default function App() {
           if (profileSuccess && profile) {
             const bypassReviewRequirement =
               shouldBypassResidentReviewGate(profile);
+            const { request: emailReviewRequest } = await getEmailReviewRequest(
+              user.id
+            );
             // Verificar si el perfil está completo
             const complete = isProfileComplete(profile, {
-              hasActiveEmailReview: false, // No verificamos esto en el check inicial
+              emailReviewRequest,
               isEmailValid: true, // Asumimos válido en el check inicial
             });
 
@@ -309,8 +313,11 @@ export default function App() {
       );
 
       if (profileSuccess && profile) {
+        const { request: emailReviewRequest } = await getEmailReviewRequest(
+          user.id
+        );
         const complete = isProfileComplete(profile, {
-          hasActiveEmailReview: false,
+          emailReviewRequest,
           isEmailValid: true,
         });
         const bypassReviewRequirement = shouldBypassResidentReviewGate(profile);

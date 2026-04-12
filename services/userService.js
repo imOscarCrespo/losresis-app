@@ -10,6 +10,7 @@ import {
 import {
   isSeasonalResidentPending,
   isResidentLockedMissingCorporateEmail,
+  hasApprovedEmailReviewRequest,
 } from "../utils/residentAccess";
 
 /**
@@ -146,11 +147,14 @@ export const submitEmailReviewRequest = async (userId, workEmail) => {
  */
 export const isProfileComplete = (
   profile,
-  { hasActiveEmailReview = false, isEmailValid = true } = {}
+  { emailReviewRequest = null, isEmailValid = true } = {}
 ) => {
   if (!profile) return false;
 
   const hasRequiredBasicInfo = !!(profile.name && profile.city);
+  const hasApprovedEmailReview = hasApprovedEmailReviewRequest(
+    emailReviewRequest
+  );
 
   if (profile.is_student) {
     return hasRequiredBasicInfo; // Estudiantes solo necesitan nombre y ciudad (apellidos es opcional)
@@ -177,7 +181,7 @@ export const isProfileComplete = (
     const hasCorporateEmail = !!profile.work_email;
     if (!hasCorporateEmail) return false;
 
-    return isEmailValid || hasActiveEmailReview;
+    return isEmailValid || hasApprovedEmailReview;
   }
 
   if (profile.is_doctor) {
@@ -191,8 +195,8 @@ export const isProfileComplete = (
 
     if (!hasAllRequiredFields) return false;
 
-    // El perfil está completo si el email es válido O tiene solicitud activa
-    return isEmailValid || hasActiveEmailReview;
+    // El perfil está completo si el email es válido o fue aprobado manualmente
+    return isEmailValid || hasApprovedEmailReview;
   }
 
   return false;

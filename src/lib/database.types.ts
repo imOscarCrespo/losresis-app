@@ -2452,6 +2452,7 @@ export type Database = {
           id: string
           order_index: number
           question_type: string
+          quiz_version: string
           text: string
         }
         Insert: {
@@ -2459,6 +2460,7 @@ export type Database = {
           id?: string
           order_index: number
           question_type?: string
+          quiz_version?: string
           text: string
         }
         Update: {
@@ -2466,6 +2468,7 @@ export type Database = {
           id?: string
           order_index?: number
           question_type?: string
+          quiz_version?: string
           text?: string
         }
         Relationships: []
@@ -2783,6 +2786,15 @@ export type Database = {
     }
     Functions: {
       calculate_top_specialities: {
+        Args: { session_uuid: string }
+        Returns: {
+          rank: number
+          score: number
+          speciality_key: string
+          speciality_name: string
+        }[]
+      }
+      calculate_top_specialities_v3: {
         Args: { session_uuid: string }
         Returns: {
           rank: number

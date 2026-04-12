@@ -7,6 +7,7 @@ import {
   validateProfileForm,
   shouldShowEmailReview,
 } from "../utils/profileValidation";
+import { getProfileDraftType } from "../utils/residentAccess";
 
 const INITIAL_FORM_DATA = {
   name: "",
@@ -52,6 +53,7 @@ export const useProfileForm = () => {
       const { success, profile } = await getUserProfile(currentUser.id);
       if (success && profile) {
         setUserProfile(profile);
+        const savedProfileType = getProfileDraftType(profile);
 
         // Si el nombre está vacío, intentar obtenerlo del display name o email de Supabase Auth
         let nameValue = profile.name || "";
@@ -70,8 +72,7 @@ export const useProfileForm = () => {
         }
 
         // Si ningún tipo está seleccionado, establecer estudiante por defecto
-        const hasAnyType =
-          profile.is_student || profile.is_resident || profile.is_doctor;
+        const hasAnyType = Boolean(savedProfileType);
         const defaultToStudent = !hasAnyType;
 
         setFormData({
@@ -83,9 +84,9 @@ export const useProfileForm = () => {
           hospital_id: profile.hospital_id || "",
           speciality_id: profile.speciality_id || "",
           resident_year: profile.resident_year?.toString() || "",
-          is_student: profile.is_student || defaultToStudent,
-          is_resident: profile.is_resident || false,
-          is_doctor: profile.is_doctor || false,
+          is_student: savedProfileType === "student" || defaultToStudent,
+          is_resident: savedProfileType === "resident",
+          is_doctor: savedProfileType === "doctor",
         });
       } else {
         // Si no hay perfil, verificar si viene de Apple para pre-llenar el nombre con el email

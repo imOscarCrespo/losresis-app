@@ -55,17 +55,13 @@ import {
 import posthogLogger from "../services/posthogService";
 import Constants from "expo-constants";
 import {
+  PENDING_RESIDENT_ACTIVATION_KIND,
   RESIDENT_STATE,
   formatResidentTransitionDeadline,
   getResidentState,
+  getPendingResidentActivationKind,
+  getProfileDraftType,
 } from "../utils/residentAccess";
-
-const getProfileType = (profile) => {
-  if (profile?.is_resident) return "resident";
-  if (profile?.is_doctor) return "doctor";
-  if (profile?.is_student) return "student";
-  return "";
-};
 
 const hasBasicProfileInfo = (profile) => {
   return !!(profile?.name?.trim() && profile?.city?.trim());
@@ -208,7 +204,6 @@ export default function ProfileScreen({
 
   // Obtener estado de la solicitud de revisión de email
   const {
-    hasActiveRequest: hasActiveEmailReview,
     request: emailReviewRequest,
     refresh: refreshEmailReviewStatus,
   } = useEmailReviewStatus(user?.id);
@@ -312,9 +307,35 @@ export default function ProfileScreen({
         return;
       }
 
+      const pendingProfileData =
+        userProfile?.is_student && !userProfile?.is_resident
+          ? {
+              ...formData,
+              is_student: true,
+              is_resident: false,
+              is_doctor: false,
+            }
+          : {
+              ...formData,
+              is_student: false,
+              is_resident: false,
+              is_doctor: false,
+            };
+
       // Primero actualizar el perfil con el email (aunque no sea válido)
-      // Esto permite que el perfil se considere completo con la solicitud activa
-      await updateUserProfile(user.id, formData);
+      // Guardamos la intención de pasar a residente sin activar todavía el rol.
+      const { success: profileSaved, error: profileSaveError } =
+        await updateUserProfile(user.id, pendingProfileData);
+
+      if (!profileSaved) {
+        setMessage({
+          type: "error",
+          text:
+            profileSaveError ||
+            "No se pudo guardar tu solicitud. Inténtalo de nuevo.",
+        });
+        return;
+      }
 
       // Luego enviar la solicitud de revisión
       const { success, error } = await submitEmailReview(
@@ -332,7 +353,7 @@ export default function ProfileScreen({
 
       setMessage({
         type: "success",
-        text: "¡Solicitud enviada correctamente! Revisaremos tu email y te contactaremos pronto.",
+        text: "Solicitud enviada. Revisaremos tu email y te avisaremos por correo cuando podamos activar el acceso como residente.",
       });
 
       // Actualizar el estado de la solicitud de revisión y recargar perfil
@@ -637,6 +658,8 @@ export default function ProfileScreen({
   ]);
 
   const hasUnsavedChanges = useMemo(() => {
+    const savedType = getProfileDraftType(userProfile);
+
     if (!userProfile) {
       return !!(
         formData.name ||
@@ -657,24 +680,26 @@ export default function ProfileScreen({
       formData.surname !== (userProfile.surname || "") ||
       formData.phone !== (userProfile.phone || "") ||
       formData.city !== (userProfile.city || "") ||
-      formData.is_student !== (userProfile.is_student || false) ||
-      formData.is_resident !== (userProfile.is_resident || false) ||
-      formData.is_doctor !== (userProfile.is_doctor || false) ||
+      getCurrentUserType() !== savedType ||
       formData.work_email !== (userProfile.work_email || "") ||
       formData.hospital_id !== (userProfile.hospital_id || "") ||
       formData.speciality_id !== (userProfile.speciality_id || "") ||
       formData.resident_year?.toString() !==
         (userProfile.resident_year?.toString() || "")
     );
-  }, [formData, userProfile]);
+  }, [formData, getCurrentUserType, userProfile]);
   const floatingUnsavedBottomOffset = Math.max(insets.bottom + 16, 24);
   const profileScrollBottomPadding = hasUnsavedChanges
     ? floatingUnsavedBottomOffset + 120
     : 32;
 
   const profileUiState = useMemo(() => {
-    const draftType = getProfileType(formData);
+    const draftType = getProfileDraftType(formData);
     const draftHasRequiredFields = hasRequiredFieldsForType(formData, draftType);
+    const pendingResidentActivationKind = getPendingResidentActivationKind(
+      userProfile,
+      emailReviewRequest
+    );
 
     if (hasUnsavedChanges) {
       if (!draftType || !draftHasRequiredFields) {
@@ -688,7 +713,7 @@ export default function ProfileScreen({
       return "incomplete";
     }
 
-    const savedType = getProfileType(userProfile);
+    const savedType = getProfileDraftType(userProfile);
     if (!savedType || !hasRequiredFieldsForType(userProfile, savedType)) {
       return "incomplete";
     }
@@ -703,13 +728,27 @@ export default function ProfileScreen({
       return "resident_transition_locked";
     }
 
+    if (
+      pendingResidentActivationKind ===
+      PENDING_RESIDENT_ACTIVATION_KIND.NEW_USER
+    ) {
+      return "resident_activation_pending";
+    }
+
+    if (
+      pendingResidentActivationKind ===
+      PENDING_RESIDENT_ACTIVATION_KIND.STUDENT_UPGRADE
+    ) {
+      return "resident_activation_pending_student";
+    }
+
     if (savedType === "resident" && emailReviewRequest?.status === "PENDING") {
       return "email_review_pending";
     }
 
     if (
       isProfileComplete(userProfile, {
-        hasActiveEmailReview,
+        emailReviewRequest,
         isEmailValid,
       })
     ) {
@@ -720,7 +759,6 @@ export default function ProfileScreen({
   }, [
     emailReviewRequest?.status,
     formData,
-    hasActiveEmailReview,
     hasUnsavedChanges,
     isEmailValid,
     userProfile,

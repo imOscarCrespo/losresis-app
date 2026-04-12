@@ -89,8 +89,9 @@ export const UserTypeSelector = ({ selectedType, onTypeChange }) => {
         <View style={styles.helperCard}>
           <Ionicons name="sparkles-outline" size={18} color={COLORS.PRIMARY_DARK} />
           <Text style={styles.helperText}>
-            Te pediremos hospital, especialidad, año y email corporativo para
-            activar tu perfil de residente.
+            Te pediremos hospital, especialidad, año y email corporativo. Si no
+            podemos validarlo al momento, el equipo lo revisará y activará el
+            perfil de residente cuando quede aprobado.
           </Text>
         </View>
       ) : null}
