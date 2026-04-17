@@ -202,7 +202,6 @@ export const updateReview = async (
       .update({
         free_comment: freeComment || null,
         is_anonymous: isAnonymous,
-        is_approved: false, // Volver a moderación tras editar
         updated_at: new Date().toISOString(),
       })
       .eq("id", reviewId);

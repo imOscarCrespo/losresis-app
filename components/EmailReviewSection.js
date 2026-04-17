@@ -18,12 +18,14 @@ export const EmailReviewSection = ({
   onCancel,
   isSubmitting,
   isSubmitted,
+  isOnboarding = false,
 }) => {
   const instructions = [
-    "Verifica que el email que has puesto es realmente tu email corporativo del hospital",
-    'Haz clic en "Solicitar revisión manual" para que nuestro equipo revise tu caso',
-    "Mientras la solicitud esté pendiente no activaremos el acceso como residente",
-    "Te avisaremos por email cuando el equipo termine la validación",
+    "Revisaremos manualmente si este correo corresponde a tu hospital.",
+    "En menos de 1 hora te enviaremos un email para confirmarte si podemos validarlo.",
+    isOnboarding
+      ? "Hasta entonces dejaremos tu alta de residente en revisión."
+      : "Hasta entonces mantendremos tu cambio a residente en revisión.",
   ];
 
   return (
@@ -35,9 +37,9 @@ export const EmailReviewSection = ({
         <View style={styles.headerText}>
           <Text style={styles.title}>No pudimos validar tu email del hospital</Text>
           <Text style={styles.subtitle}>
-            Si este correo sí es tu email corporativo, puedes pedir una
-            revisión manual. El equipo lo comprobará y te avisará por correo
-            cuando podamos activar tu acceso como residente.
+            Si este correo es correcto, podemos revisarlo manualmente por ti.
+            Solo tienes que enviar la solicitud y te avisaremos por email en
+            cuanto quede validado o si necesitamos que lo corrijas.
           </Text>
         </View>
       </View>
@@ -87,7 +89,7 @@ export const EmailReviewSection = ({
           onPress={onCancel}
           activeOpacity={0.7}
         >
-          <Text style={styles.buttonCancelText}>Cancelar</Text>
+          <Text style={styles.buttonCancelText}>Revisar email</Text>
         </TouchableOpacity>
       </View>
     </View>

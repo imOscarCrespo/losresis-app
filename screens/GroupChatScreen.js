@@ -647,7 +647,7 @@ export default function GroupChatScreen({
     }
   }, [keyboardHeight, scrollToBottom]);
 
-  const composerBottomInset = 0;
+  const composerBottomInset = Math.max(insets.bottom, 12);
   const TAP_SLOP = 8;
   const isDirectChat = groupDetails?.kind === "direct";
   const otherMember = useMemo(

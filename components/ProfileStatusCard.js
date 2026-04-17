@@ -6,7 +6,11 @@ import { COLORS } from "../constants/colors";
 /**
  * Componente que muestra avisos accionables sobre el estado del perfil.
  */
-export const ProfileStatusCard = ({ status, deadlineLabel = "" }) => {
+export const ProfileStatusCard = ({
+  status,
+  deadlineLabel = "",
+  isOnboarding = false,
+}) => {
   if (status === "hidden" || !status) {
     return null;
   }
@@ -19,7 +23,7 @@ export const ProfileStatusCard = ({ status, deadlineLabel = "" }) => {
           title: "Activación de residente pendiente",
           titleColor: "#D97706",
           subtitle:
-            "Estamos revisando tu email del hospital. Hasta que lo validemos no podrás acceder como residente. Te avisaremos por email en cuanto quede aprobado.",
+            "Estamos revisando tu email del hospital. En menos de 1 hora te avisaremos por email si podemos validarlo y activar tu perfil de residente.",
           subtitleColor: "#B45309",
         }
       : status === "resident_activation_pending_student"
@@ -29,7 +33,7 @@ export const ProfileStatusCard = ({ status, deadlineLabel = "" }) => {
           title: "Cambio a residente pendiente",
           titleColor: "#2563EB",
           subtitle:
-            "Tu cambio desde estudiante a residente está en revisión. Mientras tanto seguirás entrando como estudiante y te avisaremos por email cuando activemos el perfil de residente.",
+            "Tu cambio desde estudiante a residente está en revisión. Mientras tanto seguirás entrando como estudiante y te avisaremos por email en cuanto lo validemos.",
           subtitleColor: "#1D4ED8",
         }
       : status === "email_review_pending"
@@ -39,7 +43,7 @@ export const ProfileStatusCard = ({ status, deadlineLabel = "" }) => {
           title: "Validando tu email corporativo",
           titleColor: "#D97706",
           subtitle:
-            "Tu perfil está pendiente de revisión manual. En cuanto validemos tu email del hospital, no tendrás que hacer nada más.",
+            "Tu solicitud está en revisión manual. Te escribiremos por email en menos de 1 hora para confirmarte el resultado.",
           subtitleColor: "#B45309",
         }
       : status === "resident_transition_pending"
@@ -69,7 +73,9 @@ export const ProfileStatusCard = ({ status, deadlineLabel = "" }) => {
           title: "Perfil incompleto",
           titleColor: "#D97706",
           subtitle:
-            "Completa los datos obligatorios para personalizar tu experiencia y acceder a todas las funciones.",
+            isOnboarding
+              ? "Completa los datos obligatorios para terminar tu registro y entrar en la app con el perfil correcto."
+              : "Completa los datos obligatorios para actualizar tu perfil y acceder a todas las funciones.",
           subtitleColor: "#B45309",
         };
 

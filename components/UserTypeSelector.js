@@ -26,6 +26,8 @@ const USER_TYPES = [
  */
 export const UserTypeSelector = ({ selectedType, onTypeChange }) => {
   const isResidentSelected = selectedType === "resident";
+  const residentHelperText =
+    "Te pediremos hospital, especialidad y año. Si ya tienes email corporativo, úsalo para validarlo al momento. Si aún no lo tienes por el periodo de transición MIR, podrás completar el resto ahora y añadirlo después.";
 
   return (
     <View style={styles.container}>
@@ -89,9 +91,7 @@ export const UserTypeSelector = ({ selectedType, onTypeChange }) => {
         <View style={styles.helperCard}>
           <Ionicons name="sparkles-outline" size={18} color={COLORS.PRIMARY_DARK} />
           <Text style={styles.helperText}>
-            Te pediremos hospital, especialidad, año y email corporativo. Si no
-            podemos validarlo al momento, el equipo lo revisará y activará el
-            perfil de residente cuando quede aprobado.
+            {residentHelperText}
           </Text>
         </View>
       ) : null}

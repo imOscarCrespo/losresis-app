@@ -45,6 +45,7 @@ import {
   setBiometricEnabled,
   checkBiometricAvailability,
 } from "../services/biometricService";
+import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
 import { RESIDENT_YEAR_OPTIONS } from "../constants/profileConstants";
 import { COLORS } from "../constants/colors";
 import {
@@ -57,6 +58,7 @@ import Constants from "expo-constants";
 import {
   PENDING_RESIDENT_ACTIVATION_KIND,
   RESIDENT_STATE,
+  canResidentUseSeasonalGrace,
   formatResidentTransitionDeadline,
   getResidentState,
   getPendingResidentActivationKind,
@@ -143,6 +145,7 @@ export default function ProfileScreen({
 
   // Estado para controlar el loading durante el proceso completo (en modo onboarding)
   const [isCompletingOnboarding, setIsCompletingOnboarding] = useState(false);
+  const [residentTransitionConfig, setResidentTransitionConfig] = useState(null);
 
   // Wrapper para handleSubmit que maneja el modo onboarding
   const handleSubmit = async () => {
@@ -250,6 +253,15 @@ export default function ProfileScreen({
     posthogLogger.logScreen(screenName, { isOnboarding });
   }, [isOnboarding]);
 
+  useEffect(() => {
+    const loadTransitionConfig = async () => {
+      const { config } = await getResidentTransitionConfig();
+      setResidentTransitionConfig(config);
+    };
+
+    loadTransitionConfig();
+  }, []);
+
   // Manejar cambio de estado de biometría
   const handleBiometricToggle = async () => {
     if (!biometricAvailable) {
@@ -353,7 +365,7 @@ export default function ProfileScreen({
 
       setMessage({
         type: "success",
-        text: "Solicitud enviada. Revisaremos tu email y te avisaremos por correo cuando podamos activar el acceso como residente.",
+        text: "Solicitud enviada. Revisaremos tu email manualmente y en menos de 1 hora te escribiremos para confirmarte si podemos validarlo.",
       });
 
       // Actualizar el estado de la solicitud de revisión y recargar perfil
@@ -661,18 +673,7 @@ export default function ProfileScreen({
     const savedType = getProfileDraftType(userProfile);
 
     if (!userProfile) {
-      return !!(
-        formData.name ||
-        formData.surname ||
-        formData.phone ||
-        formData.city ||
-        formData.work_email ||
-        formData.hospital_id ||
-        formData.speciality_id ||
-        formData.resident_year ||
-        formData.is_resident ||
-        formData.is_doctor
-      );
+      return false;
     }
 
     return (
@@ -688,10 +689,15 @@ export default function ProfileScreen({
         (userProfile.resident_year?.toString() || "")
     );
   }, [formData, getCurrentUserType, userProfile]);
+  const shouldShowFloatingUnsavedChanges =
+    hasUnsavedChanges && Boolean(userProfile?.id);
   const floatingUnsavedBottomOffset = Math.max(insets.bottom + 16, 24);
-  const profileScrollBottomPadding = hasUnsavedChanges
+  const profileScrollBottomPadding = shouldShowFloatingUnsavedChanges
     ? floatingUnsavedBottomOffset + 120
     : 32;
+  const showResidentTransitionHint = useMemo(() => {
+    return canResidentUseSeasonalGrace(formData, residentTransitionConfig);
+  }, [formData, residentTransitionConfig]);
 
   const profileUiState = useMemo(() => {
     const draftType = getProfileDraftType(formData);
@@ -843,12 +849,14 @@ export default function ProfileScreen({
               </View>
             ) : null}
 
-          <ProfileStatusCard
-            status={profileUiState}
-            deadlineLabel={formatResidentTransitionDeadline(
-              userProfile?.resident_transition_expires_at
-            )}
-          />
+          {!isOnboarding ? (
+            <ProfileStatusCard
+              status={profileUiState}
+              deadlineLabel={formatResidentTransitionDeadline(
+                userProfile?.resident_transition_expires_at
+              )}
+            />
+          ) : null}
 
             {showReferralApplySection && (loadingActiveRaffle || activeRaffle) && (
               <View style={styles.referralSection}>
@@ -1074,7 +1082,8 @@ export default function ProfileScreen({
 
               <View style={styles.professionalInputGroup}>
                 <Text style={styles.inputLabel}>
-                  Email de trabajo *
+                  Email corporativo
+                  {!showResidentTransitionHint ? " *" : ""}
                   {isEmailInputDisabled && (
                     <Text style={styles.inputHint}>
                       {" "}
@@ -1107,6 +1116,20 @@ export default function ProfileScreen({
                     keyboardAwareOptions={{ extraScrollSpace: 36 }}
                   />
                 </View>
+                {formData.is_resident ? (
+                  showResidentTransitionHint ? (
+                    <Text style={styles.fieldHelpText}>
+                      Si todavía no te han dado el correo corporativo, puedes
+                      terminar el alta ahora y añadirlo después dentro del
+                      periodo de transición MIR.
+                    </Text>
+                  ) : (
+                    <Text style={styles.fieldHelpText}>
+                      Si ya dispones de correo corporativo, introdúcelo aquí
+                      para validar tu perfil de residente.
+                    </Text>
+                  )
+                ) : null}
               </View>
             </View>
           )}
@@ -1122,6 +1145,7 @@ export default function ProfileScreen({
                 onCancel={handleCancelEmailReview}
                 isSubmitting={emailReviewSubmitting}
                 isSubmitted={emailReviewSubmitted}
+                isOnboarding={isOnboarding}
               />
             )}
 
@@ -1285,6 +1309,15 @@ export default function ProfileScreen({
           )}
 
           {/* Action Buttons */}
+            {isOnboarding ? (
+              <ProfileStatusCard
+                status={profileUiState}
+                deadlineLabel={formatResidentTransitionDeadline(
+                  userProfile?.resident_transition_expires_at
+                )}
+                isOnboarding
+              />
+            ) : null}
             <View style={styles.actionsContainer}>
               <Button
                 title={
@@ -1336,7 +1369,7 @@ export default function ProfileScreen({
             </View>
           </View>
         </KeyboardAwareScrollView>
-      {hasUnsavedChanges ? (
+      {shouldShowFloatingUnsavedChanges ? (
         <View
           pointerEvents="none"
           style={[
@@ -1595,6 +1628,12 @@ const styles = StyleSheet.create({
   },
   inputDisabled: {
     color: "#94A3B8",
+  },
+  fieldHelpText: {
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#64748B",
   },
   messageContainer: {
     padding: 16,
