@@ -26,12 +26,31 @@ export type NotificationDataPayload = {
   course_id?: string;
   group_id?: string;
   group_name?: string;
+  question_id?: string;
+  focus?: string;
 };
+
+export type NotificationNavigationPayload =
+  | string
+  | {
+      reviewId?: string;
+      questionId?: string;
+      groupId?: string;
+      groupName?: string;
+      focusQuestions?: boolean;
+      initialTab?: string;
+      matchId?: string;
+      courseId?: string;
+      threadId?: string;
+    };
 
 type NotificationsScreenProps = {
   userId: string | undefined;
   onBack?: () => void;
-  onNavigateToEntity: (entityType: string, entityId: string | { groupId: string; groupName?: string }) => void;
+  onNavigateToEntity: (
+    entityType: string,
+    entityId: NotificationNavigationPayload
+  ) => void;
 };
 
 export default function NotificationsScreen({
@@ -87,6 +106,15 @@ export default function NotificationsScreen({
       const entityId = data.entity_id;
       const groupId = data.group_id;
       const groupName = data.group_name;
+      const questionId = data.question_id;
+
+      if (data.destination_section === "myReview") {
+        onNavigateToEntity("myReview", {
+          questionId,
+          focusQuestions: true,
+        });
+        return;
+      }
 
       if (data.destination_section === "groupChat" && groupId) {
         onNavigateToEntity("groupChat", { groupId, groupName });
@@ -95,7 +123,10 @@ export default function NotificationsScreen({
 
       if (entityType && entityId) {
         if (entityType === "review") {
-          onNavigateToEntity("reviewDetail", entityId);
+          onNavigateToEntity("reviewDetail", {
+            reviewId: entityId,
+            questionId,
+          });
         } else if (entityType === "comment") {
           onNavigateToEntity("threadDetail", entityId);
         } else if (entityType === "roommate_match") {

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import {
   formatResidentTransitionDeadline,
   isResidentLockedMissingCorporateEmail,
 } from "../utils/residentAccess";
+import { StudentQuestionsSection } from "../components/StudentQuestionsSection";
 
 // ============================================================================
 // COLORS
@@ -52,8 +53,13 @@ export default function MyReviewScreen({
   onCreateReview,
   onEditReview,
   onBack,
+  autoFocusQuestions = false,
+  highlightedQuestionId = null,
+  onAutoFocusQuestionsHandled,
+  onHighlightedQuestionHandled,
 }) {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const scrollViewRef = useRef(null);
 
   const { hospitals, specialties } = useHospitals();
   const hospital = hospitals.find((h) => h.id === userProfile?.hospital_id);
@@ -140,6 +146,17 @@ export default function MyReviewScreen({
     onAutoOpenCreateReviewHandled,
     handleStartReview,
   ]);
+
+  useEffect(() => {
+    if (!autoFocusQuestions || !existingReview) return;
+
+    const timeoutId = setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: false });
+      onAutoFocusQuestionsHandled?.();
+    }, 150);
+
+    return () => clearTimeout(timeoutId);
+  }, [autoFocusQuestions, existingReview, onAutoFocusQuestionsHandled]);
 
   const handleDelete = useCallback(async () => {
     if (!existingReview) return;
@@ -237,6 +254,7 @@ export default function MyReviewScreen({
       contentSurfaceStyle={styles.contentSurface}
     >
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -436,6 +454,16 @@ export default function MyReviewScreen({
             </View>
           )}
         </View>
+
+        {existingReview && (
+          <StudentQuestionsSection
+            hospitalId={existingReview.hospital_id}
+            specialityId={existingReview.speciality_id}
+            userProfile={userProfile}
+            highlightedQuestionId={highlightedQuestionId}
+            onHighlightedQuestionHandled={onHighlightedQuestionHandled}
+          />
+        )}
       </ScrollView>
 
       {/* ── Delete confirmation modal ── */}

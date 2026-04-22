@@ -28,6 +28,8 @@ export const StudentQuestionsSection = ({
   userProfile,
   onInputFocus,
   onInputBlur,
+  highlightedQuestionId = null,
+  onHighlightedQuestionHandled,
 }) => {
   const [newQuestion, setNewQuestion] = useState("");
   const [expandedQuestions, setExpandedQuestions] = useState([]);
@@ -173,6 +175,28 @@ export const StudentQuestionsSection = ({
 
     return () => clearTimeout(timeoutId);
   }, [focusedQuestionId, keyboardHeight, scrollQuestionIntoView]);
+
+  useEffect(() => {
+    if (!highlightedQuestionId || questions.length === 0) return;
+
+    setExpandedQuestions((prev) =>
+      prev.includes(highlightedQuestionId)
+        ? prev
+        : [...prev, highlightedQuestionId]
+    );
+
+    const timeoutId = setTimeout(() => {
+      scrollQuestionIntoView(highlightedQuestionId, false);
+      onHighlightedQuestionHandled?.();
+    }, 120);
+
+    return () => clearTimeout(timeoutId);
+  }, [
+    highlightedQuestionId,
+    onHighlightedQuestionHandled,
+    questions.length,
+    scrollQuestionIntoView,
+  ]);
 
   const handleSubmitQuestion = async () => {
     if (!newQuestion.trim() || !userProfile) return;
@@ -428,7 +452,11 @@ export const StudentQuestionsSection = ({
           {questions.map((question) => (
             <View
               key={question.id}
-              style={styles.questionCard}
+              style={[
+                styles.questionCard,
+                highlightedQuestionId === question.id &&
+                  styles.questionCardHighlighted,
+              ]}
               onLayout={(event) => {
                 const { y, height } = event.nativeEvent.layout;
                 questionLayoutsRef.current[question.id] = { y, height };
@@ -819,6 +847,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+  },
+  questionCardHighlighted: {
+    borderColor: COLORS.PRIMARY,
+    shadowColor: COLORS.PRIMARY,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
   },
   questionHeader: {
     flexDirection: "row",

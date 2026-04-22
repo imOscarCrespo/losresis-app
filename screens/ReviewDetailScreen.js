@@ -64,7 +64,13 @@ StarRating.displayName = "StarRating";
 // MAIN COMPONENT
 // ============================================================================
 
-export default function ReviewDetailScreen({ reviewId, onBack, userProfile }) {
+export default function ReviewDetailScreen({
+  reviewId,
+  onBack,
+  userProfile,
+  highlightedQuestionId = null,
+  onHighlightedQuestionHandled,
+}) {
   const { review, loading, error, fetchReviewDetail } = useReviewDetail();
   const [selectedImage, setSelectedImage] = useState(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -414,6 +420,8 @@ export default function ReviewDetailScreen({ reviewId, onBack, userProfile }) {
             hospitalId={review.hospital_id}
             specialityId={review.speciality_id}
             userProfile={userProfile}
+            highlightedQuestionId={highlightedQuestionId}
+            onHighlightedQuestionHandled={onHighlightedQuestionHandled}
             onInputFocus={() => {
               setIsQuestionInputFocused(true);
               scrollToBottom(false);

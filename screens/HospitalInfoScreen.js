@@ -443,7 +443,11 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      nestedScrollEnabled
+    >
       <ScreenHeader
         title={selectedPlan ? selectedPlan.speciality_name : "Información del hospital"}
         onBack={selectedPlan ? () => setSelectedPlanId(null) : onBack}
@@ -491,6 +495,7 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.galleryScrollContent}
+                    nestedScrollEnabled
                   >
                     {hospitalProfile.images.map((image, index) => (
                       <View

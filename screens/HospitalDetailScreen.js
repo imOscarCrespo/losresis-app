@@ -373,7 +373,11 @@ export default function HospitalDetailScreen({
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      nestedScrollEnabled
+    >
       <ScreenHeader title="Hospitales" onBack={onBack} compact />
 
       <View style={styles.scrollContent}>

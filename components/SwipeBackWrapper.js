@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, Platform } from "react-native";
 import {
   GestureDetector,
   Gesture,
@@ -21,14 +21,22 @@ export const SwipeBackWrapper = ({
   edgeWidth = 80, // Aumentado significativamente para capturar gestos desde el borde izquierdo
   minSwipeDistance = 30, // Reducido para que sea más fácil de activar
 }) => {
+  if (Platform.OS !== "ios") {
+    return <View style={styles.container}>{children}</View>;
+  }
+
   const startX = useRef(null);
   const isValidGesture = useRef(false);
+  const maxVerticalDrift = 24;
 
   // Crear gesto de pan (arrastre) que detecta desde el borde izquierdo
   // Configurado para activarse solo cuando comienza desde el borde izquierdo de la pantalla
   const panGesture = Gesture.Pan()
     .minPointers(1)
     .maxPointers(1)
+    .hitSlop({ left: 0, width: edgeWidth })
+    .activeOffsetX(minSwipeDistance)
+    .failOffsetY([-maxVerticalDrift, maxVerticalDrift])
     .onStart((event) => {
       // Usar absoluteX que es la posición absoluta en la pantalla
       // Si no está disponible, usar x como fallback
@@ -47,9 +55,8 @@ export const SwipeBackWrapper = ({
       const horizontalMovement = event.translationX;
       const verticalMovement = Math.abs(event.translationY);
 
-      // Si hay demasiado movimiento vertical o el movimiento es hacia la izquierda, cancelar
-      // Aumentamos la tolerancia vertical para gestos más naturales
-      if (verticalMovement > 100 || horizontalMovement < -5) {
+      // Si el gesto se convierte en scroll vertical o se mueve hacia la izquierda, lo invalidamos
+      if (verticalMovement > maxVerticalDrift || horizontalMovement < -5) {
         isValidGesture.current = false;
       }
     })
@@ -61,7 +68,7 @@ export const SwipeBackWrapper = ({
         startX.current !== null &&
         startX.current <= edgeWidth &&
         event.translationX > minSwipeDistance &&
-        Math.abs(event.translationY) < 150 // No demasiado movimiento vertical (aumentado para gestos más naturales)
+        Math.abs(event.translationY) <= maxVerticalDrift
       ) {
         onSwipeBack?.();
       }

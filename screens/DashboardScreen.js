@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Alert } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenLayout } from "../components/ScreenLayout";
 import { BackNavigationButton } from "../components/BackNavigationButton";
 import { PlaceholderScreen } from "../components/PlaceholderScreen";
@@ -102,8 +103,35 @@ const GENERIC_BACK_SECTIONS = new Set([
   "residentPayoutEntry",
 ]);
 
+const DASHBOARD_NAVIGATION_STATE_VERSION = 1;
+const DASHBOARD_NAVIGATION_STORAGE_KEY_PREFIX =
+  "@losresis:dashboardNavigation:";
+const DEFAULT_RESIDENT_PAYOUT_ROUTE_PARAMS = {
+  initialYear: null,
+  initialMonth: null,
+  lockInitialPeriod: false,
+};
+
+const getDashboardNavigationStorageKey = (userId) =>
+  `${DASHBOARD_NAVIGATION_STORAGE_KEY_PREFIX}${userId}`;
+
+const parseStoredDashboardNavigation = (value) => {
+  if (!value) return null;
+
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed?.version !== DASHBOARD_NAVIGATION_STATE_VERSION) {
+      return null;
+    }
+    return parsed;
+  } catch (error) {
+    console.warn("Error parsing stored dashboard navigation:", error);
+    return null;
+  }
+};
+
 export default function DashboardScreen({
-  onSignOut,
+  onSignOut: onSignOutProp,
   residentHasReview = true,
   residentReviewGateState = null,
   residentReviewGateConfig = null,
@@ -136,13 +164,16 @@ export default function DashboardScreen({
   const [roommateInitialTab, setRoommateInitialTab] = useState("discover");
   const [selectedRoommateMatchId, setSelectedRoommateMatchId] = useState(null);
   const [myReviewAutoOpenCreate, setMyReviewAutoOpenCreate] = useState(false);
-  const [residentPayoutRouteParams, setResidentPayoutRouteParams] = useState({
-    initialYear: null,
-    initialMonth: null,
-    lockInitialPeriod: false,
-  });
+  const [myReviewAutoFocusQuestions, setMyReviewAutoFocusQuestions] =
+    useState(false);
+  const [selectedQuestionId, setSelectedQuestionId] = useState(null);
+  const [residentPayoutRouteParams, setResidentPayoutRouteParams] = useState(
+    DEFAULT_RESIDENT_PAYOUT_ROUTE_PARAMS
+  );
   const [localResidentGateState, setLocalResidentGateState] =
     useState(residentReviewGateState);
+  const [isNavigationReady, setIsNavigationReady] = useState(false);
+  const hydratedUserIdRef = useRef(null);
   const screenLayoutProps = {
     showUpdateBanner,
     updateUrl,
@@ -164,13 +195,168 @@ export default function DashboardScreen({
     loadUserProfile();
   }, []);
 
-  // Actualizar sección inicial cuando se carga el perfil
   useEffect(() => {
-    if (userProfile && !loadingProfile) {
-      const initialSection = getInitialSection(userProfile);
-      setCurrentSection(initialSection);
-    }
-  }, [userProfile, loadingProfile]);
+    let isCancelled = false;
+
+    const hydrateNavigation = async () => {
+      if (loadingProfile) {
+        return;
+      }
+
+      const defaultSection = getInitialSection(userProfile);
+      const currentUserId = userProfile?.id || null;
+
+      if (hydratedUserIdRef.current === currentUserId) {
+        setIsNavigationReady(true);
+        return;
+      }
+
+      if (!currentUserId) {
+        if (!isCancelled) {
+          hydratedUserIdRef.current = null;
+          setCurrentSection(defaultSection);
+          setIsNavigationReady(true);
+        }
+        return;
+      }
+
+      try {
+        const storageKey = getDashboardNavigationStorageKey(currentUserId);
+        const storedValue = await AsyncStorage.getItem(storageKey);
+        const snapshot = parseStoredDashboardNavigation(storedValue);
+
+        if (isCancelled) {
+          return;
+        }
+
+        const currentSectionToRestore =
+          typeof snapshot?.currentSection === "string" && snapshot.currentSection
+            ? snapshot.currentSection
+            : defaultSection;
+
+        setCurrentSection(currentSectionToRestore);
+        setSelectedHospital(snapshot?.selectedHospital ?? null);
+        setShowHospitalInfoScreen(Boolean(snapshot?.showHospitalInfoScreen));
+        setSelectedSpecialtyId(snapshot?.selectedSpecialtyId ?? null);
+        setSelectedReviewId(snapshot?.selectedReviewId ?? null);
+        setSelectedArticleId(snapshot?.selectedArticleId ?? null);
+        setSelectedCourseId(snapshot?.selectedCourseId ?? null);
+        setSelectedHousingAdId(snapshot?.selectedHousingAdId ?? null);
+        setCreatingHousingAd(Boolean(snapshot?.creatingHousingAd));
+        setEditingHousingAdId(snapshot?.editingHousingAdId ?? null);
+        setCreatingCourse(Boolean(snapshot?.creatingCourse));
+        setEditingCourseId(snapshot?.editingCourseId ?? null);
+        setReviewComposerMode(snapshot?.reviewComposerMode ?? null);
+        setPreviousSection(snapshot?.previousSection ?? null);
+        setSectionHistory(Array.isArray(snapshot?.sectionHistory) ? snapshot.sectionHistory : []);
+        setLeisureForumType(snapshot?.leisureForumType ?? null);
+        setSelectedThreadId(snapshot?.selectedThreadId ?? null);
+        setSelectedGroupId(snapshot?.selectedGroupId ?? null);
+        setSelectedGroupName(snapshot?.selectedGroupName ?? null);
+        setRoommateInitialTab(snapshot?.roommateInitialTab || "discover");
+        setSelectedRoommateMatchId(snapshot?.selectedRoommateMatchId ?? null);
+        setMyReviewAutoOpenCreate(Boolean(snapshot?.myReviewAutoOpenCreate));
+        setMyReviewAutoFocusQuestions(Boolean(snapshot?.myReviewAutoFocusQuestions));
+        setSelectedQuestionId(snapshot?.selectedQuestionId ?? null);
+        setResidentPayoutRouteParams({
+          initialYear: snapshot?.residentPayoutRouteParams?.initialYear ?? null,
+          initialMonth: snapshot?.residentPayoutRouteParams?.initialMonth ?? null,
+          lockInitialPeriod: Boolean(
+            snapshot?.residentPayoutRouteParams?.lockInitialPeriod
+          ),
+        });
+        hydratedUserIdRef.current = currentUserId;
+        setIsNavigationReady(true);
+      } catch (error) {
+        console.error("Error restoring dashboard navigation:", error);
+        if (!isCancelled) {
+          hydratedUserIdRef.current = currentUserId;
+          setCurrentSection(defaultSection);
+          setIsNavigationReady(true);
+        }
+      }
+    };
+
+    hydrateNavigation();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [loadingProfile, userProfile?.id]);
+
+  useEffect(() => {
+    const persistNavigation = async () => {
+      if (!isNavigationReady || !userProfile?.id) {
+        return;
+      }
+
+      try {
+        const storageKey = getDashboardNavigationStorageKey(userProfile.id);
+        const snapshot = {
+          version: DASHBOARD_NAVIGATION_STATE_VERSION,
+          currentSection,
+          selectedHospital,
+          showHospitalInfoScreen,
+          selectedSpecialtyId,
+          selectedReviewId,
+          selectedArticleId,
+          selectedCourseId,
+          selectedHousingAdId,
+          creatingHousingAd,
+          editingHousingAdId,
+          creatingCourse,
+          editingCourseId,
+          reviewComposerMode,
+          previousSection,
+          sectionHistory,
+          leisureForumType,
+          selectedThreadId,
+          selectedGroupId,
+          selectedGroupName,
+          roommateInitialTab,
+          selectedRoommateMatchId,
+          myReviewAutoOpenCreate,
+          myReviewAutoFocusQuestions,
+          selectedQuestionId,
+          residentPayoutRouteParams,
+        };
+
+        await AsyncStorage.setItem(storageKey, JSON.stringify(snapshot));
+      } catch (error) {
+        console.error("Error saving dashboard navigation:", error);
+      }
+    };
+
+    persistNavigation();
+  }, [
+    isNavigationReady,
+    userProfile?.id,
+    currentSection,
+    selectedHospital,
+    showHospitalInfoScreen,
+    selectedSpecialtyId,
+    selectedReviewId,
+    selectedArticleId,
+    selectedCourseId,
+    selectedHousingAdId,
+    creatingHousingAd,
+    editingHousingAdId,
+    creatingCourse,
+    editingCourseId,
+    reviewComposerMode,
+    previousSection,
+    sectionHistory,
+    leisureForumType,
+    selectedThreadId,
+    selectedGroupId,
+    selectedGroupName,
+    roommateInitialTab,
+    selectedRoommateMatchId,
+    myReviewAutoOpenCreate,
+    myReviewAutoFocusQuestions,
+    selectedQuestionId,
+    residentPayoutRouteParams,
+  ]);
 
   useEffect(() => {
     setLocalResidentGateState(residentReviewGateState);
@@ -200,8 +386,19 @@ export default function DashboardScreen({
         return;
       }
 
+      if (data?.destination_section === "myReview") {
+        handleSectionChange("myReview", {
+          focusQuestions: true,
+          questionId: data.question_id,
+        });
+        return;
+      }
+
       if (data?.entity_type === "review" && data?.entity_id) {
-        handleSectionChange("reviewDetail", { reviewId: data.entity_id });
+        handleSectionChange("reviewDetail", {
+          reviewId: data.entity_id,
+          questionId: data.question_id,
+        });
         return;
       }
 
@@ -359,14 +556,19 @@ export default function DashboardScreen({
       setEditingCourseId(null);
       setReviewComposerMode(null);
       setMyReviewAutoOpenCreate(false);
+      setMyReviewAutoFocusQuestions(false);
+      setSelectedQuestionId(null);
       setPreviousSection(null); // Limpiar la sección anterior al cambiar de sección
     }
     if (sectionId === "myReview") {
       setMyReviewAutoOpenCreate(Boolean(params.autoOpenCreateReview));
+      setMyReviewAutoFocusQuestions(Boolean(params.focusQuestions));
+      setSelectedQuestionId(params.questionId || null);
     }
     // Si es reviewDetail, guardar el reviewId
     if (sectionId === "reviewDetail" && params.reviewId) {
       setSelectedReviewId(params.reviewId);
+      setSelectedQuestionId(params.questionId || null);
     }
     // Si es articleDetail, guardar el articleId
     if (sectionId === "articleDetail" && params.articleId) {
@@ -568,6 +770,21 @@ export default function DashboardScreen({
     setCurrentSection("grupos");
   };
 
+  const handleSignOut = async () => {
+    try {
+      if (userProfile?.id) {
+        await AsyncStorage.removeItem(
+          getDashboardNavigationStorageKey(userProfile.id)
+        );
+      }
+      hydratedUserIdRef.current = null;
+    } catch (error) {
+      console.error("Error clearing dashboard navigation on sign out:", error);
+    }
+
+    await onSignOutProp();
+  };
+
   // Si estamos en el chat de un grupo
   if (selectedGroupId) {
     return (
@@ -661,6 +878,8 @@ export default function DashboardScreen({
             reviewId={selectedReviewId}
             onBack={handleBackFromReview}
             userProfile={userProfile}
+            highlightedQuestionId={selectedQuestionId}
+            onHighlightedQuestionHandled={() => setSelectedQuestionId(null)}
           />
         </SwipeBackWrapper>
       </ScreenLayout>
@@ -962,7 +1181,7 @@ export default function DashboardScreen({
         return (
           <ProfileScreen
             onBack={handleBackFromProfile}
-            onSignOut={onSignOut}
+            onSignOut={handleSignOut}
             onProfileUpdated={loadUserProfile}
             onSectionChange={handleSectionChange}
             currentSection={currentSection}
@@ -984,7 +1203,9 @@ export default function DashboardScreen({
             onBack={handleBackFromGenericSection}
             onNavigateToEntity={(screenId, entityId) => {
               if (screenId === "reviewDetail") {
-                handleSectionChange("reviewDetail", { reviewId: entityId });
+                handleSectionChange("reviewDetail", entityId);
+              } else if (screenId === "myReview") {
+                handleSectionChange("myReview", entityId);
               } else if (screenId === "threadDetail") {
                 handleSectionChange("threadDetail", { threadId: entityId });
               } else if (screenId === "roomies") {
@@ -1046,7 +1267,11 @@ export default function DashboardScreen({
             onReviewCreated={onReviewCreated}
             onReviewDeleted={onReviewDeleted}
             autoOpenCreateReview={myReviewAutoOpenCreate}
+            autoFocusQuestions={myReviewAutoFocusQuestions}
+            highlightedQuestionId={selectedQuestionId}
             onAutoOpenCreateReviewHandled={() => setMyReviewAutoOpenCreate(false)}
+            onAutoFocusQuestionsHandled={() => setMyReviewAutoFocusQuestions(false)}
+            onHighlightedQuestionHandled={() => setSelectedQuestionId(null)}
             onCreateReview={() => setReviewComposerMode("create")}
             onEditReview={() => setReviewComposerMode("edit")}
             onBack={handleBackFromGenericSection}
@@ -1244,7 +1469,7 @@ export default function DashboardScreen({
     }
   };
 
-  if (loadingProfile) {
+  if (loadingProfile || !isNavigationReady) {
     return (
       <ScreenLayout
         {...screenLayoutProps}

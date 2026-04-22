@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Platform } from "react-native";
 import { checkVersionUpdate, clearVersionCache } from "../services/versionService";
 import Constants from "expo-constants";
@@ -16,12 +16,20 @@ export const useVersionCheck = () => {
   const [minVersion, setMinVersion] = useState(null);
   const [updateUrl, setUpdateUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastCheckedAt, setLastCheckedAt] = useState(null);
+  const hasCompletedInitialCheckRef = useRef(false);
 
   const refreshVersionCheck = useCallback(
     async ({ force = false, reason = "manual" } = {}) => {
+      const isInitialLoad = !hasCompletedInitialCheckRef.current;
+
       try {
-        setIsLoading(true);
+        if (isInitialLoad) {
+          setIsLoading(true);
+        } else {
+          setIsRefreshing(true);
+        }
 
         // Obtener versión actual de la app desde app.json (no del SDK)
         const expoConfigVersion = Constants.expoConfig?.version;
@@ -111,7 +119,12 @@ export const useVersionCheck = () => {
         setIsForceUpdate(false);
         setMinVersion(null);
       } finally {
-        setIsLoading(false);
+        if (isInitialLoad) {
+          setIsLoading(false);
+          hasCompletedInitialCheckRef.current = true;
+        } else {
+          setIsRefreshing(false);
+        }
       }
     },
     []
@@ -128,6 +141,7 @@ export const useVersionCheck = () => {
     minVersion,
     updateUrl,
     isLoading,
+    isRefreshing,
     lastCheckedAt,
     refreshVersionCheck,
   };

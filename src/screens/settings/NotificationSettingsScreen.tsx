@@ -40,6 +40,16 @@ const NOTIFICATION_OPTIONS: Array<{
     description: "Cuando alguien responda a una reseña que escribiste.",
   },
   {
+    notification_type: "review_question_for_review_owner",
+    title: "Preguntas en mi reseña",
+    description: "Cuando otro usuario haga una pregunta sobre tu reseña.",
+  },
+  {
+    notification_type: "review_question_answer_for_asker",
+    title: "Respuestas a mis preguntas",
+    description: "Cuando un residente responda a una pregunta que hiciste.",
+  },
+  {
     notification_type: "new_comment",
     title: "Nuevos comentarios",
     description: "Cuando haya nuevos comentarios en tus reseñas.",
