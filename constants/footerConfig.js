@@ -1,7 +1,7 @@
 /**
  * Configuración del Footer v2
  * Estudiantes: Inicio, Hospitales, MIR, Chats, Perfil
- * Residentes: Inicio, Agenda, Chats, Perfil
+ * Residentes: Inicio, Mi reseña, Agenda, Chats, Perfil
  * Doctores: Inicio, Agenda, Chats, Reseñas, Perfil
  */
 
@@ -46,6 +46,39 @@ export const RESIDENT_FOOTER_ITEMS = [
     screen: "inicio",
   },
   {
+    id: "mi-resena",
+    icon: "star",
+    label: "Mi reseña",
+    screen: "myReview",
+  },
+  {
+    id: "agenda",
+    icon: "calendar",
+    label: "Agenda",
+    screen: "agenda",
+  },
+  {
+    id: "grupos",
+    icon: "chatbubbles",
+    label: "Chats",
+    screen: "grupos",
+  },
+  {
+    id: "usuario",
+    icon: "person",
+    label: "Perfil",
+    screen: "usuario",
+  },
+];
+
+export const DOCTOR_FOOTER_ITEMS = [
+  {
+    id: "inicio",
+    icon: "home",
+    label: "Inicio",
+    screen: "inicio",
+  },
+  {
     id: "agenda",
     icon: "calendar",
     label: "Agenda",
@@ -76,11 +109,11 @@ export const RESIDENT_FOOTER_ITEMS = [
  */
 export const getFooterConfig = (userProfile) => {
   if (userProfile?.is_resident) {
-    return RESIDENT_FOOTER_ITEMS.filter((item) => item.id !== "reseñas");
+    return RESIDENT_FOOTER_ITEMS;
   }
 
   if (userProfile?.is_doctor) {
-    return RESIDENT_FOOTER_ITEMS;
+    return DOCTOR_FOOTER_ITEMS;
   }
 
   return STUDENT_FOOTER_ITEMS;

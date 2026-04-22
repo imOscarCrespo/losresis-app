@@ -3,20 +3,17 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Modal,
   Alert,
   ScrollView,
-  Keyboard,
   Platform,
-  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useStudentQuestions } from "../hooks/useStudentQuestions";
-import { formatShortDate, formatLongDate } from "../utils/dateUtils";
+import { formatLongDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
+import { KeyboardAwareTextInput } from "./KeyboardAwareTextInput";
 
 /**
  * Componente de preguntas de estudiantes
@@ -41,12 +38,7 @@ export const StudentQuestionsSection = ({
   const [editingAnswer, setEditingAnswer] = useState(null);
   const [editText, setEditText] = useState("");
 
-  // Estados para eliminar
-  const [deletingQuestion, setDeletingQuestion] = useState(null);
-  const [deletingAnswer, setDeletingAnswer] = useState(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [questionsListHeight, setQuestionsListHeight] = useState(0);
-  const [focusedQuestionId, setFocusedQuestionId] = useState(null);
 
   const questionsListRef = useRef(null);
   const questionLayoutsRef = useRef({});
@@ -88,42 +80,6 @@ export const StudentQuestionsSection = ({
     checkCanAnswer();
   }, [userProfile, hospitalId, specialityId, canAnswerQuestions]);
 
-  useEffect(() => {
-    const windowHeight = Dimensions.get("window").height;
-
-    const getNextKeyboardHeight = (event) => {
-      if (!event?.endCoordinates) return 0;
-
-      if (Platform.OS === "ios") {
-        const keyboardTop = event.endCoordinates.screenY ?? windowHeight;
-        return Math.max(windowHeight - keyboardTop, 0);
-      }
-
-      return Math.max(event.endCoordinates.height ?? 0, 0);
-    };
-
-    const handleKeyboardShow = (event) => {
-      setKeyboardHeight(getNextKeyboardHeight(event));
-    };
-
-    const handleKeyboardHide = () => {
-      setKeyboardHeight(0);
-    };
-
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillChangeFrame" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const showSubscription = Keyboard.addListener(showEvent, handleKeyboardShow);
-    const hideSubscription = Keyboard.addListener(hideEvent, handleKeyboardHide);
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
-
   const scrollQuestionIntoView = useCallback(
     (questionId, animated = true) => {
       const layout = questionLayoutsRef.current[questionId];
@@ -133,20 +89,22 @@ export const StudentQuestionsSection = ({
         return;
       }
 
-      const visibleHeight = Math.max(questionsListHeight - keyboardHeight - 24, 0);
+      const topMargin = 12;
+      const bottomMargin = 20;
+      const questionBottom = layout.y + layout.height + bottomMargin;
+      const visibleHeight = Math.max(questionsListHeight, 0);
       const targetY =
         visibleHeight > 0
-          ? Math.max(layout.y + layout.height - visibleHeight, 0)
-          : Math.max(layout.y - 12, 0);
+          ? Math.max(questionBottom - visibleHeight, layout.y - topMargin, 0)
+          : Math.max(layout.y - topMargin, 0);
 
       questionsListRef.current?.scrollTo({ y: targetY, animated });
     },
-    [keyboardHeight, questionsListHeight]
+    [questionsListHeight]
   );
 
   const handleQuestionInputFocus = useCallback(
     (questionId = null) => {
-      setFocusedQuestionId(questionId);
       onInputFocus?.();
 
       requestAnimationFrame(() => {
@@ -162,19 +120,8 @@ export const StudentQuestionsSection = ({
   );
 
   const handleQuestionInputBlur = useCallback(() => {
-    setFocusedQuestionId(null);
     onInputBlur?.();
   }, [onInputBlur]);
-
-  useEffect(() => {
-    if (!focusedQuestionId || keyboardHeight <= 0) return;
-
-    const timeoutId = setTimeout(() => {
-      scrollQuestionIntoView(focusedQuestionId, false);
-    }, 50);
-
-    return () => clearTimeout(timeoutId);
-  }, [focusedQuestionId, keyboardHeight, scrollQuestionIntoView]);
 
   useEffect(() => {
     if (!highlightedQuestionId || questions.length === 0) return;
@@ -267,7 +214,6 @@ export const StudentQuestionsSection = ({
           onPress: async () => {
             try {
               await deleteQuestion(questionId, userProfile);
-              setDeletingQuestion(null);
             } catch (error) {
               Alert.alert(
                 "Error",
@@ -318,7 +264,6 @@ export const StudentQuestionsSection = ({
           onPress: async () => {
             try {
               await deleteAnswer(answerId, userProfile);
-              setDeletingAnswer(null);
             } catch (error) {
               Alert.alert(
                 "Error",
@@ -355,12 +300,22 @@ export const StudentQuestionsSection = ({
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Ionicons
-            name="chatbubbles-outline"
-            size={20}
-            color={COLORS.PRIMARY}
-          />
-          <Text style={styles.title}>Preguntas de Estudiantes</Text>
+          <View style={styles.headerTitleRow}>
+            <View style={styles.headerIconWrap}>
+              <Ionicons
+                name="chatbubbles-outline"
+                size={18}
+                color={COLORS.PRIMARY}
+              />
+            </View>
+            <View style={styles.headerCopy}>
+              <Text style={styles.title}>Preguntas de estudiantes</Text>
+              <Text style={styles.subtitle}>
+                Resuelve dudas reales sobre esta plaza con contexto de otros
+                usuarios.
+              </Text>
+            </View>
+          </View>
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color={COLORS.PRIMARY} />
@@ -373,16 +328,37 @@ export const StudentQuestionsSection = ({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="chatbubbles-outline" size={20} color={COLORS.PRIMARY} />
-        <Text style={styles.title}>
-          Preguntas de Estudiantes ({questions.length})
-        </Text>
+        <View style={styles.headerTitleRow}>
+          <View style={styles.headerIconWrap}>
+            <Ionicons
+              name="chatbubbles-outline"
+              size={18}
+              color={COLORS.PRIMARY}
+            />
+          </View>
+          <View style={styles.headerCopy}>
+            <Text style={styles.title}>Preguntas de estudiantes</Text>
+            <Text style={styles.subtitle}>
+              Consulta experiencias, detalles prácticos y respuestas de
+              residentes o adjuntos.
+            </Text>
+          </View>
+        </View>
+        <View style={styles.headerCountBadge}>
+          <Text style={styles.headerCountText}>{questions.length}</Text>
+        </View>
       </View>
 
       {/* Formulario para nueva pregunta - Solo estudiantes y super admins */}
       {(userProfile?.is_student || userProfile?.is_super_admin) && (
-        <View style={styles.inputContainer}>
-          <TextInput
+        <View style={styles.composerCard}>
+          <View style={styles.composerHeader}>
+            <Text style={styles.composerTitle}>Haz una nueva pregunta</Text>
+            <Text style={styles.composerHint}>
+              Sé concreto para recibir respuestas útiles.
+            </Text>
+          </View>
+          <KeyboardAwareTextInput
             style={styles.input}
             placeholder="Haz una pregunta sobre esta especialidad en este hospital..."
             placeholderTextColor={COLORS.GRAY}
@@ -393,27 +369,30 @@ export const StudentQuestionsSection = ({
             editable={!submitting}
             onFocus={() => handleQuestionInputFocus()}
             onBlur={handleQuestionInputBlur}
+            keyboardAwareOptions={{ extraScrollSpace: 20 }}
           />
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              (!newQuestion.trim() || submitting) && styles.sendButtonDisabled,
-            ]}
-            onPress={handleSubmitQuestion}
-            disabled={!newQuestion.trim() || submitting}
-            activeOpacity={0.7}
-          >
-            {submitting ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Ionicons name="send" size={16} color="#FFFFFF" />
-                <Text style={styles.sendButtonText}>
-                  {submitting ? "Enviando..." : "Enviar"}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <View style={styles.composerFooter}>
+            <Text style={styles.characterCount}>{newQuestion.length}/500</Text>
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                (!newQuestion.trim() || submitting) &&
+                  styles.sendButtonDisabled,
+              ]}
+              onPress={handleSubmitQuestion}
+              disabled={!newQuestion.trim() || submitting}
+              activeOpacity={0.7}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="send" size={16} color="#FFFFFF" />
+                  <Text style={styles.sendButtonText}>Enviar</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -424,7 +403,13 @@ export const StudentQuestionsSection = ({
         </View>
       ) : questions.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="chatbubbles-outline" size={48} color={COLORS.GRAY} />
+          <View style={styles.emptyIconWrap}>
+            <Ionicons
+              name="chatbubbles-outline"
+              size={28}
+              color={COLORS.PRIMARY}
+            />
+          </View>
           <Text style={styles.emptyText}>
             {userProfile?.is_student || userProfile?.is_super_admin
               ? "Aún no hay preguntas. ¡Sé el primero en preguntar!"
@@ -435,10 +420,7 @@ export const StudentQuestionsSection = ({
         <ScrollView
           ref={questionsListRef}
           style={styles.questionsList}
-          contentContainerStyle={[
-            styles.questionsListContent,
-            keyboardHeight > 0 && { paddingBottom: keyboardHeight + 24 },
-          ]}
+          contentContainerStyle={styles.questionsListContent}
           keyboardShouldPersistTaps="always"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           nestedScrollEnabled
@@ -465,14 +447,18 @@ export const StudentQuestionsSection = ({
               {/* Header de la pregunta */}
               <View style={styles.questionHeader}>
                 <View style={styles.questionHeaderLeft}>
-                  <Ionicons name="person" size={16} color={COLORS.GRAY} />
-                  <Text style={styles.questionAuthor}>
-                    {question.user?.name} {question.user?.surname}
-                  </Text>
-                  <View style={styles.userBadge}>
-                    <Text style={styles.userBadgeText}>
-                      {getUserDisplayName(question.user)}
+                  <View style={styles.avatarBadge}>
+                    <Ionicons name="person" size={14} color={COLORS.PRIMARY} />
+                  </View>
+                  <View style={styles.questionAuthorBlock}>
+                    <Text style={styles.questionAuthor}>
+                      {question.user?.name} {question.user?.surname}
                     </Text>
+                    <View style={styles.userBadge}>
+                      <Text style={styles.userBadgeText}>
+                        {getUserDisplayName(question.user)}
+                      </Text>
+                    </View>
                   </View>
                 </View>
 
@@ -523,7 +509,7 @@ export const StudentQuestionsSection = ({
               {/* Texto de la pregunta - Modo edición o visualización */}
               {editingQuestion === question.id ? (
                 <View style={styles.editContainer}>
-                  <TextInput
+                  <KeyboardAwareTextInput
                     style={styles.editInput}
                     value={editText}
                     onChangeText={setEditText}
@@ -532,6 +518,7 @@ export const StudentQuestionsSection = ({
                     editable={!submitting}
                     onFocus={() => handleQuestionInputFocus(question.id)}
                     onBlur={handleQuestionInputBlur}
+                    keyboardAwareOptions={{ extraScrollSpace: 20 }}
                   />
                   <View style={styles.editButtons}>
                     <TouchableOpacity
@@ -582,18 +569,22 @@ export const StudentQuestionsSection = ({
                         <View key={answer.id} style={styles.answerCard}>
                           <View style={styles.answerHeader}>
                             <View style={styles.answerHeaderLeft}>
-                              <Ionicons
-                                name="school"
-                                size={16}
-                                color={COLORS.PRIMARY}
-                              />
-                              <Text style={styles.answerAuthor}>
-                                {answer.user?.name} {answer.user?.surname}
-                              </Text>
-                              <View style={styles.answerBadge}>
-                                <Text style={styles.answerBadgeText}>
-                                  {getUserDisplayName(answer.user)}
+                              <View style={styles.answerAvatarBadge}>
+                                <Ionicons
+                                  name="school"
+                                  size={14}
+                                  color={COLORS.PRIMARY}
+                                />
+                              </View>
+                              <View style={styles.answerAuthorBlock}>
+                                <Text style={styles.answerAuthor}>
+                                  {answer.user?.name} {answer.user?.surname}
                                 </Text>
+                                <View style={styles.answerBadge}>
+                                  <Text style={styles.answerBadgeText}>
+                                    {getUserDisplayName(answer.user)}
+                                  </Text>
+                                </View>
                               </View>
                             </View>
 
@@ -632,7 +623,7 @@ export const StudentQuestionsSection = ({
                           {/* Texto de la respuesta - Modo edición o visualización */}
                           {editingAnswer === answer.id ? (
                             <View style={styles.editContainer}>
-                              <TextInput
+                              <KeyboardAwareTextInput
                                 style={styles.editInput}
                                 value={editText}
                                 onChangeText={setEditText}
@@ -641,6 +632,7 @@ export const StudentQuestionsSection = ({
                                 editable={!submitting}
                                 onFocus={() => handleQuestionInputFocus(question.id)}
                                 onBlur={handleQuestionInputBlur}
+                                keyboardAwareOptions={{ extraScrollSpace: 20 }}
                               />
                               <View style={styles.editButtons}>
                                 <TouchableOpacity
@@ -689,8 +681,8 @@ export const StudentQuestionsSection = ({
 
                   {/* Formulario para responder - Solo si puede responder */}
                   {canAnswer && (
-                    <View style={styles.answerInputContainer}>
-                      <TextInput
+                    <View style={styles.answerComposerCard}>
+                      <KeyboardAwareTextInput
                         style={styles.answerInput}
                         placeholder="Responde a esta pregunta..."
                         placeholderTextColor={COLORS.GRAY}
@@ -706,30 +698,40 @@ export const StudentQuestionsSection = ({
                         editable={!submitting}
                         onFocus={() => handleQuestionInputFocus(question.id)}
                         onBlur={handleQuestionInputBlur}
+                        keyboardAwareOptions={{ extraScrollSpace: 20 }}
                       />
-                      <TouchableOpacity
-                        style={[
-                          styles.answerButton,
-                          (!answerTexts[question.id]?.trim() || submitting) &&
-                            styles.answerButtonDisabled,
-                        ]}
-                        onPress={() => handleSubmitAnswer(question.id)}
-                        disabled={
-                          !answerTexts[question.id]?.trim() || submitting
-                        }
-                        activeOpacity={0.7}
-                      >
-                        {submitting ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                          <>
-                            <Ionicons name="send" size={14} color="#FFFFFF" />
-                            <Text style={styles.answerButtonText}>
-                              {submitting ? "Enviando..." : "Responder"}
-                            </Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
+                      <View style={styles.composerFooter}>
+                        <Text style={styles.characterCount}>
+                          {(answerTexts[question.id] || "").length}/500
+                        </Text>
+                        <TouchableOpacity
+                          style={[
+                            styles.answerButton,
+                            (!answerTexts[question.id]?.trim() || submitting) &&
+                              styles.answerButtonDisabled,
+                          ]}
+                          onPress={() => handleSubmitAnswer(question.id)}
+                          disabled={
+                            !answerTexts[question.id]?.trim() || submitting
+                          }
+                          activeOpacity={0.7}
+                        >
+                          {submitting ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="send"
+                                size={14}
+                                color="#FFFFFF"
+                              />
+                              <Text style={styles.answerButtonText}>
+                                Responder
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   )}
                 </View>
@@ -745,33 +747,75 @@ export const StudentQuestionsSection = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    margin: 16,
-    marginTop: 0,
+    borderRadius: 18,
+    padding: 18,
     marginBottom: 16,
-    shadowColor: "#000",
+    borderWidth: 1,
+    borderColor: "#E8ECF4",
+    shadowColor: "#0F172A",
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
     elevation: 3,
   },
   header: {
     flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 18,
+  },
+  headerTitleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    flex: 1,
+  },
+  headerIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: `${COLORS.PRIMARY}10`,
     alignItems: "center",
-    gap: 8,
-    marginBottom: 16,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: `${COLORS.PRIMARY}18`,
+  },
+  headerCopy: {
+    flex: 1,
+    gap: 4,
   },
   title: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
     color: COLORS.GRAY_DARK,
   },
+  subtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#667085",
+  },
+  headerCountBadge: {
+    minWidth: 36,
+    height: 36,
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: `${COLORS.PRIMARY}10`,
+    borderWidth: 1,
+    borderColor: `${COLORS.PRIMARY}18`,
+  },
+  headerCountText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.PRIMARY,
+  },
   loadingContainer: {
-    padding: 20,
+    paddingVertical: 28,
     alignItems: "center",
   },
   loadingText: {
@@ -779,32 +823,63 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.GRAY,
   },
-  inputContainer: {
-    flexDirection: "row",
-    gap: 8,
+  composerCard: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 16,
+    padding: 14,
     marginBottom: 16,
+    gap: 12,
+  },
+  composerHeader: {
+    gap: 4,
+  },
+  composerTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.GRAY_DARK,
+  },
+  composerHint: {
+    fontSize: 13,
+    color: "#667085",
+    lineHeight: 18,
   },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 12,
-    padding: 12,
+    borderColor: "#D0D5DD",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 14,
     color: COLORS.GRAY_DARK,
+    minHeight: 108,
+    maxHeight: 164,
+    backgroundColor: "#FFFFFF",
+    textAlignVertical: "top",
+  },
+  composerFooter: {
     minHeight: 44,
-    maxHeight: 100,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  characterCount: {
+    fontSize: 12,
+    color: "#98A2B3",
   },
   sendButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     backgroundColor: COLORS.PRIMARY,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 18,
+    height: 44,
     borderRadius: 12,
     justifyContent: "center",
-    minWidth: 80,
+    minWidth: 112,
   },
   sendButtonDisabled: {
     backgroundColor: COLORS.GRAY_MEDIUM,
@@ -816,9 +891,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   errorContainer: {
-    padding: 20,
+    padding: 16,
     backgroundColor: COLORS.RED_LIGHT,
-    borderRadius: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FECACA",
   },
   errorText: {
     color: COLORS.ERROR,
@@ -827,13 +904,23 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     alignItems: "center",
-    paddingVertical: 32,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+  },
+  emptyIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: `${COLORS.PRIMARY}10`,
+    alignItems: "center",
+    justifyContent: "center",
   },
   emptyText: {
     marginTop: 12,
     fontSize: 14,
     color: COLORS.GRAY,
     textAlign: "center",
+    lineHeight: 20,
   },
   questionsList: {
     maxHeight: 400,
@@ -843,10 +930,11 @@ const styles = StyleSheet.create({
   },
   questionCard: {
     borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 12,
+    borderColor: "#E4E7EC",
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
+    backgroundColor: "#FCFCFD",
   },
   questionCardHighlighted: {
     borderColor: COLORS.PRIMARY,
@@ -860,23 +948,40 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 8,
+    gap: 12,
+    marginBottom: 10,
   },
   questionHeaderLeft: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    alignItems: "flex-start",
+    gap: 10,
     flex: 1,
+  },
+  avatarBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: `${COLORS.PRIMARY}10`,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: `${COLORS.PRIMARY}18`,
+  },
+  questionAuthorBlock: {
+    flex: 1,
+    gap: 6,
+    paddingTop: 1,
   },
   questionAuthor: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     color: COLORS.GRAY_DARK,
   },
   userBadge: {
+    alignSelf: "flex-start",
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
+    paddingVertical: 4,
+    borderRadius: 999,
     backgroundColor: COLORS.GREEN_LIGHT,
   },
   userBadgeText: {
@@ -889,13 +994,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionButton: {
-    padding: 4,
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F2F4F7",
   },
   questionText: {
     fontSize: 14,
     color: COLORS.GRAY_DARK,
-    lineHeight: 20,
-    marginBottom: 8,
+    lineHeight: 22,
+    marginBottom: 12,
   },
   questionInfo: {
     flexDirection: "row",
@@ -917,42 +1027,61 @@ const styles = StyleSheet.create({
     color: COLORS.GRAY,
   },
   answersSection: {
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: 14,
+    paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: "#E5E5EA",
+    borderTopColor: "#EAECF0",
   },
   answersList: {
     gap: 12,
     marginBottom: 12,
   },
   answerCard: {
-    backgroundColor: COLORS.GRAY_LIGHT,
-    borderRadius: 8,
-    padding: 12,
-    marginLeft: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 14,
+    marginLeft: 12,
+    borderWidth: 1,
+    borderColor: "#EAECF0",
   },
   answerHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    gap: 10,
     marginBottom: 8,
   },
   answerHeaderLeft: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    alignItems: "flex-start",
+    gap: 10,
     flex: 1,
+  },
+  answerAvatarBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: `${COLORS.PRIMARY}10`,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: `${COLORS.PRIMARY}18`,
+  },
+  answerAuthorBlock: {
+    flex: 1,
+    gap: 5,
+    paddingTop: 1,
   },
   answerAuthor: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
     color: COLORS.GRAY_DARK,
   },
   answerBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 12,
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
     backgroundColor: COLORS.BLUE_LIGHT,
   },
   answerBadgeText: {
@@ -964,7 +1093,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.GRAY_DARK,
     lineHeight: 20,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   answerInfo: {
     flexDirection: "row",
@@ -975,29 +1104,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.GRAY,
   },
-  answerInputContainer: {
+  answerComposerCard: {
     marginTop: 8,
-    gap: 8,
+    marginLeft: 12,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    padding: 12,
+    gap: 10,
   },
   answerInput: {
     borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 8,
-    padding: 12,
+    borderColor: "#D0D5DD",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     fontSize: 14,
     color: COLORS.GRAY_DARK,
-    minHeight: 60,
-    maxHeight: 120,
+    minHeight: 88,
+    maxHeight: 140,
+    backgroundColor: "#FFFFFF",
+    textAlignVertical: "top",
   },
   answerButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    alignSelf: "flex-end",
     backgroundColor: COLORS.PRIMARY,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: "center",
+    minWidth: 116,
   },
   answerButtonDisabled: {
     backgroundColor: COLORS.GRAY_MEDIUM,
@@ -1013,23 +1152,26 @@ const styles = StyleSheet.create({
   },
   editInput: {
     borderWidth: 1,
-    borderColor: "#E5E5EA",
-    borderRadius: 8,
-    padding: 12,
+    borderColor: "#D0D5DD",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     fontSize: 14,
     color: COLORS.GRAY_DARK,
     minHeight: 80,
     maxHeight: 150,
     marginBottom: 8,
+    backgroundColor: "#FFFFFF",
+    textAlignVertical: "top",
   },
   editButtons: {
     flexDirection: "row",
     gap: 8,
   },
   editButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   saveButton: {
     backgroundColor: COLORS.PRIMARY,

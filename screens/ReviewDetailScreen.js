@@ -1,19 +1,17 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   Modal,
   Image,
   Dimensions,
-  Keyboard,
-  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "../components/ScreenHeader";
+import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { useReviewDetail } from "../hooks/useReviewDetail";
 import { formatLongDate } from "../utils/dateUtils";
 import { StudentQuestionsSection } from "../components/StudentQuestionsSection";
@@ -73,9 +71,6 @@ export default function ReviewDetailScreen({
 }) {
   const { review, loading, error, fetchReviewDetail } = useReviewDetail();
   const [selectedImage, setSelectedImage] = useState(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [isQuestionInputFocused, setIsQuestionInputFocused] = useState(false);
-  const scrollViewRef = useRef(null);
 
   useEffect(() => {
     posthogLogger.logScreen("ReviewDetailScreen", { reviewId });
@@ -88,58 +83,6 @@ export default function ReviewDetailScreen({
     }
     fetchReviewDetail(reviewId);
   }, [reviewId, fetchReviewDetail]);
-
-  useEffect(() => {
-    const windowHeight = Dimensions.get("window").height;
-
-    const getNextKeyboardHeight = (event) => {
-      if (!event?.endCoordinates) return 0;
-
-      if (Platform.OS === "ios") {
-        const keyboardTop = event.endCoordinates.screenY ?? windowHeight;
-        return Math.max(windowHeight - keyboardTop, 0);
-      }
-
-      return Math.max(event.endCoordinates.height ?? 0, 0);
-    };
-
-    const handleKeyboardShow = (event) => {
-      setKeyboardHeight(getNextKeyboardHeight(event));
-    };
-
-    const handleKeyboardHide = () => {
-      setKeyboardHeight(0);
-    };
-
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillChangeFrame" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const showSubscription = Keyboard.addListener(showEvent, handleKeyboardShow);
-    const hideSubscription = Keyboard.addListener(hideEvent, handleKeyboardHide);
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
-
-  const scrollToBottom = useCallback((animated = true) => {
-    requestAnimationFrame(() => {
-      scrollViewRef.current?.scrollToEnd({ animated });
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!isQuestionInputFocused || keyboardHeight <= 0) return;
-
-    const timeoutId = setTimeout(() => {
-      scrollToBottom(false);
-    }, 50);
-
-    return () => clearTimeout(timeoutId);
-  }, [isQuestionInputFocused, keyboardHeight, scrollToBottom]);
 
   const { ratingAnswers, textAnswers } = useMemo(() => {
     if (!review?.answers || !Array.isArray(review.answers)) {
@@ -197,15 +140,10 @@ export default function ReviewDetailScreen({
     <View style={styles.container}>
       <ScreenHeader title="Reseñas" onBack={onBack} compact />
 
-      <ScrollView
-        ref={scrollViewRef}
+      <KeyboardAwareScrollView
         style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          keyboardHeight > 0 && { paddingBottom: keyboardHeight + 24 },
-        ]}
-        keyboardShouldPersistTaps="always"
-        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        contentContainerStyle={styles.scrollContent}
+        bottomPadding={32}
         showsVerticalScrollIndicator={false}
       >
         {/* Info card */}
@@ -422,16 +360,11 @@ export default function ReviewDetailScreen({
             userProfile={userProfile}
             highlightedQuestionId={highlightedQuestionId}
             onHighlightedQuestionHandled={onHighlightedQuestionHandled}
-            onInputFocus={() => {
-              setIsQuestionInputFocused(true);
-              scrollToBottom(false);
-            }}
-            onInputBlur={() => setIsQuestionInputFocused(false)}
           />
         )}
 
         <View style={{ height: 24 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Image lightbox modal */}
       <Modal

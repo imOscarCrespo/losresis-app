@@ -645,10 +645,7 @@ export const AgendaScreen = ({ userProfile }) => {
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.heroShell}>
         <BottomMenuHeroHeader
           title="Agenda de residencia"
           subtitle="Calendario unificado para guardias, cursos, estudio e hitos de tu residencia."
@@ -699,8 +696,14 @@ export const AgendaScreen = ({ userProfile }) => {
             </View>
           }
         />
+      </View>
 
-        <View style={styles.body}>
+      <View style={styles.contentShell}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.body}>
           <View style={styles.calendarCard}>
             <Calendar
               key={`${visibleMonth.getFullYear()}-${visibleMonth.getMonth()}`}
@@ -906,8 +909,9 @@ export const AgendaScreen = ({ userProfile }) => {
               ))}
             </>
           ) : null}
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </View>
 
       <FloatingActionButton
         onPress={() => setTypeModalVisible(true)}
@@ -1247,6 +1251,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F7F5F8",
   },
+  heroShell: {
+    position: "relative",
+    zIndex: 2,
+    elevation: 2,
+  },
+  contentShell: {
+    flex: 1,
+    marginTop: -18,
+    position: "relative",
+    zIndex: 1,
+  },
   scrollContent: {
     paddingBottom: 112,
   },
@@ -1299,7 +1314,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   body: {
-    marginTop: -18,
     paddingHorizontal: 14,
     gap: 16,
   },

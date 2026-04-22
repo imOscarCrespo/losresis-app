@@ -57,6 +57,27 @@ const waitForOAuthSession = async ({
   return null;
 };
 
+const signOutIfSessionIsInconsistent = async (reason) => {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      return false;
+    }
+
+    console.warn(
+      `⚠️ Sesión inconsistente detectada (${reason}). Se fuerza cierre de sesión.`
+    );
+    await signOut();
+    return true;
+  } catch (error) {
+    console.warn("⚠️ No se pudo validar la sesión inconsistente:", error);
+    return false;
+  }
+};
+
 /**
  * Función genérica para iniciar sesión con cualquier provider OAuth
  * @param {string} provider - Provider de OAuth ('google' | 'apple')
@@ -424,10 +445,23 @@ export const getCurrentUser = async () => {
     } = await supabase.auth.getUser();
 
     if (error) {
+      await signOutIfSessionIsInconsistent(error.message);
       return {
         success: false,
         user: null,
         error: error.message,
+      };
+    }
+
+    if (!user) {
+      const forcedSignOut = await signOutIfSessionIsInconsistent(
+        "user_missing_with_active_session"
+      );
+
+      return {
+        success: false,
+        user: null,
+        error: forcedSignOut ? "Usuario no identificado." : null,
       };
     }
 
@@ -438,6 +472,7 @@ export const getCurrentUser = async () => {
     };
   } catch (error) {
     console.error("Error al obtener usuario:", error);
+    await signOutIfSessionIsInconsistent(error.message);
     return {
       success: false,
       user: null,

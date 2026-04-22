@@ -184,7 +184,15 @@ function formatCourseDateLabel(course) {
 
   if (dates.length === 0) return "Sin fecha";
 
-  return new Date(`${dates[0]}T00:00:00`).toLocaleDateString("es-ES", {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const nextDate = dates.find((date) => {
+    const parsedDate = new Date(`${date}T00:00:00`);
+    return parsedDate >= today;
+  }) || dates[0];
+
+  return new Date(`${nextDate}T00:00:00`).toLocaleDateString("es-ES", {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -197,6 +205,24 @@ function getCourseKindLabel(course) {
   }
 
   return "Curso";
+}
+
+function getNextUpcomingCourseDate(course) {
+  const dates = Array.isArray(course?.event_dates)
+    ? [...course.event_dates].sort()
+    : [];
+
+  if (dates.length === 0) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return (
+    dates.find((date) => {
+      const parsedDate = new Date(`${date}T00:00:00`);
+      return parsedDate >= today;
+    }) || null
+  );
 }
 
 const getAgendaHeroCacheKey = (userId) =>
@@ -456,6 +482,17 @@ export default function HomeDashboardScreen({
         },
       ].filter(Boolean),
     []
+  );
+  const upcomingResidentCourses = useMemo(
+    () =>
+      residentCourses
+        .filter((course) => Boolean(getNextUpcomingCourseDate(course)))
+        .sort((a, b) => {
+          const aNextDate = getNextUpcomingCourseDate(a) || "9999-12-31";
+          const bNextDate = getNextUpcomingCourseDate(b) || "9999-12-31";
+          return aNextDate.localeCompare(bNextDate);
+        }),
+    [residentCourses]
   );
   const residentHeroEvent = useMemo(() => {
     const today = new Date();
@@ -814,30 +851,46 @@ export default function HomeDashboardScreen({
             </Text>
           </View>
         ) : residentNeedsReview ? (
-          <View style={styles.residentHeroCard}>
+          <View style={[styles.residentHeroCard, styles.residentReviewReminderCard]}>
             <View style={styles.residentHeroTopRow}>
-              <Text style={styles.residentHeroEyebrow}>MI RESEÑA</Text>
-              <View style={styles.residentStatusPill}>
+              <Text style={styles.residentHeroEyebrow}>TU EXPERIENCIA IMPORTA</Text>
+              <View
+                style={[styles.residentStatusPill, styles.residentReviewReminderPill]}
+              >
                 <Text style={styles.residentStatusPillText}>
                   {residentReviewGateStatus === "hard" ? "OBLIGATORIO" : "PENDIENTE"}
                 </Text>
               </View>
             </View>
             <View style={styles.residentReviewHeroMain}>
-              <View style={styles.residentReviewHeroHeader}>
-                <View style={styles.residentHeroIconWrap}>
-                  <Ionicons name="star-outline" size={22} color="#FFF" />
+              <View style={styles.residentHeroTextWrap}>
+                <Text style={styles.residentHeroTitle}>
+                  Deja tu reseña y desbloquea toda la app
+                </Text>
+                <Text style={styles.residentHeroSubtitle}>
+                  Tu experiencia puede ayudar muchísimo a otros residentes a dcidir
+                  mejor su elección
+                </Text>
+              </View>
+              <View style={styles.residentReviewReminderBenefits}>
+                <View style={styles.residentReviewReminderChip}>
+                  <Ionicons name="timer-outline" size={14} color="#FFF" />
+                  <Text style={styles.residentReviewReminderChipText}>
+                    Menos de 2 min
+                  </Text>
                 </View>
-                <View style={styles.residentHeroTextWrap}>
-                  <Text style={styles.residentHeroTitle}>Comparte tu experiencia</Text>
-                  <Text style={styles.residentHeroSubtitle}>
-                    Cuenta cómo es tu hospital y ayuda a los futuros R0 a elegir
-                    mejor su plaza. Puedes hacerlo de forma anónima.
+                <View style={styles.residentReviewReminderChip}>
+                  <Ionicons name="shield-checkmark-outline" size={14} color="#FFF" />
+                  <Text style={styles.residentReviewReminderChipText}>
+                    Opción anónima
                   </Text>
                 </View>
               </View>
               <TouchableOpacity
-                style={styles.residentReviewHeroButton}
+                style={[
+                  styles.residentReviewHeroButton,
+                  styles.residentReviewReminderButton,
+                ]}
                 onPress={() => {
                   posthogLogger.capture("resident_review_gate_prompt_clicked", {
                     source: "home_dashboard",
@@ -849,11 +902,22 @@ export default function HomeDashboardScreen({
                 }}
                 activeOpacity={0.85}
               >
-                <Text style={styles.residentHeroButtonText}>Escribir mi reseña</Text>
+                <Text
+                  style={[
+                    styles.residentHeroButtonText,
+                    styles.residentReviewReminderButtonText,
+                  ]}
+                >
+                  Escribir mi reseña
+                </Text>
+                <Ionicons name="arrow-forward" size={16} color={PRIMARY} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.residentHeroFooter}>
-              En cuanto la envíes, este bloque desaparece del inicio.
+            <Text
+              style={[styles.residentHeroFooter, styles.residentReviewReminderFooter]}
+            >
+              En cuanto la envíes, desbloqueas todas tus funcionalidades y aquí volverá
+              a mostrarse tu próximo evento de agenda.
             </Text>
           </View>
         ) : (
@@ -1316,13 +1380,13 @@ export default function HomeDashboardScreen({
           </View>
           {loadingResidentCourses ? (
             <ActivityIndicator size="small" color={PRIMARY} style={styles.loader} />
-          ) : residentCourses.length > 0 ? (
+          ) : upcomingResidentCourses.length > 0 ? (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.residentCoursesRow}
             >
-              {residentCourses.slice(0, 2).map((course) => (
+              {upcomingResidentCourses.slice(0, 2).map((course) => (
                 <TouchableOpacity
                   key={course.id}
                   style={styles.residentCourseCard}
@@ -1488,6 +1552,15 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.18)",
     minHeight: 136,
   },
+  residentReviewReminderCard: {
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(255,255,255,0.24)",
+    shadowColor: "#18074D",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 4,
+  },
   residentHeroTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1506,6 +1579,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 999,
   },
+  residentReviewReminderPill: {
+    backgroundColor: "#F97316",
+  },
   residentStatusPillMuted: {
     backgroundColor: "rgba(255,255,255,0.22)",
   },
@@ -1522,11 +1598,6 @@ const styles = StyleSheet.create({
   },
   residentReviewHeroMain: {
     gap: 14,
-  },
-  residentReviewHeroHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
   },
   residentHeroIconWrap: {
     width: 42,
@@ -1561,17 +1632,53 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  residentReviewReminderButton: {
+    minWidth: 188,
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 12,
   },
   residentHeroButtonText: {
     fontSize: 12,
     fontWeight: "800",
     color: PRIMARY,
   },
+  residentReviewReminderButtonText: {
+    fontSize: 13,
+  },
   residentHeroFooter: {
     fontSize: 11,
     color: "rgba(255,255,255,0.6)",
     marginTop: 12,
     fontStyle: "italic",
+  },
+  residentReviewReminderBenefits: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  residentReviewReminderChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  residentReviewReminderChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFF",
+  },
+  residentReviewReminderFooter: {
+    color: "rgba(255,255,255,0.7)",
   },
   quickActions: {
     flexDirection: "row",

@@ -3,15 +3,14 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Modal,
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { StarRating } from "../components/StarRating";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
+import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { useMyReview } from "../hooks/useMyReview";
 import { useHospitals } from "../hooks/useHospitals";
 import { formatShortDate } from "../utils/dateUtils";
@@ -61,7 +60,12 @@ export default function MyReviewScreen({
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const scrollViewRef = useRef(null);
 
-  const { hospitals, specialties } = useHospitals();
+  const {
+    hospitals,
+    specialties,
+    loadingHospitals,
+    loadingSpecialties,
+  } = useHospitals();
   const hospital = hospitals.find((h) => h.id === userProfile?.hospital_id);
   const specialty = specialties.find((s) => s.id === userProfile?.speciality_id);
 
@@ -82,6 +86,16 @@ export default function MyReviewScreen({
 
   const isResident = userProfile?.is_resident;
   const reviewWritingDisabled = !canWriteResidentHospitalReview(userProfile);
+  const isResolvingHospital =
+    Boolean(userProfile?.hospital_id) &&
+    !hospital &&
+    (loadingHospitals || hospitals.length === 0);
+  const isResolvingSpecialty =
+    Boolean(userProfile?.speciality_id) &&
+    !specialty &&
+    (loadingSpecialties || specialties.length === 0);
+  const isResolvingInitialState = isResident &&
+    (isResolvingHospital || isResolvingSpecialty);
   const headerStatusChip = existingReview ? (
     <View
       style={[
@@ -107,11 +121,9 @@ export default function MyReviewScreen({
     </View>
   ) : null;
   const header = (
-    <ScreenHeader
+    <BottomMenuHeroHeader
       title="Mi Reseña"
-      onBack={onBack}
-      compact
-      variant="brand"
+      subtitle="Gestiona tu reseña del hospital y ayuda a futuros residentes con tu experiencia."
       rightSlot={headerStatusChip}
     />
   );
@@ -170,95 +182,110 @@ export default function MyReviewScreen({
   // ── Not a resident ──
   if (!isResident) {
     return (
-      <ScreenScaffold
-        header={header}
-        headerShellVariant="brand"
-        contentSurfaceStyle={styles.contentSurface}
-      >
-        <View style={styles.scrollContent}>
-          <View style={styles.messageCard}>
-            <View style={styles.messageIconWrap}>
-              <Ionicons name="alert-circle-outline" size={36} color={WARNING} />
+      <View style={styles.container}>
+        <View style={styles.heroShell}>{header}</View>
+        <View style={styles.contentShell}>
+          <View style={styles.scrollContent}>
+            <View style={styles.messageCard}>
+              <View style={styles.messageIconWrap}>
+                <Ionicons name="alert-circle-outline" size={36} color={WARNING} />
+              </View>
+              <Text style={styles.messageTitle}>Solo para residentes</Text>
+              <Text style={styles.messageText}>
+                Esta funcionalidad está disponible únicamente para usuarios residentes.
+              </Text>
             </View>
-            <Text style={styles.messageTitle}>Solo para residentes</Text>
-            <Text style={styles.messageText}>
-              Esta funcionalidad está disponible únicamente para usuarios residentes.
-            </Text>
           </View>
         </View>
-      </ScreenScaffold>
+      </View>
+    );
+  }
+
+  if (isResolvingInitialState) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.heroShell}>{header}</View>
+        <View style={styles.contentShell}>
+          <View style={styles.scrollContent}>
+            <View style={styles.messageCard}>
+              <ActivityIndicator size="large" color={PRIMARY} />
+              <Text style={styles.messageTitle}>Cargando</Text>
+              <Text style={styles.messageText}>
+                Estamos comprobando la información de tu reseña.
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
     );
   }
 
   // ── Incomplete profile ──
   if (!hospital || !specialty) {
     return (
-      <ScreenScaffold
-        header={header}
-        headerShellVariant="brand"
-        contentSurfaceStyle={styles.contentSurface}
-      >
-        <View style={styles.scrollContent}>
-          <View style={styles.messageCard}>
-            <View style={styles.messageIconWrap}>
-              <Ionicons name="alert-circle-outline" size={36} color={WARNING} />
+      <View style={styles.container}>
+        <View style={styles.heroShell}>{header}</View>
+        <View style={styles.contentShell}>
+          <View style={styles.scrollContent}>
+            <View style={styles.messageCard}>
+              <View style={styles.messageIconWrap}>
+                <Ionicons name="alert-circle-outline" size={36} color={WARNING} />
+              </View>
+              <Text style={styles.messageTitle}>Perfil incompleto</Text>
+              <Text style={styles.messageText}>
+                Para crear una reseña necesitas tener asignado un hospital y una
+                especialidad en tu perfil.
+              </Text>
             </View>
-            <Text style={styles.messageTitle}>Perfil incompleto</Text>
-            <Text style={styles.messageText}>
-              Para crear una reseña necesitas tener asignado un hospital y una
-              especialidad en tu perfil.
-            </Text>
           </View>
         </View>
-      </ScreenScaffold>
+      </View>
     );
   }
 
   if (reviewWritingDisabled) {
     const isLocked = isResidentLockedMissingCorporateEmail(userProfile);
     return (
-      <ScreenScaffold
-        header={header}
-        headerShellVariant="brand"
-        contentSurfaceStyle={styles.contentSurface}
-      >
-        <View style={styles.scrollContent}>
-          <View style={styles.messageCard}>
-            <View style={styles.messageIconWrap}>
-              <Ionicons
-                name={isLocked ? "mail-outline" : "time-outline"}
-                size={36}
-                color={WARNING}
-              />
+      <View style={styles.container}>
+        <View style={styles.heroShell}>{header}</View>
+        <View style={styles.contentShell}>
+          <View style={styles.scrollContent}>
+            <View style={styles.messageCard}>
+              <View style={styles.messageIconWrap}>
+                <Ionicons
+                  name={isLocked ? "mail-outline" : "time-outline"}
+                  size={36}
+                  color={WARNING}
+                />
+              </View>
+              <Text style={styles.messageTitle}>
+                {isLocked ? "Correo corporativo requerido" : "Reseña temporalmente bloqueada"}
+              </Text>
+              <Text style={styles.messageText}>
+                {isLocked
+                  ? "La ventana MIR temporal ya ha terminado. Añade tu correo corporativo en tu perfil para continuar."
+                  : `Mientras estás en alta temporal MIR puedes usar el resto de funciones de residente, pero no publicar la reseña del hospital. Fecha límite actual: ${formatResidentTransitionDeadline(
+                      userProfile?.resident_transition_expires_at
+                    ) || "pendiente de configurar"}.`}
+              </Text>
             </View>
-            <Text style={styles.messageTitle}>
-              {isLocked ? "Correo corporativo requerido" : "Reseña temporalmente bloqueada"}
-            </Text>
-            <Text style={styles.messageText}>
-              {isLocked
-                ? "La ventana MIR temporal ya ha terminado. Añade tu correo corporativo en tu perfil para continuar."
-                : `Mientras estás en alta temporal MIR puedes usar el resto de funciones de residente, pero no publicar la reseña del hospital. Fecha límite actual: ${formatResidentTransitionDeadline(
-                    userProfile?.resident_transition_expires_at
-                  ) || "pendiente de configurar"}.`}
-            </Text>
           </View>
         </View>
-      </ScreenScaffold>
+      </View>
     );
   }
 
   return (
-    <ScreenScaffold
-      header={header}
-      headerShellVariant="brand"
-      contentSurfaceStyle={styles.contentSurface}
-    >
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+    <View style={styles.container}>
+      <View style={styles.heroShell}>{header}</View>
+      <View style={styles.contentShell}>
+        <KeyboardAwareScrollView
+          ref={scrollViewRef}
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          bottomPadding={32}
+          showsVerticalScrollIndicator={false}
+        >
         {/* Alerts */}
         {success && (
           <View style={styles.alertSuccess}>
@@ -282,37 +309,6 @@ export default function MyReviewScreen({
             </TouchableOpacity>
           </View>
         )}
-
-        {/* Hospital & Specialty cards */}
-        <View style={styles.infoCardsRow}>
-          <View style={[styles.infoCard, styles.infoCardPrimary]}>
-            <View style={styles.infoCardHeader}>
-              <Ionicons name="business" size={20} color={PRIMARY} />
-              <Text style={styles.infoCardLabel}>Tu Hospital</Text>
-            </View>
-            <Text style={styles.infoCardValue} numberOfLines={2}>
-              {hospital.name}
-            </Text>
-            <Text style={styles.infoCardSub}>
-              {hospital.city}, {hospital.region}
-            </Text>
-          </View>
-
-          <View style={[styles.infoCard, styles.infoCardSecondary]}>
-            <View style={styles.infoCardHeader}>
-              <Ionicons name="school" size={20} color={SECONDARY} />
-              <Text style={[styles.infoCardLabel, { color: SECONDARY }]}>
-                Tu Especialidad
-              </Text>
-            </View>
-            <Text style={styles.infoCardValue} numberOfLines={2}>
-              {specialty.name}
-            </Text>
-            <Text style={styles.infoCardSub}>
-              R{userProfile.resident_year || "–"}
-            </Text>
-          </View>
-        </View>
 
         {/* Review status card */}
         <View style={styles.card}>
@@ -435,9 +431,6 @@ export default function MyReviewScreen({
               </View>
 
               <View style={styles.createSection}>
-                <View style={styles.createIconWrap}>
-                  <Ionicons name="star" size={28} color={WHITE} />
-                </View>
                 <Text style={styles.createTitle}>¡Crea tu primera reseña!</Text>
                 <Text style={styles.createSubtitle}>
                   Comparte tu experiencia en {hospital.name} · {specialty.name}
@@ -464,48 +457,49 @@ export default function MyReviewScreen({
             onHighlightedQuestionHandled={onHighlightedQuestionHandled}
           />
         )}
-      </ScrollView>
+        </KeyboardAwareScrollView>
 
-      {/* ── Delete confirmation modal ── */}
-      <Modal
-        visible={showDeleteConfirmation}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowDeleteConfirmation(false)}
-      >
-        <View style={styles.deleteOverlay}>
-          <View style={styles.deleteSheet}>
-            <View style={styles.deleteIconWrap}>
-              <Ionicons name="trash-outline" size={28} color={ERROR} />
-            </View>
-            <Text style={styles.deleteTitle}>Eliminar reseña</Text>
-            <Text style={styles.deleteSubtitle}>
-              ¿Estás seguro? Esta acción no se puede deshacer y perderás todas las respuestas.
-            </Text>
-            <View style={styles.deleteActions}>
-              <TouchableOpacity
-                style={styles.deleteCancelBtn}
-                onPress={() => setShowDeleteConfirmation(false)}
-                disabled={loading}
-              >
-                <Text style={styles.deleteCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.deleteConfirmBtn}
-                onPress={handleDelete}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator size="small" color={WHITE} />
-                ) : (
-                  <Text style={styles.deleteConfirmText}>Eliminar</Text>
-                )}
-              </TouchableOpacity>
+        {/* ── Delete confirmation modal ── */}
+        <Modal
+          visible={showDeleteConfirmation}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDeleteConfirmation(false)}
+        >
+          <View style={styles.deleteOverlay}>
+            <View style={styles.deleteSheet}>
+              <View style={styles.deleteIconWrap}>
+                <Ionicons name="trash-outline" size={28} color={ERROR} />
+              </View>
+              <Text style={styles.deleteTitle}>Eliminar reseña</Text>
+              <Text style={styles.deleteSubtitle}>
+                ¿Estás seguro? Esta acción no se puede deshacer y perderás todas las respuestas.
+              </Text>
+              <View style={styles.deleteActions}>
+                <TouchableOpacity
+                  style={styles.deleteCancelBtn}
+                  onPress={() => setShowDeleteConfirmation(false)}
+                  disabled={loading}
+                >
+                  <Text style={styles.deleteCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteConfirmBtn}
+                  onPress={handleDelete}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color={WHITE} />
+                  ) : (
+                    <Text style={styles.deleteConfirmText}>Eliminar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
-    </ScreenScaffold>
+        </Modal>
+      </View>
+    </View>
   );
 }
 
@@ -521,6 +515,17 @@ const styles = StyleSheet.create({
   contentSurface: {
     flex: 1,
     backgroundColor: BG_LIGHT,
+  },
+  heroShell: {
+    position: "relative",
+    zIndex: 2,
+    elevation: 2,
+  },
+  contentShell: {
+    flex: 1,
+    marginTop: -18,
+    position: "relative",
+    zIndex: 1,
   },
   scroll: {
     flex: 1,
@@ -586,50 +591,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: SECONDARY,
     lineHeight: 18,
-  },
-
-  // ── Info cards ──
-  infoCardsRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 14,
-  },
-  infoCard: {
-    flex: 1,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-  },
-  infoCardPrimary: {
-    backgroundColor: `${PRIMARY}08`,
-    borderColor: `${PRIMARY}20`,
-  },
-  infoCardSecondary: {
-    backgroundColor: `${SECONDARY}10`,
-    borderColor: `${SECONDARY}25`,
-  },
-  infoCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 10,
-  },
-  infoCardLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: PRIMARY,
-    letterSpacing: 0.3,
-  },
-  infoCardValue: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: ACCENT,
-    marginBottom: 4,
-    lineHeight: 18,
-  },
-  infoCardSub: {
-    fontSize: 11,
-    color: TEXT_MEDIUM,
   },
 
   // ── Card ──
@@ -851,20 +812,6 @@ const styles = StyleSheet.create({
   createSection: {
     alignItems: "center",
     paddingVertical: 24,
-  },
-  createIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
-    backgroundColor: PRIMARY,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-    shadowColor: PRIMARY,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
   createTitle: {
     fontSize: 18,

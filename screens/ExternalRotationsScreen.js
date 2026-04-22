@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -102,13 +101,6 @@ const findCountryByName = (countryName) => {
   );
 };
 
-const contactMethodLabels = {
-  app_chat: "Chat de la app",
-  whatsapp: "WhatsApp",
-  email: "Email",
-  none: "No mostrar",
-};
-
 const difficultyOptions = [
   { id: "easy", label: "Fácil" },
   { id: "medium", label: "Media" },
@@ -118,13 +110,6 @@ const difficultyOptions = [
 const rotationKindOptions = [
   { id: "observational", label: "Observacional" },
   { id: "hands_on", label: "Participativa" },
-];
-
-const contactOptions = [
-  { id: "app_chat", label: "Chat app" },
-  { id: "whatsapp", label: "WhatsApp" },
-  { id: "email", label: "Email" },
-  { id: "none", label: "Ocultar" },
 ];
 
 const overlaps = (rotationA, rotationB) => {
@@ -798,7 +783,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         beforeYouGo: review.before_you_go || "",
         tutorName: review.tutor_name || "",
         tutorEmail: review.tutor_email || "",
-        preferredContactMethod: review.preferred_contact_method || "app_chat",
+        preferredContactMethod: "app_chat",
         answers: (review.external_rotation_review_answer || []).reduce(
           (acc, answer) => {
             acc[answer.question_id] = {
@@ -1004,6 +989,10 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   }, [activeDateField, applySelectedDate, resetDatePickerState, tempSelectedDate]);
 
   const activeDateMinimum = useMemo(() => {
+    if (activeDateField === "rotationStartDate") {
+      return new Date();
+    }
+
     if (activeDateField === "rotationEndDate") {
       return parseStoredDate(rotationForm.startDate);
     }
@@ -1012,7 +1001,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       return parseStoredDate(publishForm.startDate);
     }
 
-    return new Date();
+    return undefined;
   }, [activeDateField, publishForm.startDate, rotationForm.startDate]);
 
   const refreshAll = useCallback(() => {
@@ -1186,7 +1175,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       beforeYouGo: publishForm.beforeYouGo,
       tutorName: publishForm.tutorName,
       tutorEmail: publishForm.tutorEmail,
-      preferredContactMethod: publishForm.preferredContactMethod,
+      preferredContactMethod: "app_chat",
       answers: formattedAnswers,
     };
 
@@ -1207,44 +1196,6 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       setSaving(false);
     }
   }, [publishForm, questions, refreshAll, route.payload?.review?.id, userId]);
-
-  const handleOpenWhatsApp = useCallback(async (review) => {
-    const phone = review.reviewer_phone?.replace(/\s+/g, "");
-
-    if (!phone) {
-      Alert.alert("No disponible", "Este residente no ha compartido WhatsApp.");
-      return;
-    }
-
-    const url = `https://wa.me/${phone.replace(/[^\d+]/g, "")}`;
-    const supported = await Linking.canOpenURL(url);
-
-    if (!supported) {
-      Alert.alert("Error", "No se pudo abrir WhatsApp en este dispositivo.");
-      return;
-    }
-
-    await Linking.openURL(url);
-  }, []);
-
-  const handleOpenEmail = useCallback(async (review) => {
-    const email = review.reviewer_email;
-
-    if (!email) {
-      Alert.alert("No disponible", "Este residente no ha compartido email.");
-      return;
-    }
-
-    const url = `mailto:${email}`;
-    const supported = await Linking.canOpenURL(url);
-
-    if (!supported) {
-      Alert.alert("Error", "No se pudo abrir el cliente de correo.");
-      return;
-    }
-
-    await Linking.openURL(url);
-  }, []);
 
   const handleOpenAppChat = useCallback(
     async (review) => {
@@ -1986,24 +1937,6 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           />
         </View>
 
-        <View style={styles.formCard}>
-          <Text style={styles.cardTitle}>Privacidad y contacto</Text>
-          <PillGroup
-            options={contactOptions}
-            value={publishForm.preferredContactMethod}
-            onChange={(value) =>
-              setPublishForm((current) => ({
-                ...current,
-                preferredContactMethod: value,
-              }))
-            }
-          />
-          <Text style={styles.helpText}>
-            Método elegido:{" "}
-            {contactMethodLabels[publishForm.preferredContactMethod]}
-          </Text>
-        </View>
-
         <TouchableOpacity
           style={styles.fullPrimaryButton}
           onPress={handlePublishSubmit}
@@ -2206,21 +2139,10 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
 
         <View style={styles.contactCardShell}>
           <Text style={styles.contactCardTitle}>
-            Elige cómo quieres contactar con {resident.residentName}
+            Contacta con {resident.residentName} por el chat de la app
           </Text>
 
           <View style={styles.contactOptionsList}>
-            {resident.phone ? (
-              <ContactOptionCard
-                icon="logo-whatsapp"
-                color="#25D366"
-                backgroundColor="#E8F8EE"
-                title="WhatsApp"
-                subtitle="Enviar mensaje por WhatsApp"
-                onPress={() => handleOpenWhatsApp({ ...review, reviewer_phone: resident.phone })}
-              />
-            ) : null}
-
             <ContactOptionCard
               icon="chatbubbles"
               color="#FFFFFF"
@@ -2230,26 +2152,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
               onPress={() => handleOpenAppChat(review)}
               primary
             />
-
-            {resident.email ? (
-              <ContactOptionCard
-                icon="mail"
-                color={PRIMARY}
-                backgroundColor={PRIMARY_SOFT}
-                title="Email"
-                subtitle="Enviar correo electrónico"
-                onPress={() => handleOpenEmail({ ...review, reviewer_email: resident.email })}
-              />
-            ) : null}
           </View>
-        </View>
-
-        <View style={styles.privacyBanner}>
-          <Ionicons name="shield-checkmark" size={18} color={PRIMARY} />
-          <Text style={styles.privacyBannerText}>
-            Tu privacidad es importante. Solo mostramos la información necesaria
-            para el método de contacto elegido.
-          </Text>
         </View>
       </ScrollView>
     );
@@ -3138,20 +3041,6 @@ const styles = StyleSheet.create({
   },
   contactOptionSubtitlePrimary: {
     color: "rgba(255,255,255,0.8)",
-  },
-  privacyBanner: {
-    backgroundColor: PRIMARY_SOFT,
-    borderRadius: 18,
-    padding: 14,
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "flex-start",
-  },
-  privacyBannerText: {
-    flex: 1,
-    color: TEXT_MUTED,
-    fontSize: 13,
-    lineHeight: 20,
   },
   centeredState: {
     flex: 1,

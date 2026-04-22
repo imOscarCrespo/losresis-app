@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ScreenHeader } from "../components/ScreenHeader";
+import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { useUnreadNotificationsCount } from "../src/hooks/useUnreadNotificationsCount";
 import { useHospitals } from "../hooks/useHospitals";
 import posthogLogger from "../services/posthogService";
@@ -306,17 +306,9 @@ export default function HospitalsScreen({
 
   return (
     <View style={styles.container}>
-      <ScreenHeader
+      <BottomMenuHeroHeader
         title="Hospitales"
-        compact
-        rightSlot={
-          <View style={styles.countBadge}>
-            <Text style={styles.countText}>
-              {filteredHospitals.length}{" "}
-              {filteredHospitals.length === 1 ? "HOSPITAL" : "HOSPITALES"}
-            </Text>
-          </View>
-        }
+        subtitle="Explora hospitales, compara ubicaciones y filtra por especialidad para encontrar tu mejor opción."
       />
 
       {/* Search bar */}
@@ -550,21 +542,6 @@ const styles = StyleSheet.create({
     backgroundColor: BG_LIGHT,
   },
 
-  countBadge: {
-    backgroundColor: `${PRIMARY}12`,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: `${PRIMARY}25`,
-  },
-  countText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: PRIMARY,
-    letterSpacing: 0.8,
-  },
-
   /* Search */
   searchWrap: {
     flexDirection: "row",
@@ -572,6 +549,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     borderRadius: 16,
     marginHorizontal: 16,
+    marginTop: 16,
     paddingVertical: 12,
     paddingLeft: 44,
     paddingRight: 16,

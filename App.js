@@ -85,6 +85,30 @@ export default function App() {
     return () => subscription.remove();
   }, [refreshVersionCheck]);
 
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        posthogLogger.reset();
+        gateSessionTrackedRef.current = null;
+        setCurrentUserId(null);
+        setResidentHasReview(true);
+        setResidentReviewGateState(null);
+        setIsAuthenticated(false);
+        setNeedsOnboarding(false);
+        setIsLoading(false);
+        return;
+      }
+
+      if (event === "SIGNED_IN" && session) {
+        checkAuth();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const syncResidentReviewGate = async ({
     userId,
     hasReview,

@@ -16,13 +16,16 @@ export const BottomMenuHeroHeader = ({
   bottomContentStyle = null,
 }) => {
   const insets = useSafeAreaInsets();
+  const safeAreaTop = Math.max(insets.top, 0);
+  const contentTopPadding = safeAreaTop > 0 ? safeAreaTop + 16 : 16;
 
   return (
     <View
       style={[
         styles.container,
         {
-          paddingTop: Math.max(Math.min(insets.top, 12), 12),
+          marginTop: -safeAreaTop,
+          paddingTop: contentTopPadding,
           paddingBottom: bottomContent ? 22 : 24,
         },
         style,

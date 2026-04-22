@@ -12,7 +12,7 @@ import {
   ImageBackground,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { SelectFilter } from "../components/SelectFilter";
 import { useHospitals } from "../hooks/useHospitals";
 import { calculateMIRProbabilities } from "../services/mirSimulatorService";
@@ -24,7 +24,6 @@ const INDIGO = "#1B0977";
 const BG_LIGHT = "#F8FAFC";
 
 export default function MirSimulatorScreen({ onBack, userProfile }) {
-  const insets = useSafeAreaInsets();
   const { specialties, uniqueRegions } = useHospitals();
   const scrollViewRef = useRef(null);
   const [mirScore, setMirScore] = useState("");
@@ -392,30 +391,22 @@ export default function MirSimulatorScreen({ onBack, userProfile }) {
   };
 
   return (
-    <ScrollView
-      ref={scrollViewRef}
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 24 }}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* Header púrpura */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: Math.max(insets.top, 16),
-          },
-        ]}
-      >
-        <Text style={styles.headerTitle}>Simulador MIR</Text>
-        <Text style={styles.headerSubtitle}>
-          Calcula tus probabilidades de obtener plaza
-        </Text>
+    <View style={styles.container}>
+      <View style={styles.heroShell}>
+        <BottomMenuHeroHeader
+          title="Simulador MIR"
+          subtitle="Calcula tus probabilidades de obtener plaza."
+        />
       </View>
 
-      {/* Card del formulario (solapa el header) */}
-      <View style={styles.formCard}>
+      <View style={styles.contentShell}>
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.formCard}>
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>Tu posición en el MIR *</Text>
           <TextInput
@@ -456,69 +447,69 @@ export default function MirSimulatorScreen({ onBack, userProfile }) {
           />
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.calculateButton,
-            !canCalculate && styles.calculateButtonDisabled,
-          ]}
-          onPress={handleCalculate}
-          disabled={!canCalculate}
-          activeOpacity={0.9}
-        >
-          {loading ? (
-            <View style={styles.buttonContent}>
-              <ActivityIndicator size="small" color="#FFF" />
-              <Text style={styles.calculateButtonText}>Calculando...</Text>
-            </View>
-          ) : (
-            <Text style={styles.calculateButtonText}>
-              Calcular probabilidades
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
+            <TouchableOpacity
+              style={[
+                styles.calculateButton,
+                !canCalculate && styles.calculateButtonDisabled,
+              ]}
+              onPress={handleCalculate}
+              disabled={!canCalculate}
+              activeOpacity={0.9}
+            >
+              {loading ? (
+                <View style={styles.buttonContent}>
+                  <ActivityIndicator size="small" color="#FFF" />
+                  <Text style={styles.calculateButtonText}>Calculando...</Text>
+                </View>
+              ) : (
+                <Text style={styles.calculateButtonText}>
+                  Calcular probabilidades
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
 
-      {/* Resultados */}
-      {results.length > 0 && (
-        <View
-          style={styles.resultsCard}
-          onLayout={(event) => {
-            setResultsCardY(event.nativeEvent.layout.y);
-          }}
-        >
-          <View style={styles.resultsHeader}>
-            <Text style={styles.resultsTitle}>Resultados de probabilidad</Text>
-            <Text style={styles.resultsSubtitle}>
-              Basado en las notas de corte de los últimos 7 años (2019-2025)
+          {results.length > 0 && (
+            <View
+              style={styles.resultsCard}
+              onLayout={(event) => {
+                setResultsCardY(event.nativeEvent.layout.y);
+              }}
+            >
+              <View style={styles.resultsHeader}>
+                <Text style={styles.resultsTitle}>Resultados de probabilidad</Text>
+                <Text style={styles.resultsSubtitle}>
+                  Basado en las notas de corte de los últimos 7 años (2019-2025)
+                </Text>
+              </View>
+              <FlatList
+                data={interleavedResults}
+                renderItem={renderResultsListItem}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                contentContainerStyle={styles.resultsList}
+              />
+            </View>
+          )}
+
+          <View style={styles.helpCard}>
+            <View style={styles.helpHeader}>
+              <Ionicons name="school" size={20} color={PRIMARY} />
+              <Text style={styles.helpTitle}>
+                ¿Cómo se calcula la probabilidad?
+              </Text>
+            </View>
+            <Text style={styles.helpText}>
+              La probabilidad se basa en los años disponibles de notas de corte
+              (2019-2025). Solo se incluyen en el cálculo los años que tienen datos
+              válidos. En el MIR, los números más bajos representan mejores
+              posiciones. Si tu posición es igual o mejor (menor) que la nota de
+              corte histórica, tu probabilidad aumenta significativamente.
             </Text>
           </View>
-          <FlatList
-            data={interleavedResults}
-            renderItem={renderResultsListItem}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            contentContainerStyle={styles.resultsList}
-          />
-        </View>
-      )}
-
-      {/* Caja informativa */}
-      <View style={styles.helpCard}>
-        <View style={styles.helpHeader}>
-          <Ionicons name="school" size={20} color={PRIMARY} />
-          <Text style={styles.helpTitle}>
-            ¿Cómo se calcula la probabilidad?
-          </Text>
-        </View>
-        <Text style={styles.helpText}>
-          La probabilidad se basa en los años disponibles de notas de corte
-          (2019-2025). Solo se incluyen en el cálculo los años que tienen datos
-          válidos. En el MIR, los números más bajos representan mejores
-          posiciones. Si tu posición es igual o mejor (menor) que la nota de
-          corte histórica, tu probabilidad aumenta significativamente.
-        </Text>
+        </ScrollView>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -527,34 +518,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BG_LIGHT,
   },
-  header: {
-    backgroundColor: PRIMARY,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-    paddingHorizontal: 24,
-    paddingBottom: 48,
-    shadowColor: PRIMARY,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
+  heroShell: {
+    position: "relative",
+    zIndex: 2,
+    elevation: 2,
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#FFF",
-    marginBottom: 4,
+  contentShell: {
+    flex: 1,
+    marginTop: -8,
+    position: "relative",
+    zIndex: 1,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
+  scrollContent: {
+    paddingBottom: 24,
   },
   formCard: {
     backgroundColor: "#FFF",
     borderRadius: 24,
     padding: 24,
     marginHorizontal: 24,
-    marginTop: -24,
     shadowColor: INDIGO,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
