@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Alert } from "react-native";
+import { AppState, View, Text, StyleSheet, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenLayout } from "../components/ScreenLayout";
 import { BackNavigationButton } from "../components/BackNavigationButton";
@@ -194,7 +194,19 @@ export default function DashboardScreen({
 
   // Cargar perfil del usuario
   useEffect(() => {
-    loadUserProfile();
+    loadUserProfile({ forceRefresh: true });
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        loadUserProfile({ forceRefresh: true }).catch((error) => {
+          console.warn("Error revalidando perfil del dashboard:", error);
+        });
+      }
+    });
+
+    return () => subscription.remove();
   }, []);
 
   useEffect(() => {
@@ -425,13 +437,14 @@ export default function DashboardScreen({
     return cleanup;
   }, []);
 
-  const loadUserProfile = async () => {
+  const loadUserProfile = async ({ forceRefresh = false } = {}) => {
     try {
       setLoadingProfile(true);
       const { success: userSuccess, user } = await getCurrentUser();
       if (userSuccess && user) {
         const { success: profileSuccess, profile } = await getUserProfile(
-          user.id
+          user.id,
+          { forceRefresh }
         );
         if (profileSuccess && profile) {
           setUserProfile(applyDevUserType(profile));
@@ -465,6 +478,15 @@ export default function DashboardScreen({
     "usuario",
     "contacto",
   ]);
+
+  useEffect(() => {
+    if (
+      isResidentLockedMissingCorporateEmail(userProfile) &&
+      !["inicio", "usuario", "contacto"].includes(currentSection)
+    ) {
+      setCurrentSection("usuario");
+    }
+  }, [currentSection, userProfile]);
 
   const showResidentGateAlert = () => {
     Alert.alert(

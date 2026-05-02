@@ -38,7 +38,7 @@ export const useProfileForm = () => {
   /**
    * Carga el perfil del usuario desde la base de datos
    */
-  const loadUserProfile = useCallback(async () => {
+  const loadUserProfile = useCallback(async ({ forceRefresh = false } = {}) => {
     setLoadingProfile(true);
     try {
       const { success: userSuccess, user: currentUser } =
@@ -50,7 +50,9 @@ export const useProfileForm = () => {
 
       setUser(currentUser);
 
-      const { success, profile } = await getUserProfile(currentUser.id);
+      const { success, profile } = await getUserProfile(currentUser.id, {
+        forceRefresh,
+      });
       if (success && profile) {
         setUserProfile(profile);
         const savedProfileType = getProfileDraftType(profile);
@@ -265,7 +267,7 @@ export const useProfileForm = () => {
 
           // Recargar perfil después de un breve delay solo en modo edición
           setTimeout(() => {
-            loadUserProfile();
+            loadUserProfile({ forceRefresh: true });
           }, 1000);
         }
 
