@@ -16,6 +16,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SelectorModal } from "../components/SelectorModal";
 import { askClinicalAssistant } from "../services/clinicalAssistantService";
 import posthogLogger from "../services/posthogService";
 
@@ -28,10 +29,19 @@ const TEXT_LIGHT = "#64748B";
 const ERROR = "#EF4444";
 
 const STORAGE_KEY_PREFIX = "@losresis:clinicalAssistantChat:";
+const DEFAULT_ASSISTANT_MODE = "guardia";
+const ASSISTANT_MODE_OPTIONS = [
+  { id: "guardia", label: "Guardia" },
+  { id: "consulta", label: "Consulta" },
+];
 
 const CONVERSATION_WARN_THRESHOLD = 40;
 const CONVERSATION_HARD_LIMIT = 60;
 const CONVERSATION_TRIM_KEEP = 40;
+const AUTO_SCROLL_BOTTOM_THRESHOLD = 120;
+const STREAM_BASE_REVEAL_MS = 26;
+const STREAM_MIN_REVEAL_MS = 14;
+const STREAM_MAX_REVEAL_MS = 68;
 
 const STARTER_PROMPTS = [
   "Dolor torácico opresivo de 2 horas en urgencias",
@@ -54,6 +64,45 @@ const createMessageWithId = (role, content, id) => ({
 });
 
 const getStorageKey = (userId) => `${STORAGE_KEY_PREFIX}${userId || "anonymous"}`;
+const getModeLabel = (mode) =>
+  ASSISTANT_MODE_OPTIONS.find((option) => option.id === mode)?.label || "Guardia";
+const getTrailingPause = (text) => {
+  if (!text) {
+    return 0;
+  }
+
+  if (/\n\s*$/.test(text)) {
+    return 26;
+  }
+
+  if (/[.!?…:]\s*$/.test(text)) {
+    return 34;
+  }
+
+  if (/[,;)]\s*$/.test(text)) {
+    return 18;
+  }
+
+  return 0;
+};
+
+const getNextRevealLength = (remainingText) => {
+  if (!remainingText) {
+    return 0;
+  }
+
+  const punctuationBoundary = remainingText.match(/^.{1,120}?(?:\n|[.!?…:](?=\s|$))/);
+  if (punctuationBoundary?.[0]) {
+    return punctuationBoundary[0].length;
+  }
+
+  const wordBoundary = remainingText.match(/^(?:\S+\s*){1,4}/);
+  if (wordBoundary?.[0]) {
+    return wordBoundary[0].length;
+  }
+
+  return Math.min(remainingText.length, 12);
+};
 
 const splitBoldSegments = (text) =>
   text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((segment, index) => {
@@ -231,7 +280,12 @@ const MessageBubble = ({ message }) => {
 export default function ClinicalAssistantScreen({ userProfile, onBack }) {
   const insets = useSafeAreaInsets();
   const listRef = useRef(null);
+  const revealTimeoutRef = useRef(null);
+  const streamTargetRef = useRef(null);
+  const autoScrollEnabledRef = useRef(true);
   const [messages, setMessages] = useState([]);
+  const [assistantMode, setAssistantMode] = useState(DEFAULT_ASSISTANT_MODE);
+  const [showModeSelector, setShowModeSelector] = useState(false);
   const [inputText, setInputText] = useState("");
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [sending, setSending] = useState(false);
@@ -248,10 +302,21 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
     () => getStorageKey(userProfile?.id),
     [userProfile?.id]
   );
+  const assistantModeLabel = useMemo(
+    () => getModeLabel(assistantMode),
+    [assistantMode]
+  );
   const canUseAssistant = Boolean(userProfile?.is_resident);
 
   useEffect(() => {
     posthogLogger.logScreen("ClinicalAssistantScreen");
+  }, []);
+
+  useEffect(() => () => {
+    if (revealTimeoutRef.current) {
+      clearTimeout(revealTimeoutRef.current);
+      revealTimeoutRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
@@ -261,17 +326,28 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
       setLoadingHistory(true);
       try {
         const storedValue = await AsyncStorage.getItem(storageKey);
-        const parsed = storedValue ? JSON.parse(storedValue) : [];
+        const parsed = storedValue ? JSON.parse(storedValue) : null;
+        const storedMessages = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed?.messages)
+            ? parsed.messages
+            : [];
+        const storedMode =
+          parsed?.assistantMode === "consulta" || parsed?.assistantMode === "guardia"
+            ? parsed.assistantMode
+            : DEFAULT_ASSISTANT_MODE;
         if (!isCancelled) {
+          setAssistantMode(storedMode);
           setMessages(
-            Array.isArray(parsed)
-              ? parsed.map((message) => ({ ...message, isStreaming: false }))
+            storedMessages
+              ? storedMessages.map((message) => ({ ...message, isStreaming: false }))
               : []
           );
         }
       } catch (loadError) {
         console.warn("Error loading clinical assistant history:", loadError);
         if (!isCancelled) {
+          setAssistantMode(DEFAULT_ASSISTANT_MODE);
           setMessages([]);
         }
       } finally {
@@ -294,16 +370,90 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
     }
 
     const persistedMessages = messages.map(({ isStreaming, ...message }) => message);
-    AsyncStorage.setItem(storageKey, JSON.stringify(persistedMessages)).catch((saveError) => {
+    AsyncStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        assistantMode,
+        messages: persistedMessages,
+      })
+    ).catch((saveError) => {
       console.warn("Error saving clinical assistant history:", saveError);
     });
-  }, [loadingHistory, messages, storageKey]);
+  }, [assistantMode, loadingHistory, messages, storageKey]);
 
   const scrollToBottom = useCallback((animated = true) => {
     requestAnimationFrame(() => {
       listRef.current?.scrollToEnd({ animated });
     });
   }, []);
+
+  const scheduleReveal = useCallback((delay = STREAM_BASE_REVEAL_MS) => {
+    if (revealTimeoutRef.current) {
+      return;
+    }
+
+    revealTimeoutRef.current = setTimeout(() => {
+      revealTimeoutRef.current = null;
+      const streamTarget = streamTargetRef.current;
+      if (!streamTarget) {
+        return;
+      }
+
+      let shouldContinue = false;
+      let appliedPause = 0;
+
+      setMessages((currentMessages) =>
+        currentMessages.map((message) => {
+          if (message.id !== streamTarget.assistantId) {
+            return message;
+          }
+
+          const nextMessage = { ...message, isStreaming: true };
+
+          if (message.content !== streamTarget.content) {
+            const remainingContent = streamTarget.content.slice(message.content.length);
+            const contentLength = getNextRevealLength(remainingContent);
+            nextMessage.content = message.content + remainingContent.slice(0, contentLength);
+            appliedPause = Math.max(appliedPause, getTrailingPause(nextMessage.content));
+          }
+
+          if (message.reasoning !== streamTarget.reasoning) {
+            const currentReasoning = message.reasoning || "";
+            const remainingReasoning = streamTarget.reasoning.slice(currentReasoning.length);
+            const reasoningLength = getNextRevealLength(remainingReasoning);
+            nextMessage.reasoning =
+              currentReasoning + remainingReasoning.slice(0, reasoningLength);
+            appliedPause = Math.max(appliedPause, getTrailingPause(nextMessage.reasoning));
+          }
+
+          shouldContinue =
+            nextMessage.content !== streamTarget.content ||
+            (nextMessage.reasoning || "") !== streamTarget.reasoning;
+
+          return nextMessage;
+        })
+      );
+
+      if (autoScrollEnabledRef.current) {
+        scrollToBottom(false);
+      }
+
+      if (shouldContinue) {
+        const pendingContent = Math.max(
+          (streamTarget.content?.length || 0) + (streamTarget.reasoning?.length || 0),
+          0
+        );
+        const nextDelay = Math.max(
+          STREAM_MIN_REVEAL_MS,
+          Math.min(
+            STREAM_MAX_REVEAL_MS,
+            STREAM_BASE_REVEAL_MS - Math.min(Math.floor(pendingContent / 220), 10) + appliedPause
+          )
+        );
+        scheduleReveal(nextDelay);
+      }
+    }, delay);
+  }, [scrollToBottom]);
 
   const measureChatArea = useCallback(() => {
     requestAnimationFrame(() => {
@@ -361,12 +511,18 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
 
   useEffect(() => {
     if (messages.length > 0) {
+      autoScrollEnabledRef.current = true;
       scrollToBottom(false);
     }
   }, [messages.length, scrollToBottom]);
 
   useEffect(() => {
-    if (keyboardHeight > 0 && messages.length > 0 && isComposerFocused) {
+    if (
+      keyboardHeight > 0 &&
+      messages.length > 0 &&
+      isComposerFocused &&
+      autoScrollEnabledRef.current
+    ) {
       const timeoutId = setTimeout(() => {
         scrollToBottom(false);
       }, 50);
@@ -410,6 +566,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
     setInputText("");
     setError("");
     setSending(true);
+    autoScrollEnabledRef.current = true;
     scrollToBottom();
 
     posthogLogger.capture("clinical_assistant_message_sent", {
@@ -417,22 +574,22 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
     });
 
     const response = await askClinicalAssistant(nextMessages, {
+      mode: assistantMode,
       onChunk: (_chunk, accumulatedContent, accumulatedReasoning = "") => {
-        setMessages((currentMessages) =>
-          currentMessages.map((message) =>
-            message.id === assistantId
-              ? {
-                  ...message,
-                  content: accumulatedContent,
-                  reasoning: accumulatedReasoning,
-                  isStreaming: true,
-                }
-              : message
-          )
-        );
-        scrollToBottom(false);
+        streamTargetRef.current = {
+          assistantId,
+          content: accumulatedContent,
+          reasoning: accumulatedReasoning,
+        };
+        scheduleReveal();
       },
     });
+
+    if (revealTimeoutRef.current) {
+      clearTimeout(revealTimeoutRef.current);
+      revealTimeoutRef.current = null;
+    }
+    streamTargetRef.current = null;
 
     if (response.success) {
       setMessages((currentMessages) =>
@@ -471,6 +628,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
 
   const handleComposerFocus = useCallback(() => {
     setIsComposerFocused(true);
+    autoScrollEnabledRef.current = true;
     scrollToBottom();
   }, [scrollToBottom]);
 
@@ -510,6 +668,25 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
       ]
     );
   };
+
+  const handleSelectMode = useCallback((nextMode) => {
+    const normalizedMode = nextMode === "consulta" ? "consulta" : DEFAULT_ASSISTANT_MODE;
+
+    if (normalizedMode === assistantMode) {
+      return;
+    }
+
+    setAssistantMode(normalizedMode);
+    setMessages([]);
+    setError("");
+    setInputText("");
+    AsyncStorage.removeItem(storageKey).catch((clearError) => {
+      console.warn("Error clearing clinical assistant history after mode change:", clearError);
+    });
+    posthogLogger.capture("clinical_assistant_mode_changed", {
+      mode: normalizedMode,
+    });
+  }, [assistantMode, storageKey]);
 
   const composerBottomInset = keyboardHeight > 0 ? 0 : Math.max(insets.bottom - 8, 8);
   const TAP_SLOP = 8;
@@ -588,6 +765,16 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
 
           <View style={styles.headerActions}>
             <TouchableOpacity
+              style={styles.modeButton}
+              onPress={() => setShowModeSelector(true)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Seleccionar modo del asistente"
+            >
+              <Text style={styles.modeButtonText}>{assistantModeLabel}</Text>
+              <Ionicons name="chevron-down" size={16} color={PRIMARY} />
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.headerIconBtn, (!messages.length || sending) && styles.disabled]}
               onPress={handleClear}
               disabled={!messages.length || sending}
@@ -600,6 +787,22 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
           </View>
         </View>
       </View>
+
+      <SelectorModal
+        visible={showModeSelector}
+        onClose={() => setShowModeSelector(false)}
+        title="Seleccionar modo"
+        options={ASSISTANT_MODE_OPTIONS}
+        value={assistantMode}
+        onSelect={handleSelectMode}
+        placeholder="Sin modo"
+        allowClear={false}
+        confirmText="Confirmar modo"
+        emptyText="No hay modos disponibles"
+        enableSearch={false}
+        accentColor={PRIMARY}
+        primaryColor={PRIMARY}
+      />
 
       <View
         ref={chatAreaRef}
@@ -631,7 +834,19 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
               keyboardDismissMode="none"
               showsVerticalScrollIndicator={false}
               ListEmptyComponent={renderEmpty}
-              onContentSizeChange={() => scrollToBottom(false)}
+              onContentSizeChange={() => {
+                if (autoScrollEnabledRef.current) {
+                  scrollToBottom(false);
+                }
+              }}
+              onScroll={(event) => {
+                const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+                const distanceFromBottom =
+                  contentSize.height - (contentOffset.y + layoutMeasurement.height);
+                autoScrollEnabledRef.current =
+                  distanceFromBottom <= AUTO_SCROLL_BOTTOM_THRESHOLD;
+              }}
+              scrollEventThrottle={16}
               onTouchStart={(event) => {
                 const { pageX, pageY } = event.nativeEvent;
                 chatTouchStartRef.current = { pageX, pageY };
@@ -833,6 +1048,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  modeButton: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: PRIMARY + "10",
+  },
+  modeButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: PRIMARY,
+  },
   headerIconBtn: {
     width: 40,
     height: 40,
@@ -867,6 +1097,7 @@ const styles = StyleSheet.create({
   messageRowAssistant: {
     alignSelf: "stretch",
     justifyContent: "flex-start",
+    paddingRight: 6,
   },
   messageRowUser: {
     alignSelf: "flex-end",
@@ -882,6 +1113,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     borderWidth: 0,
     alignSelf: "stretch",
+    width: "100%",
   },
   userBubble: {
     backgroundColor: "#F3F4F6",
@@ -892,12 +1124,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 25,
     color: "#262626",
+    flexShrink: 1,
   },
   userMessageText: {
     color: "#111111",
   },
   assistantMarkdown: {
     gap: 9,
+    paddingRight: 8,
   },
   reasoningBox: {
     borderLeftWidth: 3,
@@ -963,6 +1197,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 7,
+    width: "100%",
   },
   bulletDot: {
     width: 15,

@@ -4,6 +4,7 @@ import { supabase } from "../config/supabase";
 const MAX_REMOTE_MESSAGES = 24;
 const FUNCTION_SLUG = "losresis-llm";
 const FALLBACK_ERROR = "No se pudo contactar con el asistente clínico.";
+const DEFAULT_ASSISTANT_MODE = "guardia";
 
 const normalizeRole = (role) => {
   if (role === "assistant" || role === "user") {
@@ -179,7 +180,8 @@ const readFallbackResponse = async (response) => {
 };
 
 export const askClinicalAssistant = async (messages = [], options = {}) => {
-  const { onChunk } = options;
+  const { onChunk, mode } = options;
+  const normalizedMode = mode === "consulta" ? "consulta" : DEFAULT_ASSISTANT_MODE;
   const normalizedMessages = messages
     .map((message) => ({
       role: normalizeRole(message?.role),
@@ -221,6 +223,7 @@ export const askClinicalAssistant = async (messages = [], options = {}) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        mode: normalizedMode,
         messages: normalizedMessages,
         stream: true,
       }),
