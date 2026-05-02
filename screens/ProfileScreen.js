@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
+  AppState,
   View,
   Text,
   StyleSheet,
@@ -229,7 +230,19 @@ export default function ProfileScreen({
 
   // Cargar perfil al montar
   useEffect(() => {
-    loadUserProfile();
+    loadUserProfile({ forceRefresh: true });
+  }, [loadUserProfile]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        loadUserProfile({ forceRefresh: true }).catch((error) => {
+          console.warn("Error revalidando perfil al reanudar:", error);
+        });
+      }
+    });
+
+    return () => subscription.remove();
   }, [loadUserProfile]);
 
   // Cargar estado de biometría al montar
@@ -370,7 +383,7 @@ export default function ProfileScreen({
 
       // Actualizar el estado de la solicitud de revisión y recargar perfil
       await refreshEmailReviewStatus();
-      await loadUserProfile();
+      await loadUserProfile({ forceRefresh: true });
       if (onProfileUpdated) {
         await onProfileUpdated();
       }

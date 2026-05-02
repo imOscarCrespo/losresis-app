@@ -77,6 +77,9 @@ export default function App() {
         refreshVersionCheck({ force: true, reason: "resume" }).catch((error) => {
           console.warn("Error verificando versión al reanudar:", error);
         });
+        checkAuth({ forceProfileRefresh: true }).catch((error) => {
+          console.warn("Error revalidando sesión al reanudar:", error);
+        });
       } else {
         supabase.auth.stopAutoRefresh();
       }
@@ -195,7 +198,7 @@ export default function App() {
     }
   };
 
-  const checkAuth = async () => {
+  const checkAuth = async ({ forceProfileRefresh = true } = {}) => {
     try {
       // Primero verificar si hay sesión activa
       const { success, session } = await getSession();
@@ -221,7 +224,8 @@ export default function App() {
         const { success: userSuccess, user } = await getCurrentUser();
         if (userSuccess && user) {
           const { success: profileSuccess, profile } = await getUserProfile(
-            user.id
+            user.id,
+            { forceRefresh: forceProfileRefresh }
           );
 
           if (profileSuccess && profile) {
@@ -333,7 +337,8 @@ export default function App() {
     const { success: userSuccess, user } = await getCurrentUser();
     if (userSuccess && user) {
       const { success: profileSuccess, profile } = await getUserProfile(
-        user.id
+        user.id,
+        { forceRefresh: true }
       );
 
       if (profileSuccess && profile) {
@@ -423,7 +428,8 @@ export default function App() {
     const { success: userSuccess, user } = await getCurrentUser();
     if (userSuccess && user) {
       const { success: profileSuccess, profile } = await getUserProfile(
-        user.id
+        user.id,
+        { forceRefresh: true }
       );
       if (
         profileSuccess &&
@@ -459,7 +465,8 @@ export default function App() {
     const { success: userSuccess, user } = await getCurrentUser();
     if (userSuccess && user) {
       const { success: profileSuccess, profile } = await getUserProfile(
-        user.id
+        user.id,
+        { forceRefresh: true }
       );
       if (
         profileSuccess &&
