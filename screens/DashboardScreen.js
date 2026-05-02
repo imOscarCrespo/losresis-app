@@ -34,6 +34,7 @@ import LeisureScreen from "./LeisureScreen";
 import LeisureForumScreen from "./LeisureForumScreen";
 import SportsSelectionScreen from "./SportsSelectionScreen";
 import ThreadDetailScreen from "./ThreadDetailScreen";
+import ClinicalAssistantScreen from "./ClinicalAssistantScreen";
 import NotificationSettingsScreen from "../src/screens/settings/NotificationSettingsScreen";
 import NotificationsScreen from "../src/screens/notifications/NotificationsScreen";
 import { setNotificationNavigationHandler } from "../src/services/push/notificationRouter";
@@ -95,6 +96,7 @@ const GENERIC_BACK_SECTIONS = new Set([
   "roomies",
   "ocio",
   "notifications",
+  "clinicalAssistant",
   "specialityQuiz",
   "rotaciones-externas",
   "cursos",
@@ -1222,6 +1224,14 @@ export default function DashboardScreen({
                 handleSectionChange("courseDetail", { courseId: entityId });
               }
             }}
+          />
+        );
+
+      case "clinicalAssistant":
+        return (
+          <ClinicalAssistantScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
           />
         );
 
