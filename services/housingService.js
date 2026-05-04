@@ -5,6 +5,35 @@
 import { supabase } from "../config/supabase";
 
 const ITEMS_PER_PAGE = 20;
+const HOUSING_BUCKET = "housing_ad";
+const MIME_TYPES_BY_EXTENSION = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+};
+
+const getImageUploadMetadata = (image, index) => {
+  const fileNameFromAsset = image?.fileName?.trim();
+  const fileNameFromUri = image?.uri?.split("/").pop()?.split("?")[0];
+  const originalFileName = fileNameFromAsset || fileNameFromUri || `image_${index}.jpg`;
+  const fileExt = originalFileName.split(".").pop() || "jpg";
+  const normalizedExt = String(fileExt).toLowerCase();
+  const assetMimeType = typeof image?.mimeType === "string" ? image.mimeType : null;
+  const assetType = typeof image?.type === "string" ? image.type : null;
+  const normalizedAssetType =
+    assetType && assetType.includes("/") ? assetType.toLowerCase() : null;
+  const fallbackMimeType =
+    MIME_TYPES_BY_EXTENSION[normalizedExt] || "application/octet-stream";
+
+  return {
+    fileName: `${Date.now()}_${index}.${normalizedExt}`,
+    contentType:
+      assetMimeType?.toLowerCase() || normalizedAssetType || fallbackMimeType,
+  };
+};
 
 /**
  * Obtener anuncios de vivienda con paginación y filtros
@@ -276,18 +305,20 @@ export const createHousingAd = async (adData) => {
         const image = images[i];
         try {
           // Crear nombre de archivo único
-          const fileExt = image.uri.split(".").pop() || "jpg";
-          const fileName = `${Date.now()}_${i}.${fileExt}`;
+          const { fileName, contentType } = getImageUploadMetadata(image, i);
           const filePath = `${user_id}/${adId}/${fileName}`;
+          const formData = new FormData();
 
-          // Convertir URI a blob
-          const response = await fetch(image.uri);
-          const blob = await response.blob();
+          formData.append("file", {
+            uri: image.uri,
+            name: fileName,
+            type: contentType,
+          });
 
           // Subir a Supabase Storage
           const { data: uploadData, error: uploadError } =
-            await supabase.storage.from("housing_ad").upload(filePath, blob, {
-              contentType: image.type || "image/jpeg",
+            await supabase.storage.from(HOUSING_BUCKET).upload(filePath, formData, {
+              contentType,
               upsert: false,
             });
 
@@ -303,7 +334,7 @@ export const createHousingAd = async (adData) => {
             .from("housing_ad_image")
             .insert([
               {
-                housing_ad_id: adId,
+                ad_id: adId,
                 object_path: uploadData.path,
                 position: i,
               },
@@ -313,6 +344,7 @@ export const createHousingAd = async (adData) => {
 
           if (imageError) {
             console.error(`Error creating image record ${i}:`, imageError);
+            await supabase.storage.from(HOUSING_BUCKET).remove([filePath]);
           } else {
             uploadedImages.push(imageData);
           }
