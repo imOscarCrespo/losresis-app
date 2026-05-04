@@ -460,6 +460,14 @@ export default function HomeDashboardScreen({
           color: "#0284C7",
         },
         {
+          label: "Chat clínico",
+          icon: "medical-outline",
+          section: "clinicalAssistant",
+          tint: "#DCFCE7",
+          color: "#15803D",
+          badge: "NUEVO",
+        },
+        {
           label: "Rotaciones externas",
           icon: "airplane-outline",
           section: "rotaciones-externas",
@@ -1126,6 +1134,13 @@ export default function HomeDashboardScreen({
                     ]}
                   >
                     <Ionicons name={action.icon} size={22} color={action.color} />
+                    {!!action.badge && (
+                      <View style={styles.residentActionBadge}>
+                        <Text style={styles.residentActionBadgeText}>
+                          {action.badge}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   <Text style={styles.residentActionLabel}>{action.label}</Text>
                 </TouchableOpacity>
@@ -1852,6 +1867,26 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
+  },
+  residentActionBadge: {
+    position: "absolute",
+    top: -7,
+    right: -13,
+    minWidth: 34,
+    height: 17,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#15803D",
+    borderWidth: 1,
+    borderColor: "#FFFFFF",
+  },
+  residentActionBadgeText: {
+    fontSize: 8,
+    fontWeight: "900",
+    color: "#FFFFFF",
   },
   residentActionLabel: {
     fontSize: 10,
