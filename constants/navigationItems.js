@@ -123,6 +123,15 @@ export const NAVIGATION_ITEMS = [
     doctorOnly: true,
   },
   {
+    id: "clinicalAssistant",
+    name: "Chat clínico",
+    icon: "medical",
+    description: "Consulta al asistente clínico solo si tienes acceso habilitado",
+    requiredFeatureKey: "clinical_assistant_chat",
+    color: "#15803D",
+    lightColor: "#DCFCE7",
+  },
+  {
     id: "articulos",
     name: "Artículos",
     icon: "newspaper",
@@ -218,6 +227,7 @@ export const IMPLEMENTED_SECTIONS = [
   "agenda",
   "residentPayouts",
   "notifications",
+  "clinicalAssistant",
 ];
 
 /**

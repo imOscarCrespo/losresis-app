@@ -488,8 +488,12 @@ export default function HomeDashboardScreen({
           tint: "#E5E7EB",
           color: "#475569",
         },
-      ].filter(Boolean),
-    []
+      ].filter(
+        (action) =>
+          action.section !== "clinicalAssistant" ||
+          userProfile?.can_use_clinical_assistant
+      ),
+    [userProfile?.can_use_clinical_assistant]
   );
   const upcomingResidentCourses = useMemo(
     () =>

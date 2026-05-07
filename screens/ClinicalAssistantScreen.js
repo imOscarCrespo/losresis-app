@@ -306,7 +306,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
     () => getModeLabel(assistantMode),
     [assistantMode]
   );
-  const canUseAssistant = Boolean(userProfile?.is_resident);
+  const canUseAssistant = Boolean(userProfile?.can_use_clinical_assistant);
 
   useEffect(() => {
     posthogLogger.logScreen("ClinicalAssistantScreen");
@@ -706,9 +706,9 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
           <View style={styles.emptyIconWrap}>
             <Ionicons name="lock-closed-outline" size={30} color={PRIMARY} />
           </View>
-          <Text style={styles.emptyTitle}>Acceso para residentes</Text>
+          <Text style={styles.emptyTitle}>Acceso no disponible</Text>
           <Text style={styles.emptySubtitle}>
-            Esta herramienta esta disponible solo para usuarios residentes.
+            No tienes acceso a esta funcionalidad en este momento.
           </Text>
         </View>
       );

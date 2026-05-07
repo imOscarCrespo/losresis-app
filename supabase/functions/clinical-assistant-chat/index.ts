@@ -16,6 +16,7 @@ const corsHeaders = {
 };
 
 const DEFAULT_ASSISTANT_MODE = "guardia";
+const CLINICAL_ASSISTANT_FEATURE_KEY = "clinical_assistant_chat";
 const CLINICAL_SYSTEM_PROMPTS = {
   guardia: `Eres un asistente clínico de apoyo para médicos residentes en España durante guardias hospitalarias. Tu función es dar respuestas rápidas, estructuradas y seguras. El residente tiene poco tiempo y alta presión. Nunca puedes omitir información crítica de seguridad.
 
@@ -331,19 +332,25 @@ serve(async (req) => {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("users")
-      .select("id, is_resident")
-      .eq("id", user.id)
-      .maybeSingle();
+    const { data: canUseFeature, error: featureAccessError } =
+      await supabaseAdmin.rpc("can_use_feature", {
+        p_feature_key: CLINICAL_ASSISTANT_FEATURE_KEY,
+        p_user_id: user.id,
+      });
 
-    if (profileError) {
-      console.error("Profile fetch error:", profileError);
-      return jsonResponse({ error: "No se pudo validar el perfil." }, 500);
+    if (featureAccessError) {
+      console.error("Feature access validation error:", featureAccessError);
+      return jsonResponse(
+        { error: "No se pudo validar el acceso al asistente clínico." },
+        500
+      );
     }
 
-    if (!profile?.is_resident) {
-      return jsonResponse({ error: "Acceso disponible solo para residentes." }, 403);
+    if (!canUseFeature) {
+      return jsonResponse(
+        { error: "No tienes acceso a esta funcionalidad." },
+        403
+      );
     }
 
     const payload = await req.json().catch(() => null);

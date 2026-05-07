@@ -130,6 +130,13 @@ export const MenuGrid = ({
         return false;
       }
 
+      if (
+        item.requiredFeatureKey === "clinical_assistant_chat" &&
+        !userProfile?.can_use_clinical_assistant
+      ) {
+        return false;
+      }
+
       // Filtrar según el tipo de usuario
       if (!userProfile) {
         // Si no hay perfil, mostrar solo items sin restricciones

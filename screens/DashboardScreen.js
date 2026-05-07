@@ -49,6 +49,7 @@ import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
 import { DEV_USER_TYPE } from "../config/devConfig";
+import { getClinicalAssistantAccess } from "../services/featureAccessService";
 import {
   isQualifiedResidentSection,
   registerQualifiedResidentAction,
@@ -130,6 +131,13 @@ const parseStoredDashboardNavigation = (value) => {
     console.warn("Error parsing stored dashboard navigation:", error);
     return null;
   }
+};
+
+const showClinicalAssistantAccessAlert = () => {
+  Alert.alert(
+    "Acceso no disponible",
+    "No tienes acceso a esta funcionalidad."
+  );
 };
 
 export default function DashboardScreen({
@@ -447,7 +455,14 @@ export default function DashboardScreen({
           { forceRefresh }
         );
         if (profileSuccess && profile) {
-          setUserProfile(applyDevUserType(profile));
+          const { enabled: canUseClinicalAssistant } =
+            await getClinicalAssistantAccess(user.id);
+          setUserProfile(
+            applyDevUserType({
+              ...profile,
+              can_use_clinical_assistant: canUseClinicalAssistant,
+            })
+          );
         }
       }
     } catch (error) {
@@ -488,6 +503,26 @@ export default function DashboardScreen({
     }
   }, [currentSection, userProfile]);
 
+  useEffect(() => {
+    if (
+      loadingProfile ||
+      !isNavigationReady ||
+      currentSection !== "clinicalAssistant" ||
+      !userProfile ||
+      userProfile.can_use_clinical_assistant
+    ) {
+      return;
+    }
+
+    showClinicalAssistantAccessAlert();
+    setCurrentSection(getDefaultSection());
+  }, [
+    currentSection,
+    isNavigationReady,
+    loadingProfile,
+    userProfile,
+  ]);
+
   const showResidentGateAlert = () => {
     Alert.alert(
       "Ayuda a los que vienen detrás",
@@ -518,6 +553,12 @@ export default function DashboardScreen({
         "La ventana temporal MIR ya ha terminado. Añade tu correo corporativo en el perfil para recuperar el acceso completo."
       );
       setCurrentSection("usuario");
+      return;
+    }
+
+    if (sectionId === "clinicalAssistant" && !userProfile?.can_use_clinical_assistant) {
+      showClinicalAssistantAccessAlert();
+      setCurrentSection(getDefaultSection());
       return;
     }
 
