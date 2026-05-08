@@ -3,6 +3,7 @@ import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Application from "expo-application";
+import Constants from "expo-constants";
 import { ForceUpdateScreen } from "./components/ForceUpdateScreen";
 import { useVersionCheck } from "./hooks/useVersionCheck";
 import WelcomeScreen from "./screens/WelcomeScreen";
@@ -159,6 +160,7 @@ export default function App() {
   const trackAppOpenAndSession = async () => {
     try {
       const appVersion =
+        Constants.expoConfig?.version ||
         Application.nativeApplicationVersion ||
         Application.applicationVersion ||
         "unknown";

@@ -254,7 +254,7 @@ const HousingAdCard = memo(({ ad, currentUserId, onPress, onDelete, onEdit }) =>
   );
 
   const kindIsOffer = ad.kind === "offer";
-  const kindColor = kindIsOffer ? SECONDARY : PRIMARY;
+  const kindColor = kindIsOffer ? SECONDARY : COLORS.SUCCESS;
   const kindLabel = kindIsOffer ? "Oferta" : "Búsqueda";
 
   const locationText = useMemo(() => {
@@ -271,32 +271,54 @@ const HousingAdCard = memo(({ ad, currentUserId, onPress, onDelete, onEdit }) =>
       activeOpacity={0.88}
     >
       {/* Photo */}
-      {imageUrl ? (
-        <Image source={{ uri: imageUrl }} style={styles.cardImage} resizeMode="cover" />
-      ) : (
-        <View style={styles.cardImagePlaceholder}>
-          <Ionicons name="home-outline" size={36} color="#CBD5E1" />
-        </View>
-      )}
+      {kindIsOffer ? (
+        <>
+          {imageUrl ? (
+            <Image source={{ uri: imageUrl }} style={styles.cardImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.cardImagePlaceholder}>
+              <Ionicons name="home-outline" size={36} color="#CBD5E1" />
+            </View>
+          )}
 
-      <View style={[styles.kindBadge, { backgroundColor: kindColor }]}>
-        <Text style={styles.kindBadgeText}>{kindLabel}</Text>
-      </View>
+          <View style={[styles.kindBadge, { backgroundColor: kindColor }]}>
+            <Text style={styles.kindBadgeText}>{kindLabel}</Text>
+          </View>
 
-      {isMyAd && (
-        <View style={styles.myAdBadge}>
-          <Text style={styles.myAdBadgeText}>✦ Mío</Text>
-        </View>
-      )}
+          {isMyAd && (
+            <View style={styles.myAdBadge}>
+              <Text style={styles.myAdBadgeText}>✦ Mío</Text>
+            </View>
+          )}
 
-      {!ad.is_active && (
-        <View style={styles.inactiveBadge}>
-          <Ionicons name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
-          <Text style={styles.inactiveBadgeText}>Inactivo</Text>
-        </View>
-      )}
+          {!ad.is_active && (
+            <View style={styles.inactiveBadge}>
+              <Ionicons name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
+              <Text style={styles.inactiveBadgeText}>Inactivo</Text>
+            </View>
+          )}
+        </>
+      ) : null}
 
       <View style={styles.cardContent}>
+        {!kindIsOffer && (
+          <View style={styles.badgeRow}>
+            <View style={[styles.kindBadgeInline, { backgroundColor: kindColor }]}>
+              <Text style={styles.kindBadgeText}>{kindLabel}</Text>
+            </View>
+            {isMyAd && (
+              <View style={styles.myAdBadgeInline}>
+                <Text style={styles.myAdBadgeText}>✦ Mío</Text>
+              </View>
+            )}
+            {!ad.is_active && (
+              <View style={styles.inactiveBadgeInline}>
+                <Ionicons name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
+                <Text style={styles.inactiveBadgeText}>Inactivo</Text>
+              </View>
+            )}
+          </View>
+        )}
         <View style={styles.titlePriceRow}>
           <Text style={styles.cardTitle} numberOfLines={1}>{ad.title}</Text>
           {ad.price_eur ? (
@@ -915,6 +937,35 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     padding: 14,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+    flexWrap: "wrap",
+  },
+  kindBadgeInline: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  myAdBadgeInline: {
+    backgroundColor: "#FFF4E0",
+    borderWidth: 1,
+    borderColor: "#FBBF24",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  inactiveBadgeInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   titlePriceRow: {
     flexDirection: "row",

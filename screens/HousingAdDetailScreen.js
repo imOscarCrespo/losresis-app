@@ -451,8 +451,12 @@ export default function HousingAdDetailScreen({
                 </Text>
               </View>
               <View>
-                <Text style={styles.authorName}>
-                  {ad.user.name} {ad.user.surname}
+                <Text style={styles.authorName} numberOfLines={1} ellipsizeMode="tail">
+                  {(() => {
+                    const fullName = `${ad.user.name || ""} ${ad.user.surname || ""}`.trim();
+                    const MAX = 24;
+                    return fullName.length > MAX ? `${fullName.slice(0, MAX).trimEnd()}...` : fullName;
+                  })()}
                 </Text>
                 {isMyAd && (
                   <Text style={styles.authorSubline}>Tu anuncio</Text>

@@ -59,7 +59,8 @@ export const getHousingAds = async (
     let countQuery = supabase
       .from("housing_ad")
       .select("*", { count: "exact", head: true })
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .is("deleted_at", null);
 
     // Aplicar filtros al conteo
     if (filters.city && filters.city.trim()) {
@@ -95,6 +96,7 @@ export const getHousingAds = async (
       `
       )
       .eq("is_active", true)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
     // Aplicar filtros
@@ -185,6 +187,7 @@ export const getHousingAdById = async (adId) => {
       `
       )
       .eq("id", adId)
+      .is("deleted_at", null)
       .single();
 
     if (error) {
@@ -506,7 +509,11 @@ export const deleteHousingAd = async (adId) => {
       };
     }
 
-    const { error } = await supabase.from("housing_ad").delete().eq("id", adId);
+    const { error } = await supabase
+      .from("housing_ad")
+      .update({ deleted_at: new Date().toISOString(), is_active: false })
+      .eq("id", adId)
+      .is("deleted_at", null);
 
     if (error) {
       console.error("Error deleting housing ad:", error);
