@@ -1,5 +1,6 @@
 import { supabase } from "../config/supabase";
 import { getCurrentUser } from "./authService";
+import { fetchHospitalsCache } from "./hospitalService";
 
 /**
  * Consultar hospital_speciality_grades en batches para evitar límites de Supabase
@@ -130,16 +131,8 @@ export const calculateMIRProbabilities = async (
       // Continue even if logging fails
     }
 
-    // Step 1: Get hospitals from JSON cache
-    const hospitalsResponse = await fetch(
-      "https://chgretwxywvaaruwovbb.supabase.co/storage/v1/object/public/cache//hospitals.json"
-    );
-
-    if (!hospitalsResponse.ok) {
-      throw new Error(`HTTP error! status: ${hospitalsResponse.status}`);
-    }
-
-    const allHospitalsData = await hospitalsResponse.json();
+    // Step 1: Get hospitals from JSON cache (persisted client-side cache)
+    const allHospitalsData = await fetchHospitalsCache();
 
     if (!allHospitalsData) {
       return {

@@ -3,6 +3,7 @@
  */
 
 import { supabase } from "../config/supabase";
+import { fetchHospitalsCache } from "./hospitalService";
 
 /**
  * Obtener todas las preferencias del usuario
@@ -232,15 +233,7 @@ export const updatePreferencesOrder = async (preferences) => {
  */
 export const getInitialHospitals = async () => {
   try {
-    const response = await fetch(
-      "https://chgretwxywvaaruwovbb.supabase.co/storage/v1/object/public/cache//hospitals.json"
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
+    const data = await fetchHospitalsCache();
 
     if (!data) {
       return {

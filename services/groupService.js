@@ -3,6 +3,7 @@
  */
 
 import { supabase } from "../config/supabase";
+import { getCachedJson } from "../utils/jsonCacheStore";
 
 const GROUP_SELECT = `
   *,
@@ -13,14 +14,13 @@ const GROUP_SELECT = `
 const GROUPS_CACHE_URL =
   "https://chgretwxywvaaruwovbb.supabase.co/storage/v1/object/public/cache/groups.json";
 
+const GROUPS_TTL_MS = 12 * 60 * 60 * 1000;
+
 const fetchGroupsCache = async () => {
-  const response = await fetch(GROUPS_CACHE_URL);
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  const groupsData = await response.json();
+  const groupsData = await getCachedJson(GROUPS_CACHE_URL, {
+    ttlMs: GROUPS_TTL_MS,
+    label: "groups",
+  });
 
   if (Array.isArray(groupsData)) {
     if (

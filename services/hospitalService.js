@@ -3,29 +3,33 @@
  */
 
 import { supabase } from "../config/supabase";
+import { getCachedJson } from "../utils/jsonCacheStore";
 
 const CACHE_BASE_URL =
   "https://chgretwxywvaaruwovbb.supabase.co/storage/v1/object/public/cache";
-const HOSPITALS_CACHE_URL = `${CACHE_BASE_URL}/hospitals.json`;
+export const HOSPITALS_CACHE_URL = `${CACHE_BASE_URL}/hospitals.json`;
 const HOSPITAL_SPECIALTY_CACHE_URL = `${CACHE_BASE_URL}/hospital_speciality.json`;
 const HOSPITAL_DISCOVERY_RANKINGS_CACHE_URL =
   `${CACHE_BASE_URL}/hospital_discovery_rankings.json`;
 
+const HOSPITALS_TTL_MS = 12 * 60 * 60 * 1000;
+const HOSPITAL_SPECIALTY_TTL_MS = 12 * 60 * 60 * 1000;
+const RANKINGS_TTL_MS = 6 * 60 * 60 * 1000;
+
 let discoveryRankingSnapshotPromise = null;
 let hospitalSpecialtyCachePromise = null;
 
-const fetchJsonCache = async (url, label) => {
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    const error = new Error(`HTTP error! status: ${response.status}`);
-    error.status = response.status;
+const fetchJsonCache = async (url, label, ttlMs) => {
+  try {
+    return await getCachedJson(url, { ttlMs, label });
+  } catch (error) {
     error.cacheLabel = label;
     throw error;
   }
-
-  return response.json();
 };
+
+export const fetchHospitalsCache = () =>
+  fetchJsonCache(HOSPITALS_CACHE_URL, "hospitals", HOSPITALS_TTL_MS);
 
 const normalizeRankingEntry = (entry) => {
   if (!entry || typeof entry !== "object") return null;
@@ -112,7 +116,8 @@ const getDiscoveryRankingSnapshot = async () => {
       try {
         const snapshot = await fetchJsonCache(
           HOSPITAL_DISCOVERY_RANKINGS_CACHE_URL,
-          "hospital discovery rankings"
+          "hospital discovery rankings",
+          RANKINGS_TTL_MS
         );
 
         const bySpecialtyRaw =
@@ -165,7 +170,8 @@ const getHospitalSpecialtyCache = async () => {
       try {
         const data = await fetchJsonCache(
           HOSPITAL_SPECIALTY_CACHE_URL,
-          "hospital specialty"
+          "hospital specialty",
+          HOSPITAL_SPECIALTY_TTL_MS
         );
         return Array.isArray(data) ? data : [];
       } catch (error) {
@@ -187,7 +193,8 @@ export const getHospitals = async () => {
     console.log("🔍 Fetching hospitals from JSON cache...");
     const hospitalsData = await fetchJsonCache(
       HOSPITALS_CACHE_URL,
-      "hospitals"
+      "hospitals",
+      HOSPITALS_TTL_MS
     );
 
     if (!hospitalsData || hospitalsData.length === 0) {
