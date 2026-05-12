@@ -15,7 +15,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Country, City } from "country-state-city";
 import { supabase } from "../config/supabase";
 import { COLORS } from "../constants/colors";
-import { ScreenHeader } from "../components/ScreenHeader";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { SelectorModal } from "../components/SelectorModal";
 import { SelectFilter, ConfirmationModal, DirectChatButton } from "../components";
 import { usePersistedFilters } from "../hooks/usePersistedFilters";
@@ -2199,20 +2199,14 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   }
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader
-        title={routeTitle}
-        variant="brand"
-        onBack={
-          route.name === "home"
-            ? onBack
-            : route.name === "explore" || route.name === "plan"
-              ? () => setRoute({ name: "home", payload: null })
-              : () => setRoute({ name: "home", payload: null })
-        }
-        centerTitle={route.name === "home" || route.name === "explore" || route.name === "plan"}
-      />
-
+    <HeroScreenLayout
+      title={routeTitle}
+      onBack={
+        route.name === "home"
+          ? onBack
+          : () => setRoute({ name: "home", payload: null })
+      }
+    >
       {route.name === "home" && renderHome()}
       {route.name === "explore" && renderExplore()}
       {route.name === "plan" && renderPlan()}
@@ -2276,7 +2270,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           </View>
         </View>
       ) : null}
-    </View>
+    </HeroScreenLayout>
   );
 };
 

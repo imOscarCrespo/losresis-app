@@ -7,6 +7,7 @@ const PRIMARY = "#670CF5";
 export const BottomMenuHeroHeader = ({
   title,
   subtitle = null,
+  leftSlot = null,
   rightSlot = null,
   bottomContent = null,
   style = null,
@@ -33,6 +34,7 @@ export const BottomMenuHeroHeader = ({
     >
       <View style={[styles.contentContainer, contentContainerStyle]}>
         <View style={styles.topRow}>
+          {leftSlot ? <View style={styles.leftSlot}>{leftSlot}</View> : null}
           <View style={styles.titleBlock}>
             <Text style={[styles.title, titleStyle]}>{title}</Text>
             {subtitle ? (
@@ -86,6 +88,9 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.82)",
     fontSize: 14,
     lineHeight: 20,
+  },
+  leftSlot: {
+    paddingTop: 2,
   },
   rightSlot: {
     paddingTop: 2,

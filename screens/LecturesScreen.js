@@ -15,8 +15,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FloatingActionButton } from "../components/FloatingActionButton";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { useLectures } from "../hooks/useLectures";
 import { useHospitals } from "../hooks/useHospitals";
 import { formatShortDate } from "../utils/dateUtils";
@@ -446,12 +445,10 @@ export const LecturesScreen = ({ navigation, onBack }) => {
   const courseCountLabel = `${filteredCourses.length} ${
     filteredCourses.length === 1 ? "curso" : "cursos"
   }`;
-  const header = (
-    <ScreenHeader
+  return (
+    <HeroScreenLayout
       title="Cursos"
       onBack={onBack}
-      compact
-      variant="brand"
       rightSlot={
         <TouchableOpacity
           style={[
@@ -476,14 +473,35 @@ export const LecturesScreen = ({ navigation, onBack }) => {
           </Text>
         </TouchableOpacity>
       }
-    />
-  );
-
-  return (
-    <ScreenScaffold
-      header={header}
-      headerShellVariant="brand"
-      contentSurfaceStyle={styles.contentSurface}
+      overlay={
+        <>
+          <FloatingActionButton
+            onPress={handleCreateCourse}
+            icon="add"
+            backgroundColor={PRIMARY}
+            bottom={24 + insets.bottom}
+            right={20}
+          />
+          <FilterModal
+            visible={openModal === "hospital"}
+            onClose={() => setOpenModal(null)}
+            title="Filtrar por hospital"
+            options={hospitalOptions}
+            value={selectedHospital}
+            onSelect={setSelectedHospital}
+            placeholder="Todos los hospitales"
+          />
+          <FilterModal
+            visible={openModal === "specialty"}
+            onClose={() => setOpenModal(null)}
+            title="Filtrar por especialidad"
+            options={specialtyOptions}
+            value={selectedSpecialty}
+            onSelect={setSelectedSpecialty}
+            placeholder="Todas las especialidades"
+          />
+        </>
+      }
     >
       <View style={styles.toolbar}>
         <View style={styles.searchWrap}>
@@ -709,34 +727,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
           }
         />
       )}
-
-      <FloatingActionButton
-        onPress={handleCreateCourse}
-        icon="add"
-        backgroundColor={PRIMARY}
-        bottom={24 + insets.bottom}
-        right={20}
-      />
-
-      <FilterModal
-        visible={openModal === "hospital"}
-        onClose={() => setOpenModal(null)}
-        title="Filtrar por hospital"
-        options={hospitalOptions}
-        value={selectedHospital}
-        onSelect={setSelectedHospital}
-        placeholder="Todos los hospitales"
-      />
-      <FilterModal
-        visible={openModal === "specialty"}
-        onClose={() => setOpenModal(null)}
-        title="Filtrar por especialidad"
-        options={specialtyOptions}
-        value={selectedSpecialty}
-        onSelect={setSelectedSpecialty}
-        placeholder="Todas las especialidades"
-      />
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 };
 

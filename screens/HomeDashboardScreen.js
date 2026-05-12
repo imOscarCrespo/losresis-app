@@ -723,6 +723,61 @@ export default function HomeDashboardScreen({
     );
   };
 
+  if (userProfile?.is_host) {
+    return (
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.header, { paddingTop: 16 }]}>
+          <View style={styles.headerBlur} />
+          <View style={styles.headerRow}>
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.greeting}>{getGreeting()}</Text>
+              <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">
+                {firstName}
+              </Text>
+              <Text style={styles.headerSubtitle} numberOfLines={1} ellipsizeMode="tail">
+                Gestiona tus anuncios de vivienda
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.quickActions}>
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => onSectionChange?.("createHousingAd")}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: `${ACCENT}20` }]}>
+              <Ionicons name="add-circle-outline" size={22} color={ACCENT} />
+            </View>
+            <Text style={styles.quickActionLabel}>Publicar anuncio</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => onSectionChange?.("vivienda")}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: "#E2E8F0" }]}>
+              <Ionicons name="business-outline" size={22} color="#475569" />
+            </View>
+            <Text style={styles.quickActionLabel}>Mis anuncios</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => onSectionChange?.("grupos")}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: `${SECONDARY}20` }]}>
+              <Ionicons name="chatbubbles-outline" size={22} color={SECONDARY} />
+            </View>
+            <Text style={styles.quickActionLabel}>Chats</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.container}

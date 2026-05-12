@@ -10,8 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
   deleteCourse,
   getCourseById,
@@ -283,12 +282,10 @@ export default function CourseDetailScreen({
     );
   }
 
-  const header = (
-    <ScreenHeader
+  return (
+    <HeroScreenLayout
       title="Cursos"
       onBack={onBack}
-      compact
-      variant="brand"
       rightSlot={
         canEditCourse ? (
           <View style={styles.headerActions}>
@@ -313,16 +310,8 @@ export default function CourseDetailScreen({
           </View>
         ) : null
       }
-    />
-  );
-
-  return (
-    <ScreenScaffold
-      header={header}
-      headerShellVariant="brand"
-      contentSurfaceStyle={styles.container}
     >
-      <ScrollView
+        <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
@@ -488,8 +477,8 @@ export default function CourseDetailScreen({
             </SectionCard>
           ) : null}
         </View>
-      </ScrollView>
-    </ScreenScaffold>
+        </ScrollView>
+    </HeroScreenLayout>
   );
 }
 

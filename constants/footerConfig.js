@@ -104,10 +104,41 @@ export const DOCTOR_FOOTER_ITEMS = [
   },
 ];
 
+export const HOST_FOOTER_ITEMS = [
+  {
+    id: "inicio",
+    icon: "home",
+    label: "Inicio",
+    screen: "inicio",
+  },
+  {
+    id: "vivienda",
+    icon: "business",
+    label: "Vivienda",
+    screen: "vivienda",
+  },
+  {
+    id: "grupos",
+    icon: "chatbubbles",
+    label: "Chats",
+    screen: "grupos",
+  },
+  {
+    id: "usuario",
+    icon: "person",
+    label: "Perfil",
+    screen: "usuario",
+  },
+];
+
 /**
  * Obtiene la configuración del footer según el tipo de usuario
  */
 export const getFooterConfig = (userProfile) => {
+  if (userProfile?.is_host) {
+    return HOST_FOOTER_ITEMS;
+  }
+
   if (userProfile?.is_resident) {
     return RESIDENT_FOOTER_ITEMS;
   }

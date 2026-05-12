@@ -8,8 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenHeader } from "../../../components/ScreenHeader";
-import { ScreenScaffold } from "../../../components/ScreenScaffold";
+import { HeroScreenLayout } from "../../../components/HeroScreenLayout";
 import { COLORS } from "../../../constants/colors";
 import {
   fetchNotifications,
@@ -187,36 +186,16 @@ export default function NotificationsScreen({
 
   if (loading && notifications.length === 0) {
     return (
-      <ScreenScaffold
-        header={
-          <ScreenHeader
-            title="Notificaciones"
-            onBack={onBack}
-            iconName="notifications-outline"
-            compact
-          />
-        }
-        contentSurfaceStyle={styles.contentSurface}
-      >
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#670CF5" />
-          </View>
-      </ScreenScaffold>
+      <HeroScreenLayout title="Notificaciones" onBack={onBack}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#670CF5" />
+        </View>
+      </HeroScreenLayout>
     );
   }
 
   return (
-    <ScreenScaffold
-      header={
-        <ScreenHeader
-          title="Notificaciones"
-          onBack={onBack}
-          iconName="notifications-outline"
-          compact
-        />
-      }
-      contentSurfaceStyle={styles.contentSurface}
-    >
+    <HeroScreenLayout title="Notificaciones" onBack={onBack}>
         <FlatList
           data={notifications}
           renderItem={renderItem}
@@ -237,7 +216,7 @@ export default function NotificationsScreen({
             />
           }
         />
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 

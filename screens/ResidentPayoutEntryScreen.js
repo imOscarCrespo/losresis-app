@@ -13,7 +13,8 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Button, ScreenHeader, ScreenScaffold } from "../components";
+import { Button } from "../components";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLORS } from "../constants/colors";
 import {
   formatPayoutPeriodLabel,
@@ -237,20 +238,11 @@ export default function ResidentPayoutEntryScreen({
     }
   };
 
-  const header = (
-    <ScreenHeader
+  return (
+    <HeroScreenLayout
       title={editingId ? "Editar nómina" : "Nueva nómina"}
       subtitle={formatPayoutPeriodLabel(formState.periodYear, formState.periodMonth)}
       onBack={onBack}
-      compact
-      iconName="cash-outline"
-    />
-  );
-
-  return (
-    <ScreenScaffold
-      header={header}
-      contentSurfaceStyle={styles.contentSurface}
       keyboardAvoiding
     >
       {loading ? (
@@ -439,7 +431,7 @@ export default function ResidentPayoutEntryScreen({
           </ScrollView>
         </TouchableWithoutFeedback>
       )}
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 

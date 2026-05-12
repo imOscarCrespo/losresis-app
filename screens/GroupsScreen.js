@@ -584,6 +584,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
   const userType = getUserType(userProfile);
   const isResidentUser = !!userProfile?.is_resident;
   const isStudentUser = !!userProfile?.is_student;
+  const isHostUser = !!userProfile?.is_host;
   const studentCity = userProfile?.city?.trim()?.toLowerCase() || null;
   const residentCity = userProfile?.city?.trim()?.toLowerCase() || null;
   const residentHospitalId = userProfile?.hospital_id || null;
@@ -917,6 +918,12 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
   const filteredGroups = useMemo(() => {
     let nextGroups = groups;
 
+    if (isHostUser) {
+      // Hosts solo ven chats directos sobre sus anuncios; ocultamos los
+      // chats de ciudad y cualquier grupo genérico de la app médica.
+      return nextGroups.filter((group) => memberGroupIds.has(group.id) && !isCityOnlyGroup(group));
+    }
+
     if (isResidentUser && !isExploringAll) {
       nextGroups = groups.filter((group) => {
         const isMember = memberGroupIds.has(group.id);
@@ -961,6 +968,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
     persistedResidentGroupIds,
     isResidentUser,
     isStudentUser,
+    isHostUser,
     isExploringAll,
     shouldShowExploreFilters,
     studentCity,
@@ -1310,14 +1318,16 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
         onSelect={(v) => setCityFilter(v || null)}
         placeholder="Todas las ciudades"
       />
-      <FloatingActionButton
-        onPress={openCityExplorer}
-        icon="search"
-        backgroundColor={PRIMARY}
-        bottom={24 + insets.bottom}
-        right={20}
-        style={styles.cityExplorerFab}
-      />
+      {!isHostUser && (
+        <FloatingActionButton
+          onPress={openCityExplorer}
+          icon="search"
+          backgroundColor={PRIMARY}
+          bottom={24 + insets.bottom}
+          right={20}
+          style={styles.cityExplorerFab}
+        />
+      )}
       <Modal
         visible={cityExplorerVisible}
         transparent

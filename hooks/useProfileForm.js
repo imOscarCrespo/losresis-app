@@ -6,6 +6,7 @@ import { getResidentTransitionConfig } from "../services/residentTransitionConfi
 import {
   validateProfileForm,
   shouldShowEmailReview,
+  shouldDiscardInvalidWorkEmailDuringGrace,
 } from "../utils/profileValidation";
 import { getProfileDraftType } from "../utils/residentAccess";
 
@@ -21,6 +22,7 @@ const INITIAL_FORM_DATA = {
   is_student: true, // Por defecto, estudiante
   is_resident: false,
   is_doctor: false,
+  is_host: false,
 };
 
 /**
@@ -89,6 +91,7 @@ export const useProfileForm = () => {
           is_student: savedProfileType === "student" || defaultToStudent,
           is_resident: savedProfileType === "resident",
           is_doctor: savedProfileType === "doctor",
+          is_host: savedProfileType === "host",
         });
       } else {
         // Si no hay perfil, verificar si viene de Apple para pre-llenar el nombre con el email
@@ -113,6 +116,7 @@ export const useProfileForm = () => {
           is_student: true,
           is_resident: false,
           is_doctor: false,
+          is_host: false,
         });
       }
     } catch (error) {
@@ -139,6 +143,7 @@ export const useProfileForm = () => {
       is_student: type === "student",
       is_resident: type === "resident",
       is_doctor: type === "doctor",
+      is_host: type === "host",
     }));
 
     if (type !== "resident") {
@@ -150,6 +155,7 @@ export const useProfileForm = () => {
    * Obtiene el tipo de usuario actual
    */
   const getCurrentUserType = useCallback(() => {
+    if (formData.is_host) return "host";
     if (formData.is_student) return "student";
     if (formData.is_resident) return "resident";
     if (formData.is_doctor) return "doctor";
@@ -181,15 +187,16 @@ export const useProfileForm = () => {
       setMessage(null);
 
       try {
-        const normalizedFormData = formData.is_student
-          ? {
-              ...formData,
-              work_email: "",
-              hospital_id: "",
-              speciality_id: "",
-              resident_year: "",
-            }
-          : formData;
+        let normalizedFormData =
+          formData.is_student || formData.is_host
+            ? {
+                ...formData,
+                work_email: "",
+                hospital_id: "",
+                speciality_id: "",
+                resident_year: "",
+              }
+            : formData;
 
         // Validación básica
         const { config: residentTransitionConfig } =
@@ -216,12 +223,25 @@ export const useProfileForm = () => {
           );
 
           if (!emailValidation.isValid) {
-            if (shouldShowEmailReview(normalizedFormData, emailValidation)) {
+            if (
+              shouldDiscardInvalidWorkEmailDuringGrace(
+                normalizedFormData,
+                emailValidation,
+                residentTransitionConfig
+              )
+            ) {
+              normalizedFormData = {
+                ...normalizedFormData,
+                work_email: "",
+              };
+            } else if (shouldShowEmailReview(normalizedFormData, emailValidation)) {
               setShowEmailReviewSection(true);
               setMessage({
                 type: "error",
                 text: "El email de trabajo no coincide con el dominio del hospital. Puedes solicitar una revisión manual abajo.",
               });
+              setLoading(false);
+              return;
             } else {
               setMessage({
                 type: "error",
@@ -229,10 +249,17 @@ export const useProfileForm = () => {
                   emailValidation.error ||
                   "Error al validar el email de trabajo.",
               });
+              setLoading(false);
+              return;
             }
-            setLoading(false);
-            return;
           }
+        }
+
+        if (
+          !normalizedFormData.work_email &&
+          showEmailReviewSection
+        ) {
+          setShowEmailReviewSection(false);
         }
 
         if (!user?.id) {

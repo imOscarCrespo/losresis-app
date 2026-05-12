@@ -40,6 +40,7 @@ export const updateUserProfile = async (userId, profileData) => {
       is_student: profileData.is_student || false,
       is_resident: profileData.is_resident || false,
       is_doctor: profileData.is_doctor || false,
+      is_host: profileData.is_host || false,
       is_super_admin: profileData.is_super_admin || false,
       work_email: profileData.work_email?.trim() || null,
       hospital_id: profileData.hospital_id || null,
@@ -156,8 +157,8 @@ export const isProfileComplete = (
     emailReviewRequest
   );
 
-  if (profile.is_student) {
-    return hasRequiredBasicInfo; // Estudiantes solo necesitan nombre y ciudad (apellidos es opcional)
+  if (profile.is_student || profile.is_host) {
+    return hasRequiredBasicInfo; // Estudiantes y hosts solo necesitan nombre y ciudad
   }
 
   if (profile.is_resident) {

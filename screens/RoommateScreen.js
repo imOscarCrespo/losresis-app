@@ -12,8 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useHospitals } from "../hooks/useHospitals";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { DirectChatButton } from "../components";
 import {
   getMyRoommateBundle,
@@ -287,40 +286,25 @@ export default function RoommateScreen({
     return `${candidates.length} perfiles compatibles en tu ciudad`;
   }, [candidates.length]);
 
-  const header = (
-    <ScreenHeader
-      title="Roomies"
-      onBack={onBack}
-      compact
-      variant="brand"
-      rightSlot={
-        hasProfile ? (
-          <TouchableOpacity
-            style={styles.headerAction}
-            onPress={() => setFiltersVisible(true)}
-            activeOpacity={0.75}
-          >
-            <Ionicons
-              name="options-outline"
-              size={18}
-              color={ROOMMATE_THEME.PRIMARY}
-            />
-          </TouchableOpacity>
-        ) : null
-      }
-    />
-  );
-
-  const renderHero = () => (
-    <View style={styles.hero}>
-      <Text style={styles.heroEyebrow}>ROOMIES LOSRESIS</Text>
-      <Text style={styles.heroTitle}>Encuentra compañeros de piso afines</Text>
-      <Text style={styles.heroText}>
-        Descubre compañeros de piso cerca de tu hospital, ordenados según
-        afinidad y estilo de vida
-      </Text>
-    </View>
-  );
+  const heroProps = {
+    title: "Roomies",
+    subtitle:
+      "Encuentra compañeros de piso afines cerca de tu hospital, ordenados según afinidad y estilo de vida.",
+    onBack,
+    rightSlot: hasProfile ? (
+      <TouchableOpacity
+        style={styles.headerAction}
+        onPress={() => setFiltersVisible(true)}
+        activeOpacity={0.75}
+      >
+        <Ionicons
+          name="options-outline"
+          size={18}
+          color={ROOMMATE_THEME.PRIMARY}
+        />
+      </TouchableOpacity>
+    ) : null,
+  };
 
   const renderTabs = () => (
     <View style={styles.tabsRow}>
@@ -509,28 +493,19 @@ export default function RoommateScreen({
 
   if (loading) {
     return (
-      <ScreenScaffold
-        header={header}
-        headerShellVariant="brand"
-        contentSurfaceStyle={styles.contentSurface}
-      >
+      <HeroScreenLayout {...heroProps}>
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={ROOMMATE_THEME.PRIMARY} />
           <Text style={styles.loadingText}>Preparando perfiles roomie...</Text>
         </View>
-      </ScreenScaffold>
+      </HeroScreenLayout>
     );
   }
 
   return (
     <>
-      <ScreenScaffold
-        header={header}
-        headerShellVariant="brand"
-        contentSurfaceStyle={styles.contentSurface}
-      >
+      <HeroScreenLayout {...heroProps}>
         <ScrollView
-          style={styles.container}
           contentContainerStyle={styles.content}
           refreshControl={
             <RefreshControl
@@ -541,11 +516,10 @@ export default function RoommateScreen({
           }
           showsVerticalScrollIndicator={false}
         >
-          {renderHero()}
           {renderTabs()}
           {activeTab === "browse" ? renderBrowse() : renderProfile()}
         </ScrollView>
-      </ScreenScaffold>
+      </HeroScreenLayout>
 
       <RoommateProfileEditor
         visible={editorVisible}

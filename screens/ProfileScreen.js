@@ -73,7 +73,7 @@ const hasBasicProfileInfo = (profile) => {
 const hasRequiredFieldsForType = (profile, type) => {
   if (!type) return false;
 
-  if (type === "student") {
+  if (type === "student" || type === "host") {
     return hasBasicProfileInfo(profile);
   }
 

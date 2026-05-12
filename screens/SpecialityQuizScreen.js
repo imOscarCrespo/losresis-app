@@ -8,8 +8,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
   getQuizQuestions,
   startQuizSession,
@@ -590,21 +589,8 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
   };
 
   const renderWelcome = () => (
-    <ScreenScaffold
-      style={styles.safeArea}
-      header={
-        <ScreenHeader
-          title="Test de orientación MIR"
-          onBack={onBack}
-          iconName="sparkles-outline"
-          compact
-          variant="brand"
-        />
-      }
-      headerShellVariant="brand"
-      contentSurfaceStyle={styles.contentSurface}
-    >
-        <ScrollView
+    <HeroScreenLayout title="Test de orientación MIR" onBack={onBack}>
+      <ScrollView
           style={styles.content}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -738,7 +724,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
             )}
           </View>
         </ScrollView>
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 
   const renderQuestionOptions = (question) => {
@@ -807,25 +793,16 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
     const isLast = currentIndex === totalQuestions - 1;
 
     return (
-      <ScreenScaffold
-        style={styles.safeArea}
-        header={
-          <ScreenHeader
-            title="Test de orientación MIR"
-            onBack={handleBackFromQuestions}
-            compact
-            variant="brand"
-            rightSlot={
-              <View style={styles.headerCounter}>
-                <Text style={styles.headerCounterText}>
-                  {currentIndex + 1}/{totalQuestions || "?"}
-                </Text>
-              </View>
-            }
-          />
+      <HeroScreenLayout
+        title="Test de orientación MIR"
+        onBack={handleBackFromQuestions}
+        rightSlot={
+          <View style={styles.headerCounter}>
+            <Text style={styles.headerCounterText}>
+              {currentIndex + 1}/{totalQuestions || "?"}
+            </Text>
+          </View>
         }
-        headerShellVariant="brand"
-        contentSurfaceStyle={styles.contentSurface}
       >
           <ScrollView
             style={styles.content}
@@ -861,8 +838,8 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
                 </Text>
               </View>
             </View>
-        </ScrollView>
-      </ScreenScaffold>
+          </ScrollView>
+      </HeroScreenLayout>
     );
   };
 
@@ -913,20 +890,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
     const specialities = resolveSpecialityResults(results);
 
     return (
-      <ScreenScaffold
-        style={styles.safeArea}
-        header={
-          <ScreenHeader
-            title="Tus especialidades MIR"
-            onBack={handleBackFromResults}
-            iconName="analytics-outline"
-            compact
-            variant="brand"
-          />
-        }
-        headerShellVariant="brand"
-        contentSurfaceStyle={styles.contentSurface}
-      >
+      <HeroScreenLayout title="Tus especialidades MIR" onBack={handleBackFromResults}>
           <ScrollView
             style={styles.content}
             contentContainerStyle={styles.scrollContent}
@@ -985,7 +949,7 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
               )}
             </View>
           </ScrollView>
-      </ScreenScaffold>
+      </HeroScreenLayout>
     );
   };
 

@@ -14,7 +14,12 @@ export const validateProfileForm = (
   { residentTransitionConfig = null } = {}
 ) => {
   // Validar que se haya seleccionado un tipo de usuario
-  if (!formData.is_student && !formData.is_resident && !formData.is_doctor) {
+  if (
+    !formData.is_student &&
+    !formData.is_resident &&
+    !formData.is_doctor &&
+    !formData.is_host
+  ) {
     return {
       isValid: false,
       error: "Por favor, selecciona un tipo de usuario.",
@@ -65,5 +70,28 @@ export const shouldShowEmailReview = (formData, emailValidation) => {
     !emailValidation.isValid &&
     formData.work_email &&
     formData.hospital_id
+  );
+};
+
+/**
+ * Determina si un residente R1 en periodo de gracia puede continuar aunque
+ * el email corporativo no coincida con el hospital, descartando ese email.
+ * @param {object} formData - Datos del formulario
+ * @param {object} emailValidation - Resultado de la validación de email
+ * @param {object|null} residentTransitionConfig - Configuración de transición MIR
+ * @returns {boolean}
+ */
+export const shouldDiscardInvalidWorkEmailDuringGrace = (
+  formData,
+  emailValidation,
+  residentTransitionConfig = null
+) => {
+  return Boolean(
+    formData?.is_resident &&
+      formData?.work_email?.trim() &&
+      formData?.hospital_id &&
+      emailValidation &&
+      emailValidation.isValid === false &&
+      canResidentUseSeasonalGrace(formData, residentTransitionConfig)
   );
 };

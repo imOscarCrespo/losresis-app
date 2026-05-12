@@ -21,8 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHousingAds } from "../hooks/useHousingAds";
 import { useHospitals } from "../hooks/useHospitals";
 import { FloatingActionButton } from "../components/FloatingActionButton";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLORS } from "../constants/colors";
 import { formatDateOnly } from "../utils/dateUtils";
 import posthogLogger from "../services/posthogService";
@@ -598,53 +597,41 @@ export default function HousingScreen({ onSectionChange, onBack }) {
     ) : (
       <View style={{ height: 100 }} />
     );
-  const header = (
-    <ScreenHeader
-      title="Vivienda"
-      onBack={onBack}
-      compact
-      variant="brand"
-      rightSlot={
-        <TouchableOpacity
-          style={[styles.myAdsChip, showMyAds && styles.myAdsChipActive]}
-          onPress={() => setShowMyAds(!showMyAds)}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={showMyAds ? "person" : "person-outline"}
-            size={14}
-            color={showMyAds ? WHITE : ACCENT}
-          />
-          <Text style={[styles.myAdsChipText, showMyAds && styles.myAdsChipTextActive]}>
-            Mis anuncios
-          </Text>
-        </TouchableOpacity>
-      }
-    />
-  );
+  const heroProps = {
+    title: "Vivienda",
+    onBack,
+    rightSlot: (
+      <TouchableOpacity
+        style={[styles.myAdsChip, showMyAds && styles.myAdsChipActive]}
+        onPress={() => setShowMyAds(!showMyAds)}
+        activeOpacity={0.7}
+      >
+        <Ionicons
+          name={showMyAds ? "person" : "person-outline"}
+          size={14}
+          color={showMyAds ? PRIMARY : WHITE}
+        />
+        <Text style={[styles.myAdsChipText, showMyAds && styles.myAdsChipTextActive]}>
+          Mis anuncios
+        </Text>
+      </TouchableOpacity>
+    ),
+  };
 
   if ((loading || filtersLoading) && housingAds.length === 0) {
     return (
-      <ScreenScaffold
-        header={header}
-        headerShellVariant="brand"
-        contentSurfaceStyle={styles.contentSurface}
-      >
+      <HeroScreenLayout {...heroProps}>
         <View style={styles.stateContainer}>
           <ActivityIndicator size="large" color={PRIMARY} />
           <Text style={styles.loadingText}>Cargando anuncios...</Text>
         </View>
-      </ScreenScaffold>
+      </HeroScreenLayout>
     );
   }
 
   if (error) {
     return (
-      <ScreenScaffold
-        header={header}
-        headerShellVariant="brand"
-        contentSurfaceStyle={styles.contentSurface}
-      >
+      <HeroScreenLayout {...heroProps}>
         <View style={styles.stateContainer}>
           <Ionicons name="alert-circle" size={48} color={ERROR} />
           <Text style={styles.errorText}>{error}</Text>
@@ -652,15 +639,49 @@ export default function HousingScreen({ onSectionChange, onBack }) {
             <Text style={styles.retryButtonText}>Reintentar</Text>
           </TouchableOpacity>
         </View>
-      </ScreenScaffold>
+      </HeroScreenLayout>
     );
   }
 
   return (
-    <ScreenScaffold
-      header={header}
-      headerShellVariant="brand"
-      contentSurfaceStyle={styles.contentSurface}
+    <HeroScreenLayout
+      {...heroProps}
+      overlay={
+        <>
+          <FloatingActionButton
+            onPress={handleCreateAd}
+            icon="add"
+            backgroundColor={SECONDARY}
+          />
+          <FilterModal
+            visible={openModal === "city"}
+            onClose={() => setOpenModal(null)}
+            title="Filtrar por ciudad"
+            options={cityOptions}
+            value={city}
+            onSelect={setCity}
+            placeholder="Todas las ciudades"
+          />
+          <FilterModal
+            visible={openModal === "kind"}
+            onClose={() => setOpenModal(null)}
+            title="Tipo de anuncio"
+            options={KIND_OPTIONS}
+            value={kind}
+            onSelect={setKind}
+            placeholder="Todos los tipos"
+          />
+          <FilterModal
+            visible={openModal === "price"}
+            onClose={() => setOpenModal(null)}
+            title="Filtrar por precio"
+            options={PRICE_OPTIONS}
+            value={maxPrice ? String(maxPrice) : ""}
+            onSelect={(id) => setMaxPrice(id ? Number(id) : null)}
+            placeholder="Todos los precios"
+          />
+        </>
+      }
     >
       <FlatList
         data={housingAds}
@@ -682,46 +703,7 @@ export default function HousingScreen({ onSectionChange, onBack }) {
         onEndReached={() => { if (hasMore && !loading) loadMoreHousingAds(); }}
         onEndReachedThreshold={0.4}
       />
-
-      <FloatingActionButton
-        onPress={handleCreateAd}
-        icon="add"
-        backgroundColor={SECONDARY}
-      />
-
-      {/* City modal */}
-      <FilterModal
-        visible={openModal === "city"}
-        onClose={() => setOpenModal(null)}
-        title="Filtrar por ciudad"
-        options={cityOptions}
-        value={city}
-        onSelect={setCity}
-        placeholder="Todas las ciudades"
-      />
-
-      {/* Kind modal */}
-      <FilterModal
-        visible={openModal === "kind"}
-        onClose={() => setOpenModal(null)}
-        title="Tipo de anuncio"
-        options={KIND_OPTIONS}
-        value={kind}
-        onSelect={setKind}
-        placeholder="Todos los tipos"
-      />
-
-      {/* Price modal */}
-      <FilterModal
-        visible={openModal === "price"}
-        onClose={() => setOpenModal(null)}
-        title="Filtrar por precio"
-        options={PRICE_OPTIONS}
-        value={maxPrice ? String(maxPrice) : ""}
-        onSelect={(id) => setMaxPrice(id ? Number(id) : null)}
-        placeholder="Todos los precios"
-      />
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 

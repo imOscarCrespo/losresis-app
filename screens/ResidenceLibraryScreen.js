@@ -19,9 +19,8 @@ import {
   ConfirmationModal,
   LibroNodeModal,
   LibroQuickRegisterModal,
-  ScreenHeader,
-  ScreenScaffold,
 } from "../components";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
   CATEGORY_ICON_OPTIONS,
   COLOR_TOKEN_MAP,
@@ -929,20 +928,7 @@ export default function ResidenceLibraryScreen({
     const colorOptions = getColorTokenOptions();
 
     return (
-      <ScreenScaffold
-        style={styles.safeArea}
-        header={
-          <ScreenHeader
-            title="Libro de residente"
-            onBack={onBack}
-            iconName="book-outline"
-            compact
-            variant="brand"
-          />
-        }
-        headerShellVariant="brand"
-        contentSurfaceStyle={styles.contentSurface}
-      >
+      <HeroScreenLayout title="Libro de residente" onBack={onBack}>
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -1362,53 +1348,44 @@ export default function ResidenceLibraryScreen({
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
-      </ScreenScaffold>
+      </HeroScreenLayout>
     );
   };
 
   const renderDashboard = () => (
-    <ScreenScaffold
-      style={styles.safeArea}
-      header={
-        <ScreenHeader
-          title="Libro de residente"
-          onBack={onBack}
-          compact
-          variant="brand"
-          rightSlot={
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                style={[styles.headerIcon, exportingPdf && styles.headerIconDisabled]}
-                onPress={() => handleProtectedAction(handleExportPdf)}
-                disabled={exportingPdf}
-              >
-                <Ionicons
-                  name={exportingPdf ? "hourglass-outline" : "document-text-outline"}
-                  size={18}
-                  color="#FFFFFF"
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.headerIcon,
-                  isSelectedBookArchived && styles.headerIconDisabled,
-                ]}
-                onPress={() =>
-                  handleProtectedAction(() => {
-                    setSelectedParentForChild(null);
-                    setShowNodeFormScreen(true);
-                  }, { requiresEditable: true })
-                }
-                disabled={isSelectedBookArchived}
-              >
-                <Ionicons name="add" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          }
-        />
+    <HeroScreenLayout
+      title="Libro de residente"
+      onBack={onBack}
+      rightSlot={
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.headerIcon, exportingPdf && styles.headerIconDisabled]}
+            onPress={() => handleProtectedAction(handleExportPdf)}
+            disabled={exportingPdf}
+          >
+            <Ionicons
+              name={exportingPdf ? "hourglass-outline" : "document-text-outline"}
+              size={18}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.headerIcon,
+              isSelectedBookArchived && styles.headerIconDisabled,
+            ]}
+            onPress={() =>
+              handleProtectedAction(() => {
+                setSelectedParentForChild(null);
+                setShowNodeFormScreen(true);
+              }, { requiresEditable: true })
+            }
+            disabled={isSelectedBookArchived}
+          >
+            <Ionicons name="add" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       }
-      headerShellVariant="brand"
-      contentSurfaceStyle={styles.contentSurface}
     >
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           <View style={styles.contentInner}>
@@ -1694,7 +1671,7 @@ export default function ResidenceLibraryScreen({
         cancelText="Cancelar"
         confirmColor="#EF4444"
       />
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 
   return hasCompletedOnboarding ? renderDashboard() : renderOnboarding();

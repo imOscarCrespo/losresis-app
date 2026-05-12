@@ -17,8 +17,7 @@ import { usePreferences } from "../hooks/usePreferences";
 import { useHospitals } from "../hooks/useHospitals";
 import { SelectFilter } from "../components/SelectFilter";
 import { FloatingActionButton } from "../components/FloatingActionButton";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import posthogLogger from "../services/posthogService";
 import { COLORS } from "../constants/colors";
 
@@ -395,42 +394,73 @@ export default function MyPreferencesScreen({
     }
   };
 
-  const header = (
-    <ScreenHeader
-      title="Mis Preferencias"
-      onBack={onBack}
-      compact
-      variant="brand"
-      rightSlot={
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>
-            {preferences.length} {preferences.length === 1 ? "ENTRADA" : "ENTRADAS"}
-          </Text>
-        </View>
-      }
-    />
-  );
+  const heroProps = {
+    title: "Mis Preferencias",
+    onBack,
+    rightSlot: (
+      <View style={styles.countBadge}>
+        <Text style={styles.countText}>
+          {preferences.length} {preferences.length === 1 ? "ENTRADA" : "ENTRADAS"}
+        </Text>
+      </View>
+    ),
+  };
 
   if (loading) {
     return (
-      <ScreenScaffold
-        header={header}
-        headerShellVariant="brand"
-        contentSurfaceStyle={styles.contentSurface}
-      >
+      <HeroScreenLayout {...heroProps}>
         <View style={styles.stateContainer}>
           <ActivityIndicator size="large" color={PRIMARY} />
           <Text style={styles.loadingText}>Cargando preferencias...</Text>
         </View>
-      </ScreenScaffold>
+      </HeroScreenLayout>
     );
   }
 
   return (
-    <ScreenScaffold
-      header={header}
-      headerShellVariant="brand"
-      contentSurfaceStyle={styles.contentSurface}
+    <HeroScreenLayout
+      {...heroProps}
+      overlay={
+        <>
+          {!editingOrder && (
+            <>
+              <FloatingActionButton
+                onPress={() => setAdding(true)}
+                icon="add"
+                backgroundColor={PRIMARY}
+                bottom={20}
+                right={20}
+              />
+              {preferences.length >= 2 && (
+                <FloatingActionButton
+                  onPress={() => {
+                    setEditingOrder(true);
+                    setOrderDraft([...preferences]);
+                  }}
+                  icon="brush-outline"
+                  backgroundColor={ACCENT}
+                  size={48}
+                  bottom={88}
+                  right={20}
+                />
+              )}
+            </>
+          )}
+          <AddPreferenceModal
+            visible={adding}
+            onClose={() => {
+              setAdding(false);
+              setAddError("");
+            }}
+            onAdd={handleAddPreference}
+            hospitals={hospitals}
+            specialties={specialties}
+            initialHospitals={initialHospitals}
+            errorMessage={addError}
+            loading={addingPreference}
+          />
+        </>
+      }
     >
       {/* Editing mode bar */}
       {editingOrder && (
@@ -516,48 +546,7 @@ export default function MyPreferencesScreen({
           </View>
         )}
       </ScrollView>
-
-      {/* FABs */}
-      {!editingOrder && (
-        <>
-          <FloatingActionButton
-            onPress={() => setAdding(true)}
-            icon="add"
-            backgroundColor={PRIMARY}
-            bottom={20}
-            right={20}
-          />
-          {preferences.length >= 2 && (
-            <FloatingActionButton
-              onPress={() => {
-                setEditingOrder(true);
-                setOrderDraft([...preferences]);
-              }}
-              icon="brush-outline"
-              backgroundColor={ACCENT}
-              size={48}
-              bottom={88}
-              right={20}
-            />
-          )}
-        </>
-      )}
-
-      {/* Add Preference Modal */}
-      <AddPreferenceModal
-        visible={adding}
-        onClose={() => {
-          setAdding(false);
-          setAddError("");
-        }}
-        onAdd={handleAddPreference}
-        hospitals={hospitals}
-        specialties={specialties}
-        initialHospitals={initialHospitals}
-        errorMessage={addError}
-        loading={addingPreference}
-      />
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 

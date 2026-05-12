@@ -19,6 +19,13 @@ const USER_TYPES = [
     icon: "person",
     color: COLORS.PRIMARY,
   },
+  {
+    id: "host",
+    label: "Anunciante de vivienda",
+    subtitle: "Publica anuncios y responde a interesados",
+    icon: "home",
+    color: "#D97706",
+  },
 ];
 
 /**

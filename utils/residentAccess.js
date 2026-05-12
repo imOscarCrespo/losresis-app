@@ -63,6 +63,7 @@ const hasResidentDraftFields = (profileLike) =>
   );
 
 export const getProfileDraftType = (profileLike) => {
+  if (profileLike?.is_host) return "host";
   if (profileLike?.is_resident) return "resident";
   if (hasResidentDraftFields(profileLike)) return "resident";
   if (profileLike?.is_doctor) return "doctor";

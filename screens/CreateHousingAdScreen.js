@@ -8,12 +8,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { SelectFilter } from "../components/SelectFilter";
 import { DatePickerInput } from "../components/DatePickerInput";
 import { useHospitals } from "../hooks/useHospitals";
@@ -69,8 +68,10 @@ export default function CreateHousingAdScreen({
 }) {
   const isEditMode = !!adId;
 
+  const isHostUser = !!userProfile?.is_host;
+
   const [formData, setFormData] = useState({
-    kind: "seek",
+    kind: "offer",
     city: "",
     title: "",
     description: "",
@@ -116,7 +117,7 @@ export default function CreateHousingAdScreen({
           const { success, ad, error: err } = await getHousingAdById(adId);
           if (success && ad) {
             setFormData({
-              kind: ad.kind || "seek",
+              kind: ad.kind || "offer",
               city: ad.city || "",
               title: ad.title || "",
               description: ad.description || "",
@@ -297,27 +298,11 @@ export default function CreateHousingAdScreen({
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <HeroScreenLayout
+      title={isEditMode ? "Editar anuncio" : "Crear anuncio"}
+      onBack={onBack}
+      keyboardAvoiding
     >
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={onBack}
-          activeOpacity={0.7}
-          disabled={loading}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="arrow-back" size={22} color={PRIMARY} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {isEditMode ? "Editar anuncio" : "Crear anuncio"}
-        </Text>
-        <View style={styles.headerRight} />
-      </View>
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -341,30 +326,8 @@ export default function CreateHousingAdScreen({
 
             {/* ── Kind selector ── */}
             <View style={styles.block}>
-              <SectionHeader icon="home-outline" title="¿Qué estás buscando?" />
+              <SectionHeader icon="home-outline" title="¿Qué quieres publicar?" />
               <View style={styles.segmentedControl}>
-                <TouchableOpacity
-                  style={[
-                    styles.segmentBtn,
-                    formData.kind === "seek" && styles.segmentBtnActive,
-                  ]}
-                  onPress={() => updateFormData("kind", "seek")}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="search-outline"
-                    size={16}
-                    color={formData.kind === "seek" ? PRIMARY : TEXT_MEDIUM}
-                  />
-                  <Text
-                    style={[
-                      styles.segmentBtnText,
-                      formData.kind === "seek" && styles.segmentBtnTextActive,
-                    ]}
-                  >
-                    Busco piso
-                  </Text>
-                </TouchableOpacity>
                 <TouchableOpacity
                   style={[
                     styles.segmentBtn,
@@ -387,6 +350,30 @@ export default function CreateHousingAdScreen({
                     Ofrezco habitación
                   </Text>
                 </TouchableOpacity>
+                {!isHostUser && (
+                  <TouchableOpacity
+                    style={[
+                      styles.segmentBtn,
+                      formData.kind === "seek" && styles.segmentBtnActive,
+                    ]}
+                    onPress={() => updateFormData("kind", "seek")}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="search-outline"
+                      size={16}
+                      color={formData.kind === "seek" ? PRIMARY : TEXT_MEDIUM}
+                    />
+                    <Text
+                      style={[
+                        styles.segmentBtnText,
+                        formData.kind === "seek" && styles.segmentBtnTextActive,
+                      ]}
+                    >
+                      Busco piso
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
@@ -636,7 +623,7 @@ export default function CreateHousingAdScreen({
           </>
         )}
       </ScrollView>
-    </KeyboardAvoidingView>
+    </HeroScreenLayout>
   );
 }
 
@@ -648,35 +635,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: BG_LIGHT,
-  },
-
-  // ── Header ──
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: WHITE,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: PRIMARY + "10",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: ACCENT,
-    letterSpacing: -0.2,
-  },
-  headerRight: {
-    width: 36,
   },
 
   // ── Scroll ──

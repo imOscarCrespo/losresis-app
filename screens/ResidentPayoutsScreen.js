@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Line, Rect, Text as SvgText } from "react-native-svg";
-import { ScreenHeader, ScreenScaffold } from "../components";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLORS } from "../constants/colors";
 import {
   buildPayoutChartData,
@@ -162,22 +162,23 @@ export default function ResidentPayoutsScreen({
     });
   };
 
-  const header = (
-    <ScreenHeader
+  return (
+    <HeroScreenLayout
       title="Nóminas"
       subtitle="Controla cuánto cobras cada mes según tus guardias y otros ingresos"
       onBack={onBack}
-      compact
-      iconName="cash-outline"
-      variant="brand"
-    />
-  );
-
-  return (
-    <ScreenScaffold
-      header={header}
-      headerShellVariant="brand"
-      contentSurfaceStyle={styles.contentSurface}
+      overlay={
+        !loading ? (
+          <TouchableOpacity
+            style={styles.floatingButton}
+            onPress={onCreateEntry}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="add" size={22} color="#FFFFFF" />
+            <Text style={styles.floatingButtonText}>Nuevo registro</Text>
+          </TouchableOpacity>
+        ) : null
+      }
     >
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -236,17 +237,7 @@ export default function ResidentPayoutsScreen({
         </ScrollView>
       )}
 
-      {!loading ? (
-        <TouchableOpacity
-          style={styles.floatingButton}
-          onPress={onCreateEntry}
-          activeOpacity={0.9}
-        >
-          <Ionicons name="add" size={22} color="#FFFFFF" />
-          <Text style={styles.floatingButtonText}>Nuevo registro</Text>
-        </TouchableOpacity>
-      ) : null}
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 
