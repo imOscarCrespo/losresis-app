@@ -3,7 +3,7 @@
  */
 
 import { supabase } from "../config/supabase";
-import { getCachedJson } from "../utils/jsonCacheStore";
+import { getCachedJson, getCacheManifest } from "../utils/jsonCacheStore";
 
 const CACHE_BASE_URL =
   "https://chgretwxywvaaruwovbb.supabase.co/storage/v1/object/public/cache";
@@ -11,17 +11,31 @@ export const HOSPITALS_CACHE_URL = `${CACHE_BASE_URL}/hospitals.json`;
 const HOSPITAL_SPECIALTY_CACHE_URL = `${CACHE_BASE_URL}/hospital_speciality.json`;
 const HOSPITAL_DISCOVERY_RANKINGS_CACHE_URL =
   `${CACHE_BASE_URL}/hospital_discovery_rankings.json`;
+const CACHE_MANIFEST_URL = `${CACHE_BASE_URL}/manifest.json`;
 
-const HOSPITALS_TTL_MS = 12 * 60 * 60 * 1000;
-const HOSPITAL_SPECIALTY_TTL_MS = 12 * 60 * 60 * 1000;
-const RANKINGS_TTL_MS = 6 * 60 * 60 * 1000;
+const HOSPITALS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const HOSPITAL_SPECIALTY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const RANKINGS_TTL_MS = 24 * 60 * 60 * 1000;
 
 let discoveryRankingSnapshotPromise = null;
 let hospitalSpecialtyCachePromise = null;
 
-const fetchJsonCache = async (url, label, ttlMs) => {
+const getManifestVersion = async (key) => {
   try {
-    return await getCachedJson(url, { ttlMs, label });
+    const manifest = await getCacheManifest(CACHE_MANIFEST_URL);
+    const value = manifest?.[key];
+    return typeof value === "string" || typeof value === "number"
+      ? String(value)
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const fetchJsonCache = async (url, label, ttlMs, versionKey) => {
+  try {
+    const version = versionKey ? await getManifestVersion(versionKey) : null;
+    return await getCachedJson(url, { ttlMs, label, version });
   } catch (error) {
     error.cacheLabel = label;
     throw error;
@@ -29,7 +43,7 @@ const fetchJsonCache = async (url, label, ttlMs) => {
 };
 
 export const fetchHospitalsCache = () =>
-  fetchJsonCache(HOSPITALS_CACHE_URL, "hospitals", HOSPITALS_TTL_MS);
+  fetchJsonCache(HOSPITALS_CACHE_URL, "hospitals", HOSPITALS_TTL_MS, "hospitals");
 
 const normalizeRankingEntry = (entry) => {
   if (!entry || typeof entry !== "object") return null;
@@ -117,7 +131,8 @@ const getDiscoveryRankingSnapshot = async () => {
         const snapshot = await fetchJsonCache(
           HOSPITAL_DISCOVERY_RANKINGS_CACHE_URL,
           "hospital discovery rankings",
-          RANKINGS_TTL_MS
+          RANKINGS_TTL_MS,
+          "hospital_discovery_rankings"
         );
 
         const bySpecialtyRaw =
@@ -171,7 +186,8 @@ const getHospitalSpecialtyCache = async () => {
         const data = await fetchJsonCache(
           HOSPITAL_SPECIALTY_CACHE_URL,
           "hospital specialty",
-          HOSPITAL_SPECIALTY_TTL_MS
+          HOSPITAL_SPECIALTY_TTL_MS,
+          "hospital_speciality"
         );
         return Array.isArray(data) ? data : [];
       } catch (error) {
@@ -194,7 +210,8 @@ export const getHospitals = async () => {
     const hospitalsData = await fetchJsonCache(
       HOSPITALS_CACHE_URL,
       "hospitals",
-      HOSPITALS_TTL_MS
+      HOSPITALS_TTL_MS,
+      "hospitals"
     );
 
     if (!hospitalsData || hospitalsData.length === 0) {

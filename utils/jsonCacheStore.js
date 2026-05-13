@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const STORAGE_PREFIX = "jsonCache:v1:";
-const DEFAULT_TTL_MS = 6 * 60 * 60 * 1000;
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 
 const inFlight = new Map();
 const memoryCache = new Map();
@@ -48,7 +48,7 @@ const refreshFetchedAt = async (url, entry) => {
   return next;
 };
 
-const fetchWithValidators = async (url, entry) => {
+const fetchWithValidators = async (url, entry, version) => {
   const headers = {};
   if (entry?.etag) headers["If-None-Match"] = entry.etag;
   if (entry?.lastModified) headers["If-Modified-Since"] = entry.lastModified;
@@ -56,7 +56,8 @@ const fetchWithValidators = async (url, entry) => {
   const response = await fetch(url, { headers });
 
   if (response.status === 304 && entry) {
-    return { status: 304, entry: await refreshFetchedAt(url, entry) };
+    const next = await refreshFetchedAt(url, { ...entry, version });
+    return { status: 304, entry: next };
   }
 
   if (!response.ok) {
@@ -71,6 +72,7 @@ const fetchWithValidators = async (url, entry) => {
     etag: response.headers.get("etag") || null,
     lastModified: response.headers.get("last-modified") || null,
     fetchedAt: Date.now(),
+    version: version ?? null,
   };
   await writeToStorage(url, newEntry);
   return { status: response.status, entry: newEntry };
@@ -82,11 +84,14 @@ const fetchWithValidators = async (url, entry) => {
  * 304 response avoids re-downloading the body.
  *
  * @param {string} url
- * @param {{ ttlMs?: number, label?: string }} [options]
+ * @param {{ ttlMs?: number, label?: string, version?: string|null }} [options]
+ *   `version` — if provided, the cached entry is invalidated when it differs
+ *   from the value stored alongside the cache entry. Use this for remote
+ *   manifest-driven busting.
  * @returns {Promise<any>} the parsed JSON
  */
 export const getCachedJson = async (url, options = {}) => {
-  const { ttlMs = DEFAULT_TTL_MS, label } = options;
+  const { ttlMs = DEFAULT_TTL_MS, label, version = null } = options;
 
   if (inFlight.has(url)) {
     return inFlight.get(url);
@@ -94,15 +99,20 @@ export const getCachedJson = async (url, options = {}) => {
 
   const promise = (async () => {
     const cached = await readFromStorage(url);
+    const versionMatches =
+      version == null || !cached || cached.version === version;
     const isFresh =
-      cached && Date.now() - (cached.fetchedAt || 0) < ttlMs;
+      cached &&
+      versionMatches &&
+      Date.now() - (cached.fetchedAt || 0) < ttlMs;
 
     if (isFresh && cached?.body) {
       return parseEntry(url, cached);
     }
 
     try {
-      const { entry } = await fetchWithValidators(url, cached);
+      const baseEntry = versionMatches ? cached : null;
+      const { entry } = await fetchWithValidators(url, baseEntry, version);
       return parseEntry(url, entry);
     } catch (error) {
       if (cached?.body) {
@@ -132,4 +142,53 @@ export const clearJsonCache = async (url) => {
   } catch (error) {
     console.warn("⚠️ jsonCacheStore: failed to clear cache", url, error);
   }
+};
+
+const MANIFEST_TTL_MS = 5 * 60 * 1000;
+let manifestPromise = null;
+let manifestFetchedAt = 0;
+let manifestValue = null;
+
+/**
+ * Fetch a small remote manifest describing the current version of each cached
+ * JSON asset. The manifest is itself kept in memory for a short window so the
+ * same app session does not hammer Storage with manifest requests.
+ *
+ * Returns an object keyed by asset name (e.g. `hospitals`, `hospital_speciality`).
+ * If the manifest fetch fails, returns an empty object so callers fall through
+ * to TTL-based behaviour.
+ *
+ * @param {string} url - absolute URL of the manifest JSON
+ * @returns {Promise<Record<string, string>>}
+ */
+export const getCacheManifest = async (url) => {
+  const now = Date.now();
+  if (manifestValue && now - manifestFetchedAt < MANIFEST_TTL_MS) {
+    return manifestValue;
+  }
+  if (manifestPromise) return manifestPromise;
+
+  manifestPromise = (async () => {
+    try {
+      const response = await fetch(url, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
+      if (!response.ok) {
+        throw new Error(`Manifest HTTP ${response.status}`);
+      }
+      const parsed = await response.json();
+      manifestValue = parsed && typeof parsed === "object" ? parsed : {};
+      manifestFetchedAt = Date.now();
+      return manifestValue;
+    } catch (error) {
+      console.warn("⚠️ jsonCacheStore: manifest fetch failed", error);
+      // Keep previous manifestValue if we had one; otherwise empty object.
+      return manifestValue || {};
+    } finally {
+      manifestPromise = null;
+    }
+  })();
+
+  return manifestPromise;
 };

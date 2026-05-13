@@ -1,9 +1,11 @@
 /**
  * Servicio para gestionar grupos por especialidad, ciudad y hospital
+ *
+ * Los datos de grupos se sirven directamente desde la BD (Postgrest) en vez
+ * de un JSON cacheado en Storage para reducir Cached Egress.
  */
 
 import { supabase } from "../config/supabase";
-import { getCachedJson } from "../utils/jsonCacheStore";
 
 const GROUP_SELECT = `
   *,
@@ -11,34 +13,42 @@ const GROUP_SELECT = `
   hospital:hospital_id(id, name, city)
 `;
 
-const GROUPS_CACHE_URL =
-  "https://chgretwxywvaaruwovbb.supabase.co/storage/v1/object/public/cache/groups.json";
+const GROUP_FILTER_OPTIONS_SELECT = `
+  city,
+  speciality:speciality_id(id, name),
+  hospital:hospital_id(id, name)
+`;
 
-const GROUPS_TTL_MS = 12 * 60 * 60 * 1000;
+const normalizeMemberCount = (group) => ({
+  ...group,
+  member_count: Number.isFinite(group?.member_count) ? group.member_count : 0,
+});
 
-const fetchGroupsCache = async () => {
-  const groupsData = await getCachedJson(GROUPS_CACHE_URL, {
-    ttlMs: GROUPS_TTL_MS,
-    label: "groups",
-  });
+const filterOptionsCache = new Map();
 
-  if (Array.isArray(groupsData)) {
-    if (
-      groupsData.length === 1 &&
-      groupsData[0] &&
-      Array.isArray(groupsData[0].groups_json)
-    ) {
-      return groupsData[0].groups_json;
+const fetchFilterOptionsForUserType = async (userType) => {
+  if (filterOptionsCache.has(userType)) {
+    return filterOptionsCache.get(userType);
+  }
+
+  const promise = (async () => {
+    const { data, error } = await supabase
+      .from("groups")
+      .select(GROUP_FILTER_OPTIONS_SELECT)
+      .eq("is_active", true)
+      .eq("user_type", userType)
+      .eq("kind", "community");
+
+    if (error) {
+      filterOptionsCache.delete(userType);
+      throw error;
     }
 
-    return groupsData;
-  }
+    return data || [];
+  })();
 
-  if (groupsData && Array.isArray(groupsData.groups_json)) {
-    return groupsData.groups_json;
-  }
-
-  return [];
+  filterOptionsCache.set(userType, promise);
+  return promise;
 };
 
 /**
@@ -52,30 +62,33 @@ export const getGroups = async (userType, filters = {}) => {
       return { success: false, groups: null, error: "User type is required" };
     }
 
-    const allGroups = await fetchGroupsCache();
-    const groups = allGroups
-      .filter((group) => group?.is_active)
-      .filter((group) => group.user_type === userType)
-      .filter((group) => !filters.city || group.city === filters.city)
-      .filter(
-        (group) =>
-          !filters.specialityId || group.speciality_id === filters.specialityId
-      )
-      .filter(
-        (group) => !filters.hospitalId || group.hospital_id === filters.hospitalId
-      )
-      .sort(
-        (a, b) =>
-          new Date(a.created_at || 0).getTime() -
-          new Date(b.created_at || 0).getTime()
-      )
-      .map((group) => ({
-        ...group,
-        member_count: Number.isFinite(group.member_count)
-          ? group.member_count
-          : 0,
-      }));
+    let query = supabase
+      .from("groups")
+      .select(GROUP_SELECT)
+      .eq("is_active", true)
+      .eq("user_type", userType)
+      .eq("kind", "community");
 
+    if (filters.city) {
+      query = query.eq("city", filters.city);
+    }
+    if (filters.specialityId) {
+      query = query.eq("speciality_id", filters.specialityId);
+    }
+    if (filters.hospitalId) {
+      query = query.eq("hospital_id", filters.hospitalId);
+    }
+
+    const { data, error } = await query.order("created_at", {
+      ascending: true,
+    });
+
+    if (error) {
+      console.error("Error fetching groups:", error);
+      return { success: false, groups: null, error: error.message };
+    }
+
+    const groups = (data || []).map(normalizeMemberCount);
     return { success: true, groups, error: null };
   } catch (error) {
     console.error("Exception in getGroups:", error);
@@ -84,7 +97,7 @@ export const getGroups = async (userType, filters = {}) => {
 };
 
 /**
- * Obtener un grupo concreto por id desde la cache
+ * Obtener un grupo concreto por id
  * @param {string} groupId
  */
 export const getGroupById = async (groupId) => {
@@ -93,47 +106,22 @@ export const getGroupById = async (groupId) => {
       return { success: false, group: null, error: "Group ID is required" };
     }
 
-    const allGroups = await fetchGroupsCache();
-    const group = allGroups.find((item) => item?.id === groupId) || null;
+    const { data, error } = await supabase
+      .from("groups")
+      .select(GROUP_SELECT)
+      .eq("id", groupId)
+      .maybeSingle();
 
-    if (!group) {
-      const { data, error } = await supabase
-        .from("groups")
-        .select(GROUP_SELECT)
-        .eq("id", groupId)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Error fetching group by id from db:", error);
-        return { success: false, group: null, error: error.message };
-      }
-
-      if (!data) {
-        return { success: false, group: null, error: "Grupo no encontrado" };
-      }
-
-      return {
-        success: true,
-        group: {
-          ...data,
-          member_count: Number.isFinite(data.member_count)
-            ? data.member_count
-            : 0,
-        },
-        error: null,
-      };
+    if (error) {
+      console.error("Error fetching group by id:", error);
+      return { success: false, group: null, error: error.message };
     }
 
-    return {
-      success: true,
-      group: {
-        ...group,
-        member_count: Number.isFinite(group.member_count)
-          ? group.member_count
-          : 0,
-      },
-      error: null,
-    };
+    if (!data) {
+      return { success: false, group: null, error: "Grupo no encontrado" };
+    }
+
+    return { success: true, group: normalizeMemberCount(data), error: null };
   } catch (error) {
     console.error("Exception in getGroupById:", error);
     return { success: false, group: null, error: error.message };
@@ -326,7 +314,6 @@ export const joinGroup = async (groupId, userId) => {
 
     if (error) {
       if (error.code === "23505") {
-        // Ya es miembro (unique constraint violation)
         return { success: true, alreadyMember: true, error: null };
       }
       console.error("Error joining group:", error);
@@ -434,19 +421,18 @@ export const leaveGroup = async (groupId, userId) => {
  */
 export const getGroupCities = async (userType) => {
   try {
-    const groups = await fetchGroupsCache();
+    if (!userType) {
+      return { success: false, cities: [], error: "User type is required" };
+    }
+
+    const rows = await fetchFilterOptionsForUserType(userType);
     const cities = [
-      ...new Set(
-        groups
-          .filter((group) => group?.is_active)
-          .filter((group) => group.user_type === userType)
-          .map((group) => group.city)
-          .filter(Boolean)
-      ),
+      ...new Set(rows.map((row) => row?.city).filter(Boolean)),
     ].sort();
 
     return { success: true, cities, error: null };
   } catch (error) {
+    console.error("Exception in getGroupCities:", error);
     return { success: false, cities: [], error: error.message };
   }
 };
@@ -457,15 +443,20 @@ export const getGroupCities = async (userType) => {
  */
 export const getGroupSpecialities = async (userType) => {
   try {
-    const groups = await fetchGroupsCache();
+    if (!userType) {
+      return {
+        success: false,
+        specialities: [],
+        error: "User type is required",
+      };
+    }
 
+    const rows = await fetchFilterOptionsForUserType(userType);
     const seen = new Set();
-    const specialities = groups
-      .filter((group) => group?.is_active)
-      .filter((group) => group.user_type === userType)
-      .map((g) => g.speciality)
+    const specialities = rows
+      .map((row) => row?.speciality)
       .filter((s) => {
-        if (!s || seen.has(s.id)) return false;
+        if (!s?.id || seen.has(s.id)) return false;
         seen.add(s.id);
         return true;
       })
@@ -473,6 +464,7 @@ export const getGroupSpecialities = async (userType) => {
 
     return { success: true, specialities, error: null };
   } catch (error) {
+    console.error("Exception in getGroupSpecialities:", error);
     return { success: false, specialities: [], error: error.message };
   }
 };
@@ -483,12 +475,18 @@ export const getGroupSpecialities = async (userType) => {
  */
 export const getGroupHospitals = async (userType) => {
   try {
-    const groups = await fetchGroupsCache();
+    if (!userType) {
+      return {
+        success: false,
+        hospitals: [],
+        error: "User type is required",
+      };
+    }
+
+    const rows = await fetchFilterOptionsForUserType(userType);
     const seen = new Set();
-    const hospitals = groups
-      .filter((group) => group?.is_active)
-      .filter((group) => group.user_type === userType)
-      .map((group) => group.hospital)
+    const hospitals = rows
+      .map((row) => row?.hospital)
       .filter((hospital) => {
         if (!hospital?.id || seen.has(hospital.id)) return false;
         seen.add(hospital.id);
@@ -498,6 +496,7 @@ export const getGroupHospitals = async (userType) => {
 
     return { success: true, hospitals, error: null };
   } catch (error) {
+    console.error("Exception in getGroupHospitals:", error);
     return { success: false, hospitals: [], error: error.message };
   }
 };
