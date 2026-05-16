@@ -1,11 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Keyboard,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,7 +13,14 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
+import { useHospitals } from "../hooks/useHospitals";
+import {
+  getMyRoommateBundle,
+  getRoommateQuestions,
+  saveRoommateBundle,
+} from "../services/roommateService";
+import { SelectorModal } from "../components/SelectorModal";
 import {
   ROOMMATE_FORM_DEFAULTS,
   ROOMMATE_OPTION_SETS,
@@ -23,8 +28,8 @@ import {
   getAnswerInputValue,
   getRoommateAvatarUrl,
   normalizeBundle,
-} from "../../utils/roommateUtils";
-import { SelectorModal } from "../SelectorModal";
+} from "../utils/roommateUtils";
+import { prepareHospitalOptions } from "../utils/profileOptions";
 
 const ChoiceRow = ({ options, value, onChange, multi = false }) => {
   const handlePress = (optionValue) => {
@@ -105,10 +110,60 @@ const sanitizeEditorBundle = (bundle) => {
   };
 };
 
+const validateBundleBeforeSave = (bundleToValidate) => {
+  const city = bundleToValidate?.profile?.city?.trim();
+  const hospitalId = bundleToValidate?.profile?.hospital_id?.trim();
+  const age = bundleToValidate?.profile?.age;
+  const budgetMin = bundleToValidate?.profile?.budget_min_eur;
+  const budgetMax = bundleToValidate?.profile?.budget_max_eur;
+  const homePlan = bundleToValidate?.profile?.home_plan;
+  const preferredGender = bundleToValidate?.search?.preferred_gender;
+
+  if (!hospitalId) {
+    return "Selecciona el hospital más cercano para tu perfil.";
+  }
+
+  if (!city) {
+    return "No se pudo determinar la ciudad desde el hospital seleccionado.";
+  }
+
+  if (!homePlan) {
+    return "Selecciona tu plan de piso.";
+  }
+
+  if (!preferredGender) {
+    return "Selecciona una preferencia de género.";
+  }
+
+  if (age && Number.isNaN(Number(age))) {
+    return "La edad debe ser numérica.";
+  }
+
+  if (budgetMin && Number.isNaN(Number(budgetMin))) {
+    return "El presupuesto mínimo debe ser numérico.";
+  }
+
+  if (budgetMax && Number.isNaN(Number(budgetMax))) {
+    return "El presupuesto máximo debe ser numérico.";
+  }
+
+  if (
+    budgetMin &&
+    budgetMax &&
+    !Number.isNaN(Number(budgetMin)) &&
+    !Number.isNaN(Number(budgetMax)) &&
+    Number(budgetMin) > Number(budgetMax)
+  ) {
+    return "El presupuesto mínimo no puede ser mayor que el máximo.";
+  }
+
+  return null;
+};
+
 const buildStepDefinitions = () => [
   {
     title: "Tu plan de piso",
-    subtitle: "Lo básico para situarte y activar el matching.",
+    subtitle: "",
     render: ({
       bundle,
       updateProfile,
@@ -118,11 +173,7 @@ const buildStepDefinitions = () => [
       onPickAvatar,
     }) => (
       <>
-        <TouchableOpacity
-          style={styles.avatarField}
-          onPress={onPickAvatar}
-          activeOpacity={0.9}
-        >
+        <View style={styles.avatarField}>
           <View style={styles.avatarPickerButton}>
             {bundle.profile.avatar_asset?.uri || bundle.profile.avatar_url ? (
               <Image
@@ -148,15 +199,30 @@ const buildStepDefinitions = () => [
             <Text style={styles.avatarFieldText}>
               Añade una imagen para que tu perfil roomie sea más reconocible.
             </Text>
-            <TouchableOpacity style={styles.avatarCta} onPress={onPickAvatar}>
+            <TouchableOpacity
+              style={styles.avatarCta}
+              onPress={onPickAvatar}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name="camera"
+                size={16}
+                color="#FFFFFF"
+                style={styles.avatarCtaIcon}
+              />
               <Text style={styles.avatarCtaText}>
                 {bundle.profile.avatar_asset?.uri || bundle.profile.avatar_url
                   ? "Cambiar foto"
                   : "Añadir foto"}
               </Text>
             </TouchableOpacity>
+            {bundle.profile.avatar_asset?.uri || bundle.profile.avatar_url ? (
+              <Text style={styles.avatarHelperText}>
+                Foto seleccionada. Se subirá al activar el perfil.
+              </Text>
+            ) : null}
           </View>
-        </TouchableOpacity>
+        </View>
 
         <TextInput
           style={styles.input}
@@ -332,31 +398,75 @@ const buildStepDefinitions = () => [
   },
 ];
 
-export function RoommateProfileEditor({
-  visible,
-  mode = "create",
-  questions = [],
-  initialBundle,
-  hospitalOptions = [],
-  hospitals = [],
-  onClose,
-  onSave,
-  saving = false,
+export default function CreateRoommateProfileScreen({
+  userProfile,
+  onBack,
+  onSuccess,
 }) {
-  const insets = useSafeAreaInsets();
+  const { hospitals } = useHospitals();
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [questions, setQuestions] = useState([]);
+  const [mode, setMode] = useState("create");
   const [hospitalModalVisible, setHospitalModalVisible] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [bundle, setBundle] = useState(
-    sanitizeEditorBundle(initialBundle || ROOMMATE_FORM_DEFAULTS)
+    sanitizeEditorBundle(ROOMMATE_FORM_DEFAULTS)
   );
 
-  React.useEffect(() => {
-    if (visible) {
-      setBundle(sanitizeEditorBundle(initialBundle || ROOMMATE_FORM_DEFAULTS));
-      setStepIndex(0);
-      setHospitalModalVisible(false);
-    }
-  }, [visible, initialBundle]);
+  const hospitalOptions = useMemo(
+    () => prepareHospitalOptions(hospitals),
+    [hospitals]
+  );
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const [questionsResponse, bundleResponse] = await Promise.all([
+          getRoommateQuestions(),
+          getMyRoommateBundle(userProfile.id),
+        ]);
+
+        if (!active) return;
+
+        if (questionsResponse.success) {
+          setQuestions(questionsResponse.questions || []);
+        }
+
+        if (
+          bundleResponse.success &&
+          bundleResponse.bundle?.profile?.user_id
+        ) {
+          setBundle(sanitizeEditorBundle(bundleResponse.bundle));
+          setMode("edit");
+        } else {
+          setBundle(sanitizeEditorBundle(ROOMMATE_FORM_DEFAULTS));
+          setMode("create");
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [userProfile.id]);
+
+  useEffect(() => {
+    (async () => {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permisos necesarios",
+          "Se necesitan permisos para acceder a la galería de fotos."
+        );
+      }
+    })();
+  }, []);
 
   const updateProfile = (field, value) => {
     setBundle((current) => ({
@@ -388,27 +498,58 @@ export function RoommateProfileEditor({
   };
 
   const handlePickAvatar = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        aspect: [4, 3],
+      });
+      if (!result.canceled && result.assets && result.assets[0]) {
+        updateProfile("avatar_asset", result.assets[0]);
+      }
+    } catch (err) {
+      Alert.alert("Error", "No se pudo seleccionar la imagen");
+    }
+  };
+
+  const handleSave = async () => {
+    const bundleToSave = {
+      ...bundle,
+      profile: {
+        ...bundle.profile,
+        is_active: true,
+        is_visible: true,
+      },
+    };
+
+    const validationError = validateBundleBeforeSave(bundleToSave);
+    if (validationError) {
+      Alert.alert("Error", validationError);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await saveRoommateBundle(userProfile.id, bundleToSave);
+
+      if (!response.success) {
+        Alert.alert(
+          "Error",
+          response.error || "No se pudo guardar tu perfil roomie."
+        );
+        return;
+      }
+
+      Alert.alert("Éxito", "Tu perfil roomie se ha guardado correctamente.");
+      onSuccess?.();
+    } catch (error) {
       Alert.alert(
-        "Permisos necesarios",
-        "Se necesitan permisos para acceder a la galería de fotos."
+        "Error",
+        error?.message || "Se produjo un error inesperado al guardar el perfil."
       );
-      return;
+    } finally {
+      setSaving(false);
     }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (result.canceled || !result.assets?.length) {
-      return;
-    }
-
-    updateProfile("avatar_asset", result.assets[0]);
   };
 
   const hospitalsById = useMemo(
@@ -499,173 +640,125 @@ export function RoommateProfileEditor({
 
   const currentStep = stepDefinitions[stepIndex];
   const isLastStep = stepIndex === stepDefinitions.length - 1;
+  const screenTitle =
+    mode === "edit" ? "Editar perfil roomie" : "Crear perfil roomie";
+  const screenSubtitle = `Paso ${stepIndex + 1} de ${stepDefinitions.length}`;
+
+  if (loading) {
+    return (
+      <HeroScreenLayout title={screenTitle} onBack={onBack}>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={ROOMMATE_THEME.PRIMARY} />
+        </View>
+      </HeroScreenLayout>
+    );
+  }
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-      <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
-        <KeyboardAvoidingView
-          style={styles.container}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <View style={[styles.header, { paddingTop: Math.max(insets.top + 12, 28) }]}>
-            <TouchableOpacity style={styles.iconButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color={ROOMMATE_THEME.ACCENT} />
-            </TouchableOpacity>
-            <View style={styles.headerCenter}>
-              <Text style={styles.headerTitle}>
-                {mode === "edit" ? "Editar perfil roomie" : "Crear perfil roomie"}
-              </Text>
-              <Text style={styles.headerSubtitle}>
-                Paso {stepIndex + 1} de {stepDefinitions.length}
-              </Text>
-            </View>
-            <View style={styles.iconPlaceholder} />
-          </View>
+    <HeroScreenLayout
+      title={screenTitle}
+      subtitle={screenSubtitle}
+      onBack={onBack}
+      keyboardAvoiding
+    >
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.progressWrap}>
+          {stepDefinitions.map((step, index) => (
+            <View
+              key={step.title}
+              style={[
+                styles.progressStep,
+                index <= stepIndex && styles.progressStepActive,
+              ]}
+            />
+          ))}
+        </View>
 
-          <View style={styles.progressWrap}>
-            {stepDefinitions.map((step, index) => (
-              <View
-                key={step.title}
-                style={[
-                  styles.progressStep,
-                  index <= stepIndex && styles.progressStepActive,
-                ]}
-              />
-            ))}
-          </View>
+        <View style={styles.stepCard}>
+          <Text style={styles.stepTitle}>{currentStep.title}</Text>
+          {currentStep.subtitle ? (
+            <Text style={styles.stepSubtitle}>{currentStep.subtitle}</Text>
+          ) : null}
+          <View style={styles.stepBody}>{currentStep.render({ bundle })}</View>
+        </View>
 
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={[
-              styles.content,
-              { paddingBottom: 104 + Math.max(insets.bottom, 12) },
-            ]}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.secondaryButton, stepIndex === 0 && styles.buttonDisabled]}
+            disabled={stepIndex === 0}
+            onPress={() => setStepIndex((current) => Math.max(0, current - 1))}
           >
-            <View style={styles.stepCard}>
-              <Text style={styles.stepTitle}>{currentStep.title}</Text>
-              <Text style={styles.stepSubtitle}>{currentStep.subtitle}</Text>
-              <View style={styles.stepBody}>{currentStep.render({ bundle })}</View>
-            </View>
-          </ScrollView>
+            <Text style={styles.secondaryButtonText}>Atrás</Text>
+          </TouchableOpacity>
 
-          <View
-            style={[
-              styles.footer,
-              { paddingBottom: Math.max(insets.bottom, 16) },
-            ]}
-          >
+          {isLastStep ? (
             <TouchableOpacity
-              style={[styles.secondaryButton, stepIndex === 0 && styles.buttonDisabled]}
-              disabled={stepIndex === 0}
-              onPress={() => setStepIndex((current) => Math.max(0, current - 1))}
+              style={[styles.primaryButton, saving && styles.buttonDisabled]}
+              disabled={saving}
+              onPress={handleSave}
             >
-              <Text style={styles.secondaryButtonText}>Atrás</Text>
+              <Text style={styles.primaryButtonText}>
+                {saving
+                  ? "Guardando..."
+                  : mode === "edit"
+                    ? "Guardar"
+                    : "Activar perfil"}
+              </Text>
             </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() =>
+                setStepIndex((current) =>
+                  Math.min(stepDefinitions.length - 1, current + 1)
+                )
+              }
+            >
+              <Text style={styles.primaryButtonText}>Siguiente</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-            {isLastStep ? (
-              <TouchableOpacity
-                style={[styles.primaryButton, saving && styles.buttonDisabled]}
-                disabled={saving}
-                onPress={() =>
-                  onSave?.({
-                    ...bundle,
-                    profile: {
-                      ...bundle.profile,
-                      is_active: true,
-                      is_visible: true,
-                    },
-                  })
-                }
-              >
-                <Text style={styles.primaryButtonText}>
-                  {saving
-                    ? "Guardando..."
-                    : mode === "edit"
-                      ? "Guardar"
-                      : "Activar perfil"}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={() =>
-                  setStepIndex((current) =>
-                    Math.min(stepDefinitions.length - 1, current + 1)
-                  )
-                }
-              >
-                <Text style={styles.primaryButtonText}>Siguiente</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </KeyboardAvoidingView>
+        <View style={{ height: 32 }} />
+      </ScrollView>
 
-        <SelectorModal
-          visible={hospitalModalVisible}
-          onClose={() => setHospitalModalVisible(false)}
-          title="Hospital más cercano"
-          options={resolvedHospitalOptions}
-          value={bundle.profile.hospital_id}
-          onSelect={(value) => {
-            Keyboard.dismiss();
-            const hospital = hospitalsById[value];
-            updateProfile("hospital_id", value);
-            updateProfile("city", hospital?.city || bundle.profile.city || "");
-          }}
-          placeholder="Selecciona el hospital más cercano"
-          allowClear={false}
-          enableSearch
-          accentColor={ROOMMATE_THEME.ACCENT}
-          primaryColor={ROOMMATE_THEME.PRIMARY}
-        />
-      </SafeAreaView>
-    </Modal>
+      <SelectorModal
+        visible={hospitalModalVisible}
+        onClose={() => setHospitalModalVisible(false)}
+        title="Hospital más cercano"
+        options={resolvedHospitalOptions}
+        value={bundle.profile.hospital_id}
+        onSelect={(value) => {
+          Keyboard.dismiss();
+          const hospital = hospitalsById[value];
+          updateProfile("hospital_id", value);
+          updateProfile("city", hospital?.city || bundle.profile.city || "");
+        }}
+        placeholder="Selecciona el hospital más cercano"
+        allowClear={false}
+        enableSearch
+        accentColor={ROOMMATE_THEME.ACCENT}
+        primaryColor={ROOMMATE_THEME.PRIMARY}
+      />
+    </HeroScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loadingWrap: {
     flex: 1,
-    backgroundColor: ROOMMATE_THEME.BACKGROUND,
-  },
-  header: {
-    paddingHorizontal: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-  },
-  iconPlaceholder: {
-    width: 44,
-  },
-  headerCenter: {
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: ROOMMATE_THEME.ACCENT,
-  },
-  headerSubtitle: {
-    marginTop: 4,
-    color: ROOMMATE_THEME.MUTED,
-    fontSize: 13,
-    fontWeight: "700",
   },
   progressWrap: {
-    marginTop: 18,
-    paddingHorizontal: 18,
     flexDirection: "row",
     gap: 8,
+    marginBottom: 16,
   },
   progressStep: {
     flex: 1,
@@ -767,15 +860,27 @@ const styles = StyleSheet.create({
   },
   avatarCta: {
     alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: ROOMMATE_THEME.PRIMARY,
+  },
+  avatarCtaIcon: {
+    marginRight: 6,
   },
   avatarCtaText: {
-    color: ROOMMATE_THEME.PRIMARY,
+    color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "800",
+  },
+  avatarHelperText: {
+    marginTop: 10,
+    color: ROOMMATE_THEME.MUTED,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "600",
   },
   selectorButton: {
     minHeight: 52,
@@ -853,16 +958,10 @@ const styles = StyleSheet.create({
   choiceTextActive: {
     color: "#FFFFFF",
   },
-  footer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 18,
-    paddingTop: 12,
-    backgroundColor: "rgba(247,245,251,0.98)",
+  actionsRow: {
     flexDirection: "row",
     gap: 12,
+    marginTop: 18,
   },
   secondaryButton: {
     flex: 1,

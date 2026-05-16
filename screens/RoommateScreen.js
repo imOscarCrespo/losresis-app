@@ -11,21 +11,17 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useHospitals } from "../hooks/useHospitals";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { DirectChatButton } from "../components";
 import {
   getMyRoommateBundle,
   getRoommateCandidates,
-  getRoommateQuestions,
   getRoommateSavedFilter,
-  saveRoommateBundle,
   saveRoommateSavedFilter,
 } from "../services/roommateService";
 import { openDirectChat } from "../services/directChatsService";
 import { RoommateProfileDetailModal } from "../components/roommate/RoommateProfileDetailModal";
 import { RoommateFiltersModal } from "../components/roommate/RoommateFiltersModal";
-import { RoommateProfileEditor } from "../components/roommate/RoommateProfileEditor";
 import { RoommateProfileListCard } from "../components/roommate/RoommateProfileListCard";
 import {
   ROOMMATE_FORM_DEFAULTS,
@@ -36,8 +32,6 @@ import {
   getRoommateInitials,
   getRoommateTags,
 } from "../utils/roommateUtils";
-import { prepareHospitalOptions } from "../utils/profileOptions";
-
 const TABS = [
   { id: "browse", label: "Perfiles", icon: "people-outline" },
   { id: "profile", label: "Mi perfil", icon: "person-outline" },
@@ -54,27 +48,19 @@ export default function RoommateScreen({
   onSectionChange,
   initialTab = "browse",
 }) {
-  const { hospitals } = useHospitals();
   const [activeTab, setActiveTab] = useState(normalizeInitialTab(initialTab));
-  const [questions, setQuestions] = useState([]);
   const [myBundle, setMyBundle] = useState(null);
   const [savedFilters, setSavedFilters] = useState(ROOMMATE_FORM_DEFAULTS.filters);
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [savingBundle, setSavingBundle] = useState(false);
   const [openingChat, setOpeningChat] = useState(false);
-  const [editorVisible, setEditorVisible] = useState(false);
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [selectedBundle, setSelectedBundle] = useState(null);
   const [selectedCompatibility, setSelectedCompatibility] = useState(0);
   const [filtersVisible, setFiltersVisible] = useState(false);
 
   const hasProfile = Boolean(myBundle?.profile?.user_id);
-  const hospitalOptions = useMemo(
-    () => prepareHospitalOptions(hospitals),
-    [hospitals]
-  );
 
   useEffect(() => {
     setActiveTab(normalizeInitialTab(initialTab));
@@ -83,16 +69,10 @@ export default function RoommateScreen({
   const loadBase = useCallback(async () => {
     setLoading(true);
     try {
-      const [questionsResponse, bundleResponse, filtersResponse] =
-        await Promise.all([
-          getRoommateQuestions(),
-          getMyRoommateBundle(userProfile.id),
-          getRoommateSavedFilter(userProfile.id),
-        ]);
-
-      if (questionsResponse.success) {
-        setQuestions(questionsResponse.questions || []);
-      }
+      const [bundleResponse, filtersResponse] = await Promise.all([
+        getMyRoommateBundle(userProfile.id),
+        getRoommateSavedFilter(userProfile.id),
+      ]);
 
       if (bundleResponse.success) {
         setMyBundle(bundleResponse.bundle);
@@ -148,90 +128,6 @@ export default function RoommateScreen({
     setSelectedBundle(bundle);
     setSelectedCompatibility(compatibility);
     setProfileModalVisible(true);
-  };
-
-  const validateBundleBeforeSave = (bundleToValidate) => {
-    const city = bundleToValidate?.profile?.city?.trim();
-    const hospitalId = bundleToValidate?.profile?.hospital_id?.trim();
-    const age = bundleToValidate?.profile?.age;
-    const budgetMin = bundleToValidate?.profile?.budget_min_eur;
-    const budgetMax = bundleToValidate?.profile?.budget_max_eur;
-    const homePlan = bundleToValidate?.profile?.home_plan;
-    const preferredGender = bundleToValidate?.search?.preferred_gender;
-
-    if (!hospitalId) {
-      return "Selecciona el hospital más cercano para tu perfil.";
-    }
-
-    if (!city) {
-      return "No se pudo determinar la ciudad desde el hospital seleccionado.";
-    }
-
-    if (!homePlan) {
-      return "Selecciona tu plan de piso.";
-    }
-
-    if (!preferredGender) {
-      return "Selecciona una preferencia de género.";
-    }
-
-    if (age && Number.isNaN(Number(age))) {
-      return "La edad debe ser numérica.";
-    }
-
-    if (budgetMin && Number.isNaN(Number(budgetMin))) {
-      return "El presupuesto mínimo debe ser numérico.";
-    }
-
-    if (budgetMax && Number.isNaN(Number(budgetMax))) {
-      return "El presupuesto máximo debe ser numérico.";
-    }
-
-    if (
-      budgetMin &&
-      budgetMax &&
-      !Number.isNaN(Number(budgetMin)) &&
-      !Number.isNaN(Number(budgetMax)) &&
-      Number(budgetMin) > Number(budgetMax)
-    ) {
-      return "El presupuesto mínimo no puede ser mayor que el máximo.";
-    }
-
-    return null;
-  };
-
-  const handleSaveProfile = async (bundleToSave) => {
-    const validationError = validateBundleBeforeSave(bundleToSave);
-    if (validationError) {
-      Alert.alert("Error", validationError);
-      return;
-    }
-
-    setSavingBundle(true);
-    try {
-      const response = await saveRoommateBundle(userProfile.id, bundleToSave);
-
-      if (!response.success) {
-        Alert.alert(
-          "Error",
-          response.error || "No se pudo guardar tu perfil roomie."
-        );
-        return;
-      }
-
-      setMyBundle(response.bundle);
-      setEditorVisible(false);
-      setActiveTab("browse");
-      await loadCandidates(response.bundle, savedFilters);
-      Alert.alert("Éxito", "Tu perfil roomie se ha guardado correctamente.");
-    } catch (error) {
-      Alert.alert(
-        "Error",
-        error?.message || "Se produjo un error inesperado al guardar el perfil."
-      );
-    } finally {
-      setSavingBundle(false);
-    }
   };
 
   const handleSaveFilters = async (filters) => {
@@ -343,7 +239,7 @@ export default function RoommateScreen({
       </Text>
       <TouchableOpacity
         style={styles.primaryButton}
-        onPress={() => setEditorVisible(true)}
+        onPress={() => onSectionChange?.("editRoommateProfile")}
       >
         <Text style={styles.primaryButtonText}>Crear mi perfil</Text>
       </TouchableOpacity>
@@ -483,7 +379,7 @@ export default function RoommateScreen({
 
         <TouchableOpacity
           style={styles.primaryButton}
-          onPress={() => setEditorVisible(true)}
+          onPress={() => onSectionChange?.("editRoommateProfile")}
         >
           <Text style={styles.primaryButtonText}>Editar perfil</Text>
         </TouchableOpacity>
@@ -521,17 +417,6 @@ export default function RoommateScreen({
         </ScrollView>
       </HeroScreenLayout>
 
-      <RoommateProfileEditor
-        visible={editorVisible}
-        mode={hasProfile ? "edit" : "create"}
-        questions={questions}
-        initialBundle={myBundle || ROOMMATE_FORM_DEFAULTS}
-        hospitalOptions={hospitalOptions}
-        hospitals={hospitals}
-        onClose={() => setEditorVisible(false)}
-        onSave={handleSaveProfile}
-        saving={savingBundle}
-      />
 
       <RoommateFiltersModal
         visible={filtersVisible}

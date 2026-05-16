@@ -24,6 +24,7 @@ import HomeDashboardScreen from "./HomeDashboardScreen";
 import HousingScreen from "./HousingScreen";
 import HousingAdDetailScreen from "./HousingAdDetailScreen";
 import CreateHousingAdScreen from "./CreateHousingAdScreen";
+import CreateRoommateProfileScreen from "./CreateRoommateProfileScreen";
 import CreateCourseScreen from "./CreateCourseScreen";
 import ReviewComposerScreen from "./ReviewComposerScreen";
 import ContactScreen from "./ContactScreen";
@@ -162,6 +163,7 @@ export default function DashboardScreen({
   const [selectedHousingAdId, setSelectedHousingAdId] = useState(null);
   const [creatingHousingAd, setCreatingHousingAd] = useState(false);
   const [editingHousingAdId, setEditingHousingAdId] = useState(null);
+  const [editingRoommateProfile, setEditingRoommateProfile] = useState(false);
   const [creatingCourse, setCreatingCourse] = useState(false);
   const [editingCourseId, setEditingCourseId] = useState(null);
   const [reviewComposerMode, setReviewComposerMode] = useState(null);
@@ -266,6 +268,7 @@ export default function DashboardScreen({
         setSelectedHousingAdId(snapshot?.selectedHousingAdId ?? null);
         setCreatingHousingAd(Boolean(snapshot?.creatingHousingAd));
         setEditingHousingAdId(snapshot?.editingHousingAdId ?? null);
+        setEditingRoommateProfile(Boolean(snapshot?.editingRoommateProfile));
         setCreatingCourse(Boolean(snapshot?.creatingCourse));
         setEditingCourseId(snapshot?.editingCourseId ?? null);
         setReviewComposerMode(snapshot?.reviewComposerMode ?? null);
@@ -326,6 +329,7 @@ export default function DashboardScreen({
           selectedHousingAdId,
           creatingHousingAd,
           editingHousingAdId,
+          editingRoommateProfile,
           creatingCourse,
           editingCourseId,
           reviewComposerMode,
@@ -363,6 +367,7 @@ export default function DashboardScreen({
     selectedHousingAdId,
     creatingHousingAd,
     editingHousingAdId,
+    editingRoommateProfile,
     creatingCourse,
     editingCourseId,
     reviewComposerMode,
@@ -605,6 +610,7 @@ export default function DashboardScreen({
       sectionId !== "housingDetail" &&
       sectionId !== "createHousingAd" &&
       sectionId !== "editHousingAd" &&
+      sectionId !== "editRoommateProfile" &&
       sectionId !== "createCourse" &&
       sectionId !== "editCourse" &&
       sectionId !== "groupChat"
@@ -617,6 +623,7 @@ export default function DashboardScreen({
       setSelectedHousingAdId(null);
       setCreatingHousingAd(false);
       setEditingHousingAdId(null);
+      setEditingRoommateProfile(false);
       setCreatingCourse(false);
       setEditingCourseId(null);
       setReviewComposerMode(null);
@@ -655,6 +662,10 @@ export default function DashboardScreen({
     // Si es editHousingAd, activar modo edición
     if (sectionId === "editHousingAd" && params.adId) {
       setEditingHousingAdId(params.adId);
+    }
+    // Si es editRoommateProfile, activar pantalla de edición/creación de perfil roomie
+    if (sectionId === "editRoommateProfile") {
+      setEditingRoommateProfile(true);
     }
     // Si es createCourse, activar pantalla de crear curso
     if (sectionId === "createCourse") {
@@ -1158,6 +1169,33 @@ export default function DashboardScreen({
               // Anuncio creado exitosamente
               setCreatingHousingAd(false);
               setCurrentSection("vivienda");
+            }}
+            userProfile={userProfile}
+          />
+        </SwipeBackWrapper>
+      </ScreenLayout>
+    );
+  }
+
+  if (editingRoommateProfile) {
+    const handleBackFromEditRoommate = () => {
+      setEditingRoommateProfile(false);
+      setCurrentSection("roomies");
+    };
+    return (
+      <ScreenLayout
+        {...screenLayoutProps}
+        userProfile={userProfile}
+        activeSection={currentSection}
+        isProfileIncomplete={isProfileIncomplete}
+        onSectionChange={handleSectionChange}
+      >
+        <SwipeBackWrapper onSwipeBack={handleBackFromEditRoommate}>
+          <CreateRoommateProfileScreen
+            onBack={handleBackFromEditRoommate}
+            onSuccess={() => {
+              setEditingRoommateProfile(false);
+              setCurrentSection("roomies");
             }}
             userProfile={userProfile}
           />

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getHousingAds,
+  getHousingAdHospitals,
   getHousingAdById,
   createHousingAd,
   updateHousingAd,
@@ -37,6 +38,8 @@ export const useHousingAds = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
+  const [hospitalOptions, setHospitalOptions] = useState([]);
+  const [loadingHospitalOptions, setLoadingHospitalOptions] = useState(false);
 
   const [currentUserId, setCurrentUserId] = useState(null);
   const inFlightRequestRef = useRef(null);
@@ -79,6 +82,30 @@ export const useHousingAds = () => {
     [updateFilter]
   );
 
+  const fetchHospitalOptions = useCallback(async () => {
+    try {
+      setLoadingHospitalOptions(true);
+      const { success, hospitals, error: err } = await getHousingAdHospitals();
+
+      if (success) {
+        setHospitalOptions(
+          (hospitals || []).map((hospital) => ({
+            id: hospital.id,
+            name: hospital.city
+              ? `${hospital.name} (${hospital.city})`
+              : hospital.name,
+          }))
+        );
+      } else {
+        console.error("Error loading housing hospital filters:", err);
+      }
+    } catch (err) {
+      console.error("Exception loading housing hospital filters:", err);
+    } finally {
+      setLoadingHospitalOptions(false);
+    }
+  }, []);
+
   // Cargar usuario actual
   useEffect(() => {
     const loadCurrentUser = async () => {
@@ -93,6 +120,10 @@ export const useHousingAds = () => {
     };
     loadCurrentUser();
   }, []);
+
+  useEffect(() => {
+    fetchHospitalOptions();
+  }, [fetchHospitalOptions]);
 
   // Cargar anuncios con paginación y filtros
   const fetchHousingAds = useCallback(
@@ -158,8 +189,8 @@ export const useHousingAds = () => {
 
   // Refrescar anuncios (resetear a primera página)
   const refreshHousingAds = useCallback(async () => {
-    await fetchHousingAds(true);
-  }, [fetchHousingAds]);
+    await Promise.all([fetchHousingAds(true), fetchHospitalOptions()]);
+  }, [fetchHousingAds, fetchHospitalOptions]);
 
   // Limpiar filtros
   const clearFilters = useCallback(async () => {
@@ -200,6 +231,7 @@ export const useHousingAds = () => {
         // Añadir el nuevo anuncio al inicio de la lista
         setHousingAds((prev) => [ad, ...prev]);
         setTotalCount((prev) => prev + 1);
+        fetchHospitalOptions();
         return ad;
       } else {
         setError(err || "Error al crear el anuncio");
@@ -211,7 +243,7 @@ export const useHousingAds = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchHospitalOptions]);
 
   // Actualizar un anuncio
   const updateExistingHousingAd = useCallback(async (adId, adData) => {
@@ -224,6 +256,7 @@ export const useHousingAds = () => {
       if (success) {
         // Actualizar el anuncio en la lista
         setHousingAds((prev) => prev.map((a) => (a.id === adId ? ad : a)));
+        fetchHospitalOptions();
         return ad;
       } else {
         setError(err || "Error al actualizar el anuncio");
@@ -235,7 +268,7 @@ export const useHousingAds = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchHospitalOptions]);
 
   // Eliminar un anuncio
   const removeHousingAd = useCallback(async (adId) => {
@@ -249,6 +282,7 @@ export const useHousingAds = () => {
         // Eliminar el anuncio de la lista
         setHousingAds((prev) => prev.filter((a) => a.id !== adId));
         setTotalCount((prev) => Math.max(0, prev - 1));
+        fetchHospitalOptions();
         return true;
       } else {
         setError(err || "Error al eliminar el anuncio");
@@ -260,7 +294,7 @@ export const useHousingAds = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchHospitalOptions]);
 
   // Toggle estado activo/inactivo
   const toggleStatus = useCallback(async (adId, isActive) => {
@@ -279,6 +313,7 @@ export const useHousingAds = () => {
             ad.id === adId ? { ...ad, is_active: isActive } : ad
           )
         );
+        fetchHospitalOptions();
         return true;
       } else {
         setError(err || "Error al cambiar el estado del anuncio");
@@ -288,7 +323,7 @@ export const useHousingAds = () => {
       setError(err.message || "Error inesperado al cambiar el estado");
       return false;
     }
-  }, []);
+  }, [fetchHospitalOptions]);
 
   // Auto-fetch cuando cambian los filtros
   useEffect(() => {
@@ -307,6 +342,8 @@ export const useHousingAds = () => {
     hasMore,
     totalCount,
     filtersLoading,
+    hospitalOptions,
+    loadingHospitalOptions,
 
     // Filters
     city,
@@ -321,6 +358,7 @@ export const useHousingAds = () => {
     setShowMyAds,
     clearFilters,
     currentUserId,
+    fetchHospitalOptions,
 
     // Actions
     fetchHousingAds,

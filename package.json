@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
+    "android": "expo run:android",
     "ios": "xcrun simctl shutdown all 2>/dev/null; xcrun simctl boot \"iPhone 16\"; open -a Simulator; expo start --ios",
     "ios-ipad": "expo start --ios --device",
     "ios-ipad-13": "xcrun simctl boot \"iPad Pro 13-inch (M4)\" 2>/dev/null; open -a Simulator; expo start --ios",

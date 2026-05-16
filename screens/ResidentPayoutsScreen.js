@@ -394,7 +394,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.24,
     shadowRadius: 14,
-    elevation: 6,
+    zIndex: 20,
+    elevation: 12,
   },
   floatingButtonText: {
     fontSize: 13,

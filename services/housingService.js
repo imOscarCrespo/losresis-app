@@ -36,6 +36,59 @@ const getImageUploadMetadata = (image, index) => {
 };
 
 /**
+ * Obtener hospitales que tienen al menos un anuncio de vivienda activo.
+ * @returns {Promise<{success: boolean, hospitals: array, error: string|null}>}
+ */
+export const getHousingAdHospitals = async () => {
+  try {
+    const { data, error } = await supabase
+      .from("housing_ad")
+      .select(
+        `
+        hospital:hospitals!housing_ad_hospital_id_fkey(id, name, city)
+      `
+      )
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .not("hospital_id", "is", null);
+
+    if (error) {
+      console.error("Error fetching housing ad hospitals:", error);
+      return {
+        success: false,
+        hospitals: [],
+        error: error.message,
+      };
+    }
+
+    const hospitalsById = new Map();
+
+    (data || []).forEach((row) => {
+      const hospital = row?.hospital;
+      if (!hospital?.id) return;
+      hospitalsById.set(hospital.id, hospital);
+    });
+
+    const hospitals = Array.from(hospitalsById.values()).sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "", "es")
+    );
+
+    return {
+      success: true,
+      hospitals,
+      error: null,
+    };
+  } catch (error) {
+    console.error("Exception fetching housing ad hospitals:", error);
+    return {
+      success: false,
+      hospitals: [],
+      error: error.message,
+    };
+  }
+};
+
+/**
  * Obtener anuncios de vivienda con paginación y filtros
  * @param {number} page - Página actual (0-indexed)
  * @param {number} limit - Límite de anuncios por página
@@ -92,6 +145,7 @@ export const getHousingAds = async (
         `
         *,
         user:users!housing_ad_user_id_fkey(id, name, surname, is_resident),
+        hospital:hospitals!housing_ad_hospital_id_fkey(id, name, city),
         images:housing_ad_image(*)
       `
       )
@@ -136,6 +190,7 @@ export const getHousingAds = async (
     const processedAds = (data || []).map((ad) => ({
       ...ad,
       user: ad.user || undefined,
+      hospital: ad.hospital || undefined,
       images: (ad.images || []).sort((a, b) => a.position - b.position),
     }));
 

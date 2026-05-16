@@ -410,6 +410,9 @@ export default function HousingScreen({ onSectionChange, onBack }) {
     setCity,
     kind,
     setKind,
+    hospitalId,
+    setHospitalId,
+    hospitalOptions,
     maxPrice,
     setMaxPrice,
     showMyAds,
@@ -423,7 +426,7 @@ export default function HousingScreen({ onSectionChange, onBack }) {
 
   const { uniqueCities } = useHospitals();
   const [refreshing, setRefreshing] = useState(false);
-  const [openModal, setOpenModal] = useState(null); // "city" | "kind" | "price" | null
+  const [openModal, setOpenModal] = useState(null); // "city" | "kind" | "hospital" | "price" | null
 
   useEffect(() => {
     posthogLogger.logScreen("HousingScreen");
@@ -433,7 +436,7 @@ export default function HousingScreen({ onSectionChange, onBack }) {
     return [...(uniqueCities || [])].sort().map((c) => ({ id: c, name: c }));
   }, [uniqueCities]);
 
-  const hasActiveFilters = !!(city || kind || maxPrice || showMyAds);
+  const hasActiveFilters = !!(city || kind || hospitalId || maxPrice || showMyAds);
   const adCountLabel = `${totalCount} ${
     totalCount === 1 ? "anuncio" : "anuncios"
   }`;
@@ -442,6 +445,9 @@ export default function HousingScreen({ onSectionChange, onBack }) {
   const kindLabel = kind
     ? KIND_OPTIONS.find((o) => o.id === kind)?.name ?? "Tipo"
     : "Tipo";
+  const hospitalLabel = hospitalId
+    ? hospitalOptions.find((o) => o.id === hospitalId)?.name ?? "Hospital"
+    : "Hospital";
   const priceLabel = maxPrice
     ? PRICE_OPTIONS.find((o) => o.id === String(maxPrice))?.name ?? "Precio"
     : "Precio";
@@ -535,6 +541,29 @@ export default function HousingScreen({ onSectionChange, onBack }) {
             {kindLabel}
           </Text>
           <Ionicons name="chevron-down" size={16} color={kind ? PRIMARY : ACCENT} />
+        </TouchableOpacity>
+
+        {/* Hospital */}
+        <TouchableOpacity
+          style={[styles.chip, hospitalId && styles.chipActive]}
+          onPress={() => setOpenModal("hospital")}
+        >
+          <Ionicons
+            name="business-outline"
+            size={16}
+            color={hospitalId ? PRIMARY : ACCENT}
+          />
+          <Text
+            style={[styles.chipText, hospitalId && styles.chipTextActive]}
+            numberOfLines={1}
+          >
+            {hospitalLabel}
+          </Text>
+          <Ionicons
+            name="chevron-down"
+            size={16}
+            color={hospitalId ? PRIMARY : ACCENT}
+          />
         </TouchableOpacity>
 
         {/* Precio */}
@@ -670,6 +699,15 @@ export default function HousingScreen({ onSectionChange, onBack }) {
             value={kind}
             onSelect={setKind}
             placeholder="Todos los tipos"
+          />
+          <FilterModal
+            visible={openModal === "hospital"}
+            onClose={() => setOpenModal(null)}
+            title="Filtrar por hospital"
+            options={hospitalOptions}
+            value={hospitalId}
+            onSelect={setHospitalId}
+            placeholder="Todos los hospitales"
           />
           <FilterModal
             visible={openModal === "price"}
