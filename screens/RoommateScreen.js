@@ -6,6 +6,7 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -18,6 +19,7 @@ import {
   getRoommateCandidates,
   getRoommateSavedFilter,
   saveRoommateSavedFilter,
+  updateRoommateProfileVisibility,
 } from "../services/roommateService";
 import { openDirectChat } from "../services/directChatsService";
 import { RoommateProfileDetailModal } from "../components/roommate/RoommateProfileDetailModal";
@@ -59,6 +61,7 @@ export default function RoommateScreen({
   const [selectedBundle, setSelectedBundle] = useState(null);
   const [selectedCompatibility, setSelectedCompatibility] = useState(0);
   const [filtersVisible, setFiltersVisible] = useState(false);
+  const [updatingVisibility, setUpdatingVisibility] = useState(false);
 
   const hasProfile = Boolean(myBundle?.profile?.user_id);
 
@@ -138,6 +141,61 @@ export default function RoommateScreen({
         ...response.filters,
       });
       setFiltersVisible(false);
+    }
+  };
+
+  const applyVisibilityChange = async (nextHidden) => {
+    if (!myBundle?.profile?.user_id || updatingVisibility) return;
+    const previous = myBundle;
+    setUpdatingVisibility(true);
+    setMyBundle({
+      ...previous,
+      profile: {
+        ...previous.profile,
+        is_active: !nextHidden,
+        is_visible: !nextHidden,
+      },
+    });
+    const response = await updateRoommateProfileVisibility(userProfile.id, {
+      isActive: !nextHidden,
+      isVisible: !nextHidden,
+    });
+    setUpdatingVisibility(false);
+    if (!response.success) {
+      setMyBundle(previous);
+      Alert.alert(
+        "Error",
+        response.error || "No se pudo actualizar la visibilidad de tu perfil."
+      );
+    }
+  };
+
+  const handleToggleFoundHousing = (nextValue) => {
+    if (nextValue) {
+      Alert.alert(
+        "¿Ocultar tu perfil?",
+        "Dejarás de aparecer en el listado de roomies y no recibirás nuevas notificaciones de match. Tus matches actuales seguirán pudiendo escribirte.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Ocultar perfil",
+            style: "destructive",
+            onPress: () => applyVisibilityChange(true),
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        "¿Volver a buscar piso?",
+        "Tu perfil volverá a aparecer en el listado de roomies y recibirás notificaciones cuando hagas match.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Volver a buscar",
+            onPress: () => applyVisibilityChange(false),
+          },
+        ]
+      );
     }
   };
 
@@ -341,6 +399,27 @@ export default function RoommateScreen({
               </View>
             ))}
           </View>
+        </View>
+
+        <View style={styles.visibilityCard}>
+          <View style={styles.visibilityTextWrap}>
+            <Text style={styles.visibilityTitle}>He encontrado vivienda</Text>
+            <Text style={styles.visibilityDescription}>
+              Ocultaremos tu perfil del listado de roomies y dejarás de recibir
+              nuevas notificaciones de match. Tus matches actuales seguirán
+              pudiendo escribirte.
+            </Text>
+          </View>
+          <Switch
+            value={!myBundle.profile.is_active}
+            onValueChange={handleToggleFoundHousing}
+            disabled={updatingVisibility}
+            trackColor={{
+              false: "#D1D5DB",
+              true: ROOMMATE_THEME.PRIMARY,
+            }}
+            thumbColor="#FFFFFF"
+          />
         </View>
 
         <View style={styles.profileInfoCard}>
@@ -676,6 +755,28 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     padding: 22,
     gap: 16,
+  },
+  visibilityCard: {
+    borderRadius: 28,
+    backgroundColor: "#FFFFFF",
+    padding: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  visibilityTextWrap: {
+    flex: 1,
+    gap: 6,
+  },
+  visibilityTitle: {
+    color: ROOMMATE_THEME.TEXT,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  visibilityDescription: {
+    color: ROOMMATE_THEME.MUTED,
+    fontSize: 13,
+    lineHeight: 18,
   },
   profileText: {
     color: ROOMMATE_THEME.TEXT,

@@ -19,7 +19,7 @@ import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { useLectures } from "../hooks/useLectures";
 import { useHospitals } from "../hooks/useHospitals";
 import { formatShortDate } from "../utils/dateUtils";
-import { filterCoursesBySearch, openURL } from "../utils/courseUtils";
+import { openURL } from "../utils/courseUtils";
 import posthogLogger from "../services/posthogService";
 import { COLORS } from "../constants/colors";
 
@@ -361,8 +361,6 @@ export const LecturesScreen = ({ navigation, onBack }) => {
     loading,
     error,
     hasMore,
-    searchTerm,
-    setSearchTerm,
     selectedHospital,
     setSelectedHospital,
     selectedSpecialty,
@@ -382,11 +380,6 @@ export const LecturesScreen = ({ navigation, onBack }) => {
   useEffect(() => {
     posthogLogger.logScreen("LecturesScreen");
   }, []);
-
-  const filteredCourses = useMemo(
-    () => filterCoursesBySearch(courses, searchTerm),
-    [courses, searchTerm]
-  );
 
   const hospitalOptions = useMemo(
     () =>
@@ -419,8 +412,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
   );
 
   const hasActiveFilters = Boolean(
-    searchTerm ||
-      selectedHospital ||
+    selectedHospital ||
       selectedSpecialty ||
       showLikedCourses ||
       showCreatedCourses
@@ -442,9 +434,6 @@ export const LecturesScreen = ({ navigation, onBack }) => {
   }, [navigation]);
 
   const isInitialLoading = (loading || filtersLoading) && courses.length === 0;
-  const courseCountLabel = `${filteredCourses.length} ${
-    filteredCourses.length === 1 ? "curso" : "cursos"
-  }`;
   return (
     <HeroScreenLayout
       title="Cursos"
@@ -504,28 +493,6 @@ export const LecturesScreen = ({ navigation, onBack }) => {
       }
     >
       <View style={styles.toolbar}>
-        <View style={styles.searchWrap}>
-          <Ionicons
-            name="search"
-            size={20}
-            color={MUTED_LIGHT}
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar por título, entidad o sede"
-            placeholderTextColor={MUTED_LIGHT}
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-            returnKeyType="search"
-          />
-          {searchTerm.length > 0 ? (
-            <TouchableOpacity onPress={() => setSearchTerm("")}>
-              <Ionicons name="close-circle" size={18} color={MUTED_LIGHT} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -604,7 +571,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
         </View>
       ) : (
         <FlatList
-          data={filteredCourses}
+          data={courses}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
             <CourseListCard
@@ -633,39 +600,8 @@ export const LecturesScreen = ({ navigation, onBack }) => {
                 </View>
               ) : null}
 
-              <TouchableOpacity
-                style={styles.publishBanner}
-                activeOpacity={0.92}
-                onPress={handleCreateCourse}
-              >
-                <View style={styles.publishBannerIconWrap}>
-                  <Ionicons name="megaphone-outline" size={22} color={PRIMARY} />
-                </View>
-                <View style={styles.publishBannerContent}>
-                  <Text style={styles.publishBannerTitle}>
-                    ¿Vas a asistir a un curso o congreso próximamente?
-                  </Text>
-                  <Text style={styles.publishBannerText}>
-                    Comparte la información y ayuda a otros residentes a no
-                    perderse oportunidades formativas.
-                  </Text>
-                  <View style={styles.publishBannerButton}>
-                    <Text style={styles.publishBannerButtonText}>
-                      Publicar curso
-                    </Text>
-                    <Ionicons
-                      name="arrow-forward"
-                      size={16}
-                      color="#FFFFFF"
-                    />
-                  </View>
-                </View>
-              </TouchableOpacity>
-
-              <View style={styles.sectionRow}>
-                <Text style={styles.sectionLabel}>
-                  {hasActiveFilters ? courseCountLabel : "Próximos cursos"}
-                </Text>
+<View style={styles.sectionRow}>
+                <Text style={styles.sectionLabel}>Próximos cursos</Text>
                 {hasActiveFilters ? (
                   <TouchableOpacity
                     style={styles.sectionAction}
@@ -674,14 +610,12 @@ export const LecturesScreen = ({ navigation, onBack }) => {
                   >
                     <Text style={styles.sectionActionText}>Restablecer filtros</Text>
                   </TouchableOpacity>
-                ) : (
-                  <Text style={styles.sectionCount}>{courseCountLabel}</Text>
-                )}
+                ) : null}
               </View>
             </>
           }
           ListFooterComponent={
-            filteredCourses.length > 0 ? (
+            courses.length > 0 ? (
               <View style={styles.footerBlock}>
                 {hasMore ? (
                   <TouchableOpacity
@@ -743,28 +677,6 @@ const styles = StyleSheet.create({
   toolbar: {
     paddingTop: 12,
     paddingBottom: 4,
-  },
-  searchWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    marginHorizontal: 16,
-    paddingVertical: 12,
-    paddingLeft: 44,
-    paddingRight: 16,
-    position: "relative",
-    marginBottom: 6,
-  },
-  searchIcon: {
-    position: "absolute",
-    left: 16,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: ACCENT,
-    padding: 0,
   },
   filtersScroll: {
     flexGrow: 0,

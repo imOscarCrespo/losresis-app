@@ -6,7 +6,7 @@ import {
   updateCourse,
   deleteCourse,
 } from "../services/lectureService";
-import { getCurrentUser } from "../services/authService";
+import { getCurrentUser, getUserProfile } from "../services/authService";
 import { usePersistedFilters } from "./usePersistedFilters";
 
 /**
@@ -21,6 +21,7 @@ export const useLectures = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [userSpecialityId, setUserSpecialityId] = useState(null);
 
   const {
     filters,
@@ -36,6 +37,7 @@ export const useLectures = () => {
       speciality_id: "",
       showLikedCourses: false,
       showCreatedCourses: false,
+      _userSpecialityDefaultApplied: false,
     },
     { enableDebounce: true, debounceMs: 500 }
   );
@@ -53,6 +55,10 @@ export const useLectures = () => {
         const { success, user } = await getCurrentUser();
         if (success && user) {
           setCurrentUserId(user.id);
+          const profileResult = await getUserProfile(user.id);
+          if (profileResult?.success && profileResult.profile?.speciality_id) {
+            setUserSpecialityId(profileResult.profile.speciality_id);
+          }
         }
       } catch (err) {
         console.error("Error loading current user:", err);
@@ -60,6 +66,23 @@ export const useLectures = () => {
     };
     loadUser();
   }, []);
+
+  // Aplicar la especialidad del usuario como filtro por defecto la primera vez
+  useEffect(() => {
+    if (filtersLoading) return;
+    if (!userSpecialityId) return;
+    if (filters._userSpecialityDefaultApplied) return;
+    updateFilters({
+      speciality_id: filters.speciality_id || userSpecialityId,
+      _userSpecialityDefaultApplied: true,
+    });
+  }, [
+    filtersLoading,
+    userSpecialityId,
+    filters._userSpecialityDefaultApplied,
+    filters.speciality_id,
+    updateFilters,
+  ]);
 
   // Clear error after some time
   useEffect(() => {
@@ -169,12 +192,22 @@ export const useLectures = () => {
   );
 
   // Clear filters
-  const clearFilters = useCallback(async () => {
-    await clearPersistedFilters();
+  const clearFilters = useCallback(() => {
+    // Update atómico: limpia todos los filtros Y deja marcado el flag de
+    // especialidad-por-defecto como aplicado, para que el efecto de
+    // auto-aplicar no vuelva a setear la especialidad del usuario.
+    updateFilters({
+      searchTerm: "",
+      hospital_id: "",
+      speciality_id: "",
+      showLikedCourses: false,
+      showCreatedCourses: false,
+      _userSpecialityDefaultApplied: true,
+    });
     setCurrentPage(0);
     setCourses([]);
     setHasMore(true);
-  }, [clearPersistedFilters]);
+  }, [updateFilters]);
 
   // Create a new course
   const createNewCourse = useCallback(async (courseData) => {

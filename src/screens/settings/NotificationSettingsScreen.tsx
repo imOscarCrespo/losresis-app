@@ -9,8 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenHeader } from "../../../components/ScreenHeader";
-import { ScreenScaffold } from "../../../components/ScreenScaffold";
+import { HeroScreenLayout } from "../../../components/HeroScreenLayout";
 import { COLORS } from "../../../constants/colors";
 import * as Notifications from "expo-notifications";
 import { supabase } from "../../../config/supabase";
@@ -246,34 +245,31 @@ export default function NotificationSettingsScreen({
     getEnabled(option.notification_type)
   ).length;
 
-  const header = (
-    <ScreenHeader
-      title="Notificaciones"
-      onBack={onBack}
-      compact
-      rightSlot={
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>
-            {enabledCount}/{NOTIFICATION_OPTIONS.length}
-          </Text>
-        </View>
-      }
-    />
-  );
+  const heroProps = {
+    title: "Notificaciones",
+    onBack,
+    rightSlot: (
+      <View style={styles.countBadge}>
+        <Text style={styles.countText}>
+          {enabledCount}/{NOTIFICATION_OPTIONS.length}
+        </Text>
+      </View>
+    ),
+  };
 
   if (loading) {
     return (
-      <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#670CF5" />
-            <Text style={styles.loadingText}>Cargando...</Text>
-          </View>
-      </ScreenScaffold>
+      <HeroScreenLayout {...heroProps}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#670CF5" />
+          <Text style={styles.loadingText}>Cargando...</Text>
+        </View>
+      </HeroScreenLayout>
     );
   }
 
   return (
-    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+    <HeroScreenLayout {...heroProps}>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -351,7 +347,7 @@ export default function NotificationSettingsScreen({
             </View>
           </View>
         </ScrollView>
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 

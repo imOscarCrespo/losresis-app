@@ -365,6 +365,28 @@ export const saveRoommateBundle = async (userId, rawBundle) => {
   }
 };
 
+export const updateRoommateProfileVisibility = async (
+  userId,
+  { isActive, isVisible }
+) => {
+  try {
+    const { data, error } = await supabase
+      .from("roommate_profile")
+      .update({ is_active: isActive, is_visible: isVisible })
+      .eq("user_id", userId)
+      .select("user_id, is_active, is_visible")
+      .single();
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, profile: data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 export const getRoommateSavedFilter = async (userId) => {
   try {
     const { data, error } = await supabase
@@ -546,6 +568,30 @@ export const getRoommateCandidates = async (userId, filters = {}) => {
 
 export const saveRoommateSwipe = async (userId, targetUserId, decision) => {
   try {
+    if (decision === "like") {
+      const { data: targetProfile, error: targetError } = await supabase
+        .from("roommate_profile")
+        .select("is_active, is_visible")
+        .eq("user_id", targetUserId)
+        .maybeSingle();
+
+      if (targetError) {
+        return { success: false, error: targetError.message };
+      }
+
+      if (
+        !targetProfile ||
+        !targetProfile.is_active ||
+        !targetProfile.is_visible
+      ) {
+        return {
+          success: false,
+          error: "Este perfil ya no está disponible.",
+          unavailable: true,
+        };
+      }
+    }
+
     const { error: swipeError } = await supabase
       .from("roommate_swipe")
       .upsert(

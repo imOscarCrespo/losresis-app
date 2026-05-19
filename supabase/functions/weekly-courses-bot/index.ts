@@ -227,7 +227,9 @@ const callKimi = async (
 
     const backoffMs = Math.min(30000, 2000 * Math.pow(2, attempt));
     console.warn(
-      `Kimi 429 for speciality ${speciality.name}, retrying in ${backoffMs}ms (attempt ${attempt + 1}/${MAX_RETRIES_429})`
+      `Kimi 429 for speciality ${
+        speciality.name
+      }, retrying in ${backoffMs}ms (attempt ${attempt + 1}/${MAX_RETRIES_429})`
     );
     await sleep(backoffMs);
   }
@@ -410,37 +412,38 @@ const ingestForSpeciality = async (
       continue;
     }
 
-    const { error: insertError } = await supabaseAdmin
-      .from("courses")
-      .insert({
-        title: course.title,
-        event_dates: course.event_dates,
-        teaching_hours: course.teaching_hours,
-        price_text: course.price_text,
-        course_directors: course.course_directors,
-        organization: course.organization,
-        venue_name: course.venue_name,
-        venue_address: course.venue_address,
-        seats_available: course.seats_available,
-        course_code: course.course_code,
-        more_info: course.more_info,
-        objectives: course.objectives,
-        registration_url: course.registration_url,
-        speciality_id: speciality.id,
-        hospital_id: null,
-        created_by_id: null,
-        org_id: orgId,
-        status: "published",
-        published_at: new Date().toISOString(),
-        source: SOURCE,
-        external_id: externalId,
-      });
+    const { error: insertError } = await supabaseAdmin.from("courses").insert({
+      title: course.title,
+      event_dates: course.event_dates,
+      teaching_hours: course.teaching_hours,
+      price_text: course.price_text,
+      course_directors: course.course_directors,
+      organization: course.organization,
+      venue_name: course.venue_name,
+      venue_address: course.venue_address,
+      seats_available: course.seats_available,
+      course_code: course.course_code,
+      more_info: course.more_info,
+      objectives: course.objectives,
+      registration_url: course.registration_url,
+      speciality_id: speciality.id,
+      hospital_id: null,
+      created_by_id: null,
+      org_id: orgId,
+      status: "published",
+      published_at: new Date().toISOString(),
+      source: SOURCE,
+      external_id: externalId,
+    });
 
     if (insertError) {
       // Race condition fallback: if a duplicate slipped through between the
       // SELECT and INSERT, treat as skipped instead of erroring.
       const msg = (insertError.message || "").toLowerCase();
-      if (msg.includes("duplicate") || (insertError as { code?: string }).code === "23505") {
+      if (
+        msg.includes("duplicate") ||
+        (insertError as { code?: string }).code === "23505"
+      ) {
         skipped++;
       } else {
         console.error(
@@ -496,10 +499,7 @@ const triggerNextBatch = async (
       `Triggered next batch offset=${nextOffset} limit=${limit} status=${res.status}`
     );
   } catch (e) {
-    console.error(
-      `Failed to trigger next batch offset=${nextOffset}:`,
-      e
-    );
+    console.error(`Failed to trigger next batch offset=${nextOffset}:`, e);
   }
 };
 
@@ -579,11 +579,15 @@ if (IS_LOCAL_RUN) {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const parsed = await req.json().catch(() => ({} as Record<string, unknown>));
+    const parsed = await req
+      .json()
+      .catch(() => ({} as Record<string, unknown>));
     const offsetRaw = (parsed as { offset?: unknown }).offset;
     const limitRaw = (parsed as { limit?: unknown }).limit;
     const offset =
-      typeof offsetRaw === "number" && Number.isFinite(offsetRaw) && offsetRaw >= 0
+      typeof offsetRaw === "number" &&
+      Number.isFinite(offsetRaw) &&
+      offsetRaw >= 0
         ? Math.trunc(offsetRaw)
         : 0;
     const limit =

@@ -13,8 +13,7 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { DirectChatButton } from "../components";
 import { useHousingAds } from "../hooks/useHousingAds";
 import { formatDateOnly } from "../utils/dateUtils";
@@ -236,30 +235,45 @@ export default function HousingAdDetailScreen({
     if (url) setSelectedImage(url);
   }, []);
 
+  const heroProps = {
+    title: "Vivienda",
+    onBack,
+    rightSlot: isMyAd ? (
+      <View style={styles.headerActions}>
+        <TouchableOpacity
+          style={styles.headerIconBtn}
+          onPress={handleEdit}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="pencil-outline" size={18} color={WHITE} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.headerIconBtn, styles.headerDangerBtn]}
+          onPress={handleDelete}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="trash-outline" size={18} color={WHITE} />
+        </TouchableOpacity>
+      </View>
+    ) : null,
+  };
+
   // ── Loading state ──
   if (loading) {
     return (
-      <ScreenScaffold
-        header={header}
-        headerShellVariant="brand"
-        contentSurfaceStyle={styles.container}
-      >
+      <HeroScreenLayout {...heroProps}>
         <View style={styles.stateContainer}>
           <ActivityIndicator size="large" color={PRIMARY} />
           <Text style={styles.stateText}>Cargando anuncio...</Text>
         </View>
-      </ScreenScaffold>
+      </HeroScreenLayout>
     );
   }
 
   // ── Error state ──
   if (error || !ad) {
     return (
-      <ScreenScaffold
-        header={header}
-        headerShellVariant="brand"
-        contentSurfaceStyle={styles.container}
-      >
+      <HeroScreenLayout {...heroProps}>
         <View style={styles.stateContainer}>
           <View style={styles.errorIconWrap}>
             <Ionicons name="alert-circle-outline" size={36} color={ERROR} />
@@ -272,7 +286,7 @@ export default function HousingAdDetailScreen({
             <Text style={styles.retryBtnText}>Volver a Vivienda</Text>
           </TouchableOpacity>
         </View>
-      </ScreenScaffold>
+      </HeroScreenLayout>
     );
   }
 
@@ -282,41 +296,8 @@ export default function HousingAdDetailScreen({
       ? getImageUrl(ad.images[0].object_path)
       : null;
 
-  const header = (
-    <ScreenHeader
-      title="Vivienda"
-      onBack={onBack}
-      compact
-      variant="brand"
-      rightSlot={
-        isMyAd ? (
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.headerIconBtn}
-              onPress={handleEdit}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="pencil-outline" size={18} color={WHITE} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.headerIconBtn, styles.headerDangerBtn]}
-              onPress={handleDelete}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="trash-outline" size={18} color={WHITE} />
-            </TouchableOpacity>
-          </View>
-        ) : null
-      }
-    />
-  );
-
   return (
-    <ScreenScaffold
-      header={header}
-      headerShellVariant="brand"
-      contentSurfaceStyle={styles.container}
-    >
+    <HeroScreenLayout {...heroProps}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -577,7 +558,7 @@ export default function HousingAdDetailScreen({
           ) : null}
         </View>
       </Modal>
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 

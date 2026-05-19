@@ -513,12 +513,13 @@ export default function CreateRoommateProfileScreen({
   };
 
   const handleSave = async () => {
+    const isFirstTimeCreation = !bundle.profile.user_id;
     const bundleToSave = {
       ...bundle,
       profile: {
         ...bundle.profile,
-        is_active: true,
-        is_visible: true,
+        is_active: isFirstTimeCreation ? true : bundle.profile.is_active ?? true,
+        is_visible: isFirstTimeCreation ? true : bundle.profile.is_visible ?? true,
       },
     };
 

@@ -8,7 +8,11 @@ import {
   shouldShowEmailReview,
   shouldDiscardInvalidWorkEmailDuringGrace,
 } from "../utils/profileValidation";
-import { getProfileDraftType } from "../utils/residentAccess";
+import {
+  getProfileDraftType,
+  getResidentState,
+  RESIDENT_STATE,
+} from "../utils/residentAccess";
 
 const INITIAL_FORM_DATA = {
   name: "",
@@ -262,6 +266,27 @@ export const useProfileForm = () => {
           setShowEmailReviewSection(false);
         }
 
+        // Si un residente que estaba en periodo de gracia (PENDING) o ya bloqueado
+        // (LOCKED) aporta ahora un email corporativo válido, limpiar el estado de
+        // transición para que vuelva a ACTIVE.
+        if (
+          normalizedFormData.is_resident &&
+          normalizedFormData.work_email &&
+          emailValidation.isValid
+        ) {
+          const previousState = getResidentState(userProfile);
+          if (
+            previousState === RESIDENT_STATE.PENDING_CORPORATE_EMAIL_SEASONAL ||
+            previousState === RESIDENT_STATE.LOCKED_MISSING_CORPORATE_EMAIL
+          ) {
+            normalizedFormData = {
+              ...normalizedFormData,
+              resident_state: null,
+              resident_transition_expires_at: null,
+            };
+          }
+        }
+
         if (!user?.id) {
           setMessage({ type: "error", text: "Usuario no identificado." });
           setLoading(false);
@@ -314,7 +339,7 @@ export const useProfileForm = () => {
         }
       }
     },
-    [formData, user, loadUserProfile]
+    [formData, user, userProfile, showEmailReviewSection, loadUserProfile]
   );
 
   return {

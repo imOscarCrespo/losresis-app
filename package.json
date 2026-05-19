@@ -10,7 +10,8 @@
     "ios-ipad-13": "xcrun simctl boot \"iPad Pro 13-inch (M4)\" 2>/dev/null; open -a Simulator; expo start --ios",
     "web": "expo start --web",
     "build:web": "expo export --platform web",
-    "sync:cache-aliases": "node scripts/sync_storage_cache_aliases.mjs"
+    "sync:cache-aliases": "node scripts/sync_storage_cache_aliases.mjs",
+    "weekly-courses-bot:local": "RUN_LOCAL=1 deno run --allow-net --allow-env --env-file=supabase/functions/weekly-courses-bot/.env.local supabase/functions/weekly-courses-bot/index.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

@@ -50,6 +50,19 @@ export const updateUserProfile = async (userId, profileData) => {
         : null,
     };
 
+    if (Object.prototype.hasOwnProperty.call(profileData, "resident_state")) {
+      updateData.resident_state = profileData.resident_state;
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(
+        profileData,
+        "resident_transition_expires_at"
+      )
+    ) {
+      updateData.resident_transition_expires_at =
+        profileData.resident_transition_expires_at;
+    }
+
     const { data, error } = await supabase
       .from("users")
       .upsert([updateData], { onConflict: "id" })
