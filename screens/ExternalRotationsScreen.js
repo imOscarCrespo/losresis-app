@@ -13,7 +13,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Country, City } from "country-state-city";
-import { supabase } from "../config/supabase";
 import { COLORS } from "../constants/colors";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { SelectorModal } from "../components/SelectorModal";
@@ -36,6 +35,7 @@ import {
   updateRotationReview,
 } from "../services/externalRotationReviewService";
 import { openDirectChat } from "../services/directChatsService";
+import { getSpecialties } from "../services/hospitalService";
 import RotationReviewDetailScreen from "./RotationReviewDetailScreen";
 import posthogLogger from "../services/posthogService";
 
@@ -491,10 +491,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         favoriteReviewsData,
       ] =
         await Promise.all([
-          supabase
-            .from("specialities")
-            .select("id, name")
-            .order("name", { ascending: true }),
+          getSpecialties(),
           getAllRotations({}),
           getUserRotations(userId),
           getAllExternalRotationReviews(userId, {}),
@@ -502,11 +499,11 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           getFavoriteExternalRotationReviews(userId),
         ]);
 
-      if (specialtiesRes.error) {
-        throw specialtiesRes.error;
+      if (!specialtiesRes.success) {
+        throw new Error(specialtiesRes.error || "Error loading specialties");
       }
 
-      setSpecialties(specialtiesRes.data || []);
+      setSpecialties(specialtiesRes.specialties || []);
       setRotations(rotationsData || []);
       setUserRotations(userRotationsData || []);
       setReviews(reviewsData || []);

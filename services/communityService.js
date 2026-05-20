@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { getSpecialityByIdFromCatalog } from "./staticCatalogService";
 
 const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
 const MADRID_FALLBACK = { latitude: 40.4168, longitude: -3.7038 };
@@ -28,11 +29,7 @@ export const getCommunityUsers = async (
         surname,
         work_email,
         city,
-        speciality_id,
-        specialities (
-          id,
-          name
-        )
+        speciality_id
       `
       )
       .eq("is_resident", true)
@@ -61,7 +58,10 @@ export const getCommunityUsers = async (
 
     return {
       success: true,
-      users: data || [],
+      users: (data || []).map((user) => ({
+        ...user,
+        specialities: getSpecialityByIdFromCatalog(user.speciality_id),
+      })),
       error: null,
     };
   } catch (error) {

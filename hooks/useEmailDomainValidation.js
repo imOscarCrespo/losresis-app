@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { supabase } from "../config/supabase";
+import { getHospitalByIdFromCatalog } from "../services/staticCatalogService";
 
 /**
  * Hook para validar el dominio del email de trabajo contra el hospital seleccionado
@@ -27,20 +27,8 @@ export const useEmailDomainValidation = () => {
 
     setLoading(true);
     try {
-      // Obtener datos del hospital incluyendo email_domain
-      const { data: hospitalData, error } = await supabase
-        .from("hospitals")
-        .select("id, name, email_domain")
-        .eq("id", hospitalId)
-        .single();
-
-      if (error) {
-        console.error("Error fetching hospital data:", error);
-        return {
-          isValid: false,
-          error: "Error al verificar el hospital. Inténtalo de nuevo.",
-        };
-      }
+      // Obtener datos del hospital incluyendo email_domain desde catálogo local
+      const hospitalData = getHospitalByIdFromCatalog(hospitalId);
 
       if (!hospitalData) {
         return {

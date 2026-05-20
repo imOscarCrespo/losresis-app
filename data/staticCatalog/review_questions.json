@@ -1,0 +1,114 @@
+[
+  {
+    "id": "e7640f47-8649-4b57-af53-2a484196a268",
+    "position": 1,
+    "text": "¿Cuál es tu grado de satisfacción general con la residencia? ",
+    "is_active": true,
+    "type": "rating",
+    "is_optional": false
+  },
+  {
+    "id": "a3df7a3d-f535-4929-964d-88795af73caf",
+    "position": 4,
+    "text": "¿Nivel de docencia recibida en el servicio?",
+    "is_active": true,
+    "type": "rating",
+    "is_optional": false
+  },
+  {
+    "id": "b7f5d31c-f5f5-47b9-a006-b64bb749428b",
+    "position": 5,
+    "text": "¿Hay buen ambiente entre los residentes?",
+    "is_active": true,
+    "type": "rating",
+    "is_optional": false
+  },
+  {
+    "id": "1bfdad2d-2c06-4800-8bb9-dfcf024b5741",
+    "position": 7,
+    "text": "¿Hay buen ambiente con los adjuntos? ",
+    "is_active": true,
+    "type": "rating",
+    "is_optional": false
+  },
+  {
+    "id": "3cd06be7-eeaa-4715-b154-15cd89318ec1",
+    "position": 8,
+    "text": "¿Es un hospital que fomente la investigación?",
+    "is_active": true,
+    "type": "rating",
+    "is_optional": false
+  },
+  {
+    "id": "d1806578-702a-4d85-94bf-a2b49c62fb53",
+    "position": 9,
+    "text": "Si es una especialidad quirurgica, ¿Te dejan participar en las cirugías?",
+    "is_active": true,
+    "type": "rating",
+    "is_optional": true
+  },
+  {
+    "id": "330daeec-8e78-42cb-a159-e18418d25bae",
+    "position": 10,
+    "text": "¿Cómo son las guardias (frecuencia, supervisión, carga...)?",
+    "is_active": true,
+    "type": "text",
+    "is_optional": false
+  },
+  {
+    "id": "d2591ea4-9eed-4e3c-9083-eda6a49842c8",
+    "position": 12,
+    "text": "¿Se libran las guardias? ¿y las del sábado?",
+    "is_active": true,
+    "type": "text",
+    "is_optional": false
+  },
+  {
+    "id": "61b905d4-1a4f-4a75-9003-3ccf74797880",
+    "position": 13,
+    "text": "¿Qué horario tienen los residentes? ",
+    "is_active": true,
+    "type": "text",
+    "is_optional": false
+  },
+  {
+    "id": "f16aae2c-d61e-4cc2-b5f0-f7c7fb10f9fe",
+    "position": 14,
+    "text": "¿Cuáles son los puntos fuertes y débiles de hacer esta especialidad en este hospital? ",
+    "is_active": true,
+    "type": "text",
+    "is_optional": false
+  },
+  {
+    "id": "bd93f0fa-8d4f-4c57-89e3-82a48319e065",
+    "position": 15,
+    "text": "Opcional núm 1. ¿Quieres añadir algo más que creas importante? Pd: puedes añadir consejos también ;) ",
+    "is_active": true,
+    "type": "text",
+    "is_optional": true
+  },
+  {
+    "id": "9078b9fe-14bb-4f93-b9b3-bc3aba63305a",
+    "position": 16,
+    "text": "Opcional núm 2: ¿Qué rotaciónes se realizan cada año? ¿Hay rotaciones externas (número, hospitales, subespecialidad...)?",
+    "is_active": true,
+    "type": "text",
+    "is_optional": true
+  },
+  {
+    "id": "64a5d62a-22b0-48c8-92ae-5d43b343f967",
+    "position": 17,
+    "text": "Opcional núm 3. ¿Repetirías esta elección si volvieras a elegir? (Sí / No / No estoy seguro)",
+    "is_active": true,
+    "type": "text",
+    "is_optional": true
+  },
+  {
+    "id": "2e5f9346-c8d7-4534-9f6a-8da32d574628",
+    "position": 18,
+    "text": "Opcional núm 4. ¿Pudiste hacer rotaciones externas sin problemas?",
+    "is_active": true,
+    "type": "text",
+    "is_optional": true
+  }
+]

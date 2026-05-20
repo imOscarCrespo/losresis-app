@@ -1,4 +1,9 @@
 import { supabase } from "../config/supabase";
+import {
+  getExternalRotationQuestionsCatalog,
+  getHospitalByIdFromCatalog,
+  getSpecialityByIdFromCatalog,
+} from "./staticCatalogService";
 
 /**
  * Servicio para gestionar reseñas de rotaciones externas
@@ -58,18 +63,8 @@ export const getAllExternalRotationReviews = async (
             work_email,
             phone,
             resident_year,
-            specialities (
-              id,
-              name
-            ),
-            hospitals!users_hospital_id_fkey (
-              id,
-              name
-            )
-          ),
-          specialities (
-            id,
-            name
+            speciality_id,
+            hospital_id
           ),
           external_rotation_review_answer (
             question_id,
@@ -116,18 +111,8 @@ export const getAllExternalRotationReviews = async (
             work_email,
             phone,
             resident_year,
-            specialities (
-              id,
-              name
-            ),
-            hospitals!users_hospital_id_fkey (
-              id,
-              name
-            )
-          ),
-          specialities (
-            id,
-            name
+            speciality_id,
+            hospital_id
           ),
           external_rotation_review_answer (
             question_id,
@@ -186,18 +171,8 @@ export const getAllExternalRotationReviews = async (
             work_email,
             phone,
             resident_year,
-            specialities (
-              id,
-              name
-            ),
-            hospitals!users_hospital_id_fkey (
-              id,
-              name
-            )
-          ),
-          specialities (
-            id,
-            name
+            speciality_id,
+            hospital_id
           ),
           external_rotation_review_answer (
             question_id,
@@ -278,15 +253,7 @@ export const checkExistingRotationReview = async (userId, rotationId) => {
  */
 export const getRotationReviewQuestions = async () => {
   try {
-    const { data, error } = await supabase
-      .from("external_rotation_question")
-      .select("*")
-      .order("position", { ascending: true });
-
-    if (error) {
-      console.error("❌ Error fetching rotation review questions:", error);
-      throw error;
-    }
+    const data = getExternalRotationQuestionsCatalog();
 
     return data || [];
   } catch (error) {
@@ -699,18 +666,8 @@ export const getRotationReviewWithAnswers = async (reviewId) => {
           work_email,
           phone,
           resident_year,
-          specialities (
-            id,
-            name
-          ),
-          hospitals!users_hospital_id_fkey (
-            id,
-            name
-          )
-        ),
-        specialities (
-          id,
-          name
+          speciality_id,
+          hospital_id
         ),
         external_rotation_review_thread (
           thread_id
@@ -725,8 +682,7 @@ export const getRotationReviewWithAnswers = async (reviewId) => {
           service_name
         ),
         external_rotation_review_answer (
-          *,
-          external_rotation_question (*)
+          *
         )
       `
       )
@@ -738,7 +694,20 @@ export const getRotationReviewWithAnswers = async (reviewId) => {
       throw error;
     }
 
-    return data;
+    return normalizeReviews([
+      {
+        ...data,
+        external_rotation_review_answer: (
+          data.external_rotation_review_answer || []
+        ).map((answer) => ({
+          ...answer,
+          external_rotation_question:
+            getExternalRotationQuestionsCatalog().find(
+              (question) => question.id === answer.question_id
+            ) || null,
+        })),
+      },
+    ])[0];
   } catch (error) {
     console.error("❌ Exception in getRotationReviewWithAnswers:", error);
     throw error;
@@ -747,6 +716,11 @@ export const getRotationReviewWithAnswers = async (reviewId) => {
 
 const normalizeReviews = (reviews, search = null) => {
   const mapped = (reviews || []).map((review) => {
+    const reviewSpeciality = getSpecialityByIdFromCatalog(review.speciality_id);
+    const userSpeciality = getSpecialityByIdFromCatalog(
+      review.users?.speciality_id
+    );
+    const userHospital = getHospitalByIdFromCatalog(review.users?.hospital_id);
     const ratingValues = (review.external_rotation_review_answer || [])
       .map((answer) => answer.rating_value)
       .filter((value) => typeof value === "number");
@@ -764,11 +738,11 @@ const normalizeReviews = (reviews, search = null) => {
       reviewer_surname: review.users?.surname || "",
       reviewer_email: review.users?.work_email || "",
       reviewer_phone: review.users?.phone || "",
-      reviewer_hospital_name: review.users?.hospitals?.name || "",
+      reviewer_hospital_name: userHospital?.name || "",
       reviewer_specialty_name:
-        review.specialities?.name || review.users?.specialities?.name || "",
+        reviewSpeciality?.name || userSpeciality?.name || "",
       specialty_name:
-        review.specialities?.name || review.users?.specialities?.name || "",
+        reviewSpeciality?.name || userSpeciality?.name || "",
     };
   });
 
@@ -927,18 +901,8 @@ export const getFavoriteExternalRotationReviews = async (userId) => {
           work_email,
           phone,
           resident_year,
-          specialities (
-            id,
-            name
-          ),
-          hospitals!users_hospital_id_fkey (
-            id,
-            name
-          )
-        ),
-        specialities (
-          id,
-          name
+          speciality_id,
+          hospital_id
         ),
         external_rotation_review_answer (
           question_id,

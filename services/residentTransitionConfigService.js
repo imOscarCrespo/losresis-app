@@ -1,21 +1,10 @@
-import { supabase } from "../config/supabase";
+import { getResidentTransitionConfigCatalog } from "./staticCatalogService";
 
 export const getResidentTransitionConfig = async () => {
   try {
-    const { data, error } = await supabase
-      .from("resident_transition_config")
-      .select("*")
-      .eq("key", "mir_r1_corporate_email_grace")
-      .maybeSingle();
-
-    if (error) {
-      console.error("Error fetching resident transition config:", error);
-      return {
-        success: false,
-        config: null,
-        error: error.message,
-      };
-    }
+    const data = getResidentTransitionConfigCatalog().find(
+      (item) => item.key === "mir_r1_corporate_email_grace"
+    );
 
     return {
       success: true,

@@ -1,6 +1,10 @@
 import { supabase } from "../config/supabase";
 import { getCurrentUser } from "./authService";
 import { fetchHospitalsCache } from "./hospitalService";
+import {
+  getHospitalSpecialityCatalog,
+  getHospitalSpecialityGradesCatalog,
+} from "./staticCatalogService";
 
 /**
  * Consultar hospital_speciality_grades en batches para evitar límites de Supabase
@@ -12,49 +16,34 @@ import { fetchHospitalsCache } from "./hospitalService";
  * Obtener info_note de hospital_specialities por hospital y especialidad
  */
 const fetchInfoNotes = async (hospitalIds, specialtyId) => {
-  const { data, error } = await supabase
-    .from("hospital_specialities")
-    .select("hospital_id, info_note")
-    .eq("speciality_id", specialtyId)
-    .in("hospital_id", hospitalIds);
-
-  if (error) {
-    console.warn("Error fetching info_notes:", error);
-    return {};
-  }
+  const hospitalIdSet = new Set(hospitalIds);
   const map = {};
-  (data || []).forEach((row) => {
+  getHospitalSpecialityCatalog().forEach((row) => {
+    if (
+      row.speciality_id !== specialtyId ||
+      !hospitalIdSet.has(row.hospital_id)
+    ) {
+      return;
+    }
     if (row.info_note != null && row.info_note !== "") map[row.hospital_id] = row.info_note;
   });
   return map;
 };
 
 const fetchGradesInBatches = async (hospitalIds, specialtyId) => {
-  const BATCH_SIZE = 50; // Reducido para evitar límites de respuesta de Supabase
-  const allResults = [];
-
-  // Dividir hospitalIds en batches
-  for (let i = 0; i < hospitalIds.length; i += BATCH_SIZE) {
-    const batch = hospitalIds.slice(i, i + BATCH_SIZE);
-
-    const { data, error } = await supabase
-      .from("hospital_speciality_grades")
-      .select("*")
-      .eq("speciality_id", specialtyId)
-      .in("hospital_id", batch)
-      .order("hospital_id, year");
-
-    if (error) {
-      console.error(`Error fetching batch ${i / BATCH_SIZE + 1}:`, error);
-      throw new Error(error.message);
-    }
-
-    if (data && data.length > 0) {
-      allResults.push(...data);
-    }
-  }
-
-  return allResults;
+  const hospitalIdSet = new Set(hospitalIds);
+  return getHospitalSpecialityGradesCatalog()
+    .filter(
+      (row) =>
+        row.speciality_id === specialtyId && hospitalIdSet.has(row.hospital_id)
+    )
+    .sort((a, b) => {
+      const hospitalOrder = String(a.hospital_id || "").localeCompare(
+        String(b.hospital_id || "")
+      );
+      if (hospitalOrder !== 0) return hospitalOrder;
+      return Number(a.year || 0) - Number(b.year || 0);
+    });
 };
 
 /**

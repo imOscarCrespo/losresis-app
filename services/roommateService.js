@@ -1,6 +1,11 @@
 import { supabase } from "../config/supabase";
 import { FALLBACK_ROOMMATE_QUESTIONS } from "../constants/roommateQuestions";
 import {
+  getHospitalByIdFromCatalog,
+  getRoommateQuestionsCatalog,
+  getSpecialityByIdFromCatalog,
+} from "./staticCatalogService";
+import {
   buildAnswerMap,
   calculateRoommateCompatibility,
   normalizeBundle,
@@ -9,10 +14,17 @@ import {
 
 const PROFILE_SELECT = `
   *,
-  user:users!roommate_profile_user_id_fkey(id, name, surname, city, hospital_id, speciality_id, resident_year, is_resident, is_student),
-  hospital:hospitals!roommate_profile_hospital_id_fkey(id, name, city),
-  speciality:specialities!roommate_profile_speciality_id_fkey(id, name)
+  user:users!roommate_profile_user_id_fkey(id, name, surname, city, hospital_id, speciality_id, resident_year, is_resident, is_student)
 `;
+
+const enrichRoommateProfile = (profile) => {
+  if (!profile) return profile;
+  return {
+    ...profile,
+    hospital: getHospitalByIdFromCatalog(profile.hospital_id),
+    speciality: getSpecialityByIdFromCatalog(profile.speciality_id),
+  };
+};
 
 const getQuestionMapByCode = (questions = []) =>
   questions.reduce((acc, question) => {
@@ -154,21 +166,7 @@ const parseBundleForSave = (bundle) => {
 
 export const getRoommateQuestions = async () => {
   try {
-    const { data, error } = await supabase
-      .from("roommate_question")
-      .select("*")
-      .eq("is_active", true)
-      .order("step_number", { ascending: true })
-      .order("display_order", { ascending: true });
-
-    if (error) {
-      console.error("Error fetching roommate questions:", error);
-      return {
-        success: true,
-        questions: FALLBACK_ROOMMATE_QUESTIONS,
-        fallback: true,
-      };
-    }
+    const data = getRoommateQuestionsCatalog();
 
     return {
       success: true,
@@ -239,7 +237,7 @@ export const getMyRoommateBundle = async (userId) => {
     return {
       success: true,
       bundle: normalizeBundle({
-        profile,
+        profile: enrichRoommateProfile(profile),
         lifestyle: lifestyle || {},
         search: search || {},
         answers: buildAnswerMap(answers || [], questions || []),
@@ -505,7 +503,7 @@ export const getRoommateCandidates = async (userId, filters = {}) => {
     const candidates = profiles
       .map((profile) => {
         const bundle = normalizeBundle({
-          profile,
+          profile: enrichRoommateProfile(profile),
           lifestyle: lifestylesByUser[profile.user_id] || {},
           answers: buildAnswerMap(answersByUser[profile.user_id] || [], questions),
         });
@@ -711,7 +709,7 @@ export const getRoommateMatches = async (userId) => {
         const otherUserId =
           match.user_low_id === userId ? match.user_high_id : match.user_low_id;
         const bundle = normalizeBundle({
-          profile: profilesByUser[otherUserId],
+          profile: enrichRoommateProfile(profilesByUser[otherUserId]),
           lifestyle: lifestylesByUser[otherUserId] || {},
           answers: buildAnswerMap(answersByUser[otherUserId] || [], questions),
         });

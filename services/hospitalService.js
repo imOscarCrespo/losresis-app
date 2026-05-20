@@ -1,49 +1,25 @@
 /**
- * Servicio para obtener hospitales y especialidades desde Supabase
+ * Servicio para obtener hospitales y especialidades.
+ *
+ * Los catálogos estáticos se leen desde JSON empaquetado en la app para evitar
+ * cached egress de Supabase. Las operaciones dinámicas siguen usando Supabase.
  */
 
 import { supabase } from "../config/supabase";
-import { getCachedJson, getCacheManifest } from "../utils/jsonCacheStore";
-
-const CACHE_BASE_URL =
-  "https://chgretwxywvaaruwovbb.supabase.co/storage/v1/object/public/cache";
-export const HOSPITALS_CACHE_URL = `${CACHE_BASE_URL}/hospitals.json`;
-const HOSPITAL_SPECIALTY_CACHE_URL = `${CACHE_BASE_URL}/hospital_speciality.json`;
-const HOSPITAL_DISCOVERY_RANKINGS_CACHE_URL =
-  `${CACHE_BASE_URL}/hospital_discovery_rankings.json`;
-const CACHE_MANIFEST_URL = `${CACHE_BASE_URL}/manifest.json`;
-
-const HOSPITALS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const HOSPITAL_SPECIALTY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const RANKINGS_TTL_MS = 24 * 60 * 60 * 1000;
+import {
+  getHospitalDiscoveryRankingsCatalog,
+  getHospitalsCatalog,
+  getHospitalSpecialityCatalog,
+  getHospitalSpecialityGradesCatalog,
+  getSpecialitiesCatalog,
+  getSpecialityByIdFromCatalog,
+} from "./staticCatalogService";
 
 let discoveryRankingSnapshotPromise = null;
 let hospitalSpecialtyCachePromise = null;
+let hospitalSpecialityGradesPromise = null;
 
-const getManifestVersion = async (key) => {
-  try {
-    const manifest = await getCacheManifest(CACHE_MANIFEST_URL);
-    const value = manifest?.[key];
-    return typeof value === "string" || typeof value === "number"
-      ? String(value)
-      : null;
-  } catch {
-    return null;
-  }
-};
-
-const fetchJsonCache = async (url, label, ttlMs, versionKey) => {
-  try {
-    const version = versionKey ? await getManifestVersion(versionKey) : null;
-    return await getCachedJson(url, { ttlMs, label, version });
-  } catch (error) {
-    error.cacheLabel = label;
-    throw error;
-  }
-};
-
-export const fetchHospitalsCache = () =>
-  fetchJsonCache(HOSPITALS_CACHE_URL, "hospitals", HOSPITALS_TTL_MS, "hospitals");
+export const fetchHospitalsCache = async () => getHospitalsCatalog();
 
 const normalizeRankingEntry = (entry) => {
   if (!entry || typeof entry !== "object") return null;
@@ -128,12 +104,7 @@ const getDiscoveryRankingSnapshot = async () => {
   if (!discoveryRankingSnapshotPromise) {
     discoveryRankingSnapshotPromise = (async () => {
       try {
-        const snapshot = await fetchJsonCache(
-          HOSPITAL_DISCOVERY_RANKINGS_CACHE_URL,
-          "hospital discovery rankings",
-          RANKINGS_TTL_MS,
-          "hospital_discovery_rankings"
-        );
+        const snapshot = getHospitalDiscoveryRankingsCatalog();
 
         const bySpecialtyRaw =
           snapshot?.by_specialty || snapshot?.bySpecialty || {};
@@ -183,15 +154,10 @@ const getHospitalSpecialtyCache = async () => {
   if (!hospitalSpecialtyCachePromise) {
     hospitalSpecialtyCachePromise = (async () => {
       try {
-        const data = await fetchJsonCache(
-          HOSPITAL_SPECIALTY_CACHE_URL,
-          "hospital specialty",
-          HOSPITAL_SPECIALTY_TTL_MS,
-          "hospital_speciality"
-        );
+        const data = getHospitalSpecialityCatalog();
         return Array.isArray(data) ? data : [];
       } catch (error) {
-        console.warn("⚠️ Failed to fetch hospital specialties cache", error);
+        console.warn("⚠️ Failed to read hospital specialties catalog", error);
         return [];
       }
     })();
@@ -200,22 +166,27 @@ const getHospitalSpecialtyCache = async () => {
   return hospitalSpecialtyCachePromise;
 };
 
+const getHospitalSpecialityGradesCache = async () => {
+  if (!hospitalSpecialityGradesPromise) {
+    hospitalSpecialityGradesPromise = Promise.resolve(
+      getHospitalSpecialityGradesCatalog()
+    );
+  }
+
+  return hospitalSpecialityGradesPromise;
+};
+
 /**
- * Obtener todos los hospitales desde el JSON cache de Supabase Storage
+ * Obtener todos los hospitales desde el catálogo local empaquetado
  * @returns {Promise<{success: boolean, hospitals: array, error: string|null}>}
  */
 export const getHospitals = async () => {
   try {
-    console.log("🔍 Fetching hospitals from JSON cache...");
-    const hospitalsData = await fetchJsonCache(
-      HOSPITALS_CACHE_URL,
-      "hospitals",
-      HOSPITALS_TTL_MS,
-      "hospitals"
-    );
+    console.log("🔍 Fetching hospitals from local static catalog...");
+    const hospitalsData = await fetchHospitalsCache();
 
     if (!hospitalsData || hospitalsData.length === 0) {
-      console.warn("⚠️ No hospitals data received from JSON cache");
+      console.warn("⚠️ No hospitals data found in local static catalog");
       return {
         success: true,
         hospitals: [],
@@ -311,21 +282,8 @@ export const getHospitals = async () => {
  */
 export const getSpecialties = async () => {
   try {
-    console.log("🔍 Fetching specialties...");
-
-    const { data, error } = await supabase
-      .from("specialities")
-      .select("id, name")
-      .order("name", { ascending: true });
-
-    if (error) {
-      console.error("❌ Error fetching specialties:", error);
-      return {
-        success: false,
-        specialties: [],
-        error: error.message,
-      };
-    }
+    console.log("🔍 Fetching specialties from local static catalog...");
+    const data = getSpecialitiesCatalog();
 
     console.log("✅ Successfully fetched specialties:", data?.length || 0);
 
@@ -359,25 +317,12 @@ export const getSpecialtyById = async (specialtyId) => {
       };
     }
 
-    const { data, error } = await supabase
-      .from("specialities")
-      .select("id, name")
-      .eq("id", specialtyId)
-      .single();
-
-    if (error) {
-      console.error("❌ Error fetching specialty:", error);
-      return {
-        success: false,
-        specialty: null,
-        error: error.message,
-      };
-    }
+    const data = getSpecialityByIdFromCatalog(specialtyId);
 
     return {
-      success: true,
+      success: Boolean(data),
       specialty: data,
-      error: null,
+      error: data ? null : "Specialty not found",
     };
   } catch (error) {
     console.error("❌ Exception fetching specialty:", error);
@@ -455,17 +400,16 @@ export const getHospitalSpecialties = async (hospitalId) => {
 
     console.log("🔍 Fetching specialties for hospital:", hospitalId);
 
-    // Obtener notas de corte desde la tabla hospital_speciality_grades
-    const { data: gradesData, error: gradesError } = await supabase
-      .from("hospital_speciality_grades")
-      .select("*")
-      .eq("hospital_id", hospitalId)
-      .order("speciality_id", { ascending: true })
-      .order("year", { ascending: true });
-
-    if (gradesError) {
-      throw new Error(gradesError.message);
-    }
+    // Obtener notas de corte desde el catálogo local
+    const gradesData = (await getHospitalSpecialityGradesCache())
+      .filter((item) => item.hospital_id === hospitalId)
+      .sort((a, b) => {
+        const specialityOrder = String(a.speciality_id || "").localeCompare(
+          String(b.speciality_id || "")
+        );
+        if (specialityOrder !== 0) return specialityOrder;
+        return Number(a.year || 0) - Number(b.year || 0);
+      });
 
     if (!gradesData || gradesData.length === 0) {
       console.log("No grades data found for this hospital");
@@ -580,12 +524,12 @@ export const getHospitalSpecialties = async (hospitalId) => {
       };
     }
 
-    // Obtener info_note de hospital_specialities
-    const { data: infoNotesData } = await supabase
-      .from("hospital_specialities")
-      .select("speciality_id, info_note")
-      .eq("hospital_id", hospitalId)
-      .in("speciality_id", specialtyIds);
+    // Obtener info_note de hospital_specialities desde el catálogo local
+    const infoNotesData = (await getHospitalSpecialtyCache()).filter(
+      (item) =>
+        item.hospital_id === hospitalId &&
+        specialtyIds.includes(item.speciality_id)
+    );
     const infoNoteBySpecialty = {};
     (infoNotesData || []).forEach((row) => {
       if (row.info_note != null && row.info_note !== "") {
@@ -593,16 +537,10 @@ export const getHospitalSpecialties = async (hospitalId) => {
       }
     });
 
-    // Obtener nombres de especialidades desde Supabase
-    const { data: specialtyDetails, error: specialtyDetailsError } =
-      await supabase
-        .from("specialities")
-        .select("id, name")
-        .in("id", specialtyIds);
-
-    if (specialtyDetailsError) {
-      throw new Error(specialtyDetailsError.message);
-    }
+    // Obtener nombres de especialidades desde el catálogo local
+    const specialtyDetails = getSpecialitiesCatalog().filter((specialty) =>
+      specialtyIds.includes(specialty.id)
+    );
 
     // Combinar datos: especialidad + plazas + años dinámicos (igual que la web app)
     const formattedSpecialties = (specialtyDetails || []).map((specialty) => {
@@ -904,17 +842,13 @@ export const getDetailedGrades = async (hospitalId, specialtyId) => {
       specialtyId
     );
 
-    // Obtener todas las notas de esta especialidad en este hospital
-    const { data: gradesData, error: gradesError } = await supabase
-      .from("hospital_speciality_grades")
-      .select("*")
-      .eq("hospital_id", hospitalId)
-      .eq("speciality_id", specialtyId)
-      .order("year", { ascending: false });
-
-    if (gradesError) {
-      throw new Error(gradesError.message);
-    }
+    // Obtener todas las notas de esta especialidad en este hospital desde catálogo local
+    const gradesData = (await getHospitalSpecialityGradesCache())
+      .filter(
+        (item) =>
+          item.hospital_id === hospitalId && item.speciality_id === specialtyId
+      )
+      .sort((a, b) => Number(b.year || 0) - Number(a.year || 0));
 
     if (!gradesData || gradesData.length === 0) {
       return {

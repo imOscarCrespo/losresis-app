@@ -1,0 +1,42 @@
+[
+  {
+    "id": "0a64214d-2f1d-42fc-8ab4-219a54066685",
+    "position": 2,
+    "text": "¿Qué área concreta de tu especialidad abordaste durante esta rotación?",
+    "type": "text",
+    "is_optional": false,
+    "is_active": true
+  },
+  {
+    "id": "8c4abfcb-63d1-4c26-9af1-bc7e6c42898b",
+    "position": 3,
+    "text": "¿Recomendarías esta rotación a otros residentes?",
+    "type": "rating",
+    "is_optional": false,
+    "is_active": true
+  },
+  {
+    "id": "fbf1e6df-4122-4adb-9469-ea3090b6c519",
+    "position": 4,
+    "text": "¿Cómo valorarías tu participación activa en consultas y/o quirófanos durante la rotación?",
+    "type": "rating",
+    "is_optional": false,
+    "is_active": true
+  },
+  {
+    "id": "ee540045-5ef1-4eb4-9a62-9b7f63d27d5e",
+    "position": 5,
+    "text": "¿Qué te aportó esta rotación a nivel formativo o personal?",
+    "type": "text",
+    "is_optional": false,
+    "is_active": true
+  },
+  {
+    "id": "5bd47ab5-2e85-4449-9014-2ed8521eef03",
+    "position": 6,
+    "text": "¿Quieres dejar algún contacto (opcional) para futuros residentes interesados?",
+    "type": "text",
+    "is_optional": true,
+    "is_active": true
+  }
+]

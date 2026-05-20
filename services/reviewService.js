@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { getReviewQuestionsCatalog } from "./staticCatalogService";
 
 /**
  * Servicio para gestionar reseñas de residentes
@@ -10,20 +11,7 @@ import { supabase } from "../config/supabase";
  */
 export const getReviewQuestions = async () => {
   try {
-    const { data, error } = await supabase
-      .from("question")
-      .select("*")
-      .eq("is_active", true)
-      .order("position", { ascending: true });
-
-    if (error) {
-      console.error("Error fetching review questions:", error);
-      return {
-        success: false,
-        questions: [],
-        error: error.message,
-      };
-    }
+    const data = getReviewQuestionsCatalog();
 
     return {
       success: true,

@@ -3,6 +3,7 @@
  */
 
 import { supabase } from "../config/supabase";
+import { getHospitalByIdFromCatalog } from "./staticCatalogService";
 
 const ITEMS_PER_PAGE = 20;
 const HOUSING_BUCKET = "housing_ad";
@@ -43,11 +44,7 @@ export const getHousingAdHospitals = async () => {
   try {
     const { data, error } = await supabase
       .from("housing_ad")
-      .select(
-        `
-        hospital:hospitals!housing_ad_hospital_id_fkey(id, name, city)
-      `
-      )
+      .select("hospital_id")
       .eq("is_active", true)
       .is("deleted_at", null)
       .not("hospital_id", "is", null);
@@ -64,9 +61,13 @@ export const getHousingAdHospitals = async () => {
     const hospitalsById = new Map();
 
     (data || []).forEach((row) => {
-      const hospital = row?.hospital;
+      const hospital = getHospitalByIdFromCatalog(row?.hospital_id);
       if (!hospital?.id) return;
-      hospitalsById.set(hospital.id, hospital);
+      hospitalsById.set(hospital.id, {
+        id: hospital.id,
+        name: hospital.name,
+        city: hospital.city,
+      });
     });
 
     const hospitals = Array.from(hospitalsById.values()).sort((a, b) =>
@@ -145,7 +146,6 @@ export const getHousingAds = async (
         `
         *,
         user:users!housing_ad_user_id_fkey(id, name, surname, is_resident),
-        hospital:hospitals!housing_ad_hospital_id_fkey(id, name, city),
         images:housing_ad_image(*)
       `
       )
@@ -190,7 +190,7 @@ export const getHousingAds = async (
     const processedAds = (data || []).map((ad) => ({
       ...ad,
       user: ad.user || undefined,
-      hospital: ad.hospital || undefined,
+      hospital: getHospitalByIdFromCatalog(ad.hospital_id) || undefined,
       images: (ad.images || []).sort((a, b) => a.position - b.position),
     }));
 
@@ -237,8 +237,7 @@ export const getHousingAdById = async (adId) => {
         `
         *,
         user:users!housing_ad_user_id_fkey(id, name, surname, is_resident),
-        images:housing_ad_image(*),
-        hospital:hospitals!housing_ad_hospital_id_fkey(id, name, city)
+        images:housing_ad_image(*)
       `
       )
       .eq("id", adId)
@@ -258,7 +257,7 @@ export const getHousingAdById = async (adId) => {
     const processedAd = {
       ...data,
       user: data.user || undefined,
-      hospital: data.hospital || undefined,
+      hospital: getHospitalByIdFromCatalog(data.hospital_id) || undefined,
       images: (data.images || []).sort((a, b) => a.position - b.position),
     };
 
@@ -419,7 +418,6 @@ export const createHousingAd = async (adData) => {
           `
           *,
           user:users!housing_ad_user_id_fkey(id, name, surname, is_resident),
-          hospital:hospitals!housing_ad_hospital_id_fkey(id, name, city),
           images:housing_ad_image(*)
         `
       )
@@ -443,7 +441,7 @@ export const createHousingAd = async (adData) => {
     const processedAd = {
       ...finalAd,
       user: finalAd.user || undefined,
-      hospital: finalAd.hospital || undefined,
+      hospital: getHospitalByIdFromCatalog(finalAd.hospital_id) || undefined,
       images: (finalAd.images || []).sort((a, b) => a.position - b.position),
     };
 

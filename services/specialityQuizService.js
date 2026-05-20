@@ -9,6 +9,7 @@
  */
 
 import { supabase, supabaseQuery } from "../config/supabase";
+import { getSpecialityQuizQuestionsCatalog } from "./staticCatalogService";
 
 const TABLE_SESSION = "speciality_quiz_session";
 const TABLE_QUESTION = "speciality_quiz_question";
@@ -21,20 +22,11 @@ export const QUIZ_VERSION_V3 = "v3_profiles_abcd_18";
  * @returns {Promise<{success: boolean, data: any, error: string|null}>}
  */
 export const getQuizQuestions = async (quizVersion = null) => {
-  return supabaseQuery(async () => {
-    let query = supabase
-      .from(TABLE_QUESTION)
-      .select(
-        "id, order_index, text, dimension, question_type, quiz_version, options:speciality_quiz_option(id, label, value, order_index)"
-      )
-      .order("order_index", { ascending: true });
-
-    if (quizVersion) {
-      query = query.eq("quiz_version", quizVersion);
-    }
-
-    return query;
-  });
+  return {
+    success: true,
+    data: getSpecialityQuizQuestionsCatalog(quizVersion),
+    error: null,
+  };
 };
 
 /**

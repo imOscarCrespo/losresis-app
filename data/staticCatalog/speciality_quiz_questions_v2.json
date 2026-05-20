@@ -1,0 +1,954 @@
+[
+  {
+    "id": "e0d9d765-e661-49c4-bb49-66945fc1b080",
+    "order_index": 1,
+    "text": "Durante una guardia, recibes un paciente con síntomas inespecíficos. Tu impulso inicial es:",
+    "dimension": "block_1_orientacion_cognitiva",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "cf9108e4-385e-4bd0-bc64-8acfde77581c",
+        "label": "Revisar historia y pruebas hasta comprender el mecanismo fisiopatológico",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "845cda1c-5490-4f01-a8b8-2dea60464be2",
+        "label": "Actuar rápidamente para estabilizar y resolver lo urgente",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "239a8073-61fd-43e9-8d5c-c5c1be7aa8ed",
+        "label": "Explicar al paciente lo que ocurre y tranquilizarlo",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "24c7f3ee-a289-4a16-ae81-f2e1535b1b0b",
+        "label": "Derivar a quien tenga más experiencia en ese tipo de casos",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "c87b218f-1a85-4f67-b609-3df163dfa23d",
+    "order_index": 2,
+    "text": "Te sientes más satisfecho/a cuando:",
+    "dimension": "block_1_orientacion_cognitiva",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "6b6c3d49-ea2d-4c27-b996-cbe2b4c6c656",
+        "label": "Descubres un diagnóstico que otros no habían visto",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "153c5566-c6d4-4acf-8e47-597d73f42565",
+        "label": "Realizas un procedimiento técnicamente exigente con éxito",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "d12f1fa0-5e7e-4bac-a7ce-68248b657922",
+        "label": "Un paciente te agradece tu acompañamiento durante su proceso",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "f00cfc0b-fc7f-4719-84d3-723db5278ce0",
+        "label": "Contribuyes a mejorar un protocolo o sistema de trabajo",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "2dca3f00-06ab-4a04-a479-2c94232f89b6",
+    "order_index": 3,
+    "text": "Cuando estudias medicina, disfrutas más:",
+    "dimension": "block_1_orientacion_cognitiva",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "b15dcfeb-ccaf-430b-9938-c73b5d315c78",
+        "label": "Comprendiendo mecanismos fisiopatológicos complejos",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "a4847ffc-be3e-4cc2-ab40-da2fbc0ed863",
+        "label": "Aprendiendo técnicas prácticas y habilidades manuales",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "de5a06b9-344f-4c02-938e-464bad204050",
+        "label": "Analizando historias clínicas reales con contexto humano",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "2bc249e1-6933-4308-8180-8bf06009c386",
+        "label": "Revisando literatura científica y estudios recientes",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "a0a15cff-6fe5-4d4c-aee2-56e4022d04c8",
+    "order_index": 4,
+    "text": "En un caso difícil, lo que más te incomoda es:",
+    "dimension": "block_1_orientacion_cognitiva",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "f654ca11-d10a-40c0-8802-b0fb570fe250",
+        "label": "No tener suficiente información diagnóstica",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "f822257e-f349-4567-bafb-6adce7ffdd87",
+        "label": "No poder intervenir de inmediato",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "5bd8e958-46f2-4721-b237-aacc0734707e",
+        "label": "No poder dedicar tiempo suficiente al paciente",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "752a46ed-bdf8-4027-9681-0bdbfe46b4f4",
+        "label": "No poder explorar nuevas hipótesis o enfoques",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "4aa095ec-9f99-4663-9f12-5fb3357c84ac",
+    "order_index": 5,
+    "text": "¿Qué tipo de relación te resulta más gratificante?",
+    "dimension": "block_2_relacion_medico_paciente",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "0d4529eb-7eec-445c-b305-06421755949c",
+        "label": "Episodios clínicos complejos con resolución diagnóstica",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "472ebf67-1ed8-4f49-aef8-e593f63acd5e",
+        "label": "Intervenciones resolutivas con resultado inmediato",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "15da3fb2-f0f7-48f8-a018-684092c8b400",
+        "label": "Seguimiento longitudinal durante años",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "2fe5ec44-f227-4ab9-bc3a-2d3bdcb00baa",
+        "label": "Impacto poblacional o sistémico",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "f99decf7-add1-45d8-90a0-391ad00b2a87",
+    "order_index": 6,
+    "text": "Si un paciente no mejora rápidamente:",
+    "dimension": "block_2_relacion_medico_paciente",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "3e12e147-6ae1-49af-abea-84ac04edb854",
+        "label": "Revisas el diagnóstico en profundidad",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "671a0f86-5d27-452b-8b4e-ee3bbe64ab86",
+        "label": "Consideras nuevas intervenciones prácticas",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "09243d1f-5062-450e-8948-1b67f445ebec",
+        "label": "Aumentas la comunicación y apoyo emocional",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "9708b2a6-7f55-49cc-a3e9-9236089c6c4c",
+        "label": "Analizas si el abordaje global debe cambiar",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "6396a35b-4032-4c5d-866e-695b5d877ecf",
+    "order_index": 7,
+    "text": "Te identificas más con:",
+    "dimension": "block_2_relacion_medico_paciente",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "830b2033-8726-483b-b622-e7e768731929",
+        "label": "El clínico que resuelve enigmas diagnósticos",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "acf12a3f-65d1-4cf2-b6a4-6bf7c7f51073",
+        "label": "El médico que interviene con destreza técnica",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "f0e3c8e4-4cfd-40b1-bbc5-e5383f55344f",
+        "label": "El profesional que acompaña procesos vitales",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "50227a08-f405-47cf-8dd1-c68e0e0996ef",
+        "label": "El médico que impulsa cambios estructurales",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "b0d817c9-c012-43c9-8be9-66ffda674637",
+    "order_index": 8,
+    "text": "¿Qué escenario te agotaría más?",
+    "dimension": "block_2_relacion_medico_paciente",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "0d30226a-f89b-4cd7-8762-7b7099e6c293",
+        "label": "Trabajo sin profundidad intelectual",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "87dc7744-e753-428c-8d4a-805e1aefed1d",
+        "label": "Trabajo sedentario sin acción práctica",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "f093151a-ec99-43d9-af0d-5f512da006da",
+        "label": "Poco contacto humano significativo",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "03dbffaa-2f4c-41fc-be1b-f5bf025746f2",
+        "label": "Rutina sin posibilidad de mejora o innovación",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "9309a86b-339e-4d48-8faa-d7a18ead2190",
+    "order_index": 9,
+    "text": "¿En qué ambiente trabajas mejor?",
+    "dimension": "block_3_tolerancia_estres_entorno",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "725bbb5b-7050-4f57-8227-b5ce614952b8",
+        "label": "Entorno estructurado y predecible",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "d63d4008-bc6d-42e1-b3b6-1038124ef97d",
+        "label": "Ambiente dinámico con decisiones rápidas",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "ecd8c841-331e-49a0-9ece-794f3233fa47",
+        "label": "Consultas programadas con tiempo por paciente",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "14116823-bdd3-4abe-9d23-03bb3986f4cb",
+        "label": "Entornos académicos o de innovación",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "6a1bcffd-fb47-406d-82dd-8aba8635502a",
+    "order_index": 10,
+    "text": "Ante situaciones críticas:",
+    "dimension": "block_3_tolerancia_estres_entorno",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "891902f8-fad3-4b1d-8808-602c76d2466c",
+        "label": "Prefieres analizar antes de actuar",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "8deb6e28-667c-4da5-8eb2-ec4bc11e0dbe",
+        "label": "Te activas y rindes mejor bajo presión",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "d4ac9977-4f20-4230-9b9e-e3361b88c022",
+        "label": "Te centras en el bienestar emocional del paciente",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "41aaf385-8c26-4608-9609-2eeaab5a8de8",
+        "label": "Evalúas si el sistema podría mejorarse",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "6190f0c6-73d3-4f6f-a9bd-50160f06d41e",
+    "order_index": 11,
+    "text": "¿Qué tipo de guardia toleras mejor?",
+    "dimension": "block_3_tolerancia_estres_entorno",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "99b077fc-2b75-4577-ae91-7ca54566b8db",
+        "label": "Diagnósticos complejos y debate clínico",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "08252fc8-89cd-46a5-91c1-ec2a29cc3a79",
+        "label": "Politrauma y emergencias constantes",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "032f29c3-dfc8-4955-ba33-ede26c073b96",
+        "label": "Seguimiento de pacientes conocidos",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "ab1471f6-e632-4991-bc06-8835120c35f2",
+        "label": "Organización de equipos y protocolos",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "c85a1541-78c3-4ced-a4f6-802449abb6e2",
+    "order_index": 12,
+    "text": "A largo plazo prefieres:",
+    "dimension": "block_3_tolerancia_estres_entorno",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "18ecf110-b5b6-4417-b00e-40c9ec102210",
+        "label": "Profundizar en un área clínica específica",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "8aab7921-735f-4e12-a00f-469e6fbd0a6c",
+        "label": "Desarrollar habilidades técnicas de alto nivel",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "8929924a-739d-4a69-b73a-885d3e1b7325",
+        "label": "Construir relaciones duraderas con pacientes",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "a1f48b40-ad27-4cb1-b6bf-39ad4a48a9ad",
+        "label": "Participar en proyectos de investigación o gestión",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "bfa8a375-cd84-47e5-8b99-e95a51396de5",
+    "order_index": 13,
+    "text": "Tu prioridad profesional principal es:",
+    "dimension": "block_4_estilo_vida_equilibrio",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "153bdd0d-5df8-462a-99fd-5e767d92631a",
+        "label": "Excelencia diagnóstica y reconocimiento clínico",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "17bd0a0d-3d9f-43d9-af76-2c7548d98e7f",
+        "label": "Impacto inmediato y resultados tangibles",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "de04d6a2-4295-4a9b-9294-41d549b90697",
+        "label": "Equilibrio con vida personal y familiar",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "2c8912bb-e4e0-42a3-895e-16cbc9c03a2a",
+        "label": "Proyección académica o investigadora",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "9b0a1657-86c3-4e84-9921-2f9d6189ae6d",
+    "order_index": 14,
+    "text": "¿Qué tipo de reconocimiento valoras más?",
+    "dimension": "block_4_estilo_vida_equilibrio",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "cb3297b6-aa43-4f6f-8d9a-897c08b65fd7",
+        "label": "Ser referente clínico en tu área",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "2a9a52bd-faf3-4e87-82f0-f2bae0059516",
+        "label": "Ser técnicamente excelente en procedimientos",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "0bfb101c-58aa-41cd-b70b-6543253c4bda",
+        "label": "Ser apreciado por pacientes y compañeros",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "c326bd29-276d-46ec-8b65-4aab67af6572",
+        "label": "Publicar o liderar proyectos innovadores",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "6e401c26-1279-400e-a47f-cee13e4adf56",
+    "order_index": 15,
+    "text": "Respecto al horario ideal:",
+    "dimension": "block_4_estilo_vida_equilibrio",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "c3a0d441-f7cf-4f36-b47e-2a03aff8a9f1",
+        "label": "Regular y estructurado, aunque intenso",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "c084c001-1046-4966-929c-9f6ab9d404fc",
+        "label": "Variable e intenso, con adrenalina",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "e88f025b-314e-410e-a32d-e136d8a93576",
+        "label": "Compatible con estabilidad personal",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "777aab38-1751-4258-8f10-1c7271f344c4",
+        "label": "Flexible según proyectos y objetivos",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "35ded6dd-0376-402a-ac24-dc13cbb621c2",
+    "order_index": 16,
+    "text": "Respecto a las guardias:",
+    "dimension": "block_4_estilo_vida_equilibrio",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "920e5c9e-71a6-423c-957d-8b6b601526f8",
+        "label": "Las acepto si son intelectualmente estimulantes",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "65150be7-b424-4fa5-b59d-19fc39793c22",
+        "label": "Las disfruto por la acción y variedad",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "9c547bc4-dc0c-4302-a492-4961f7741937",
+        "label": "Prefiero minimizarlas para equilibrio personal",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "6853b387-6374-4284-896f-30009f175744",
+        "label": "Las veo como oportunidad de aprendizaje",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "b7633604-b5db-46e5-ace0-51f681e7751d",
+    "order_index": 17,
+    "text": "En equipo, sueles ser:",
+    "dimension": "block_5_personalidad_profesional",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "0e8f2084-b9ea-4479-8936-101fd884ad5a",
+        "label": "Analítico/a y reservado/a",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "63a0b7fe-22b5-47a4-8955-a0843cf04248",
+        "label": "Decidido/a y directivo/a",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "a40fc665-218c-4cd7-aa09-3d8d71d02fb2",
+        "label": "Empático/a y cohesionador/a",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "aa9a0baa-fbbd-4fa8-89df-24626533ee35",
+        "label": "Visionario/a y creativo/a",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "789ce009-647c-45f0-8887-60bc3c85976b",
+    "order_index": 18,
+    "text": "Ante la incertidumbre diagnóstica:",
+    "dimension": "block_5_personalidad_profesional",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "87ce90dd-15b8-4a9e-b7b4-65abeb42aab5",
+        "label": "Buscas más datos y pruebas",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "69a59810-907d-47b7-85b5-350ec773e376",
+        "label": "Tomas decisiones prácticas con lo disponible",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "fdfe7b51-0db1-4d2e-9234-2aaa06bd07de",
+        "label": "Escuchas a las personas implicadas",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "0e310177-e5c6-4491-8bf7-5bfa2c5f5975",
+        "label": "Reformulas el problema desde otro ángulo",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "42e470a5-a521-4c89-bdfd-4c5daeec8d06",
+    "order_index": 19,
+    "text": "Prefieres trabajar:",
+    "dimension": "block_5_personalidad_profesional",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "e641b8de-3d27-47d4-b5de-6b9eb4fecbfd",
+        "label": "En profundidad sobre pocos casos complejos",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "ec08eb13-1d9d-4a4d-b9cd-e0f1b5eda541",
+        "label": "Con volumen alto y resolución rápida",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "1faefa1a-43f1-4a5e-a903-212d7bde6e01",
+        "label": "Con continuidad y seguimiento de pacientes",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "d5a3678d-b8fb-401b-a2b8-9e14fe7f4fa6",
+        "label": "En entornos mixtos clínico-académicos",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "40b6e1ac-bd0c-40ac-b33d-db4d5bdf4606",
+    "order_index": 20,
+    "text": "Si volvieras a empezar medicina, elegirías algo que:",
+    "dimension": "block_5_personalidad_profesional",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "de708aec-956b-4f19-ba78-7ad90e231e13",
+        "label": "Exija alto razonamiento clínico",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "35912359-a64a-49fb-b7ee-4c72b92f1667",
+        "label": "Requiera habilidad técnica avanzada",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "826508ee-221d-48d6-bf6f-9786b71ab10c",
+        "label": "Permita relación humana prolongada",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "bf1774a0-c5bc-4464-83b6-4716d3d6575d",
+        "label": "Integre asistencia e investigación",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "bdbcd87f-2eb2-4a61-bced-9e55cbcdce21",
+    "order_index": 21,
+    "text": "Te motiva más:",
+    "dimension": "block_6_motivaciones_valores",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "62a14015-1084-48fa-81f4-8ab31a889147",
+        "label": "Comprender profundamente la enfermedad",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "aa07f3d0-9527-470b-8e05-067e92b7807c",
+        "label": "Intervenir y ver resultados rápidos",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "ebc65ace-9ebc-459c-89a5-76afe7a674fe",
+        "label": "Acompañar procesos humanos difíciles",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "000d20aa-b839-40c8-8545-1ce603075e0e",
+        "label": "Contribuir al avance científico",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "bcc429ba-4d5e-48c9-bd9d-9d7f3ad74df5",
+    "order_index": 22,
+    "text": "¿Qué importancia tiene el prestigio de la especialidad?",
+    "dimension": "block_6_motivaciones_valores",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "b283ceeb-abcf-486b-a2ef-6bf564a23e3b",
+        "label": "Muy importante - influye significativamente",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "3e14b8c7-255f-4372-a3a5-731576f6881b",
+        "label": "Importante - lo considero",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "22648c70-8fd9-40f3-97ba-037e9e2af763",
+        "label": "Poco importante - priorizo otros factores",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "ad2c396c-dc2c-4a5b-ab8e-4de9331b3888",
+        "label": "Nada importante - no me influye",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "708a595c-fc56-46a1-a16d-92c1f7e17e2e",
+    "order_index": 23,
+    "text": "¿Qué importancia tiene la remuneración económica?",
+    "dimension": "block_6_motivaciones_valores",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "c099f437-4af4-473a-a75e-52b96cc01d38",
+        "label": "Muy importante - busco alta remuneración",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "0be5668b-b954-4edd-ab62-e02765d34d63",
+        "label": "Importante pero no determinante",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "3106b38b-9479-41bb-a755-4d5e5a32bdfa",
+        "label": "Secundaria a otros factores",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "aec4b22e-ce5e-4e35-9d03-598e55d023bb",
+        "label": "No es un factor en mi decisión",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "14221ae7-c768-45b0-be9a-f8db47d7f772",
+    "order_index": 24,
+    "text": "¿Qué te atrajo originalmente de la medicina?",
+    "dimension": "block_6_motivaciones_valores",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "407eba15-e9fd-496f-9385-23c6347b8974",
+        "label": "El desafío intelectual y científico",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "de50e190-bbe3-4ff1-8a52-9cb2aed1a1a0",
+        "label": "La capacidad de intervenir y curar",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "06443c88-a0d1-4623-94c3-dec44a634d84",
+        "label": "Ayudar a personas en momentos difíciles",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "6b6a5c47-05b2-4b9b-8710-3c16388b3d45",
+        "label": "Contribuir al conocimiento y la sociedad",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "8f77fe7e-04f0-4af4-9064-55bbd9819878",
+    "order_index": 25,
+    "text": "¿Te interesa combinar práctica clínica con investigación?",
+    "dimension": "block_7_orientacion_academica",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "1ee3eb86-541f-47de-b880-fd62a111dbc0",
+        "label": "Sí, es fundamental para mí",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "579a7c81-9221-4b1b-bd07-8289186e9be9",
+        "label": "Sí, ocasionalmente",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "b6f73b7f-384e-49ca-92a6-c4f40e41f2b8",
+        "label": "No especialmente - prefiero clínica pura",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "1e1c4df6-cb25-4da3-b420-6d6255536a77",
+        "label": "Solo si es investigación clínica aplicada",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "95138d2a-7010-4b48-97de-550cef244fd6",
+    "order_index": 26,
+    "text": "¿Te gustaría trabajar en un hospital universitario con docencia?",
+    "dimension": "block_7_orientacion_academica",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "c14aa1f0-f9b0-4c4d-a0cd-47ed2f45bfe5",
+        "label": "Sí, es mi objetivo principal",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "7ad6da6b-8291-40d8-ba36-89481f3b5700",
+        "label": "Sí, lo consideraría positivamente",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "8b64e9ea-1137-45a1-8da1-4c224292b519",
+        "label": "Me es indiferente",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "fd761a12-63b2-4301-a971-53776c81c359",
+        "label": "Prefiero práctica sin carga docente",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "8808f03a-0be7-4c99-bed2-eb74d9d0d60c",
+    "order_index": 27,
+    "text": "¿Te atrae el desarrollo de nuevas técnicas o tecnologías?",
+    "dimension": "block_7_orientacion_academica",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "b08eb0e4-bf6d-4226-b5c1-94e8e6cd123b",
+        "label": "Mucho - quiero estar en la vanguardia",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "b16041ca-6edf-41aa-9306-1282945fcbb3",
+        "label": "Bastante - me interesa la innovación",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "dfcf826c-6553-4e49-9437-a0e68d99054c",
+        "label": "Algo - si mejora la atención al paciente",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "83b2df0f-06c4-4c0d-be7a-b4f0bc2d748d",
+        "label": "Poco - prefiero técnicas establecidas",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  },
+  {
+    "id": "ea16b1f9-a522-47bf-a2a6-b396cdd9c154",
+    "order_index": 28,
+    "text": "¿Cómo ves tu carrera a 20 años?",
+    "dimension": "block_7_orientacion_academica",
+    "question_type": "choice",
+    "quiz_version": "v2_profiles_abcd",
+    "options": [
+      {
+        "id": "33e2a486-2d65-4ee4-af86-f01bd4555e4f",
+        "label": "Referente clínico en mi subespecialidad",
+        "value": 1,
+        "order_index": 1
+      },
+      {
+        "id": "6d9f1e09-f2ab-4a08-8946-955d582f88c6",
+        "label": "Experto técnico reconocido",
+        "value": 2,
+        "order_index": 2
+      },
+      {
+        "id": "a14571ef-6fd1-4b3c-8c06-38a51a48dbf3",
+        "label": "Médico de confianza para mis pacientes",
+        "value": 3,
+        "order_index": 3
+      },
+      {
+        "id": "21e62792-23ac-4901-88cf-c21d000b3398",
+        "label": "Investigador/docente con impacto académico",
+        "value": 4,
+        "order_index": 4
+      }
+    ]
+  }
+]

@@ -98,6 +98,7 @@ export const getUserById = async (id) => {
 - `npm run ios` - Ejecuta en iOS
 - `npm run android` - Ejecuta en Android
 - `npm run web` - Ejecuta en web
+- `npm run export:static-catalog` - Regenera `data/staticCatalog/*.json` desde Supabase para reducir cached egress en runtime
 
 ## Deploy con EAS Build
 
@@ -117,6 +118,16 @@ export const getUserById = async (id) => {
 - `eas build --platform ios --profile production --local` - Build iOS local
 - `eas build --platform android --profile production --local` - Build Android local
 - `eas submit --platform ios --profile production --path /ruta/al/archivo.ipa` - Submit manual de iOS
+
+## Catálogos Estáticos
+
+Hospitales, especialidades, relaciones hospital-especialidad, notas MIR y preguntas estáticas se empaquetan en `data/staticCatalog/` para evitar egress recurrente de Supabase. Si cambias esos datos en la DB, la app publicada no los verá hasta regenerar el catálogo y publicar build/update:
+
+```bash
+npm run export:static-catalog
+```
+
+Ver [docs/static-catalog-cache-egress.md](docs/static-catalog-cache-egress.md) para el flujo completo.
 
 ## Próximos Pasos
 

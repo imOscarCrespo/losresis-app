@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-05-19T11:15:08.256Z",
+  "catalog_year": 2026,
+  "assets": {
+    "hospitals": 955,
+    "hospital_speciality": 3734,
+    "hospital_discovery_rankings": 0,
+    "specialities": 47,
+    "hospital_speciality_grades": 29552,
+    "review_questions": 14,
+    "roommate_questions": 6,
+    "external_rotation_questions": 5,
+    "speciality_quiz_questions_v2": 28,
+    "speciality_quiz_questions_v3": 18,
+    "resident_transition_config": 1
+  }
+}

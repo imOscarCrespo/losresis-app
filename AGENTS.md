@@ -9,6 +9,16 @@
 - Tratar `losresis-app` como consumidor de ese repo compartido, no como fuente de verdad para cambios de base de datos.
 - Después de añadir o modificar una migración en `losresis-db`, el siguiente paso en `losresis-app` es actualizar el puntero del submódulo o reflejar el cambio consumido, no recrear la migración localmente.
 
+## Static Catalogs And Cached Egress
+
+- `data/staticCatalog/*.json` son artefactos generados para reducir `Cached Egress` de Supabase; no son la source of truth.
+- La app lee desde esos JSON para catálogos estáticos como hospitals, specialities, `hospital_specialities`, `hospital_speciality_grades`, preguntas estáticas y config estática pequeña.
+- Si se cambia un hospital, especialidad, relación hospital-especialidad, nota/plaza MIR o pregunta estática en la DB, la app publicada no lo verá automáticamente.
+- Después de cambiar la DB/source of truth, ejecutar siempre en `losresis-app`: `npm run export:static-catalog`.
+- Tras regenerar `data/staticCatalog/*.json`, publicar una nueva build o EAS Update para que los usuarios reciban esos cambios.
+- No editar manualmente los JSON como solución definitiva; si se hace para una emergencia, hay que reconciliarlo después con la DB y regenerar.
+- Documentación operativa: `docs/static-catalog-cache-egress.md`.
+
 ## User Deletion Safety
 
 - Si se añade una foreign key hacia `public.users(id)` o `auth.users(id)`, hay que definir explícitamente su comportamiento durante el borrado de usuario: `ON DELETE CASCADE`, `ON DELETE SET NULL` o una estrategia equivalente justificada.

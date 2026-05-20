@@ -4,6 +4,10 @@
 
 import { supabase } from "../config/supabase";
 import { fetchHospitalsCache } from "./hospitalService";
+import {
+  getHospitalByIdFromCatalog,
+  getSpecialityByIdFromCatalog,
+} from "./staticCatalogService";
 
 /**
  * Obtener todas las preferencias del usuario
@@ -29,9 +33,7 @@ export const getUserPreferences = async (userId) => {
         hospital_id,
         speciality_id,
         position,
-        created_at,
-        hospitals!inner(id, name, city, region),
-        specialities!inner(id, name)
+        created_at
       `
       )
       .eq("user_id", userId)
@@ -48,16 +50,18 @@ export const getUserPreferences = async (userId) => {
     }
 
     // Formatear las preferencias
-    const formattedPreferences = (data || []).map((pref) => ({
-      id: pref.id,
-      user_id: pref.user_id,
-      hospital_id: pref.hospital_id,
-      speciality_id: pref.speciality_id,
-      position: pref.position,
-      created_at: pref.created_at,
-      hospital: pref.hospitals,
-      specialty: pref.specialities,
-    }));
+    const formattedPreferences = (data || [])
+      .map((pref) => ({
+        id: pref.id,
+        user_id: pref.user_id,
+        hospital_id: pref.hospital_id,
+        speciality_id: pref.speciality_id,
+        position: pref.position,
+        created_at: pref.created_at,
+        hospital: getHospitalByIdFromCatalog(pref.hospital_id),
+        specialty: getSpecialityByIdFromCatalog(pref.speciality_id),
+      }))
+      .filter((pref) => pref.hospital && pref.specialty);
 
     // Ordenar por posición
     const orderedPreferences = formattedPreferences.sort(

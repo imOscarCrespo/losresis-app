@@ -1,0 +1,165 @@
+[
+  {
+    "id": "c4d801a3-211f-4cff-87a8-74967985344c",
+    "code": "cleanliness_priority",
+    "step_number": 1,
+    "display_order": 1,
+    "title": "Orden y limpieza",
+    "prompt": "¿Qué nivel de orden necesitas para estar a gusto en casa?",
+    "helper_text": "Nos ayuda a encontrar ritmos de convivencia compatibles.",
+    "input_type": "scale",
+    "options": [
+      {
+        "label": "Flexible",
+        "value": 1
+      },
+      {
+        "label": "Equilibrado",
+        "value": 3
+      },
+      {
+        "label": "Muy ordenado",
+        "value": 5
+      }
+    ],
+    "category": "lifestyle",
+    "is_required": true,
+    "is_active": true,
+    "created_at": "2026-03-15T16:50:15.217345+00:00"
+  },
+  {
+    "id": "bfe653ca-044c-44b7-99be-eb0a41a87368",
+    "code": "sleep_schedule",
+    "step_number": 2,
+    "display_order": 2,
+    "title": "Horario habitual",
+    "prompt": "¿Cómo suele ser tu ritmo entre semana?",
+    "helper_text": "Piensa en tus guardias, estudio y descanso.",
+    "input_type": "single_choice",
+    "options": [
+      {
+        "label": "Madrugador/a",
+        "value": "early_bird"
+      },
+      {
+        "label": "Bastante equilibrado",
+        "value": "balanced"
+      },
+      {
+        "label": "Nocturno/a",
+        "value": "night_owl"
+      }
+    ],
+    "category": "lifestyle",
+    "is_required": true,
+    "is_active": true,
+    "created_at": "2026-03-15T16:50:15.217345+00:00"
+  },
+  {
+    "id": "af30b482-c68f-4663-b20d-0f73a3ec7d78",
+    "code": "weekday_vibe",
+    "step_number": 3,
+    "display_order": 3,
+    "title": "Plan entre semana",
+    "prompt": "Después del hospital o la facultad, ¿qué ambiente prefieres en casa?",
+    "helper_text": null,
+    "input_type": "single_choice",
+    "options": [
+      {
+        "label": "Tranquilo y silencioso",
+        "value": "quiet"
+      },
+      {
+        "label": "Algo de charla pero con calma",
+        "value": "balanced"
+      },
+      {
+        "label": "Con vida y planes",
+        "value": "social"
+      }
+    ],
+    "category": "lifestyle",
+    "is_required": true,
+    "is_active": true,
+    "created_at": "2026-03-15T16:50:15.217345+00:00"
+  },
+  {
+    "id": "9a513d03-416e-437f-a905-15b2125d4718",
+    "code": "shared_spaces",
+    "step_number": 4,
+    "display_order": 4,
+    "title": "Espacios compartidos",
+    "prompt": "¿Qué cosas te importan más en una convivencia?",
+    "helper_text": "Puedes marcar varias.",
+    "input_type": "multi_choice",
+    "options": [
+      {
+        "label": "Cocina cuidada",
+        "value": "clean_kitchen"
+      },
+      {
+        "label": "Compartir alguna comida",
+        "value": "shared_meals"
+      },
+      {
+        "label": "Noches tranquilas",
+        "value": "quiet_nights"
+      },
+      {
+        "label": "Normas claras con visitas",
+        "value": "guest_rules"
+      },
+      {
+        "label": "Respeto a tiempos de estudio o descanso",
+        "value": "study_respect"
+      }
+    ],
+    "category": "lifestyle",
+    "is_required": true,
+    "is_active": true,
+    "created_at": "2026-03-15T16:50:15.217345+00:00"
+  },
+  {
+    "id": "d8498f87-402c-443a-abe9-7827ca48a6e8",
+    "code": "weekend_plan",
+    "step_number": 5,
+    "display_order": 5,
+    "title": "Fin de semana",
+    "prompt": "¿Qué plan encaja más contigo cuando libras?",
+    "helper_text": null,
+    "input_type": "single_choice",
+    "options": [
+      {
+        "label": "Casa, descanso y recados",
+        "value": "stay_in"
+      },
+      {
+        "label": "Un poco de todo",
+        "value": "mixed"
+      },
+      {
+        "label": "Salir y hacer planes",
+        "value": "go_out"
+      }
+    ],
+    "category": "profile",
+    "is_required": true,
+    "is_active": true,
+    "created_at": "2026-03-15T16:50:15.217345+00:00"
+  },
+  {
+    "id": "ce459fd0-c003-4077-8a04-41de52135117",
+    "code": "roommate_goal",
+    "step_number": 6,
+    "display_order": 6,
+    "title": "Lo que buscas",
+    "prompt": "¿Qué te gustaría encontrar en tu próximo compi de piso?",
+    "helper_text": null,
+    "input_type": "text",
+    "options": [],
+    "category": "search",
+    "is_required": true,
+    "is_active": true,
+    "created_at": "2026-03-15T16:50:15.217345+00:00"
+  }
+]

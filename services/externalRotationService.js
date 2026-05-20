@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { getSpecialityByIdFromCatalog } from "./staticCatalogService";
 
 /**
  * Servicio para gestionar rotaciones externas
@@ -34,10 +35,6 @@ export const getAllRotations = async (filters = {}) => {
           speciality_id,
           hospital_id,
           resident_year
-        ),
-        specialities (
-          id,
-          name
         )
       `
     );
@@ -119,7 +116,8 @@ export const getAllRotations = async (filters = {}) => {
       user_phone: rotation.users?.phone || "",
       user_speciality_id: rotation.users?.speciality_id || "",
       user_resident_year: rotation.users?.resident_year || null,
-      specialty_name: rotation.specialities?.name || null,
+      specialty_name:
+        getSpecialityByIdFromCatalog(rotation.speciality_id)?.name || null,
     }));
 
     return rotationsWithUser;
