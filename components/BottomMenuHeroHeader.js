@@ -1,33 +1,25 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-const PRIMARY = "#670CF5";
 
 export const BottomMenuHeroHeader = ({
   title,
-  subtitle = null,
   leftSlot = null,
   rightSlot = null,
   bottomContent = null,
   style = null,
   contentContainerStyle = null,
   titleStyle = null,
-  subtitleStyle = null,
   bottomContentStyle = null,
 }) => {
-  const insets = useSafeAreaInsets();
-  const safeAreaTop = Math.max(insets.top, 0);
-  const contentTopPadding = safeAreaTop > 0 ? safeAreaTop + 16 : 16;
-
+  // El color de la franja del notch lo pinta ScreenLayout (topInsetColor),
+  // así que el header sólo necesita su padding propio.
   return (
     <View
       style={[
         styles.container,
         {
-          marginTop: -safeAreaTop,
-          paddingTop: contentTopPadding,
-          paddingBottom: bottomContent ? 22 : 24,
+          paddingTop: 12,
+          paddingBottom: bottomContent ? 16 : 12,
         },
         style,
       ]}
@@ -37,9 +29,6 @@ export const BottomMenuHeroHeader = ({
           {leftSlot ? <View style={styles.leftSlot}>{leftSlot}</View> : null}
           <View style={styles.titleBlock}>
             <Text style={[styles.title, titleStyle]}>{title}</Text>
-            {subtitle ? (
-              <Text style={[styles.subtitle, subtitleStyle]}>{subtitle}</Text>
-            ) : null}
           </View>
           {rightSlot ? <View style={styles.rightSlot}>{rightSlot}</View> : null}
         </View>
@@ -56,14 +45,7 @@ export const BottomMenuHeroHeader = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: PRIMARY,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    shadowColor: PRIMARY,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 8,
+    backgroundColor: "#F8F9FE",
   },
   contentContainer: {
     paddingHorizontal: 20,
@@ -78,16 +60,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    color: "#FFFFFF",
+    color: "#1B0977",
     fontSize: 28,
     fontWeight: "800",
     letterSpacing: -0.5,
-  },
-  subtitle: {
-    marginTop: 8,
-    color: "rgba(255,255,255,0.82)",
-    fontSize: 14,
-    lineHeight: 20,
   },
   leftSlot: {
     paddingTop: 2,

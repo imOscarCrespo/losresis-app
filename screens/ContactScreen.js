@@ -10,8 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import posthogLogger from "../services/posthogService";
 import { COLORS } from "../constants/colors";
 
@@ -148,16 +147,15 @@ ${formData.message}`;
   }, [formData]);
 
   return (
-    <ScreenScaffold
-      header={
-        <ScreenHeader
-          title="Contacto"
-          onBack={onBack}
-          iconName="mail-outline"
-          compact
-        />
+    <HeroScreenLayout
+      title="Contacto"
+      onBack={onBack}
+      rightSlot={
+        <View style={styles.headerIconCircle}>
+          <Ionicons name="mail-outline" size={20} color="#670CF5" />
+        </View>
       }
-      contentSurfaceStyle={styles.contentSurface}
+      contentStyle={styles.contentSurface}
     >
           <KeyboardAwareScrollView
             style={styles.scrollView}
@@ -348,7 +346,7 @@ ${formData.message}`;
               </View>
             </View>
           </KeyboardAwareScrollView>
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 
@@ -356,6 +354,14 @@ const styles = StyleSheet.create({
   contentSurface: {
     flex: 1,
     backgroundColor: COLORS.BACKGROUND,
+  },
+  headerIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F3E8FF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   scrollView: {
     flex: 1,

@@ -1,6 +1,6 @@
 import React from "react";
-import { View, StyleSheet, Platform } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Footer } from "./Footer";
 import { UpdateBanner } from "./UpdateBanner";
@@ -35,10 +35,21 @@ export const ScreenLayout = ({
     });
   }
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView edges={["top", "left", "right"]} style={[styles.container, style]}>
-      <StatusBar style="auto" />
-      <View style={styles.content}>{children}</View>
+    <View style={[styles.container, style]}>
+      {/* La franja del notch siempre usa el background de la app; iconos oscuros */}
+      <StatusBar style="dark" />
+      <View style={{ height: insets.top, backgroundColor: COLORS.BACKGROUND }} />
+      <View
+        style={[
+          styles.content,
+          { paddingLeft: insets.left, paddingRight: insets.right },
+        ]}
+      >
+        {children}
+      </View>
       {!hideFooter ? (
         <View style={styles.footerWrapper}>
           {showUpdateBanner && (
@@ -54,7 +65,7 @@ export const ScreenLayout = ({
           />
         </View>
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -13,8 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useArticles } from "../hooks/useArticles";
 import { formatShortDate, formatLongDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import posthogLogger from "../services/posthogService";
 
 // ============================================================================
@@ -200,16 +199,8 @@ export default function ArticlesScreen({ onSectionChange, userProfile, onBack })
     }
   }, [hasMore, loading, loadMoreArticles]);
 
-  const header = (
-    <ScreenHeader
-      title="Artículos"
-      onBack={onBack}
-      compact
-    />
-  );
-
   return (
-    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+    <HeroScreenLayout title="Artículos" onBack={onBack} contentStyle={styles.contentSurface}>
       {loading && articles.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.PRIMARY} />
@@ -300,7 +291,7 @@ export default function ArticlesScreen({ onSectionChange, userProfile, onBack })
           )}
         </ScrollView>
       )}
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 

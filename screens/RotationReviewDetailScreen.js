@@ -9,8 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { DirectChatButton } from "../components";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
   getRotationReviewWithAnswers,
   isExternalRotationReviewFavorite,
@@ -307,12 +306,11 @@ export default function RotationReviewDetailScreen({
     );
   }
 
-  const header = (
-    <ScreenHeader
+  return (
+    <HeroScreenLayout
       title="Rotaciones"
       onBack={onBack}
-      compact
-      variant="brand"
+      contentStyle={styles.container}
       rightSlot={
         canFavorite ? (
           <TouchableOpacity
@@ -324,19 +322,11 @@ export default function RotationReviewDetailScreen({
             <Ionicons
               name={isFavorite ? "heart" : "heart-outline"}
               size={22}
-              color={isFavorite ? COLORS.ERROR : "#FFFFFF"}
+              color={isFavorite ? COLORS.ERROR : "#670CF5"}
             />
           </TouchableOpacity>
         ) : null
       }
-    />
-  );
-
-  return (
-    <ScreenScaffold
-      header={header}
-      headerShellVariant="brand"
-      contentSurfaceStyle={styles.container}
     >
       <ScrollView
         style={styles.scrollView}
@@ -461,7 +451,7 @@ export default function RotationReviewDetailScreen({
           </View>
         )}
       </ScrollView>
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 
@@ -474,7 +464,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(103,12,245,0.10)",
     alignItems: "center",
     justifyContent: "center",
   },

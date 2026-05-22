@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenHeader } from "../components/ScreenHeader";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
   getHospitalOpenDayRegistrationStatus,
   getHospitalProfileContent,
@@ -443,20 +443,16 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
-      nestedScrollEnabled
+    <HeroScreenLayout
+      title={selectedPlan ? selectedPlan.speciality_name : "Información del hospital"}
+      onBack={selectedPlan ? () => setSelectedPlanId(null) : onBack}
     >
-      <ScreenHeader
-        title={selectedPlan ? selectedPlan.speciality_name : "Información del hospital"}
-        onBack={selectedPlan ? () => setSelectedPlanId(null) : onBack}
-        compact
-        variant="brand"
-        titleNumberOfLines={selectedPlan ? 2 : 1}
-      />
-
-      <View style={styles.scrollContent}>
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+      >
+        <View style={styles.scrollContent}>
         {profileLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={PRIMARY} />
@@ -575,8 +571,9 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
             </View>
           </>
         )}
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </HeroScreenLayout>
   );
 }
 

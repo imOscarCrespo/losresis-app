@@ -15,6 +15,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Country, City } from "country-state-city";
 import { COLORS } from "../constants/colors";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
+import { SwipeBackWrapper } from "../components/SwipeBackWrapper";
 import { SelectorModal } from "../components/SelectorModal";
 import { SelectFilter, ConfirmationModal, DirectChatButton } from "../components";
 import { usePersistedFilters } from "../hooks/usePersistedFilters";
@@ -2182,16 +2183,18 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   }
 
   if (route.name === "detail" && selectedReview?.id) {
+    const handleBackFromRotationDetail = () =>
+      setRoute({ name: route.payload?.from || "explore", payload: null });
     return (
-      <RotationReviewDetailScreen
-        reviewId={selectedReview.id}
-        userId={userId}
-        onBack={() =>
-          setRoute({ name: route.payload?.from || "explore", payload: null })
-        }
-        onContact={handleOpenAppChat}
-        onFavoriteChanged={refreshAll}
-      />
+      <SwipeBackWrapper onSwipeBack={handleBackFromRotationDetail}>
+        <RotationReviewDetailScreen
+          reviewId={selectedReview.id}
+          userId={userId}
+          onBack={handleBackFromRotationDetail}
+          onContact={handleOpenAppChat}
+          onFavoriteChanged={refreshAll}
+        />
+      </SwipeBackWrapper>
     );
   }
 

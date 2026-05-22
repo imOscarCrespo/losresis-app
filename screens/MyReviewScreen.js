@@ -518,14 +518,10 @@ const styles = StyleSheet.create({
   },
   heroShell: {
     position: "relative",
-    zIndex: 2,
-    elevation: 2,
   },
   contentShell: {
     flex: 1,
-    marginTop: -18,
     position: "relative",
-    zIndex: 1,
   },
   scroll: {
     flex: 1,
@@ -545,22 +541,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusChipGreen: {
-    backgroundColor: "rgba(255,255,255,0.14)",
-    borderColor: "rgba(255,255,255,0.24)",
+    backgroundColor: "rgba(0,189,124,0.12)",
+    borderColor: "rgba(0,189,124,0.28)",
   },
   statusChipOrange: {
-    backgroundColor: "rgba(255,255,255,0.16)",
-    borderColor: "rgba(255,255,255,0.28)",
+    backgroundColor: "rgba(217,119,6,0.12)",
+    borderColor: "rgba(217,119,6,0.28)",
   },
   statusChipText: {
     fontSize: 12,
     fontWeight: "700",
   },
   statusChipTextGreen: {
-    color: "#FFFFFF",
+    color: "#00BD7C",
   },
   statusChipTextOrange: {
-    color: "#FFFFFF",
+    color: "#D97706",
   },
 
   // ── Alerts ──

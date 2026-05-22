@@ -9,6 +9,7 @@ import HospitalsScreen from "./HospitalsScreen";
 import HospitalDetailScreen from "./HospitalDetailScreen";
 import HospitalInfoScreen from "./HospitalInfoScreen";
 import MirSimulatorScreen from "./MirSimulatorScreen";
+import MirOrientationScreen from "./MirOrientationScreen";
 import ProfileScreen from "./ProfileScreen";
 import MenuScreen from "./MenuScreen";
 import MyPreferencesScreen from "./MyPreferencesScreen";
@@ -1270,6 +1271,14 @@ export default function DashboardScreen({
           />
         );
 
+      case "orientador-mir":
+        return (
+          <MirOrientationScreen
+            onBack={handleBackFromMirSimulator}
+            userProfile={userProfile}
+          />
+        );
+
       case "specialityQuiz":
         return (
           <SpecialityQuizScreen
@@ -1524,31 +1533,35 @@ export default function DashboardScreen({
 
       case "residentPayoutDetail":
         return (
-          <ResidentPayoutDetailScreen
-            userProfile={userProfile}
-            onBack={handleBackFromGenericSection}
-            onEdit={(params = {}) =>
-              handleSectionChange("residentPayoutEntry", {
-                initialYear: params.initialYear || residentPayoutRouteParams.initialYear,
-                initialMonth:
-                  params.initialMonth || residentPayoutRouteParams.initialMonth,
-                lockInitialPeriod: Boolean(params.lockInitialPeriod),
-              })
-            }
-            initialYear={residentPayoutRouteParams.initialYear}
-            initialMonth={residentPayoutRouteParams.initialMonth}
-          />
+          <SwipeBackWrapper onSwipeBack={handleBackFromGenericSection}>
+            <ResidentPayoutDetailScreen
+              userProfile={userProfile}
+              onBack={handleBackFromGenericSection}
+              onEdit={(params = {}) =>
+                handleSectionChange("residentPayoutEntry", {
+                  initialYear: params.initialYear || residentPayoutRouteParams.initialYear,
+                  initialMonth:
+                    params.initialMonth || residentPayoutRouteParams.initialMonth,
+                  lockInitialPeriod: Boolean(params.lockInitialPeriod),
+                })
+              }
+              initialYear={residentPayoutRouteParams.initialYear}
+              initialMonth={residentPayoutRouteParams.initialMonth}
+            />
+          </SwipeBackWrapper>
         );
 
       case "residentPayoutEntry":
         return (
-          <ResidentPayoutEntryScreen
-            userProfile={userProfile}
-            onBack={handleBackFromGenericSection}
-            initialYear={residentPayoutRouteParams.initialYear}
-            initialMonth={residentPayoutRouteParams.initialMonth}
-            lockInitialPeriod={residentPayoutRouteParams.lockInitialPeriod}
-          />
+          <SwipeBackWrapper onSwipeBack={handleBackFromGenericSection}>
+            <ResidentPayoutEntryScreen
+              userProfile={userProfile}
+              onBack={handleBackFromGenericSection}
+              initialYear={residentPayoutRouteParams.initialYear}
+              initialMonth={residentPayoutRouteParams.initialMonth}
+              lockInitialPeriod={residentPayoutRouteParams.lockInitialPeriod}
+            />
+          </SwipeBackWrapper>
         );
 
       case "grupos":

@@ -13,8 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/colors";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { formatShortDate, formatLongDate } from "../utils/dateUtils";
 import {
   getThreadById,
@@ -343,18 +342,10 @@ export default function ThreadDetailScreen({
   );
 
   return (
-    <ScreenScaffold
-      header={
-        <ScreenHeader
-          title={thread?.title || "Thread"}
-          onBack={onBack}
-          compact
-          variant="brand"
-          titleNumberOfLines={1}
-        />
-      }
-      headerShellVariant="brand"
-      contentSurfaceStyle={styles.container}
+    <HeroScreenLayout
+      title={thread?.title || "Thread"}
+      onBack={onBack}
+      contentStyle={styles.container}
     >
       {/* Content */}
       {loading ? (
@@ -507,7 +498,7 @@ export default function ThreadDetailScreen({
         bottom={20}
         right={20}
       />
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 

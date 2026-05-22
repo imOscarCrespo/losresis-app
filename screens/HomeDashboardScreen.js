@@ -1058,6 +1058,15 @@ export default function HomeDashboardScreen({
               </View>
               <Text style={styles.quickActionLabel}>Preferencias</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => onSectionChange?.("orientador-mir")}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: `${PRIMARY}20` }]}>
+                <Ionicons name="compass-outline" size={22} color={PRIMARY} />
+              </View>
+              <Text style={styles.quickActionLabel}>Orientador MIR</Text>
+            </TouchableOpacity>
           </View>
 
           {!loadingDashboardAds && carouselHasAds && (

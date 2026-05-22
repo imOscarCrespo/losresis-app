@@ -1,36 +1,63 @@
 import React, { useRef } from "react";
-import { View, StyleSheet, Platform } from "react-native";
-import {
-  GestureDetector,
-  Gesture,
-} from "react-native-gesture-handler";
+import { View, StyleSheet, Platform, Animated, Dimensions } from "react-native";
+import { GestureDetector, Gesture } from "react-native-gesture-handler";
+
+const COMPLETE_THRESHOLD_RATIO = 0.35; // El swipe completa si supera el 35% del ancho
+const VELOCITY_THRESHOLD = 800; // px/s: un flick rápido también completa
+const COMPLETE_DURATION = 220; // ms para deslizar hasta el borde derecho
 
 /**
  * Componente wrapper que detecta el gesto de swipe desde el borde izquierdo
- * hacia la derecha para navegar hacia atrás (gesto nativo iOS/Android)
+ * hacia la derecha para navegar hacia atrás (gesto nativo iOS).
+ *
+ * Durante el gesto el contenido sigue al dedo (translateX). Al soltar:
+ *  - si el desplazamiento supera el umbral (o el flick es rápido), completa la
+ *    transición deslizando hasta el borde derecho y luego llama a onSwipeBack.
+ *  - si no, vuelve suavemente a su posición (snap-back) sin navegar.
  *
  * @param {object} props
  * @param {React.ReactNode} props.children - Contenido a envolver
- * @param {function} props.onSwipeBack - Callback que se ejecuta cuando se detecta el gesto
- * @param {number} props.edgeWidth - Ancho del área sensible al gesto desde el borde (default: 80)
- * @param {number} props.minSwipeDistance - Distancia mínima de swipe para activar (default: 30)
+ * @param {function} props.onSwipeBack - Callback que se ejecuta al completar el gesto
+ * @param {number} props.edgeWidth - Ancho del área sensible desde el borde (default: 80)
+ * @param {number} props.minSwipeDistance - Distancia mínima para activar el gesto (default: 30)
  */
 export const SwipeBackWrapper = ({
   children,
   onSwipeBack,
-  edgeWidth = 80, // Aumentado significativamente para capturar gestos desde el borde izquierdo
-  minSwipeDistance = 30, // Reducido para que sea más fácil de activar
+  edgeWidth = 80,
+  minSwipeDistance = 30,
 }) => {
-  if (Platform.OS !== "ios") {
-    return <View style={styles.container}>{children}</View>;
-  }
-
+  // Todos los hooks deben declararse antes de cualquier return condicional.
   const startX = useRef(null);
   const isValidGesture = useRef(false);
+  const translateX = useRef(new Animated.Value(0)).current;
+  const screenWidth = useRef(Dimensions.get("window").width).current;
   const maxVerticalDrift = 24;
 
-  // Crear gesto de pan (arrastre) que detecta desde el borde izquierdo
-  // Configurado para activarse solo cuando comienza desde el borde izquierdo de la pantalla
+  const completeThreshold = screenWidth * COMPLETE_THRESHOLD_RATIO;
+
+  const animateBack = () => {
+    Animated.spring(translateX, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 60,
+      friction: 9,
+    }).start();
+  };
+
+  const animateComplete = () => {
+    Animated.timing(translateX, {
+      toValue: screenWidth,
+      duration: COMPLETE_DURATION,
+      useNativeDriver: true,
+    }).start(() => {
+      onSwipeBack?.();
+      // Reset defensivo: el padre normalmente desmonta el detalle tras navegar.
+      translateX.setValue(0);
+    });
+  };
+
+  // Gesto de pan que detecta el arrastre desde el borde izquierdo hacia la derecha.
   const panGesture = Gesture.Pan()
     .minPointers(1)
     .maxPointers(1)
@@ -38,55 +65,73 @@ export const SwipeBackWrapper = ({
     .activeOffsetX(minSwipeDistance)
     .failOffsetY([-maxVerticalDrift, maxVerticalDrift])
     .onStart((event) => {
-      // Usar absoluteX que es la posición absoluta en la pantalla
-      // Si no está disponible, usar x como fallback
+      // absoluteX es la posición absoluta en la pantalla; x como fallback.
       const initialX = event.absoluteX !== undefined ? event.absoluteX : event.x;
       startX.current = initialX;
-      // El gesto es válido si comienza cerca del borde izquierdo de la pantalla
+      // El gesto es válido si comienza cerca del borde izquierdo.
       isValidGesture.current = initialX <= edgeWidth;
     })
     .onUpdate((event) => {
-      // Si el gesto no comenzó desde el borde, ignorarlo
       if (!isValidGesture.current || startX.current === null) {
         return;
       }
 
-      // Verificar que el movimiento sea principalmente horizontal hacia la derecha
       const horizontalMovement = event.translationX;
       const verticalMovement = Math.abs(event.translationY);
 
-      // Si el gesto se convierte en scroll vertical o se mueve hacia la izquierda, lo invalidamos
+      // Si deriva en vertical o se mueve hacia la izquierda, invalidamos y volvemos.
       if (verticalMovement > maxVerticalDrift || horizontalMovement < -5) {
         isValidGesture.current = false;
+        animateBack();
+        return;
       }
+
+      // El contenido sigue al dedo, clampeado a [0, screenWidth].
+      const clamped = Math.max(0, Math.min(horizontalMovement, screenWidth));
+      translateX.setValue(clamped);
     })
     .onEnd((event) => {
-      // Verificar que el gesto comenzó desde el borde izquierdo de la pantalla
-      // y se movió lo suficiente hacia la derecha
-      if (
+      const valid =
         isValidGesture.current &&
         startX.current !== null &&
         startX.current <= edgeWidth &&
-        event.translationX > minSwipeDistance &&
-        Math.abs(event.translationY) <= maxVerticalDrift
-      ) {
-        onSwipeBack?.();
+        Math.abs(event.translationY) <= maxVerticalDrift;
+
+      const shouldComplete =
+        valid &&
+        (event.translationX > completeThreshold ||
+          event.velocityX > VELOCITY_THRESHOLD);
+
+      if (shouldComplete) {
+        animateComplete();
+      } else {
+        animateBack();
       }
-      // Resetear estado
+
       startX.current = null;
       isValidGesture.current = false;
     })
     .onFinalize(() => {
-      // Resetear estado
+      // Si el gesto se cancela sin pasar por onEnd, aseguramos volver a 0.
+      if (isValidGesture.current) {
+        animateBack();
+      }
       startX.current = null;
       isValidGesture.current = false;
     });
 
+  // Return condicional después de declarar todos los hooks.
+  if (Platform.OS !== "ios") {
+    return <View style={styles.container}>{children}</View>;
+  }
+
   return (
     <GestureDetector gesture={panGesture}>
-      <View style={styles.container}>
+      <Animated.View
+        style={[styles.container, { transform: [{ translateX }] }]}
+      >
         {children}
-      </View>
+      </Animated.View>
     </GestureDetector>
   );
 };

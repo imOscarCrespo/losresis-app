@@ -981,12 +981,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(103,12,245,0.10)",
   },
   headerCounterText: {
     fontSize: 12,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#670CF5",
   },
   contentSurface: {
     flex: 1,

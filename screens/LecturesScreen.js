@@ -450,7 +450,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
           <Ionicons
             name={showCreatedCourses ? "person" : "person-outline"}
             size={14}
-            color={showCreatedCourses ? PRIMARY : "#FFFFFF"}
+            color={showCreatedCourses ? "#FFFFFF" : PRIMARY}
           />
           <Text
             style={[
@@ -699,20 +699,20 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
-    backgroundColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(103,12,245,0.20)",
+    backgroundColor: "rgba(103,12,245,0.10)",
   },
   myCoursesChipActive: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "#FFFFFF",
+    backgroundColor: PRIMARY,
+    borderColor: PRIMARY,
   },
   myCoursesChipText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: PRIMARY,
   },
   myCoursesChipTextActive: {
-    color: PRIMARY,
+    color: "#FFFFFF",
   },
   chip: {
     flexDirection: "row",

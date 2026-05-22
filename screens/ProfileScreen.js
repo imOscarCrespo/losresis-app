@@ -17,9 +17,7 @@ import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
-import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { SelectFilter } from "../components/SelectFilter";
 import { Button } from "../components/Button";
 import { EmailReviewSection } from "../components/EmailReviewSection";
@@ -827,23 +825,10 @@ export default function ProfileScreen({
   }
 
   return (
-    <ScreenScaffold
-      style={styles.safeArea}
-      header={
-        isOnboarding ? (
-          <ScreenHeader
-            title="Completa tu perfil"
-            centerTitle
-            compact
-          />
-        ) : (
-          <BottomMenuHeroHeader
-            title="Mi perfil"
-            subtitle="Completa tus datos personales y profesionales para desbloquear todas las funciones de la plataforma."
-          />
-        )
-      }
-      contentSurfaceStyle={styles.contentSurface}
+    <HeroScreenLayout
+      containerStyle={styles.safeArea}
+      title={isOnboarding ? "Completa tu perfil" : "Mi perfil"}
+      contentStyle={styles.contentSurface}
     >
         <KeyboardAwareScrollView
           style={[styles.scrollView, !isOnboarding && styles.scrollViewWithHero]}
@@ -1480,7 +1465,7 @@ export default function ProfileScreen({
           </Pressable>
         </Pressable>
       </Modal>
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 
@@ -1497,7 +1482,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollViewWithHero: {
-    marginTop: -18,
+    marginTop: 0,
   },
   scrollViewContent: {
     paddingBottom: 32,

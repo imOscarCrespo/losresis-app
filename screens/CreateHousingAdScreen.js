@@ -634,7 +634,7 @@ export default function CreateHousingAdScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: BG_LIGHT,
+    backgroundColor: "#F8F9FE",
   },
 
   // ── Scroll ──

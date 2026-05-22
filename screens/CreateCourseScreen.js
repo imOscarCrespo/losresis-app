@@ -18,8 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
   KeyboardDismissAccessory,
   KEYBOARD_DISMISS_ACCESSORY_ID,
@@ -458,17 +457,10 @@ export default function CreateCourseScreen({
   }, [courseId, formData, isEditMode, onBack, onSuccess, validate]);
 
   return (
-    <ScreenScaffold
-      headerShellVariant="brand"
-      contentSurfaceStyle={styles.contentSurface}
-      header={
-        <ScreenHeader
-          title={isEditMode ? "Editar curso o congreso" : "Nuevo curso o congreso"}
-          onBack={onBack}
-          compact
-          variant="brand"
-        />
-      }
+    <HeroScreenLayout
+      title={isEditMode ? "Editar curso o congreso" : "Nuevo curso o congreso"}
+      onBack={onBack}
+      contentStyle={styles.contentSurface}
     >
       <KeyboardAwareScrollView
         style={styles.formScroll}
@@ -680,7 +672,7 @@ export default function CreateCourseScreen({
           </View>
         </View>
       ) : null}
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 

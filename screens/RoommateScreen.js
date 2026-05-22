@@ -573,7 +573,6 @@ const styles = StyleSheet.create({
   },
   tabsRow: {
     marginHorizontal: 18,
-    marginTop: -4,
     flexDirection: "row",
     gap: 8,
   },

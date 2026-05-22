@@ -654,7 +654,7 @@ export const AgendaScreen = ({ userProfile }) => {
               style={styles.heroIconButton}
               onPress={() => setShowTeamCalendar(true)}
             >
-              <Ionicons name="people-outline" size={20} color={COLORS.WHITE} />
+              <Ionicons name="people-outline" size={20} color={COLORS.PRIMARY} />
             </TouchableOpacity>
           }
           bottomContent={
@@ -1253,14 +1253,10 @@ const styles = StyleSheet.create({
   },
   heroShell: {
     position: "relative",
-    zIndex: 2,
-    elevation: 2,
   },
   contentShell: {
     flex: 1,
-    marginTop: -18,
     position: "relative",
-    zIndex: 1,
   },
   scrollContent: {
     paddingBottom: 112,
@@ -1271,7 +1267,7 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(103,12,245,0.10)",
   },
   heroMonthCard: {
     marginTop: 18,

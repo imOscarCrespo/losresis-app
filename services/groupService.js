@@ -205,7 +205,12 @@ export const getGroupUnreadCounts = async (groupIds = []) => {
     });
 
     if (error) {
-      console.error("Error fetching group unread counts:", error);
+      console.error("Error fetching group unread counts:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
       return { success: false, unreadByGroupId: {}, error: error.message };
     }
 
@@ -221,8 +226,8 @@ export const getGroupUnreadCounts = async (groupIds = []) => {
 
     return { success: true, unreadByGroupId, error: null };
   } catch (error) {
-    console.error("Exception in getGroupUnreadCounts:", error);
-    return { success: false, unreadByGroupId: {}, error: error.message };
+    console.error("Exception in getGroupUnreadCounts:", error?.message || error);
+    return { success: false, unreadByGroupId: {}, error: error?.message };
   }
 };
 

@@ -1,8 +1,8 @@
 import React, { useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { MenuGrid } from "../components/MenuGrid";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { NAVIGATION_ITEMS } from "../constants/navigationItems";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
@@ -40,16 +40,15 @@ export default function MenuScreen({
   }, []);
 
   return (
-    <ScreenScaffold
-      header={
-        <ScreenHeader
-          title="Menú"
-          onBack={onBack}
-          iconName="grid-outline"
-          compact
-        />
+    <HeroScreenLayout
+      title="Menú"
+      onBack={onBack}
+      rightSlot={
+        <View style={styles.headerIconCircle}>
+          <Ionicons name="grid-outline" size={20} color="#670CF5" />
+        </View>
       }
-      contentSurfaceStyle={styles.contentSurface}
+      contentStyle={styles.contentSurface}
     >
       <ScrollView
         style={styles.content}
@@ -67,13 +66,21 @@ export default function MenuScreen({
           showNotificationsBadge={hasOtherUnread}
         />
       </ScrollView>
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
   contentSurface: {
     backgroundColor: COLORS.BACKGROUND,
+  },
+  headerIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F3E8FF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   content: {
     flex: 1,

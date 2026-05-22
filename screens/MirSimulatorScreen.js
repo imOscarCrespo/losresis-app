@@ -21,7 +21,7 @@ import { getAdvertisementsByPlacement } from "../services/dashboardAdvertisement
 
 const PRIMARY = "#670CF5";
 const INDIGO = "#1B0977";
-const BG_LIGHT = "#F8FAFC";
+const BG_LIGHT = "#F8F9FE";
 
 export default function MirSimulatorScreen({ onBack, userProfile }) {
   const { specialties, uniqueRegions } = useHospitals();
@@ -520,14 +520,10 @@ const styles = StyleSheet.create({
   },
   heroShell: {
     position: "relative",
-    zIndex: 2,
-    elevation: 2,
   },
   contentShell: {
     flex: 1,
-    marginTop: -8,
     position: "relative",
-    zIndex: 1,
   },
   scrollContent: {
     paddingBottom: 24,

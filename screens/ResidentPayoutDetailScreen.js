@@ -8,12 +8,10 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Button, ScreenHeader, ScreenScaffold } from "../components";
+import { Button } from "../components";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLORS } from "../constants/colors";
-import {
-  formatPayoutPeriodLabel,
-  getResidentPayoutForMonth,
-} from "../services/residentPayoutService";
+import { getResidentPayoutForMonth } from "../services/residentPayoutService";
 
 const formatCurrency = (value) =>
   Number(value || 0).toLocaleString("es-ES", {
@@ -113,18 +111,17 @@ export default function ResidentPayoutDetailScreen({
     })).filter((item) => item.value > 0);
   }, [row]);
 
-  const header = (
-    <ScreenHeader
-      title="Detalle nómina"
-      subtitle={formatPayoutPeriodLabel(initialYear, initialMonth)}
-      onBack={onBack}
-      compact
-      iconName="cash-outline"
-    />
-  );
-
   return (
-    <ScreenScaffold header={header} contentSurfaceStyle={styles.contentSurface}>
+    <HeroScreenLayout
+      title="Detalle nómina"
+      onBack={onBack}
+      rightSlot={
+        <View style={styles.headerIconCircle}>
+          <Ionicons name="cash-outline" size={20} color="#670CF5" />
+        </View>
+      }
+      contentStyle={styles.contentSurface}
+    >
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#670CF5" />
@@ -194,13 +191,21 @@ export default function ResidentPayoutDetailScreen({
           />
         </ScrollView>
       ) : null}
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
   contentSurface: {
     backgroundColor: COLORS.BACKGROUND,
+  },
+  headerIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F3E8FF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   loadingContainer: {
     flex: 1,

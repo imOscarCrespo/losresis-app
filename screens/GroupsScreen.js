@@ -42,7 +42,7 @@ import posthogLogger from "../services/posthogService";
 const PRIMARY = "#6D28D9";
 const ACCENT = "#2E1065";
 const GREEN = "#10B981";
-const BG = "#F5F3FF";
+const BG = "#F8F9FE";
 const WHITE = "#FFFFFF";
 const TEXT_MEDIUM = "#64748B";
 const TEXT_LIGHT = "#94A3B8";
@@ -1469,14 +1469,10 @@ const styles = StyleSheet.create({
   },
   heroShell: {
     position: "relative",
-    zIndex: 2,
-    elevation: 2,
   },
   contentShell: {
     flex: 1,
-    marginTop: -18,
     position: "relative",
-    zIndex: 1,
   },
   listContent: {
     paddingBottom: 16,

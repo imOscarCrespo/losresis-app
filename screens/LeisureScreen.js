@@ -7,8 +7,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
 
@@ -103,16 +102,15 @@ export default function LeisureScreen({ onSectionChange, onBack, userProfile }) 
   ];
 
   return (
-    <ScreenScaffold
-      header={
-        <ScreenHeader
-          title="Ocio"
-          onBack={onBack}
-          iconName="wine-outline"
-          compact
-        />
+    <HeroScreenLayout
+      title="Ocio"
+      onBack={onBack}
+      rightSlot={
+        <View style={styles.headerIconCircle}>
+          <Ionicons name="wine-outline" size={20} color="#670CF5" />
+        </View>
       }
-      contentSurfaceStyle={styles.contentSurface}
+      contentStyle={styles.contentSurface}
     >
       <ScrollView
         style={styles.content}
@@ -131,13 +129,21 @@ export default function LeisureScreen({ onSectionChange, onBack, userProfile }) 
           </View>
         </View>
       </ScrollView>
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
   contentSurface: {
     backgroundColor: COLORS.BACKGROUND,
+  },
+  headerIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F3E8FF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   content: {
     flex: 1,

@@ -37,7 +37,7 @@ export const HeroScreenLayout = ({
             accessibilityRole="button"
             accessibilityLabel="Volver"
           >
-            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={22} color="#670CF5" />
           </TouchableOpacity>
         )
       : null;
@@ -79,14 +79,11 @@ const styles = StyleSheet.create({
   },
   heroShell: {
     position: "relative",
-    zIndex: 2,
-    elevation: 2,
     marginBottom: 12,
   },
   contentShell: {
     flex: 1,
     position: "relative",
-    zIndex: 1,
   },
   backBtn: {
     width: 36,
@@ -94,6 +91,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(103,12,245,0.10)",
   },
 });

@@ -11,8 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
-import { ScreenHeader } from "../components/ScreenHeader";
-import { ScreenScaffold } from "../components/ScreenScaffold";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { StarRating } from "../components/StarRating";
 import { useMyReview } from "../hooks/useMyReview";
 import { COLORS } from "../constants/colors";
@@ -147,12 +146,11 @@ export default function ReviewComposerScreen({
     reviewQuestions,
   ]);
 
-  const header = (
-    <ScreenHeader
+  return (
+    <HeroScreenLayout
       title={isEditing ? "Editar reseña" : "Nueva reseña"}
       onBack={onBack}
-      compact
-      variant="brand"
+      contentStyle={styles.contentSurface}
       rightSlot={
         <TouchableOpacity
           style={[styles.headerAction, loading && styles.headerActionDisabled]}
@@ -161,7 +159,7 @@ export default function ReviewComposerScreen({
           activeOpacity={0.8}
         >
           {loading ? (
-            <ActivityIndicator size="small" color={WHITE} />
+            <ActivityIndicator size="small" color={PRIMARY} />
           ) : (
             <Text style={styles.headerCta}>
               {isEditing ? "Actualizar" : "Enviar"}
@@ -169,14 +167,6 @@ export default function ReviewComposerScreen({
           )}
         </TouchableOpacity>
       }
-    />
-  );
-
-  return (
-    <ScreenScaffold
-      header={header}
-      headerShellVariant="brand"
-      contentSurfaceStyle={styles.contentSurface}
     >
       {loadingQuestions || (isEditing && loading && !existingReview) ? (
         <View style={styles.loadingState}>
@@ -309,7 +299,7 @@ export default function ReviewComposerScreen({
           </View>
         </KeyboardAwareScrollView>
       )}
-    </ScreenScaffold>
+    </HeroScreenLayout>
   );
 }
 
@@ -321,7 +311,7 @@ const styles = StyleSheet.create({
   headerCta: {
     fontSize: 14,
     fontWeight: "700",
-    color: WHITE,
+    color: PRIMARY,
   },
   headerAction: {
     minWidth: 92,
@@ -330,9 +320,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 14,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(103,12,245,0.10)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.24)",
+    borderColor: "rgba(103,12,245,0.24)",
   },
   headerActionDisabled: {
     opacity: 0.7,

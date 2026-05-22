@@ -295,7 +295,7 @@ export default function CourseDetailScreen({
                 onPress={() => onEdit(course.id)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="pencil-outline" size={18} color="#FFFFFF" />
+                <Ionicons name="pencil-outline" size={18} color="#670CF5" />
               </TouchableOpacity>
             ) : null}
             {onDelete ? (
@@ -304,7 +304,7 @@ export default function CourseDetailScreen({
                 onPress={handleDelete}
                 activeOpacity={0.7}
               >
-                <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+                <Ionicons name="trash-outline" size={18} color="#EF4444" />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -496,12 +496,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(103,12,245,0.10)",
     alignItems: "center",
     justifyContent: "center",
   },
   headerDangerButton: {
-    backgroundColor: "rgba(239,68,68,0.22)",
+    backgroundColor: "rgba(239,68,68,0.12)",
   },
   scrollView: {
     flex: 1,

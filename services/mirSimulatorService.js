@@ -4,6 +4,7 @@ import { fetchHospitalsCache } from "./hospitalService";
 import {
   getHospitalSpecialityCatalog,
   getHospitalSpecialityGradesCatalog,
+  getSpecialityByIdFromCatalog,
 } from "./staticCatalogService";
 
 /**
@@ -44,6 +45,88 @@ const fetchGradesInBatches = async (hospitalIds, specialtyId) => {
       if (hospitalOrder !== 0) return hospitalOrder;
       return Number(a.year || 0) - Number(b.year || 0);
     });
+};
+
+/**
+ * Calcular la probabilidad de un hospital (para una especialidad) a partir de sus
+ * registros históricos de notas de corte. Lógica compartida por el simulador MIR
+ * (calculateMIRProbabilities) y el Orientador MIR (calculateMIROrientation) para
+ * garantizar resultados consistentes entre ambas pantallas.
+ *
+ * @param {Array} hospitalGrades - Registros { year, slots, grades|grade|rate } de un hospital/especialidad
+ * @param {number} mirScore - Posición del usuario en el MIR
+ * @returns {{ probability: string, grades: Array<{year:string, grade:number|null}>, yearsUsed: number, currentYearSlots: number|null }}
+ */
+export const computeHospitalProbability = (hospitalGrades, mirScore) => {
+  const grades = [];
+
+  (hospitalGrades || []).forEach((record) => {
+    const year = parseInt(record.year);
+    if (isNaN(year)) return;
+
+    // Get the grade - use highest if array
+    let score = record.rate || record.grade || record.grades;
+
+    if (Array.isArray(score) && score.length > 0) {
+      score = Math.max(...score);
+    } else if (score !== null && score !== undefined) {
+      score = typeof score === "string" ? parseFloat(score) : score;
+    }
+
+    if (!isNaN(score) && score !== null && score !== undefined) {
+      grades.push({ year: year.toString(), grade: score });
+    } else {
+      grades.push({ year: year.toString(), grade: null });
+    }
+  });
+
+  // Sort by year (most recent first)
+  grades.sort((a, b) => parseInt(b.year) - parseInt(a.year));
+
+  // Calculate probability
+  const validGrades = grades.filter(
+    (g) => g.grade !== null && g.grade !== undefined && typeof g.grade === "number"
+  );
+
+  let probability = "NA";
+
+  if (validGrades.length > 0) {
+    const aboveGradeCount = validGrades.filter(
+      (g) => g.grade && mirScore <= g.grade
+    ).length;
+    const probabilityPercentage = Math.round(
+      (aboveGradeCount / validGrades.length) * 100
+    );
+    probability = `${probabilityPercentage}%`;
+  }
+
+  // Get slots for current year
+  const currentYear = new Date().getFullYear();
+  const currentYearRecord = (hospitalGrades || []).find(
+    (record) => parseInt(record.year) === currentYear
+  );
+  const currentYearSlots =
+    currentYearRecord?.slots !== null && currentYearRecord?.slots !== undefined
+      ? currentYearRecord.slots
+      : null;
+
+  return { probability, grades, yearsUsed: validGrades.length, currentYearSlots };
+};
+
+/**
+ * Comparador para ordenar resultados por probabilidad (mayor primero); empates "NA"
+ * o sin probabilidad caen al final, desempatando por nombre.
+ */
+const compareByProbability = (a, b, getName) => {
+  if (a.probability === "NA" && b.probability === "NA") {
+    return getName(a).localeCompare(getName(b));
+  }
+  if (a.probability === "NA") return 1;
+  if (b.probability === "NA") return -1;
+
+  const probA = parseInt(a.probability.replace("%", ""));
+  const probB = parseInt(b.probability.replace("%", ""));
+  return probB - probA;
 };
 
 /**
@@ -195,91 +278,20 @@ export const calculateMIRProbabilities = async (
           return null; // Hospital doesn't offer this specialty
         }
 
-        // Convert grades to format expected by calculation
-        const grades = [];
-
-        hospitalGrades.forEach((record) => {
-          const year = parseInt(record.year);
-          if (isNaN(year)) return;
-
-          // Get the grade - use highest if array
-          let score = record.rate || record.grade || record.grades;
-
-          if (Array.isArray(score) && score.length > 0) {
-            score = Math.max(...score);
-          } else if (score !== null && score !== undefined) {
-            score = typeof score === "string" ? parseFloat(score) : score;
-          }
-
-          if (!isNaN(score) && score !== null && score !== undefined) {
-            grades.push({
-              year: year.toString(),
-              grade: score,
-            });
-          } else {
-            grades.push({
-              year: year.toString(),
-              grade: null,
-            });
-          }
-        });
-
-        // Sort by year (most recent first)
-        grades.sort((a, b) => parseInt(b.year) - parseInt(a.year));
-
-        // Calculate probability
-        const validGrades = grades.filter(
-          (g) =>
-            g.grade !== null &&
-            g.grade !== undefined &&
-            typeof g.grade === "number"
-        );
-
-        let probability = "NA";
-
-        if (validGrades.length > 0) {
-          const aboveGradeCount = validGrades.filter(
-            (g) => g.grade && mirScore <= g.grade
-          ).length;
-          const probabilityPercentage = Math.round(
-            (aboveGradeCount / validGrades.length) * 100
-          );
-          probability = `${probabilityPercentage}%`;
-        }
-
-        // Get slots for current year
-        const currentYear = new Date().getFullYear();
-        const currentYearRecord = hospitalGrades.find(
-          (record) => parseInt(record.year) === currentYear
-        );
-        const currentYearSlots =
-          currentYearRecord?.slots !== null &&
-          currentYearRecord?.slots !== undefined
-            ? currentYearRecord.slots
-            : null;
+        const { probability, grades, yearsUsed, currentYearSlots } =
+          computeHospitalProbability(hospitalGrades, mirScore);
 
         return {
           hospital: hospital,
           probability,
           grades,
-          yearsUsed: validGrades.length,
+          yearsUsed,
           currentYearSlots,
           info_note: infoNotesMap[hospital.id] || null,
         };
       })
       .filter((result) => result !== null)
-      .sort((a, b) => {
-        // Sort by probability (higher first), then by hospital name
-        if (a.probability === "NA" && b.probability === "NA") {
-          return a.hospital.name.localeCompare(b.hospital.name);
-        }
-        if (a.probability === "NA") return 1;
-        if (b.probability === "NA") return -1;
-
-        const probA = parseInt(a.probability.replace("%", ""));
-        const probB = parseInt(b.probability.replace("%", ""));
-        return probB - probA;
-      });
+      .sort((a, b) => compareByProbability(a, b, (r) => r.hospital.name));
 
     console.log(`✅ MIR results calculated: ${results.length} hospitals`);
 
@@ -295,5 +307,134 @@ export const calculateMIRProbabilities = async (
       results: [],
       error: error.message,
     };
+  }
+};
+
+// Umbral de probabilidad a partir del cual consideramos un hospital "accesible"
+const ACCESSIBLE_THRESHOLD = 50;
+
+const probabilityToNumber = (probability) =>
+  probability === "NA" ? -1 : parseInt(probability.replace("%", ""), 10);
+
+/**
+ * Orientador MIR (simulador inverso): a partir de una nota (número de orden) y,
+ * opcionalmente, una comunidad autónoma, recorre TODAS las especialidades y
+ * hospitales y devuelve las especialidades ordenadas por encaje con la nota.
+ *
+ * Reutiliza computeHospitalProbability para que las probabilidades por hospital
+ * coincidan exactamente con las del simulador MIR.
+ *
+ * @param {number} mirScore - Posición del usuario en el MIR
+ * @param {string|null} region - Comunidad autónoma (opcional)
+ * @returns {Promise<{success: boolean, results: Array, error: string|null}>}
+ */
+export const calculateMIROrientation = async (mirScore, region = null) => {
+  try {
+    if (!mirScore) {
+      return { success: false, results: [], error: "MIR score is required" };
+    }
+
+    const normalizedRegion =
+      region && typeof region === "string" && region.trim() !== ""
+        ? region.trim()
+        : null;
+
+    // Hospitales (filtrados por región si procede) indexados por id
+    const allHospitalsData = await fetchHospitalsCache();
+    if (!allHospitalsData) {
+      return { success: false, results: [], error: "No hospitals data received" };
+    }
+
+    const filteredHospitals = normalizedRegion
+      ? allHospitalsData.filter((h) => h.region === normalizedRegion)
+      : allHospitalsData;
+
+    const hospitalsById = {};
+    filteredHospitals.forEach((h) => {
+      if (h?.id) hospitalsById[h.id] = h;
+    });
+
+    if (Object.keys(hospitalsById).length === 0) {
+      return { success: true, results: [], error: null };
+    }
+
+    // Una sola pasada: agrupar registros por especialidad -> hospital
+    const bySpecialty = {};
+    getHospitalSpecialityGradesCatalog().forEach((row) => {
+      if (!hospitalsById[row.hospital_id]) return;
+      const specialtyMap =
+        bySpecialty[row.speciality_id] || (bySpecialty[row.speciality_id] = {});
+      const hospitalRecords =
+        specialtyMap[row.hospital_id] || (specialtyMap[row.hospital_id] = []);
+      hospitalRecords.push(row);
+    });
+
+    // Agregar por especialidad
+    const results = Object.entries(bySpecialty)
+      .map(([specialityId, hospitalMap]) => {
+        const hospitals = Object.entries(hospitalMap)
+          .map(([hospitalId, records]) => {
+            const hospital = hospitalsById[hospitalId];
+            if (!hospital) return null;
+
+            const { probability, grades, yearsUsed, currentYearSlots } =
+              computeHospitalProbability(records, mirScore);
+
+            return {
+              hospital,
+              probability,
+              grades,
+              yearsUsed,
+              currentYearSlots,
+            };
+          })
+          .filter((h) => h !== null)
+          .sort((a, b) => compareByProbability(a, b, (r) => r.hospital.name));
+
+        if (hospitals.length === 0) return null;
+
+        const specialityName =
+          getSpecialityByIdFromCatalog(specialityId)?.name || "Especialidad";
+
+        const accessibleCount = hospitals.filter(
+          (h) => probabilityToNumber(h.probability) >= ACCESSIBLE_THRESHOLD
+        ).length;
+
+        const maxProbability = hospitals.reduce(
+          (max, h) => Math.max(max, probabilityToNumber(h.probability)),
+          -1
+        );
+
+        const totalCurrentYearSlots = hospitals.reduce(
+          (sum, h) => sum + (h.currentYearSlots || 0),
+          0
+        );
+
+        return {
+          specialityId,
+          specialityName,
+          hospitals,
+          hospitalCount: hospitals.length,
+          accessibleCount,
+          maxProbability,
+          totalCurrentYearSlots,
+        };
+      })
+      .filter((s) => s !== null)
+      .sort((a, b) => {
+        // Ordenar por encaje: más hospitales accesibles, luego mayor probabilidad
+        if (b.accessibleCount !== a.accessibleCount) {
+          return b.accessibleCount - a.accessibleCount;
+        }
+        if (b.maxProbability !== a.maxProbability) {
+          return b.maxProbability - a.maxProbability;
+        }
+        return a.specialityName.localeCompare(b.specialityName);
+      });
+
+    return { success: true, results, error: null };
+  } catch (error) {
+    console.error("❌ Error calculating MIR orientation:", error);
+    return { success: false, results: [], error: error.message };
   }
 };

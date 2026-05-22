@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenHeader } from "../components/ScreenHeader";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
   getDetailedGrades,
   getHospitalProfileContent,
@@ -373,14 +373,13 @@ export default function HospitalDetailScreen({
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
-      nestedScrollEnabled
-    >
-      <ScreenHeader title="Hospitales" onBack={onBack} compact />
-
-      <View style={styles.scrollContent}>
+    <HeroScreenLayout title="Hospitales" onBack={onBack}>
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+      >
+        <View style={styles.scrollContent}>
         <View style={styles.hospitalCard}>
           <View style={styles.hospitalIconWrap}>
             <Ionicons name="business" size={26} color={PRIMARY} />
@@ -462,8 +461,9 @@ export default function HospitalDetailScreen({
             {filteredSpecialties.map(renderSpecialtyItem)}
           </View>
         )}
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </HeroScreenLayout>
   );
 }
 

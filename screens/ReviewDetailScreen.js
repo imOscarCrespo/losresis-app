@@ -10,7 +10,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenHeader } from "../components/ScreenHeader";
+import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { useReviewDetail } from "../hooks/useReviewDetail";
 import { formatLongDate } from "../utils/dateUtils";
@@ -109,37 +109,38 @@ export default function ReviewDetailScreen({
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ScreenHeader title="Reseñas" onBack={onBack} compact />
-        <View style={styles.stateContainer}>
-          <ActivityIndicator size="large" color={PRIMARY} />
-          <Text style={styles.loadingText}>Cargando reseña...</Text>
+      <HeroScreenLayout title="Reseñas" onBack={onBack}>
+        <View style={styles.container}>
+          <View style={styles.stateContainer}>
+            <ActivityIndicator size="large" color={PRIMARY} />
+            <Text style={styles.loadingText}>Cargando reseña...</Text>
+          </View>
         </View>
-      </View>
+      </HeroScreenLayout>
     );
   }
 
   if (error || !review) {
     return (
-      <View style={styles.container}>
-        <ScreenHeader title="Reseñas" onBack={onBack} compact />
-        <View style={styles.stateContainer}>
-          <View style={styles.stateIconWrap}>
-            <Ionicons name="alert-circle-outline" size={36} color={ERROR} />
+      <HeroScreenLayout title="Reseñas" onBack={onBack}>
+        <View style={styles.container}>
+          <View style={styles.stateContainer}>
+            <View style={styles.stateIconWrap}>
+              <Ionicons name="alert-circle-outline" size={36} color={ERROR} />
+            </View>
+            <Text style={styles.errorTitle}>Error al cargar la reseña</Text>
+            <Text style={styles.errorText}>
+              {error || "No se pudo encontrar la reseña solicitada."}
+            </Text>
           </View>
-          <Text style={styles.errorTitle}>Error al cargar la reseña</Text>
-          <Text style={styles.errorText}>
-            {error || "No se pudo encontrar la reseña solicitada."}
-          </Text>
         </View>
-      </View>
+      </HeroScreenLayout>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader title="Reseñas" onBack={onBack} compact />
-
+    <HeroScreenLayout title="Reseñas" onBack={onBack}>
+      <View style={styles.container}>
       <KeyboardAwareScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -390,7 +391,8 @@ export default function ReviewDetailScreen({
           )}
         </View>
       </Modal>
-    </View>
+      </View>
+    </HeroScreenLayout>
   );
 }
 

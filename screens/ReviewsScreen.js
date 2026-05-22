@@ -504,7 +504,6 @@ const styles = StyleSheet.create({
   },
   contentShell: {
     flex: 1,
-    marginTop: -18,
   },
   listHeader: {
     paddingHorizontal: 16,
@@ -512,17 +511,17 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   countBadge: {
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(103,12,245,0.10)",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: "rgba(103,12,245,0.18)",
   },
   countText: {
     fontSize: 10,
     fontWeight: "700",
-    color: WHITE,
+    color: "#670CF5",
     letterSpacing: 0.8,
   },
 

@@ -1366,7 +1366,7 @@ export default function ResidenceLibraryScreen({
             <Ionicons
               name={exportingPdf ? "hourglass-outline" : "document-text-outline"}
               size={18}
-              color="#FFFFFF"
+              color="#670CF5"
             />
           </TouchableOpacity>
           <TouchableOpacity
@@ -1382,7 +1382,7 @@ export default function ResidenceLibraryScreen({
             }
             disabled={isSelectedBookArchived}
           >
-            <Ionicons name="add" size={18} color="#FFFFFF" />
+            <Ionicons name="add" size={18} color="#670CF5" />
           </TouchableOpacity>
         </View>
       }
@@ -1697,9 +1697,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(103,12,245,0.10)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.24)",
+    borderColor: "rgba(103,12,245,0.20)",
   },
   headerActions: {
     flexDirection: "row",
