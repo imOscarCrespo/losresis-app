@@ -32,10 +32,6 @@ const USER_TYPES = [
  * Componente para seleccionar el tipo de usuario
  */
 export const UserTypeSelector = ({ selectedType, onTypeChange }) => {
-  const isResidentSelected = selectedType === "resident";
-  const residentHelperText =
-    "Te pediremos hospital, especialidad y año. Si ya tienes email corporativo, úsalo para validarlo al momento. Si aún no lo tienes por el periodo de transición MIR, podrás completar el resto ahora y añadirlo después.";
-
   return (
     <View style={styles.container}>
       <Text style={styles.title}>¿Cómo usas la app ahora mismo?</Text>
@@ -94,14 +90,6 @@ export const UserTypeSelector = ({ selectedType, onTypeChange }) => {
           );
         })}
       </View>
-      {isResidentSelected ? (
-        <View style={styles.helperCard}>
-          <Ionicons name="sparkles-outline" size={18} color={COLORS.PRIMARY_DARK} />
-          <Text style={styles.helperText}>
-            {residentHelperText}
-          </Text>
-        </View>
-      ) : null}
     </View>
   );
 };
@@ -180,22 +168,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.SURFACE,
-  },
-  helperCard: {
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: COLORS.PRIMARY_SOFT,
-    borderWidth: 1,
-    borderColor: "#D8B4FE",
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-  },
-  helperText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 19,
-    color: COLORS.TEXT_MEDIUM,
   },
 });

@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Platform,
+  Keyboard,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
@@ -60,6 +61,7 @@ export const DatePickerInput = ({
   };
 
   const handlePress = () => {
+    Keyboard.dismiss();
     setShow(true);
   };
 

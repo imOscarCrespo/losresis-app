@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   AppState,
   View,
@@ -11,6 +11,7 @@ import {
   Modal,
   Pressable,
   Keyboard,
+  findNodeHandle,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -22,6 +23,7 @@ import { SelectFilter } from "../components/SelectFilter";
 import { Button } from "../components/Button";
 import { EmailReviewSection } from "../components/EmailReviewSection";
 import { ProfileStatusCard } from "../components/ProfileStatusCard";
+import { ProfileAvatarEditor } from "../components/ProfileAvatarEditor";
 import { UserTypeSelector } from "../components/UserTypeSelector";
 import { useHospitals } from "../hooks/useHospitals";
 import { useEmailDomainValidation } from "../hooks/useEmailDomainValidation";
@@ -46,6 +48,7 @@ import {
 } from "../services/biometricService";
 import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
 import { RESIDENT_YEAR_OPTIONS } from "../constants/profileConstants";
+import { MOCK_SOURCES } from "../services/mirProjectionService";
 import { COLORS } from "../constants/colors";
 import {
   prepareHospitalOptions,
@@ -55,12 +58,10 @@ import {
 import posthogLogger from "../services/posthogService";
 import Constants from "expo-constants";
 import {
-  PENDING_RESIDENT_ACTIVATION_KIND,
   RESIDENT_STATE,
   canResidentUseSeasonalGrace,
   formatResidentTransitionDeadline,
   getResidentState,
-  getPendingResidentActivationKind,
   getProfileDraftType,
 } from "../utils/residentAccess";
 
@@ -118,7 +119,13 @@ export default function ProfileScreen({
   currentSection,
   isOnboarding = false,
   onProfileComplete,
+  rejectedEmailBanner = false,
+  lockedSeasonalBanner = false,
+  autoFocusWorkEmail = false,
+  onAutoFocusWorkEmailHandled,
 }) {
+  const scrollViewRef = useRef(null);
+  const workEmailSectionRef = useRef(null);
   const { hospitals, specialties, uniqueCities } = useHospitals();
   const { validateEmailDomain, loading: validatingEmail } =
     useEmailDomainValidation();
@@ -330,25 +337,12 @@ export default function ProfileScreen({
         return;
       }
 
-      const pendingProfileData =
-        userProfile?.is_student && !userProfile?.is_resident
-          ? {
-              ...formData,
-              is_student: true,
-              is_resident: false,
-              is_doctor: false,
-            }
-          : {
-              ...formData,
-              is_student: false,
-              is_resident: false,
-              is_doctor: false,
-            };
-
-      // Primero actualizar el perfil con el email (aunque no sea válido)
-      // Guardamos la intención de pasar a residente sin activar todavía el rol.
+      // Persistimos el formulario tal cual (manteniendo el rol actual,
+      // típicamente is_resident: true). El residente no se degrada al
+      // solicitar revisión manual: queda en estado REVIEW_PENDING derivado de
+      // la fila de user_email_review_requests.
       const { success: profileSaved, error: profileSaveError } =
-        await updateUserProfile(user.id, pendingProfileData);
+        await updateUserProfile(user.id, formData);
 
       if (!profileSaved) {
         setMessage({
@@ -697,7 +691,12 @@ export default function ProfileScreen({
       formData.hospital_id !== (userProfile.hospital_id || "") ||
       formData.speciality_id !== (userProfile.speciality_id || "") ||
       formData.resident_year?.toString() !==
-        (userProfile.resident_year?.toString() || "")
+        (userProfile.resident_year?.toString() || "") ||
+      formData.mir_academy !== (userProfile.mir_academy || "") ||
+      formData.mir_expediente !==
+        (userProfile.mir_expediente !== null && userProfile.mir_expediente !== undefined
+          ? String(userProfile.mir_expediente)
+          : "")
     );
   }, [formData, getCurrentUserType, userProfile]);
   const shouldShowFloatingUnsavedChanges =
@@ -713,10 +712,6 @@ export default function ProfileScreen({
   const profileUiState = useMemo(() => {
     const draftType = getProfileDraftType(formData);
     const draftHasRequiredFields = hasRequiredFieldsForType(formData, draftType);
-    const pendingResidentActivationKind = getPendingResidentActivationKind(
-      userProfile,
-      emailReviewRequest
-    );
 
     if (hasUnsavedChanges) {
       if (!draftType || !draftHasRequiredFields) {
@@ -743,20 +738,6 @@ export default function ProfileScreen({
 
     if (savedType === "resident" && residentState === RESIDENT_STATE.LOCKED_MISSING_CORPORATE_EMAIL) {
       return "resident_transition_locked";
-    }
-
-    if (
-      pendingResidentActivationKind ===
-      PENDING_RESIDENT_ACTIVATION_KIND.NEW_USER
-    ) {
-      return "resident_activation_pending";
-    }
-
-    if (
-      pendingResidentActivationKind ===
-      PENDING_RESIDENT_ACTIVATION_KIND.STUDENT_UPGRADE
-    ) {
-      return "resident_activation_pending_student";
     }
 
     if (savedType === "resident" && emailReviewRequest?.status === "PENDING") {
@@ -813,6 +794,45 @@ export default function ProfileScreen({
 
   const isEmailInputDisabled = !formData.hospital_id || !formData.speciality_id;
 
+  useEffect(() => {
+    if (!autoFocusWorkEmail) return;
+    if (loadingProfile) return;
+    if (!formData.is_resident && !formData.is_doctor) {
+      onAutoFocusWorkEmailHandled?.();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const scrollNode = findNodeHandle(scrollViewRef.current);
+      const target = workEmailSectionRef.current;
+      if (!scrollNode || !target?.measureLayout) {
+        onAutoFocusWorkEmailHandled?.();
+        return;
+      }
+      target.measureLayout(
+        scrollNode,
+        (_x, y) => {
+          scrollViewRef.current?.scrollTo({
+            y: Math.max(0, y - 24),
+            animated: true,
+          });
+          onAutoFocusWorkEmailHandled?.();
+        },
+        () => {
+          onAutoFocusWorkEmailHandled?.();
+        }
+      );
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [
+    autoFocusWorkEmail,
+    loadingProfile,
+    formData.is_resident,
+    formData.is_doctor,
+    onAutoFocusWorkEmailHandled,
+  ]);
+
   if (loadingProfile) {
     return (
       <View style={styles.loadingScreen}>
@@ -829,14 +849,46 @@ export default function ProfileScreen({
       containerStyle={styles.safeArea}
       title={isOnboarding ? "Completa tu perfil" : "Mi perfil"}
       contentStyle={styles.contentSurface}
+      headerStyle={styles.heroHeader}
     >
         <KeyboardAwareScrollView
+          ref={scrollViewRef}
           style={[styles.scrollView, !isOnboarding && styles.scrollViewWithHero]}
           contentContainerStyle={styles.scrollViewContent}
           bottomPadding={profileScrollBottomPadding}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.contentInner}>
+            {rejectedEmailBanner ? (
+              <View style={styles.rejectedEmailBanner}>
+                <Ionicons
+                  name="alert-circle"
+                  size={22}
+                  color="#B91C1C"
+                  style={styles.rejectedEmailBannerIcon}
+                />
+                <Text style={styles.rejectedEmailBannerText}>
+                  Tu email corporativo no se ha podido validar. Introduce un
+                  email del dominio de tu hospital y guarda los cambios para
+                  recuperar el acceso al resto de la app.
+                </Text>
+              </View>
+            ) : lockedSeasonalBanner ? (
+              <View style={styles.rejectedEmailBanner}>
+                <Ionicons
+                  name="time-outline"
+                  size={22}
+                  color="#B91C1C"
+                  style={styles.rejectedEmailBannerIcon}
+                />
+                <Text style={styles.rejectedEmailBannerText}>
+                  La ventana MIR temporal ha terminado. Añade tu correo
+                  corporativo y guarda los cambios para reactivar el acceso al
+                  resto de la app.
+                </Text>
+              </View>
+            ) : null}
+
             {isOnboarding ? (
               <View style={styles.heroCard}>
                 <Text style={styles.heroTitle}>Activa tu perfil en 2 minutos</Text>
@@ -848,6 +900,19 @@ export default function ProfileScreen({
             ) : null}
 
           {!isOnboarding ? (
+            <ProfileAvatarEditor
+              userId={user?.id}
+              avatarUrl={userProfile?.avatar_url}
+              userName={
+                userProfile?.name || formData?.name || user?.email || ""
+              }
+              onAvatarUpdated={() => loadUserProfile({ forceRefresh: true })}
+            />
+          ) : null}
+
+          {!isOnboarding &&
+          profileUiState !== "resident_transition_pending" &&
+          profileUiState !== "incomplete" ? (
             <ProfileStatusCard
               status={profileUiState}
               deadlineLabel={formatResidentTransitionDeadline(
@@ -1024,6 +1089,52 @@ export default function ProfileScreen({
               />
             </View>
             </View>
+
+            {formData.is_student && (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Academia MIR (opcional)</Text>
+                  <SelectFilter
+                    label=""
+                    value={formData.mir_academy}
+                    onSelect={(academy) => {
+                      Keyboard.dismiss();
+                      updateField("mir_academy", academy);
+                    }}
+                    options={MOCK_SOURCES}
+                    placeholder="Selecciona tu academia"
+                    enableSearch={false}
+                  />
+                </View>
+                <View style={[styles.inputGroup, styles.inputGroupLast]}>
+                  <Text style={styles.inputLabel}>
+                    Nota del expediente académico (5.00 – 10.00, opcional)
+                  </Text>
+                  <View style={styles.inputContainer}>
+                    <Ionicons
+                      name="school"
+                      size={20}
+                      color="#999"
+                      style={styles.inputIcon}
+                    />
+                    <KeyboardAwareTextInput
+                      style={styles.input}
+                      value={formData.mir_expediente}
+                      onChangeText={(text) => {
+                        const cleaned = text
+                          .replace(",", ".")
+                          .replace(/[^0-9.]/g, "")
+                          .replace(/(\..*)\./g, "$1");
+                        updateField("mir_expediente", cleaned);
+                      }}
+                      placeholder="Ej: 7.50"
+                      keyboardType="decimal-pad"
+                      maxLength={5}
+                    />
+                  </View>
+                </View>
+              </>
+            )}
           </View>
 
           {/* Professional Information */}
@@ -1078,7 +1189,10 @@ export default function ProfileScreen({
                 />
               </View>
 
-              <View style={styles.professionalInputGroup}>
+              <View
+                ref={workEmailSectionRef}
+                style={styles.professionalInputGroup}
+              >
                 <Text style={styles.inputLabel}>
                   Email corporativo
                   {!showResidentTransitionHint ? " *" : ""}
@@ -1223,26 +1337,6 @@ export default function ProfileScreen({
                   )}
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={styles.settingsRow}
-                onPress={() => onSectionChange("myReview")}
-                activeOpacity={0.7}
-              >
-                <View style={styles.settingsRowContent}>
-                  <Ionicons
-                    name="star-outline"
-                    size={24}
-                    color={COLORS.PRIMARY}
-                    style={styles.securityIcon}
-                  />
-                  <Text style={styles.settingsRowTitle}>Mi reseña</Text>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={COLORS.TEXT_LIGHT}
-                />
-              </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.settingsRow, styles.settingsRowSecond]}
                 onPress={() => onSectionChange("notificationSettings")}
@@ -1474,6 +1568,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
+  heroHeader: {
+    marginBottom: 0,
+  },
   contentSurface: {
     flex: 1,
     backgroundColor: COLORS.BACKGROUND,
@@ -1505,6 +1602,27 @@ const styles = StyleSheet.create({
     marginTop: 14,
     fontSize: 15,
     color: "#64748B",
+    fontWeight: "600",
+  },
+  rejectedEmailBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FEE2E2",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    marginBottom: 16,
+  },
+  rejectedEmailBannerIcon: {
+    marginRight: 10,
+    marginTop: 1,
+  },
+  rejectedEmailBannerText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#7F1D1D",
     fontWeight: "600",
   },
   heroCard: {

@@ -39,6 +39,8 @@ import { openDirectChat } from "../services/directChatsService";
 import { getSpecialties } from "../services/hospitalService";
 import RotationReviewDetailScreen from "./RotationReviewDetailScreen";
 import posthogLogger from "../services/posthogService";
+import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
+import { canResidentCreateExternalRotation } from "../utils/residentAccess";
 
 const PRIMARY = "#670CF5";
 const ACCENT = "#1B0977";
@@ -437,6 +439,31 @@ const EmptyState = ({ icon, title, description, actionLabel, onAction }) => (
 export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => {
   const userId = userProfile?.id;
   const isResident = userProfile?.is_resident;
+  const { request: emailReviewRequest } = useEmailReviewStatus(userId);
+  const canCreateExternalRotation = canResidentCreateExternalRotation(
+    userProfile,
+    { emailReviewRequest }
+  );
+  const emailReviewStatus = emailReviewRequest?.status || null;
+  const creationBlockedReason = !canCreateExternalRotation
+    ? emailReviewStatus === "PENDING"
+      ? {
+          title: "Estamos validando tu email",
+          message:
+            "Tu correo corporativo está en revisión manual. Podrás crear y publicar rotaciones externas en cuanto lo validemos (normalmente en menos de 1 hora).",
+        }
+      : emailReviewStatus === "REJECTED"
+      ? {
+          title: "Email corporativo no validado",
+          message:
+            "Tu solicitud anterior fue rechazada. Actualiza tu email en el perfil y solicita una nueva revisión para poder publicar rotaciones externas.",
+        }
+      : {
+          title: "Acción no disponible",
+          message:
+            "Aún no puedes publicar rotaciones externas con tu perfil actual.",
+        }
+    : null;
 
   const [route, setRoute] = useState({ name: "home", payload: null });
   const [specialties, setSpecialties] = useState([]);
@@ -835,18 +862,26 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
 
   const openRotationForm = useCallback(
     (rotation = null) => {
+      if (creationBlockedReason && !rotation) {
+        Alert.alert(creationBlockedReason.title, creationBlockedReason.message);
+        return;
+      }
       resetRotationForm(rotation);
       setRoute({ name: "rotation", payload: { rotation } });
     },
-    [resetRotationForm]
+    [creationBlockedReason, resetRotationForm]
   );
 
   const openPublish = useCallback(
     (review = null) => {
+      if (creationBlockedReason && !review) {
+        Alert.alert(creationBlockedReason.title, creationBlockedReason.message);
+        return;
+      }
       resetPublishForm(review);
       setRoute({ name: "publish", payload: { review } });
     },
-    [resetPublishForm]
+    [creationBlockedReason, resetPublishForm]
   );
 
   const handleOpenContact = useCallback((review) => {
@@ -1008,6 +1043,11 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
 
   const handleSubmitRotation = useCallback(
     async () => {
+      if (creationBlockedReason) {
+        Alert.alert(creationBlockedReason.title, creationBlockedReason.message);
+        return;
+      }
+
       const matchedCountry = rotationCountryCode
         ? Country.getCountryByCode(rotationCountryCode)
         : null;
@@ -1113,6 +1153,11 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   }, [refreshAll, reviewToDelete, userId]);
 
   const handlePublishSubmit = useCallback(async () => {
+    if (creationBlockedReason) {
+      Alert.alert(creationBlockedReason.title, creationBlockedReason.message);
+      return;
+    }
+
     const requiredTextFields = [
       publishForm.hospitalName,
       publishForm.country,

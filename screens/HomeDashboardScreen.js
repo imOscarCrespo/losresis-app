@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHospitals } from "../hooks/useHospitals";
 import { useAgendaEvents } from "../hooks/useAgendaEvents";
+import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
 import { agendaEventTypeLabels } from "../services/agendaService";
 import { getCourses } from "../services/lectureService";
 import { getHospitalRatings } from "../services/reviewsService";
@@ -425,12 +426,43 @@ export default function HomeDashboardScreen({
   const residentYearLabel = userProfile?.resident_year
     ? `R${userProfile.resident_year}`
     : "Residente";
+  const { request: emailReviewRequest } = useEmailReviewStatus(userProfile?.id);
+  const isEmailReviewPending = emailReviewRequest?.status === "PENDING";
+  const isEmailReviewRejected = emailReviewRequest?.status === "REJECTED";
   const residentInSeasonalGrace = isSeasonalResidentPending(userProfile);
   const residentEmailLocked = isResidentLockedMissingCorporateEmail(userProfile);
+  const seasonalDaysRemaining = useMemo(() => {
+    if (!residentInSeasonalGrace) return null;
+    const expiresAtRaw = userProfile?.resident_transition_expires_at;
+    if (!expiresAtRaw) return null;
+    const expiresAt = new Date(expiresAtRaw);
+    if (Number.isNaN(expiresAt.getTime())) return null;
+    // Diferencia en días naturales (no horas), para que coincida con el día
+    // en que se envía el push del recordatorio (cron a 3 días vista).
+    const expiresDayMs = new Date(
+      expiresAt.getFullYear(),
+      expiresAt.getMonth(),
+      expiresAt.getDate()
+    ).getTime();
+    const now = new Date();
+    const todayDayMs = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    ).getTime();
+    const diffDays = Math.round((expiresDayMs - todayDayMs) / 86400000);
+    return diffDays < 0 ? 0 : diffDays;
+  }, [residentInSeasonalGrace, userProfile?.resident_transition_expires_at]);
+  const showSeasonalGraceCountdown =
+    residentInSeasonalGrace &&
+    seasonalDaysRemaining !== null &&
+    seasonalDaysRemaining <= 3;
   const residentNeedsReview =
     userProfile?.is_resident &&
     !residentHasReview &&
-    !shouldBypassResidentReviewGate(userProfile);
+    !shouldBypassResidentReviewGate(userProfile) &&
+    !isEmailReviewPending &&
+    !isEmailReviewRejected;
   const residentMeta = [residentSpecialtyName, residentYearLabel]
     .filter(Boolean)
     .join(" · ");
@@ -804,7 +836,36 @@ export default function HomeDashboardScreen({
         </View>
 
         {/* Card puntuación MIR (residentes) / CTA prep MIR (estudiantes) */}
-        {userProfile?.is_student ? (
+        {isEmailReviewPending ? (
+          <View style={styles.residentHeroCard}>
+            <View style={styles.residentHeroTopRow}>
+              <Text style={styles.residentHeroEyebrow}>VALIDACIÓN DE EMAIL</Text>
+              <View style={styles.residentStatusPill}>
+                <Text style={styles.residentStatusPillText}>EN REVISIÓN</Text>
+              </View>
+            </View>
+            <View style={styles.residentReviewHeroMain}>
+              <View style={styles.residentReviewHeroHeader}>
+                <View style={styles.residentHeroIconWrap}>
+                  <Ionicons name="hourglass-outline" size={22} color="#FFF" />
+                </View>
+                <View style={styles.residentHeroTextWrap}>
+                  <Text style={styles.residentHeroTitle}>
+                    Estamos validando tu email
+                  </Text>
+                  <Text style={styles.residentHeroSubtitle}>
+                    Revisamos tu correo corporativo manualmente. Te avisaremos
+                    por email en menos de 1 hora.
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <Text style={styles.residentHeroFooter}>
+              Hasta entonces no podrás activar el perfil de residente ni
+              publicar tu reseña del hospital.
+            </Text>
+          </View>
+        ) : userProfile?.is_student ? (
           <View style={styles.studentPrepCard}>
             <Text style={styles.studentPrepLabel}>TU ACTIVIDAD</Text>
             {/* Fila superior: métricas numéricas */}
@@ -891,31 +952,26 @@ export default function HomeDashboardScreen({
             </View>
             <View style={styles.residentReviewHeroMain}>
               <View style={styles.residentReviewHeroHeader}>
-                <View style={styles.residentHeroIconWrap}>
-                  <Ionicons name="time-outline" size={22} color="#FFF" />
-                </View>
                 <View style={styles.residentHeroTextWrap}>
-                  <Text style={styles.residentHeroTitle}>Ya puedes usar el modo residente</Text>
+                  <Text style={styles.residentHeroTitle}>Verifica tu correo corporativo</Text>
                   <Text style={styles.residentHeroSubtitle}>
-                    Tienes acceso temporal mientras llega tu correo
-                    corporativo. Fecha límite:{" "}
+                    Tu acceso temporal vence el{" "}
                     {formatResidentTransitionDeadline(
                       userProfile?.resident_transition_expires_at
-                    ) || "pendiente de configurar"}.
+                    ) || "—"}.
                   </Text>
                 </View>
               </View>
               <TouchableOpacity
                 style={styles.residentReviewHeroButton}
-                onPress={() => onSectionChange?.("usuario")}
+                onPress={() =>
+                  onSectionChange?.("usuario", { autoFocusWorkEmail: true })
+                }
                 activeOpacity={0.85}
               >
-                <Text style={styles.residentHeroButtonText}>Completar perfil</Text>
+                <Text style={styles.residentHeroButtonText}>Añadir correo</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.residentHeroFooter}>
-              Durante este periodo no podrás publicar tu reseña del hospital.
-            </Text>
           </View>
         ) : residentNeedsReview ? (
           <View style={[styles.residentHeroCard, styles.residentReviewReminderCard]}>
@@ -924,9 +980,7 @@ export default function HomeDashboardScreen({
               <View
                 style={[styles.residentStatusPill, styles.residentReviewReminderPill]}
               >
-                <Text style={styles.residentStatusPillText}>
-                  {residentReviewGateStatus === "hard" ? "OBLIGATORIO" : "PENDIENTE"}
-                </Text>
+                <Text style={styles.residentStatusPillText}>PENDIENTE</Text>
               </View>
             </View>
             <View style={styles.residentReviewHeroMain}>
@@ -1067,6 +1121,16 @@ export default function HomeDashboardScreen({
               </View>
               <Text style={styles.quickActionLabel}>Orientador MIR</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => onSectionChange?.("nota-proyectada")}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: `${PRIMARY}20` }]}>
+                <Ionicons name="trending-up-outline" size={22} color={PRIMARY} />
+              </View>
+              <Text style={styles.quickActionLabel}>Nota proyectada</Text>
+            </TouchableOpacity>
+            <View style={styles.quickActionBtnPlaceholder} pointerEvents="none" />
           </View>
 
           {!loadingDashboardAds && carouselHasAds && (
@@ -1105,6 +1169,37 @@ export default function HomeDashboardScreen({
       {/* Quick actions para residentes */}
       {userProfile?.is_resident && (
         <View style={styles.residentTopStack}>
+          {showSeasonalGraceCountdown ? (
+            <TouchableOpacity
+              style={styles.seasonalCountdownBanner}
+              onPress={() => onSectionChange?.("usuario")}
+              activeOpacity={0.9}
+            >
+              <View style={styles.seasonalCountdownIcon}>
+                <Ionicons name="time-outline" size={20} color="#B45309" />
+              </View>
+              <View style={styles.seasonalCountdownCopy}>
+                <Text style={styles.seasonalCountdownEyebrow}>
+                  ALTA TEMPORAL MIR
+                </Text>
+                <Text style={styles.seasonalCountdownTitle}>
+                  {seasonalDaysRemaining === 0
+                    ? "Hoy termina la ventana temporal"
+                    : seasonalDaysRemaining === 1
+                    ? "Queda 1 día para añadir tu correo corporativo"
+                    : `Quedan ${seasonalDaysRemaining} días para añadir tu correo corporativo`}
+                </Text>
+                <Text style={styles.seasonalCountdownText}>
+                  Cuando termine el plazo perderás el acceso al resto de la app
+                  hasta que actualices tu email.
+                </Text>
+              </View>
+              <View style={styles.seasonalCountdownArrow}>
+                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+          ) : null}
+
           {showPayoutReminder && payoutReminderTarget ? (
             <TouchableOpacity
               style={styles.payoutBanner}
@@ -1770,6 +1865,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 24,
   },
+  quickActionBtnPlaceholder: {
+    width: "31%",
+    opacity: 0,
+  },
   quickActionBtn: {
     width: "31%",
     backgroundColor: "#FFF",
@@ -1854,6 +1953,58 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#670CF5",
+  },
+  seasonalCountdownBanner: {
+    borderRadius: 24,
+    backgroundColor: "#FFFBEB",
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "rgba(217,119,6,0.25)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    shadowColor: "#B45309",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  seasonalCountdownIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FEF3C7",
+  },
+  seasonalCountdownCopy: {
+    flex: 1,
+  },
+  seasonalCountdownEyebrow: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    color: "#B45309",
+    marginBottom: 4,
+  },
+  seasonalCountdownTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#78350F",
+  },
+  seasonalCountdownText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#92400E",
+    marginTop: 4,
+  },
+  seasonalCountdownArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#D97706",
   },
   residentWeekCard: {
     backgroundColor: "#FFF",

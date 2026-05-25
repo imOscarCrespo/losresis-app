@@ -55,9 +55,15 @@ const fetchGradesInBatches = async (hospitalIds, specialtyId) => {
  *
  * @param {Array} hospitalGrades - Registros { year, slots, grades|grade|rate } de un hospital/especialidad
  * @param {number} mirScore - Posición del usuario en el MIR
+ * @param {number|null} targetSlotsYear - Año para el cómputo de plazas vigentes.
+ *   Si no se pasa, se usa el año natural actual (mantiene compatibilidad).
  * @returns {{ probability: string, grades: Array<{year:string, grade:number|null}>, yearsUsed: number, currentYearSlots: number|null }}
  */
-export const computeHospitalProbability = (hospitalGrades, mirScore) => {
+export const computeHospitalProbability = (
+  hospitalGrades,
+  mirScore,
+  targetSlotsYear = null
+) => {
   const grades = [];
 
   (hospitalGrades || []).forEach((record) => {
@@ -100,10 +106,11 @@ export const computeHospitalProbability = (hospitalGrades, mirScore) => {
     probability = `${probabilityPercentage}%`;
   }
 
-  // Get slots for current year
-  const currentYear = new Date().getFullYear();
+  // Get slots for the target year (derivado del catálogo, no del calendario)
+  const slotsYear =
+    targetSlotsYear != null ? targetSlotsYear : new Date().getFullYear();
   const currentYearRecord = (hospitalGrades || []).find(
-    (record) => parseInt(record.year) === currentYear
+    (record) => parseInt(record.year) === slotsYear
   );
   const currentYearSlots =
     currentYearRecord?.slots !== null && currentYearRecord?.slots !== undefined
@@ -269,6 +276,10 @@ export const calculateMIRProbabilities = async (
       hospitalGradesMap[record.hospital_id].push(record);
     });
 
+    // Año de la última convocatoria publicada para esta especialidad. Se usa como
+    // referencia de plazas vigentes en lugar del año del calendario.
+    const slotsYear = getLatestPublishedYear(detailedGradesData);
+
     // Step 6: Calculate results for each hospital
     const results = filteredHospitals
       .map((hospital) => {
@@ -279,7 +290,7 @@ export const calculateMIRProbabilities = async (
         }
 
         const { probability, grades, yearsUsed, currentYearSlots } =
-          computeHospitalProbability(hospitalGrades, mirScore);
+          computeHospitalProbability(hospitalGrades, mirScore, slotsYear);
 
         return {
           hospital: hospital,
@@ -293,11 +304,15 @@ export const calculateMIRProbabilities = async (
       .filter((result) => result !== null)
       .sort((a, b) => compareByProbability(a, b, (r) => r.hospital.name));
 
+    const gradeYearsRange = computeGradeYearsRange(results);
+
     console.log(`✅ MIR results calculated: ${results.length} hospitals`);
 
     return {
       success: true,
       results,
+      slotsYear,
+      gradeYearsRange,
       error: null,
     };
   } catch (error) {
@@ -313,8 +328,58 @@ export const calculateMIRProbabilities = async (
 // Umbral de probabilidad a partir del cual consideramos un hospital "accesible"
 const ACCESSIBLE_THRESHOLD = 50;
 
+// Mínimo de años con nota de corte válida para considerar un hospital "evaluable".
+// Por debajo de este umbral la muestra es demasiado pequeña para una probabilidad
+// fiable (1 año => 0% o 100% según un único dato), así que se excluye del numerador
+// y del denominador de "X de Y hospitales accesibles".
+const MIN_EVALUABLE_YEARS = 3;
+
 const probabilityToNumber = (probability) =>
   probability === "NA" ? -1 : parseInt(probability.replace("%", ""), 10);
+
+/**
+ * Devuelve el año más reciente con datos publicados para una especialidad. Se usa
+ * como "año de plazas vigentes" en lugar del año natural, porque el año del
+ * calendario y el de la última convocatoria pueden no coincidir (p.ej. en mayo de
+ * 2026 la convocatoria publicada sigue siendo la "2026", y la "2027" no existe
+ * todavía en BOE).
+ *
+ * @param {Array} specialityRecords
+ * @returns {number|null}
+ */
+const getLatestPublishedYear = (specialityRecords) => {
+  let maxYear = null;
+  (specialityRecords || []).forEach((row) => {
+    const y = parseInt(row.year, 10);
+    if (!Number.isFinite(y)) return;
+    if (maxYear === null || y > maxYear) maxYear = y;
+  });
+  return maxYear;
+};
+
+/**
+ * Calcula el rango [minYear, maxYear] de años con nota de corte válida observada
+ * en una colección de resultados ya procesados por `computeHospitalProbability`.
+ * Se usa para informar en UI sobre qué histórico respalda las probabilidades.
+ *
+ * @param {Array<{grades: Array<{year:string|number, grade:number|null}>}>} hospitals
+ * @returns {{minYear:number, maxYear:number}|null}
+ */
+const computeGradeYearsRange = (hospitals) => {
+  let minY = null;
+  let maxY = null;
+  (hospitals || []).forEach((h) => {
+    (h.grades || []).forEach((g) => {
+      if (g.grade == null) return;
+      const y = typeof g.year === "string" ? parseInt(g.year, 10) : g.year;
+      if (!Number.isFinite(y)) return;
+      if (minY === null || y < minY) minY = y;
+      if (maxY === null || y > maxY) maxY = y;
+    });
+  });
+  if (minY === null || maxY === null) return null;
+  return { minYear: minY, maxYear: maxY };
+};
 
 /**
  * Orientador MIR (simulador inverso): a partir de una nota (número de orden) y,
@@ -372,13 +437,18 @@ export const calculateMIROrientation = async (mirScore, region = null) => {
     // Agregar por especialidad
     const results = Object.entries(bySpecialty)
       .map(([specialityId, hospitalMap]) => {
-        const hospitals = Object.entries(hospitalMap)
+        // Año de plazas vigentes para esta especialidad: máximo año observado en
+        // los registros del catálogo, no el año del calendario.
+        const allRecords = Object.values(hospitalMap).flat();
+        const slotsYear = getLatestPublishedYear(allRecords);
+
+        const allHospitals = Object.entries(hospitalMap)
           .map(([hospitalId, records]) => {
             const hospital = hospitalsById[hospitalId];
             if (!hospital) return null;
 
             const { probability, grades, yearsUsed, currentYearSlots } =
-              computeHospitalProbability(records, mirScore);
+              computeHospitalProbability(records, mirScore, slotsYear);
 
             return {
               hospital,
@@ -391,33 +461,47 @@ export const calculateMIROrientation = async (mirScore, region = null) => {
           .filter((h) => h !== null)
           .sort((a, b) => compareByProbability(a, b, (r) => r.hospital.name));
 
-        if (hospitals.length === 0) return null;
+        if (allHospitals.length === 0) return null;
 
         const specialityName =
           getSpecialityByIdFromCatalog(specialityId)?.name || "Especialidad";
 
-        const accessibleCount = hospitals.filter(
+        // Sólo entran al ratio "X de Y accesibles" hospitales con muestra suficiente
+        // de notas de corte (>= MIN_EVALUABLE_YEARS). Hospitales sin histórico o
+        // con 1-2 años de dato no son comparables y distorsionan el denominador.
+        const evaluableHospitals = allHospitals.filter(
+          (h) => (h.yearsUsed || 0) >= MIN_EVALUABLE_YEARS
+        );
+
+        const accessibleCount = evaluableHospitals.filter(
           (h) => probabilityToNumber(h.probability) >= ACCESSIBLE_THRESHOLD
         ).length;
 
-        const maxProbability = hospitals.reduce(
+        const maxProbability = allHospitals.reduce(
           (max, h) => Math.max(max, probabilityToNumber(h.probability)),
           -1
         );
 
-        const totalCurrentYearSlots = hospitals.reduce(
+        // Plazas vigentes sumadas sólo sobre los hospitales evaluables, para que
+        // el "X plazas" sea coherente con el denominador "Y hospitales".
+        const totalCurrentYearSlots = evaluableHospitals.reduce(
           (sum, h) => sum + (h.currentYearSlots || 0),
           0
         );
 
+        const gradeYearsRange = computeGradeYearsRange(evaluableHospitals);
+
         return {
           specialityId,
           specialityName,
-          hospitals,
-          hospitalCount: hospitals.length,
+          hospitals: allHospitals,
+          hospitalCount: evaluableHospitals.length,
+          totalHospitalCount: allHospitals.length,
           accessibleCount,
           maxProbability,
           totalCurrentYearSlots,
+          slotsYear,
+          gradeYearsRange,
         };
       })
       .filter((s) => s !== null)

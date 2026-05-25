@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { AppState, Platform } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { AppState, Platform, StyleSheet } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Application from "expo-application";
 import Constants from "expo-constants";
@@ -9,15 +9,19 @@ import { useVersionCheck } from "./hooks/useVersionCheck";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import DashboardScreen from "./screens/DashboardScreen";
 import ProfileScreen from "./screens/ProfileScreen";
+import OnboardingScreen from "./screens/OnboardingScreen";
 import { supabase } from "./config/supabase";
 import {
   getSession,
   getCurrentUser,
   getUserProfile,
 } from "./services/authService";
-import { isProfileComplete } from "./services/userService";
-import { getEmailReviewRequest } from "./services/emailReviewService";
 import { checkResidentReview } from "./services/communityService";
+import {
+  getEmailReviewRequest,
+  subscribeToEmailReviewRequest,
+  unsubscribeFromEmailReviewRequest,
+} from "./services/emailReviewService";
 import posthogLogger from "./services/posthogService";
 import {
   getResidentReviewGateConfig,
@@ -25,7 +29,11 @@ import {
   initializeResidentReviewGate,
   resetResidentReviewGate,
 } from "./services/residentReviewGateService";
-import { shouldBypassResidentReviewGate } from "./utils/residentAccess";
+import {
+  isResidentLockedMissingCorporateEmail,
+  shouldBypassResidentReviewGate,
+  shouldRedirectForEmailReviewRejection,
+} from "./utils/residentAccess";
 import {
   configureNotificationHandler,
   ensureAndroidNotificationChannel,
@@ -39,6 +47,8 @@ export default function App() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [residentHasReview, setResidentHasReview] = useState(true); // Por defecto true para no bloquear
   const [residentReviewGateState, setResidentReviewGateState] = useState(null);
+  const [residentEmailRejected, setResidentEmailRejected] = useState(false);
+  const [residentSeasonalLocked, setResidentSeasonalLocked] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const gateSessionTrackedRef = useRef(null);
   const {
@@ -89,6 +99,24 @@ export default function App() {
     return () => subscription.remove();
   }, [refreshVersionCheck]);
 
+  // Suscripción realtime a user_email_review_requests del usuario actual:
+  // si el admin cambia el status (p.ej. PENDING → REJECTED) mientras la app
+  // está abierta, re-disparamos checkAuth para reaccionar inmediatamente.
+  // Sin esto, el usuario seguía con acceso hasta cerrar y reabrir la app.
+  useEffect(() => {
+    if (!currentUserId) return undefined;
+
+    const channel = subscribeToEmailReviewRequest(currentUserId, () => {
+      checkAuth({ forceProfileRefresh: true }).catch((error) => {
+        console.warn("Error refrescando auth tras cambio de email review:", error);
+      });
+    });
+
+    return () => {
+      unsubscribeFromEmailReviewRequest(channel).catch(() => {});
+    };
+  }, [currentUserId]);
+
   useEffect(() => {
     const {
       data: { subscription },
@@ -99,6 +127,8 @@ export default function App() {
         setCurrentUserId(null);
         setResidentHasReview(true);
         setResidentReviewGateState(null);
+        setResidentEmailRejected(false);
+        setResidentSeasonalLocked(false);
         setIsAuthenticated(false);
         setNeedsOnboarding(false);
         setIsLoading(false);
@@ -233,14 +263,15 @@ export default function App() {
           if (profileSuccess && profile) {
             const bypassReviewRequirement =
               shouldBypassResidentReviewGate(profile);
-            const { request: emailReviewRequest } = await getEmailReviewRequest(
-              user.id
+
+            // El rechazo del email aplica a cualquier usuario que solicitó
+            // revisión manual, no solo a residentes (puede haber usuarios
+            // legacy degradados a no-residentes por el código antiguo).
+            const { request: emailReviewRequest } =
+              await getEmailReviewRequest(user.id);
+            setResidentEmailRejected(
+              shouldRedirectForEmailReviewRejection(profile, emailReviewRequest)
             );
-            // Verificar si el perfil está completo
-            const complete = isProfileComplete(profile, {
-              emailReviewRequest,
-              isEmailValid: true, // Asumimos válido en el check inicial
-            });
 
             if (profile.is_resident && !profile.is_super_admin) {
               const { success: reviewCheckSuccess, hasReview } =
@@ -257,6 +288,10 @@ export default function App() {
                 setResidentHasReview(false);
               }
 
+              setResidentSeasonalLocked(
+                isResidentLockedMissingCorporateEmail(profile)
+              );
+
               await syncResidentReviewGate({
                 userId: user.id,
                 hasReview: reviewCheckSuccess ? hasReview : false,
@@ -266,7 +301,8 @@ export default function App() {
                 countSession: true,
               });
             } else {
-              // Si no es residente o es super admin, no aplicar restricción
+              // Si no es residente, no aplica el lock seasonal MIR.
+              setResidentSeasonalLocked(false);
               setResidentHasReview(true);
               await syncResidentReviewGate({
                 userId: user.id,
@@ -277,7 +313,7 @@ export default function App() {
             }
 
             setIsAuthenticated(true);
-            setNeedsOnboarding(!complete);
+            setNeedsOnboarding(profile.onboarding_completed !== true);
             setCurrentUserId(user.id);
             // Identificar usuario en PostHog
             posthogLogger.identify(user.id, {
@@ -292,6 +328,8 @@ export default function App() {
             setNeedsOnboarding(true);
             setResidentHasReview(true); // No aplicar restricción si no hay perfil
             setResidentReviewGateState(null);
+            setResidentEmailRejected(false);
+            setResidentSeasonalLocked(false);
             setCurrentUserId(user.id);
             // Identificar usuario en PostHog sin perfil completo
             posthogLogger.identify(user.id, {
@@ -303,6 +341,8 @@ export default function App() {
           setNeedsOnboarding(false);
           setResidentHasReview(true);
           setResidentReviewGateState(null);
+          setResidentEmailRejected(false);
+          setResidentSeasonalLocked(false);
           setCurrentUserId(null);
         }
       } else {
@@ -310,6 +350,8 @@ export default function App() {
         setNeedsOnboarding(false);
         setResidentHasReview(true);
         setResidentReviewGateState(null);
+        setResidentEmailRejected(false);
+        setResidentSeasonalLocked(false);
         setCurrentUserId(null);
       }
     } catch (error) {
@@ -318,6 +360,8 @@ export default function App() {
       setNeedsOnboarding(false);
       setResidentHasReview(true);
       setResidentReviewGateState(null);
+      setResidentEmailRejected(false);
+      setResidentSeasonalLocked(false);
       setCurrentUserId(null);
     } finally {
       setIsLoading(false);
@@ -344,14 +388,16 @@ export default function App() {
       );
 
       if (profileSuccess && profile) {
+        const bypassReviewRequirement = shouldBypassResidentReviewGate(profile);
+
+        // Misma política que en checkAuth: el rechazo del email se evalúa
+        // para cualquier usuario, no solo residentes.
         const { request: emailReviewRequest } = await getEmailReviewRequest(
           user.id
         );
-        const complete = isProfileComplete(profile, {
-          emailReviewRequest,
-          isEmailValid: true,
-        });
-        const bypassReviewRequirement = shouldBypassResidentReviewGate(profile);
+        setResidentEmailRejected(
+          shouldRedirectForEmailReviewRejection(profile, emailReviewRequest)
+        );
 
         if (profile.is_resident && !profile.is_super_admin) {
           const { success: reviewCheckSuccess, hasReview } =
@@ -367,6 +413,10 @@ export default function App() {
             setResidentHasReview(false);
           }
 
+          setResidentSeasonalLocked(
+            isResidentLockedMissingCorporateEmail(profile)
+          );
+
           await syncResidentReviewGate({
             userId: user.id,
             hasReview: reviewCheckSuccess ? hasReview : false,
@@ -376,6 +426,7 @@ export default function App() {
             countSession: true,
           });
         } else {
+          setResidentSeasonalLocked(false);
           setResidentHasReview(true);
           await syncResidentReviewGate({
             userId: user.id,
@@ -386,7 +437,7 @@ export default function App() {
         }
 
         setIsAuthenticated(true);
-        setNeedsOnboarding(!complete);
+        setNeedsOnboarding(profile.onboarding_completed !== true);
         setCurrentUserId(user.id);
         // Identificar usuario en PostHog después del login
         posthogLogger.identify(user.id, {
@@ -401,6 +452,8 @@ export default function App() {
         setNeedsOnboarding(true);
         setResidentHasReview(true);
         setResidentReviewGateState(null);
+        setResidentEmailRejected(false);
+        setResidentSeasonalLocked(false);
         setCurrentUserId(user.id);
         // Identificar usuario en PostHog sin perfil completo
         posthogLogger.identify(user.id, {
@@ -412,6 +465,8 @@ export default function App() {
       setNeedsOnboarding(true);
       setResidentHasReview(true);
       setResidentReviewGateState(null);
+      setResidentEmailRejected(false);
+      setResidentSeasonalLocked(false);
       setCurrentUserId(null);
     }
   };
@@ -530,14 +585,28 @@ export default function App() {
           minVersion={minVersion}
         />
       ) : isAuthenticated && needsOnboarding ? (
-        <ProfileScreen
-          isOnboarding={true}
-          onProfileComplete={handleProfileComplete}
-          onSignOut={handleSignOut}
-          onHospitalPress={() => {}}
-          onStudentPress={() => {}}
-          onReviewsPress={() => {}}
+        <OnboardingScreen
+          userId={currentUserId}
+          onComplete={handleProfileComplete}
         />
+      ) : isAuthenticated && (residentEmailRejected || residentSeasonalLocked) ? (
+        // SafeAreaView aplica el inset top que normalmente añade ScreenLayout
+        // en el flujo regular; aquí ProfileScreen se renderiza standalone, sin
+        // ScreenLayout, así que sin esto el hero header quedaría detrás del
+        // notch/status bar y se vería empujado hacia arriba por el banner.
+        <SafeAreaView style={appStyles.redirectSafeArea} edges={["top", "left", "right"]}>
+          <ProfileScreen
+            onSignOut={handleSignOut}
+            rejectedEmailBanner={residentEmailRejected}
+            lockedSeasonalBanner={residentSeasonalLocked && !residentEmailRejected}
+            onProfileUpdated={() =>
+              checkAuth({ forceProfileRefresh: true })
+            }
+            onHospitalPress={() => {}}
+            onStudentPress={() => {}}
+            onReviewsPress={() => {}}
+          />
+        </SafeAreaView>
       ) : isAuthenticated ? (
         <DashboardScreen
           onSignOut={handleSignOut}
@@ -555,3 +624,10 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+
+const appStyles = StyleSheet.create({
+  redirectSafeArea: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
+});

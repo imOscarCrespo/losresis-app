@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Keyboard,
+  InteractionManager,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
@@ -36,15 +37,18 @@ const getProbabilityBgColor = (probability) => {
   return "#FEE2E2";
 };
 
-export default function MirOrientationScreen({ onBack, userProfile }) {
+export default function MirOrientationScreen({ onBack, userProfile, initialScore }) {
   const { uniqueRegions } = useHospitals();
   const scrollViewRef = useRef(null);
-  const [mirScore, setMirScore] = useState("");
+  const [mirScore, setMirScore] = useState(
+    initialScore != null && initialScore !== "" ? String(initialScore) : ""
+  );
   const [selectedRegion, setSelectedRegion] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [expandedSpecialty, setExpandedSpecialty] = useState(null);
+  const [pendingSpecialty, setPendingSpecialty] = useState(null);
 
   const regionOptions = useMemo(() => {
     return (uniqueRegions || [])
@@ -65,6 +69,7 @@ export default function MirOrientationScreen({ onBack, userProfile }) {
     Keyboard.dismiss();
     setLoading(true);
     setExpandedSpecialty(null);
+    setPendingSpecialty(null);
     try {
       const score =
         typeof mirScore === "string" ? parseFloat(mirScore) : mirScore;
@@ -75,12 +80,23 @@ export default function MirOrientationScreen({ onBack, userProfile }) {
           ? selectedRegion.trim()
           : null;
 
+      posthogLogger.capture("mir_orientation_search_clicked", {
+        mir_score: score,
+        region: region,
+        has_region_filter: region != null,
+      });
+
       const { success, results: calculatedResults, error } =
         await calculateMIROrientation(score, region);
 
       if (success) {
         setResults(calculatedResults);
         setHasSearched(true);
+        posthogLogger.capture("mir_orientation_search_completed", {
+          mir_score: score,
+          region: region,
+          results_count: calculatedResults?.length || 0,
+        });
       } else {
         console.error("Error calculating orientation:", error);
         alert(
@@ -95,12 +111,13 @@ export default function MirOrientationScreen({ onBack, userProfile }) {
     }
   };
 
-  const renderHospitalRow = (hospital) => {
-    const currentYear = new Date().getFullYear();
+  const renderHospitalRow = (hospital, slotsYear) => {
+    // Ocultar de la rejilla histórica el año cuyas plazas estamos mostrando aparte
+    // (no hay nota de corte aún para esa convocatoria).
     const filteredGrades = hospital.grades.filter((grade) => {
       const year =
         typeof grade.year === "string" ? parseInt(grade.year, 10) : grade.year;
-      return year !== currentYear;
+      return slotsYear == null || year !== slotsYear;
     });
 
     return (
@@ -129,14 +146,6 @@ export default function MirOrientationScreen({ onBack, userProfile }) {
           <Text style={styles.hospitalLocationText}>
             {hospital.hospital.city}, {hospital.hospital.region}
           </Text>
-          {hospital.currentYearSlots != null && (
-            <View style={styles.slotsBadge}>
-              <Text style={styles.slotsText}>
-                {hospital.currentYearSlots}{" "}
-                {hospital.currentYearSlots === 1 ? "plaza" : "plazas"}
-              </Text>
-            </View>
-          )}
         </View>
 
         <View style={styles.gradesGrid}>
@@ -187,59 +196,120 @@ export default function MirOrientationScreen({ onBack, userProfile }) {
     );
   };
 
+  const handleToggleSpecialty = (specialtyId) => {
+    if (expandedSpecialty === specialtyId) {
+      setExpandedSpecialty(null);
+      setPendingSpecialty(null);
+      return;
+    }
+    setExpandedSpecialty(null);
+    setPendingSpecialty(specialtyId);
+    InteractionManager.runAfterInteractions(() => {
+      setExpandedSpecialty(specialtyId);
+      setPendingSpecialty(null);
+    });
+  };
+
   const renderSpecialtyCard = (specialty) => {
     const isExpanded = expandedSpecialty === specialty.specialityId;
+    const isPending = pendingSpecialty === specialty.specialityId;
+    const userScore = parseFloat(mirScore);
+    let safeCount = 0;
+    let variableCount = 0;
+    let hardCount = 0;
+    specialty.hospitals.forEach((h) => {
+      const validGrades = h.grades
+        .map((g) => parseFloat(g.grade))
+        .filter((v) => !isNaN(v) && isFinite(v));
+      if (validGrades.length === 0) return;
+      const allPass = validGrades.every((g) => userScore <= g);
+      const allFail = validGrades.every((g) => userScore > g);
+      if (allPass) safeCount += 1;
+      else if (allFail) hardCount += 1;
+      else variableCount += 1;
+    });
+
+    const isInaccessible = safeCount === 0 && variableCount === 0;
 
     return (
-      <View key={specialty.specialityId} style={styles.specialtyCard}>
+      <View
+        key={specialty.specialityId}
+        style={[styles.specialtyCard, isInaccessible && styles.specialtyCardDisabled]}
+      >
         <TouchableOpacity
           style={styles.specialtyHeader}
-          onPress={() =>
-            setExpandedSpecialty(isExpanded ? null : specialty.specialityId)
-          }
+          onPress={() => handleToggleSpecialty(specialty.specialityId)}
           activeOpacity={0.85}
         >
           <View style={styles.specialtyHeaderText}>
-            <Text style={styles.specialtyName}>{specialty.specialityName}</Text>
+            <Text
+              style={[
+                styles.specialtyName,
+                isInaccessible && styles.specialtyNameDisabled,
+              ]}
+            >
+              {specialty.specialityName}
+            </Text>
             <View style={styles.specialtyMeta}>
-              <View
-                style={[
-                  styles.metaBadge,
-                  specialty.accessibleCount > 0
-                    ? styles.metaBadgeSuccess
-                    : styles.metaBadgeNeutral,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.metaBadgeText,
-                    specialty.accessibleCount > 0
-                      ? styles.metaBadgeTextSuccess
-                      : styles.metaBadgeTextNeutral,
-                  ]}
-                >
-                  {specialty.accessibleCount} de {specialty.hospitalCount}{" "}
-                  {specialty.hospitalCount === 1 ? "hospital" : "hospitales"}{" "}
-                  accesibles
+              <View style={styles.countsPill}>
+                <Text style={[styles.countsPillText, styles.countsPillSuccess]}>
+                  {safeCount}
+                </Text>
+                <View style={styles.countsPillDivider} />
+                <Text style={[styles.countsPillText, styles.countsPillWarning]}>
+                  {variableCount}
+                </Text>
+                <View style={styles.countsPillDivider} />
+                <Text style={[styles.countsPillText, styles.countsPillDanger]}>
+                  {hardCount}
                 </Text>
               </View>
-              {specialty.totalCurrentYearSlots > 0 && (
-                <Text style={styles.specialtySlotsText}>
-                  {specialty.totalCurrentYearSlots} plazas
-                </Text>
-              )}
             </View>
+            {(specialty.gradeYearsRange ||
+              (typeof specialty.totalHospitalCount === "number" &&
+                specialty.totalHospitalCount !== specialty.hospitalCount)) && (
+              <Text style={styles.specialtyDataNote}>
+                {specialty.gradeYearsRange
+                  ? `Cortes ${specialty.gradeYearsRange.minYear}–${specialty.gradeYearsRange.maxYear}`
+                  : ""}
+                {specialty.gradeYearsRange &&
+                typeof specialty.totalHospitalCount === "number" &&
+                specialty.totalHospitalCount !== specialty.hospitalCount
+                  ? " · "
+                  : ""}
+                {typeof specialty.totalHospitalCount === "number" &&
+                specialty.totalHospitalCount !== specialty.hospitalCount
+                  ? `${specialty.totalHospitalCount - specialty.hospitalCount} hospital${
+                      specialty.totalHospitalCount - specialty.hospitalCount === 1
+                        ? ""
+                        : "es"
+                    } sin datos suficientes`
+                  : ""}
+              </Text>
+            )}
           </View>
-          <Ionicons
-            name={isExpanded ? "chevron-up" : "chevron-down"}
-            size={20}
-            color="#94A3B8"
-          />
+          {isPending ? (
+            <ActivityIndicator size="small" color={PRIMARY} />
+          ) : (
+            <Ionicons
+              name={isExpanded ? "chevron-up" : "chevron-down"}
+              size={20}
+              color="#94A3B8"
+            />
+          )}
         </TouchableOpacity>
+
+        {isPending && (
+          <View style={styles.specialtyLoading}>
+            <ActivityIndicator size="small" color={PRIMARY} />
+          </View>
+        )}
 
         {isExpanded && (
           <View style={styles.specialtyBody}>
-            {specialty.hospitals.map(renderHospitalRow)}
+            {specialty.hospitals.map((h) =>
+              renderHospitalRow(h, specialty.slotsYear)
+            )}
           </View>
         )}
       </View>
@@ -324,6 +394,39 @@ export default function MirOrientationScreen({ onBack, userProfile }) {
                   Ordenadas por número de hospitales accesibles. Toca una para
                   ver el detalle.
                 </Text>
+                <View style={styles.legendRow}>
+                  <View style={styles.legendItem}>
+                    <View
+                      style={[styles.legendSwatch, { backgroundColor: "#059669" }]}
+                    />
+                    <Text style={styles.legendText}>seguros</Text>
+                  </View>
+                  <View style={styles.legendDot} />
+                  <View style={styles.legendItem}>
+                    <View
+                      style={[styles.legendSwatch, { backgroundColor: "#D97706" }]}
+                    />
+                    <Text style={styles.legendText}>variables</Text>
+                  </View>
+                  <View style={styles.legendDot} />
+                  <View style={styles.legendItem}>
+                    <View
+                      style={[styles.legendSwatch, { backgroundColor: "#DC2626" }]}
+                    />
+                    <Text style={styles.legendText}>difíciles</Text>
+                  </View>
+                </View>
+                <View style={styles.legendCaptionRow}>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={13}
+                    color="#94A3B8"
+                  />
+                  <Text style={styles.legendCaption}>
+                    Hospitales accesibles todos los años (verde), algunos años
+                    (naranja) o ninguno (rojo) con tu nota.
+                  </Text>
+                </View>
               </View>
               <View style={styles.resultsList}>
                 {results.map(renderSpecialtyCard)}
@@ -379,7 +482,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderRadius: 24,
     padding: 24,
-    marginHorizontal: 24,
+    marginHorizontal: 16,
     shadowColor: INDIGO,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
@@ -441,7 +544,7 @@ const styles = StyleSheet.create({
   resultsCard: {
     backgroundColor: "#FFF",
     borderRadius: 24,
-    marginHorizontal: 24,
+    marginHorizontal: 16,
     marginTop: 24,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -467,6 +570,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#64748B",
   },
+  legendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  legendSwatch: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+  legendDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: "#CBD5E1",
+  },
+  legendCaptionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 4,
+    marginTop: 6,
+  },
+  legendCaption: {
+    flex: 1,
+    fontSize: 11,
+    color: "#94A3B8",
+    lineHeight: 15,
+  },
   resultsList: {
     padding: 16,
     gap: 12,
@@ -477,6 +618,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2E8F0",
     overflow: "hidden",
+  },
+  specialtyCardDisabled: {
+    backgroundColor: "#F1F5F9",
+    borderColor: "#E2E8F0",
+    opacity: 0.75,
+  },
+  specialtyNameDisabled: {
+    color: "#94A3B8",
   },
   specialtyHeader: {
     flexDirection: "row",
@@ -501,12 +650,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   metaBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   metaBadgeSuccess: {
     backgroundColor: "#D1FAE5",
+  },
+  metaBadgeWarning: {
+    backgroundColor: "#FEF3C7",
+  },
+  metaBadgeDanger: {
+    backgroundColor: "#FEE2E2",
   },
   metaBadgeNeutral: {
     backgroundColor: "#F1F5F9",
@@ -518,13 +676,60 @@ const styles = StyleSheet.create({
   metaBadgeTextSuccess: {
     color: "#059669",
   },
+  metaBadgeTextWarning: {
+    color: "#D97706",
+  },
+  metaBadgeTextDanger: {
+    color: "#DC2626",
+  },
   metaBadgeTextNeutral: {
     color: "#64748B",
+  },
+  countsPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    gap: 8,
+  },
+  countsPillText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  countsPillDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: "#E2E8F0",
+  },
+  countsPillSuccess: {
+    color: "#059669",
+  },
+  countsPillWarning: {
+    color: "#D97706",
+  },
+  countsPillDanger: {
+    color: "#DC2626",
   },
   specialtySlotsText: {
     fontSize: 12,
     color: "#D97706",
     fontWeight: "500",
+  },
+  specialtyDataNote: {
+    fontSize: 11,
+    color: "#94A3B8",
+    marginTop: 6,
+    lineHeight: 14,
+  },
+  specialtyLoading: {
+    paddingVertical: 16,
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
   },
   specialtyBody: {
     paddingHorizontal: 16,
@@ -635,7 +840,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderRadius: 20,
     padding: 28,
-    marginHorizontal: 24,
+    marginHorizontal: 16,
     marginTop: 24,
     alignItems: "center",
     gap: 12,
@@ -652,7 +857,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#EBF1FF",
     borderRadius: 16,
     padding: 20,
-    marginHorizontal: 24,
+    marginHorizontal: 16,
     marginTop: 24,
     borderWidth: 1,
     borderColor: "#C7D2FE",

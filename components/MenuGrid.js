@@ -7,6 +7,7 @@ import {
   hasResidentFeatureAccess,
   isResidentLockedMissingCorporateEmail,
 } from "../utils/residentAccess";
+import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
 
 const GRID_COLUMNS = 2;
 const ICON_SIZE = 40;
@@ -112,6 +113,7 @@ export const MenuGrid = ({
   residentReviewGateBypassed = false,
   showNotificationsBadge = false,
 }) => {
+  const { request: emailReviewRequest } = useEmailReviewStatus(userProfile?.id);
   // Filtrar items según el tipo de usuario y excluir los del footer
   const filteredItems = useMemo(() => {
     if (!navigationItems || navigationItems.length === 0) return [];
@@ -160,7 +162,7 @@ export const MenuGrid = ({
       if (
         item.id === "mi-resena" &&
         userProfile.is_resident &&
-        !canWriteResidentHospitalReview(userProfile)
+        !canWriteResidentHospitalReview(userProfile, { emailReviewRequest })
       ) {
         return false;
       }
@@ -194,6 +196,7 @@ export const MenuGrid = ({
     userProfile,
     residentHasReview,
     residentReviewGateBypassed,
+    emailReviewRequest,
   ]);
 
   // Calcular número de filas necesarias

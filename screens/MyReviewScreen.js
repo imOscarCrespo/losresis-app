@@ -13,6 +13,7 @@ import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { useMyReview } from "../hooks/useMyReview";
 import { useHospitals } from "../hooks/useHospitals";
+import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
 import { formatShortDate } from "../utils/dateUtils";
 import posthogLogger from "../services/posthogService";
 import { COLORS } from "../constants/colors";
@@ -84,8 +85,12 @@ export default function MyReviewScreen({
     userProfile?.speciality_id
   );
 
+  const { request: emailReviewRequest } = useEmailReviewStatus(userProfile?.id);
   const isResident = userProfile?.is_resident;
-  const reviewWritingDisabled = !canWriteResidentHospitalReview(userProfile);
+  const reviewWritingDisabled = !canWriteResidentHospitalReview(userProfile, {
+    emailReviewRequest,
+  });
+  const isEmailReviewPending = emailReviewRequest?.status === "PENDING";
   const isResolvingHospital =
     Boolean(userProfile?.hospital_id) &&
     !hospital &&
@@ -245,6 +250,24 @@ export default function MyReviewScreen({
 
   if (reviewWritingDisabled) {
     const isLocked = isResidentLockedMissingCorporateEmail(userProfile);
+    const iconName = isEmailReviewPending
+      ? "hourglass-outline"
+      : isLocked
+      ? "mail-outline"
+      : "time-outline";
+    const title = isEmailReviewPending
+      ? "Estamos validando tu email"
+      : isLocked
+      ? "Correo corporativo requerido"
+      : "Reseña temporalmente bloqueada";
+    const message = isEmailReviewPending
+      ? "Tu correo corporativo está en revisión manual. Podrás publicar tu reseña en cuanto lo validemos (normalmente en menos de 1 hora)."
+      : isLocked
+      ? "La ventana MIR temporal ya ha terminado. Añade tu correo corporativo en tu perfil para continuar."
+      : `Mientras estás en alta temporal MIR puedes usar el resto de funciones de residente, pero no publicar la reseña del hospital. Fecha límite actual: ${formatResidentTransitionDeadline(
+          userProfile?.resident_transition_expires_at
+        ) || "pendiente de configurar"}.`;
+
     return (
       <View style={styles.container}>
         <View style={styles.heroShell}>{header}</View>
@@ -252,22 +275,10 @@ export default function MyReviewScreen({
           <View style={styles.scrollContent}>
             <View style={styles.messageCard}>
               <View style={styles.messageIconWrap}>
-                <Ionicons
-                  name={isLocked ? "mail-outline" : "time-outline"}
-                  size={36}
-                  color={WARNING}
-                />
+                <Ionicons name={iconName} size={36} color={WARNING} />
               </View>
-              <Text style={styles.messageTitle}>
-                {isLocked ? "Correo corporativo requerido" : "Reseña temporalmente bloqueada"}
-              </Text>
-              <Text style={styles.messageText}>
-                {isLocked
-                  ? "La ventana MIR temporal ya ha terminado. Añade tu correo corporativo en tu perfil para continuar."
-                  : `Mientras estás en alta temporal MIR puedes usar el resto de funciones de residente, pero no publicar la reseña del hospital. Fecha límite actual: ${formatResidentTransitionDeadline(
-                      userProfile?.resident_transition_expires_at
-                    ) || "pendiente de configurar"}.`}
-              </Text>
+              <Text style={styles.messageTitle}>{title}</Text>
+              <Text style={styles.messageText}>{message}</Text>
             </View>
           </View>
         </View>

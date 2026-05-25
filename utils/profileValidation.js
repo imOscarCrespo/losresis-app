@@ -65,6 +65,11 @@ export const validateProfileForm = (
  * @returns {boolean}
  */
 export const shouldShowEmailReview = (formData, emailValidation) => {
+  // Si el email es un dominio personal (gmail, hotmail, etc.) no ofrecemos
+  // revisión manual: lo vamos a rechazar siempre, así que es mejor pedir al
+  // usuario que introduzca su correo corporativo del hospital directamente.
+  if (emailValidation?.isPersonalDomain) return false;
+
   return (
     formData.is_resident &&
     !emailValidation.isValid &&
@@ -86,6 +91,12 @@ export const shouldDiscardInvalidWorkEmailDuringGrace = (
   emailValidation,
   residentTransitionConfig = null
 ) => {
+  // Durante la gracia MIR R1 el correo corporativo es opcional: si el
+  // residente no lo tiene aún (típico de R1 recién hecho), aceptamos que
+  // continúe sin email. Por eso, cuando estamos en gracia, descartamos
+  // SILENCIOSAMENTE cualquier email inválido — incluidos los dominios
+  // personales (gmail/hotmail/...) — y guardamos work_email = null. El
+  // chequeo de dominio personal solo bloquea fuera de la gracia.
   return Boolean(
     formData?.is_resident &&
       formData?.work_email?.trim() &&

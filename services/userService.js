@@ -11,6 +11,7 @@ import {
   isSeasonalResidentPending,
   isResidentLockedMissingCorporateEmail,
   hasApprovedEmailReviewRequest,
+  hasPendingEmailReviewRequest,
 } from "../utils/residentAccess";
 
 /**
@@ -48,7 +49,27 @@ export const updateUserProfile = async (userId, profileData) => {
       resident_year: profileData.resident_year
         ? parseInt(profileData.resident_year)
         : null,
+      mir_academy: profileData.mir_academy?.trim() || null,
+      mir_expediente: (() => {
+        const raw = profileData.mir_expediente;
+        if (raw === null || raw === undefined || raw === "") return null;
+        const normalized =
+          typeof raw === "string" ? raw.replace(",", ".") : raw;
+        const n = Number(normalized);
+        if (!Number.isFinite(n) || n < 5 || n > 10) return null;
+        return n;
+      })(),
     };
+
+    if (
+      Object.prototype.hasOwnProperty.call(profileData, "onboarding_completed")
+    ) {
+      updateData.onboarding_completed = profileData.onboarding_completed;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(profileData, "avatar_url")) {
+      updateData.avatar_url = profileData.avatar_url || null;
+    }
 
     if (Object.prototype.hasOwnProperty.call(profileData, "resident_state")) {
       updateData.resident_state = profileData.resident_state;
@@ -118,6 +139,25 @@ export const submitEmailReviewRequest = async (userId, workEmail) => {
   try {
     console.log("🔄 Submitting email review request:", { userId, workEmail });
 
+    // Durante onboarding, el row en public.users puede aún no existir (sólo
+    // existe en auth.users hasta que finishOnboarding hace el upsert). El FK
+    // de user_email_review_requests apunta a public.users, así que aseguramos
+    // que la fila exista antes de insertar la solicitud de revisión.
+    const { error: ensureUserError } = await supabase
+      .from("users")
+      .upsert([{ id: userId }], { onConflict: "id", ignoreDuplicates: true });
+
+    if (ensureUserError) {
+      console.error(
+        "❌ Error ensuring user row before email review:",
+        ensureUserError
+      );
+      return {
+        success: false,
+        error: ensureUserError.message,
+      };
+    }
+
     const { data, error } = await supabase
       .from("user_email_review_requests")
       .insert([
@@ -169,6 +209,9 @@ export const isProfileComplete = (
   const hasApprovedEmailReview = hasApprovedEmailReviewRequest(
     emailReviewRequest
   );
+  const hasPendingEmailReview = hasPendingEmailReviewRequest(
+    emailReviewRequest
+  );
 
   if (profile.is_student || profile.is_host) {
     return hasRequiredBasicInfo; // Estudiantes y hosts solo necesitan nombre y ciudad
@@ -195,7 +238,11 @@ export const isProfileComplete = (
     const hasCorporateEmail = !!profile.work_email;
     if (!hasCorporateEmail) return false;
 
-    return isEmailValid || hasApprovedEmailReview;
+    // Una revisión manual pendiente cuenta como perfil completo: el residente
+    // puede usar la app (con las restricciones de "crear reseña / rotación
+    // externa") mientras esperamos respuesta. El rechazo se gestiona aparte
+    // en App.js redirigiendo a ProfileScreen.
+    return isEmailValid || hasApprovedEmailReview || hasPendingEmailReview;
   }
 
   if (profile.is_doctor) {

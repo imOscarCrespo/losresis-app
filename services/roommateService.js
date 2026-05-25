@@ -48,7 +48,7 @@ const buildAvatarPath = (userId, asset) => {
   return `${userId}/avatar_${Date.now()}.${String(fileExt).toLowerCase()}`;
 };
 
-const uploadRoommateAvatar = async (userId, asset, previousPath = null) => {
+export const uploadRoommateAvatar = async (userId, asset, previousPath = null) => {
   const filePath = buildAvatarPath(userId, asset);
   const fileName = filePath.split("/").pop() || `avatar_${Date.now()}.jpg`;
   const fileExt = fileName.split(".").pop() || "jpg";

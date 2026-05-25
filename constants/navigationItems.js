@@ -52,6 +52,16 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#CFFAFE",
   },
   {
+    id: "nota-proyectada",
+    name: "Nota proyectada",
+    icon: "trending-up",
+    description:
+      "Registra tus simulacros y estima tu número de orden final del MIR",
+    studentOnly: true,
+    color: "#670CF5",
+    lightColor: "#EDE4FF",
+  },
+  {
     id: "specialityQuiz",
     name: "Test de especialidad",
     icon: "help-buoy",
@@ -207,6 +217,7 @@ export const NAVIGATION_ITEMS = [
 export const IMPLEMENTED_SECTIONS = [
   "hospitales",
   "nota-mir",
+  "nota-proyectada",
   "specialityQuiz",
   "usuario",
   "mi-resena",

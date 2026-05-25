@@ -14,6 +14,8 @@ import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { StarRating } from "../components/StarRating";
 import { useMyReview } from "../hooks/useMyReview";
+import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
+import { canWriteResidentHospitalReview } from "../utils/residentAccess";
 import { COLORS } from "../constants/colors";
 
 const PRIMARY = "#670CF5";
@@ -53,9 +55,25 @@ export default function ReviewComposerScreen({
 
   const isEditing = mode === "edit";
 
+  const { request: emailReviewRequest } = useEmailReviewStatus(userProfile?.id);
+  const canWriteReview = canWriteResidentHospitalReview(userProfile, {
+    emailReviewRequest,
+  });
+  const isEmailReviewPending = emailReviewRequest?.status === "PENDING";
+
   useEffect(() => {
     fetchReviewQuestions();
   }, [fetchReviewQuestions]);
+
+  useEffect(() => {
+    if (!canWriteReview && isEmailReviewPending) {
+      Alert.alert(
+        "Estamos validando tu email",
+        "Tu correo corporativo está en revisión manual. Podrás publicar tu reseña en cuanto lo validemos.",
+        [{ text: "Entendido", onPress: () => onBack?.() }]
+      );
+    }
+  }, [canWriteReview, isEmailReviewPending, onBack]);
 
   useEffect(() => {
     if (!existingReview?.review_answer) return;
@@ -90,6 +108,13 @@ export default function ReviewComposerScreen({
   }, []);
 
   const handleSubmit = useCallback(async () => {
+    if (!canWriteReview) {
+      Alert.alert(
+        "Estamos validando tu email",
+        "Tu correo corporativo está en revisión manual. Podrás publicar tu reseña en cuanto lo validemos."
+      );
+      return;
+    }
     const unansweredRequired = reviewQuestions.filter((question) => {
       if (question.is_optional) return false;
       const answer = answers[question.id];
@@ -136,6 +161,7 @@ export default function ReviewComposerScreen({
     }
   }, [
     answers,
+    canWriteReview,
     existingReview,
     freeComment,
     handleCreateReview,

@@ -4,10 +4,16 @@ export const RESIDENT_STATE = {
   LOCKED_MISSING_CORPORATE_EMAIL: "locked_missing_corporate_email",
 };
 
-export const PENDING_RESIDENT_ACTIVATION_KIND = {
-  NEW_USER: "new_user",
-  STUDENT_UPGRADE: "student_upgrade",
+// Estado derivado de la validación manual del email corporativo del residente,
+// independiente del ciclo seasonal MIR (RESIDENT_STATE).
+export const RESIDENT_EMAIL_VALIDATION_STATE = {
+  VALIDATED: "validated",
+  REVIEW_PENDING: "review_pending",
+  REVIEW_REJECTED: "review_rejected",
 };
+
+const normalizeEmail = (value) =>
+  typeof value === "string" ? value.trim().toLowerCase() : "";
 
 const normalizeDate = (value) => {
   if (!value) return null;
@@ -77,20 +83,6 @@ export const hasPendingEmailReviewRequest = (reviewRequest) =>
 export const hasApprovedEmailReviewRequest = (reviewRequest) =>
   reviewRequest?.status === "APPROVED";
 
-export const getPendingResidentActivationKind = (profile, reviewRequest) => {
-  if (
-    !hasPendingEmailReviewRequest(reviewRequest) ||
-    profile?.is_resident ||
-    !hasResidentDraftFields(profile)
-  ) {
-    return null;
-  }
-
-  return profile?.is_student
-    ? PENDING_RESIDENT_ACTIVATION_KIND.STUDENT_UPGRADE
-    : PENDING_RESIDENT_ACTIVATION_KIND.NEW_USER;
-};
-
 export const getResidentState = (profile, now = new Date()) => {
   if (!profile?.is_resident) {
     return null;
@@ -139,13 +131,108 @@ export const hasResidentFeatureAccess = (profile, now = new Date()) =>
 export const shouldBypassResidentReviewGate = (profile, now = new Date()) =>
   isSeasonalResidentPending(profile, now);
 
-export const canWriteResidentHospitalReview = (profile, now = new Date()) => {
+export const getResidentEmailValidationState = (
+  profile,
+  emailReviewRequest
+) => {
+  // No condicionamos por is_resident: el rechazo del email aplica a cualquier
+  // usuario que haya pedido revisión, incluso si el código antiguo lo había
+  // degradado a no-residente. Esos usuarios deben ser redirigidos a Perfil
+  // para arreglar el email.
+  const status = emailReviewRequest?.status;
+
+  if (status === "PENDING") {
+    return RESIDENT_EMAIL_VALIDATION_STATE.REVIEW_PENDING;
+  }
+
+  if (status === "REJECTED") {
+    const rejectedEmail = normalizeEmail(emailReviewRequest?.work_email);
+    const currentEmail = normalizeEmail(profile?.work_email);
+    // Si el usuario ya cambió el email tras el rechazo, el rechazo deja de
+    // aplicar: lo consideramos validado (o re-validable con nueva solicitud).
+    if (rejectedEmail && currentEmail && rejectedEmail !== currentEmail) {
+      return RESIDENT_EMAIL_VALIDATION_STATE.VALIDATED;
+    }
+    return RESIDENT_EMAIL_VALIDATION_STATE.REVIEW_REJECTED;
+  }
+
+  return RESIDENT_EMAIL_VALIDATION_STATE.VALIDATED;
+};
+
+export const isResidentEmailReviewPending = (profile, emailReviewRequest) =>
+  getResidentEmailValidationState(profile, emailReviewRequest) ===
+  RESIDENT_EMAIL_VALIDATION_STATE.REVIEW_PENDING;
+
+export const isResidentEmailReviewRejected = (profile, emailReviewRequest) =>
+  getResidentEmailValidationState(profile, emailReviewRequest) ===
+  RESIDENT_EMAIL_VALIDATION_STATE.REVIEW_REJECTED;
+
+const hasAnyActiveRoleInProfile = (profile) =>
+  Boolean(
+    profile?.is_resident ||
+      profile?.is_student ||
+      profile?.is_doctor ||
+      profile?.is_host ||
+      profile?.is_super_admin
+  );
+
+// Decisión de policy para forzar la redirección a ProfileScreen tras un
+// rechazo de email. Aplicable a:
+//   - Residentes activos: necesitan el email para crear reseñas/rotaciones.
+//   - Usuarios sin rol activo (legacy del código antiguo que degradaba al
+//     pedir revisión): están en limbo y deben arreglar el perfil.
+// NO se aplica a estudiantes/doctores/hosts felices con su rol: el rechazo
+// es histórico y no les bloquea ninguna funcionalidad de su rol actual.
+export const shouldRedirectForEmailReviewRejection = (
+  profile,
+  emailReviewRequest
+) => {
+  if (!isResidentEmailReviewRejected(profile, emailReviewRequest)) return false;
+  if (profile?.is_resident) return true;
+  return !hasAnyActiveRoleInProfile(profile);
+};
+
+export const canWriteResidentHospitalReview = (
+  profile,
+  { emailReviewRequest = null, now = new Date() } = {}
+) => {
   if (!profile?.is_resident || profile?.is_super_admin) {
     return Boolean(profile?.is_resident);
   }
 
+  // Mientras la solicitud de revisión manual del email corporativo esté
+  // pendiente o haya sido rechazada, no permitimos publicar reseña: aún no
+  // hemos validado al residente contra el hospital.
+  const validationState = getResidentEmailValidationState(
+    profile,
+    emailReviewRequest
+  );
+  if (
+    validationState === RESIDENT_EMAIL_VALIDATION_STATE.REVIEW_PENDING ||
+    validationState === RESIDENT_EMAIL_VALIDATION_STATE.REVIEW_REJECTED
+  ) {
+    return false;
+  }
+
   return !isSeasonalResidentPending(profile, now) &&
     !isResidentLockedMissingCorporateEmail(profile, now);
+};
+
+// Gating de creación/publicación en Rotaciones Externas. Para residentes,
+// misma política que reseña de hospital (cualquier estado distinto de
+// VALIDATED lo bloquea). Para otros perfiles con acceso a la feature
+// (doctores, super_admin), no aplica la validación de email del residente.
+export const canResidentCreateExternalRotation = (
+  profile,
+  { emailReviewRequest = null, now = new Date() } = {}
+) => {
+  if (!profile) return false;
+  if (profile.is_super_admin) return true;
+  if (profile.is_resident) {
+    return canWriteResidentHospitalReview(profile, { emailReviewRequest, now });
+  }
+  if (profile.is_doctor) return true;
+  return false;
 };
 
 export const needsResidentCorporateEmail = (profile, now = new Date()) => {

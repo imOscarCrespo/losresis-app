@@ -23,10 +23,12 @@ const PRIMARY = "#670CF5";
 const INDIGO = "#1B0977";
 const BG_LIGHT = "#F8F9FE";
 
-export default function MirSimulatorScreen({ onBack, userProfile }) {
+export default function MirSimulatorScreen({ onBack, userProfile, initialScore }) {
   const { specialties, uniqueRegions } = useHospitals();
   const scrollViewRef = useRef(null);
-  const [mirScore, setMirScore] = useState("");
+  const [mirScore, setMirScore] = useState(
+    initialScore != null && initialScore !== "" ? String(initialScore) : ""
+  );
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("");
   const [results, setResults] = useState([]);
@@ -532,7 +534,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderRadius: 24,
     padding: 24,
-    marginHorizontal: 24,
+    marginHorizontal: 16,
     shadowColor: INDIGO,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
@@ -594,7 +596,7 @@ const styles = StyleSheet.create({
   resultsCard: {
     backgroundColor: "#FFF",
     borderRadius: 24,
-    marginHorizontal: 24,
+    marginHorizontal: 16,
     marginTop: 24,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -797,7 +799,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#EBF1FF",
     borderRadius: 16,
     padding: 20,
-    marginHorizontal: 24,
+    marginHorizontal: 16,
     marginTop: 24,
     borderWidth: 1,
     borderColor: "#C7D2FE",

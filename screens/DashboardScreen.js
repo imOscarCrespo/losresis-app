@@ -10,6 +10,7 @@ import HospitalDetailScreen from "./HospitalDetailScreen";
 import HospitalInfoScreen from "./HospitalInfoScreen";
 import MirSimulatorScreen from "./MirSimulatorScreen";
 import MirOrientationScreen from "./MirOrientationScreen";
+import MirProjectedScoreScreen from "./MirProjectedScoreScreen";
 import ProfileScreen from "./ProfileScreen";
 import MenuScreen from "./MenuScreen";
 import MyPreferencesScreen from "./MyPreferencesScreen";
@@ -179,10 +180,13 @@ export default function DashboardScreen({
   const [myReviewAutoOpenCreate, setMyReviewAutoOpenCreate] = useState(false);
   const [myReviewAutoFocusQuestions, setMyReviewAutoFocusQuestions] =
     useState(false);
+  const [profileAutoFocusWorkEmail, setProfileAutoFocusWorkEmail] =
+    useState(false);
   const [selectedQuestionId, setSelectedQuestionId] = useState(null);
   const [residentPayoutRouteParams, setResidentPayoutRouteParams] = useState(
     DEFAULT_RESIDENT_PAYOUT_ROUTE_PARAMS
   );
+  const [mirSimulatorInitialScore, setMirSimulatorInitialScore] = useState(null);
   const [localResidentGateState, setLocalResidentGateState] =
     useState(residentReviewGateState);
   const [isNavigationReady, setIsNavigationReady] = useState(false);
@@ -638,6 +642,9 @@ export default function DashboardScreen({
       setMyReviewAutoFocusQuestions(Boolean(params.focusQuestions));
       setSelectedQuestionId(params.questionId || null);
     }
+    if (sectionId === "usuario" || sectionId === "profile") {
+      setProfileAutoFocusWorkEmail(Boolean(params.autoFocusWorkEmail));
+    }
     // Si es reviewDetail, guardar el reviewId
     if (sectionId === "reviewDetail" && params.reviewId) {
       setSelectedReviewId(params.reviewId);
@@ -714,6 +721,16 @@ export default function DashboardScreen({
     } else {
       setRoommateInitialTab("discover");
       setSelectedRoommateMatchId(null);
+    }
+
+    if (
+      sectionId === "nota-mir" ||
+      sectionId === "mirSimulator" ||
+      sectionId === "orientador-mir"
+    ) {
+      setMirSimulatorInitialScore(params.initialScore ?? null);
+    } else {
+      setMirSimulatorInitialScore(null);
     }
 
     if (sectionId === "residentPayouts") {
@@ -1268,6 +1285,7 @@ export default function DashboardScreen({
           <MirSimulatorScreen
             onBack={handleBackFromMirSimulator}
             userProfile={userProfile}
+            initialScore={mirSimulatorInitialScore}
           />
         );
 
@@ -1276,6 +1294,22 @@ export default function DashboardScreen({
           <MirOrientationScreen
             onBack={handleBackFromMirSimulator}
             userProfile={userProfile}
+            initialScore={mirSimulatorInitialScore}
+          />
+        );
+
+      case "nota-proyectada":
+        return (
+          <MirProjectedScoreScreen
+            onBack={handleBackFromMirSimulator}
+            userProfile={userProfile}
+            onOpenSimulator={(order) =>
+              handleSectionChange("nota-mir", { initialScore: order })
+            }
+            onOpenOrientation={(order) =>
+              handleSectionChange("orientador-mir", { initialScore: order })
+            }
+            onOpenProfile={() => handleSectionChange("profile")}
           />
         );
 
@@ -1297,6 +1331,10 @@ export default function DashboardScreen({
             onProfileUpdated={loadUserProfile}
             onSectionChange={handleSectionChange}
             currentSection={currentSection}
+            autoFocusWorkEmail={profileAutoFocusWorkEmail}
+            onAutoFocusWorkEmailHandled={() =>
+              setProfileAutoFocusWorkEmail(false)
+            }
           />
         );
 

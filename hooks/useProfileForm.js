@@ -23,6 +23,8 @@ const INITIAL_FORM_DATA = {
   hospital_id: "",
   speciality_id: "",
   resident_year: "",
+  mir_academy: "",
+  mir_expediente: "",
   is_student: true, // Por defecto, estudiante
   is_resident: false,
   is_doctor: false,
@@ -92,6 +94,11 @@ export const useProfileForm = () => {
           hospital_id: profile.hospital_id || "",
           speciality_id: profile.speciality_id || "",
           resident_year: profile.resident_year?.toString() || "",
+          mir_academy: profile.mir_academy || "",
+          mir_expediente:
+            profile.mir_expediente !== null && profile.mir_expediente !== undefined
+              ? String(profile.mir_expediente)
+              : "",
           is_student: savedProfileType === "student" || defaultToStudent,
           is_resident: savedProfileType === "resident",
           is_doctor: savedProfileType === "doctor",
@@ -247,6 +254,13 @@ export const useProfileForm = () => {
               setLoading(false);
               return;
             } else {
+              // Cualquier otro caso de email inválido (incluye dominio
+              // personal tipo gmail/hotmail/yahoo/icloud): mostramos el
+              // error inline y nos aseguramos de ocultar la sección de
+              // revisión manual si quedó visible de un intento anterior.
+              if (showEmailReviewSection) {
+                setShowEmailReviewSection(false);
+              }
               setMessage({
                 type: "error",
                 text:
