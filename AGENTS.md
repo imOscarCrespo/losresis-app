@@ -25,6 +25,14 @@
 - Si una relación nueva puede bloquear el borrado completo de una cuenta, la misma tarea debe incluir la migración necesaria para que la eliminación del usuario siga siendo posible sin limpieza manual posterior.
 - No dar por válido un cambio de esquema que referencia usuarios si no se ha revisado también el flujo de eliminación de cuenta y sus dependencias históricas.
 
+## Screen Layout And Header Convention
+
+- Toda pantalla nueva dentro de `screens/` con header propio (título + botón volver opcional + acciones) debe usar `HeroScreenLayout` (`components/HeroScreenLayout.js`). Esto envuelve `BottomMenuHeroHeader` y resuelve el botón "Volver" automáticamente cuando se pasa `onBack`.
+- Props relevantes: `title`, `subtitle`, `onBack`, `leftSlot`, `rightSlot`, `bottomContent`, `overlay`, `children`. Modales y FABs van en `overlay`; el contenido scrolleable va como `children`.
+- Referencia canónica: `screens/HousingScreen.js` (uso de `heroProps` + `overlay` con `FilterModal` y `FloatingActionButton`).
+- No reimplementar headers manuales con `View` + back button propio en pantallas nuevas; si necesitas un header distinto, primero amplía `HeroScreenLayout`/`BottomMenuHeroHeader` para que el patrón siga siendo uno solo.
+- Para vistas embebidas dentro de un Dashboard que no son pantallas raíz (p.ej. listas dentro de una tab interna sin botón volver), sigue usando `HeroScreenLayout` y simplemente no pases `onBack`.
+
 ## Speciality Quiz Versioning
 
 - El test de especialidad MIR tiene actualmente dos versiones que deben poder convivir en base de datos y en la app mientras existan usuarios sin actualizar.

@@ -15,6 +15,7 @@ import ProfileScreen from "./ProfileScreen";
 import MenuScreen from "./MenuScreen";
 import MyPreferencesScreen from "./MyPreferencesScreen";
 import ComunityScreen from "./ComunityScreen";
+import ResidentsDirectoryScreen from "./ResidentsDirectoryScreen";
 import MyReviewScreen from "./MyReviewScreen";
 import ResidenceLibraryScreen from "./ResidenceLibraryScreen";
 import ReviewsScreen from "./ReviewsScreen";
@@ -1414,6 +1415,16 @@ export default function DashboardScreen({
             userProfile={userProfile}
             navigation={{ navigate: handleSectionChange }}
             residentReviewGateStatus={residentGateStatus}
+          />
+        );
+
+      case "residentsDirectory":
+        return (
+          <ResidentsDirectoryScreen
+            currentUserId={userProfile?.id}
+            currentUserProfile={userProfile}
+            onSectionChange={handleSectionChange}
+            onBack={handleBackFromGenericSection}
           />
         );
 

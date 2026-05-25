@@ -1,5 +1,8 @@
 import { supabase } from "../config/supabase";
-import { getSpecialityByIdFromCatalog } from "./staticCatalogService";
+import {
+  getHospitalByIdFromCatalog,
+  getSpecialityByIdFromCatalog,
+} from "./staticCatalogService";
 
 const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
 const MADRID_FALLBACK = { latitude: 40.4168, longitude: -3.7038 };
@@ -16,7 +19,9 @@ const MADRID_FALLBACK = { latitude: 40.4168, longitude: -3.7038 };
  */
 export const getCommunityUsers = async (
   cityFilter = "",
-  specialtyFilter = ""
+  specialtyFilter = "",
+  hospitalFilter = "",
+  excludeUserId = ""
 ) => {
   try {
     // Construir query base para residentes con email y especialidad
@@ -29,7 +34,8 @@ export const getCommunityUsers = async (
         surname,
         work_email,
         city,
-        speciality_id
+        speciality_id,
+        hospital_id
       `
       )
       .eq("is_resident", true)
@@ -43,6 +49,14 @@ export const getCommunityUsers = async (
 
     if (specialtyFilter) {
       query = query.eq("speciality_id", specialtyFilter);
+    }
+
+    if (hospitalFilter) {
+      query = query.eq("hospital_id", hospitalFilter);
+    }
+
+    if (excludeUserId) {
+      query = query.neq("id", excludeUserId);
     }
 
     const { data, error } = await query;
@@ -61,6 +75,8 @@ export const getCommunityUsers = async (
       users: (data || []).map((user) => ({
         ...user,
         specialities: getSpecialityByIdFromCatalog(user.speciality_id),
+        hospital_name:
+          getHospitalByIdFromCatalog(user.hospital_id)?.name || null,
       })),
       error: null,
     };

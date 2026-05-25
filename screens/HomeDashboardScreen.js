@@ -520,6 +520,13 @@ export default function HomeDashboardScreen({
           tint: "#E5E7EB",
           color: "#475569",
         },
+        {
+          label: "Residentes",
+          icon: "people-outline",
+          section: "residentsDirectory",
+          tint: "#EDE9FE",
+          color: "#7C3AED",
+        },
       ].filter(
         (action) =>
           action.section !== "clinicalAssistant" ||

@@ -2,8 +2,6 @@ import React, { useMemo, useRef, useEffect, useState, useCallback } from "react"
 import {
   ActivityIndicator,
   FlatList,
-  Modal,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +14,7 @@ import { useCommunityUsers } from "../hooks/useCommunityUsers";
 import { useCities } from "../hooks/useCities";
 import { usePersistedFilters } from "../hooks/usePersistedFilters";
 import posthogLogger from "../services/posthogService";
+import FilterRadioModal from "../components/FilterRadioModal";
 
 const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
@@ -52,108 +51,6 @@ try {
 } catch (error) {
   console.log("⚠️ MapView no disponible - usando vista de lista.", error.message);
   MAP_AVAILABLE = false;
-}
-
-function RadioDot({ selected }) {
-  return (
-    <View
-      style={[
-        modal.radioDot,
-        selected ? modal.radioDotSelected : modal.radioDotUnselected,
-      ]}
-    >
-      {selected ? <View style={modal.radioDotInner} /> : null}
-    </View>
-  );
-}
-
-function FilterModal({
-  visible,
-  onClose,
-  title,
-  options,
-  value,
-  onSelect,
-  placeholder,
-}) {
-  const insets = useSafeAreaInsets();
-  const [tempValue, setTempValue] = useState(value);
-
-  useEffect(() => {
-    if (visible) {
-      setTempValue(value);
-    }
-  }, [value, visible]);
-
-  const listData = useMemo(() => {
-    const data = [];
-    if (value) {
-      data.push({ id: "", name: placeholder });
-    }
-    data.push(...options);
-    return data;
-  }, [options, placeholder, value]);
-
-  const handleConfirm = useCallback(() => {
-    onSelect(tempValue);
-    onClose();
-  }, [onClose, onSelect, tempValue]);
-
-  return (
-    <Modal
-      visible={visible}
-      transparent={false}
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <View style={modal.container}>
-        <View style={[modal.header, { paddingTop: Math.max(insets.top, 16) }]}>
-          <TouchableOpacity style={modal.backBtn} onPress={onClose}>
-            <Ionicons name="arrow-back" size={24} color={ACCENT} />
-          </TouchableOpacity>
-          <Text style={modal.title}>{title}</Text>
-          <View style={modal.backBtn} />
-        </View>
-
-        <ScrollView contentContainerStyle={modal.listContent}>
-          {listData.map((item, index) => {
-            const isClear = item.id === "";
-            const isSelected = !isClear && item.id === tempValue;
-
-            return (
-              <Pressable
-                key={`${String(item.id ?? "")}-${index}`}
-                style={({ pressed }) => [
-                  modal.option,
-                  isSelected && modal.optionSelected,
-                  isClear && modal.optionClear,
-                  pressed && { opacity: 0.78 },
-                ]}
-                onPress={() => setTempValue(isClear ? "" : item.id)}
-              >
-                <Text
-                  style={[
-                    modal.optionName,
-                    isSelected && modal.optionNameSelected,
-                    isClear && modal.optionNameClear,
-                  ]}
-                >
-                  {item.name}
-                </Text>
-                {isClear ? null : <RadioDot selected={isSelected} />}
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        <View style={[modal.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <TouchableOpacity style={modal.confirmBtn} onPress={handleConfirm}>
-            <Text style={modal.confirmText}>Confirmar selección</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
 }
 
 function ResidentCard({ user }) {
@@ -621,7 +518,7 @@ export default function ComunityScreen({
         </View>
       </View>
 
-      <FilterModal
+      <FilterRadioModal
         visible={openModal === "city"}
         onClose={() => setOpenModal(null)}
         title="Filtrar por ciudad"
@@ -630,7 +527,7 @@ export default function ComunityScreen({
         onSelect={setSelectedCity}
         placeholder="Todas las ciudades"
       />
-      <FilterModal
+      <FilterRadioModal
         visible={openModal === "specialty"}
         onClose={() => setOpenModal(null)}
         title="Filtrar por especialidad"
@@ -1101,108 +998,3 @@ const styles = StyleSheet.create({
   },
 });
 
-const modal = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: CARD_BORDER,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 18,
-    fontWeight: "700",
-    color: ACCENT,
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    paddingBottom: 24,
-  },
-  option: {
-    minHeight: 58,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  optionSelected: {
-    borderColor: `${PRIMARY}40`,
-    backgroundColor: `${PRIMARY}10`,
-  },
-  optionClear: {
-    backgroundColor: "#F8FAFC",
-  },
-  optionName: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "600",
-    color: ACCENT,
-  },
-  optionNameSelected: {
-    color: PRIMARY,
-  },
-  optionNameClear: {
-    color: MUTED,
-  },
-  footer: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: CARD_BORDER,
-  },
-  confirmBtn: {
-    backgroundColor: PRIMARY,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 15,
-  },
-  confirmText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  radioDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-  },
-  radioDotSelected: {
-    borderColor: PRIMARY,
-  },
-  radioDotUnselected: {
-    borderColor: "#CBD5E1",
-  },
-  radioDotInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: PRIMARY,
-  },
-});
