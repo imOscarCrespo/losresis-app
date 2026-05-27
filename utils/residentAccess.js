@@ -128,8 +128,13 @@ export const hasResidentFeatureAccess = (profile, now = new Date()) =>
       !isResidentLockedMissingCorporateEmail(profile, now)
   );
 
-export const shouldBypassResidentReviewGate = (profile, now = new Date()) =>
-  isSeasonalResidentPending(profile, now);
+export const shouldBypassResidentReviewGate = (
+  profile,
+  transitionConfig = null,
+  now = new Date()
+) =>
+  isSeasonalResidentPending(profile, now) ||
+  canResidentUseSeasonalGrace(profile, transitionConfig, now);
 
 export const getResidentEmailValidationState = (
   profile,
@@ -194,7 +199,11 @@ export const shouldRedirectForEmailReviewRejection = (
 
 export const canWriteResidentHospitalReview = (
   profile,
-  { emailReviewRequest = null, now = new Date() } = {}
+  {
+    emailReviewRequest = null,
+    transitionConfig = null,
+    now = new Date(),
+  } = {}
 ) => {
   if (!profile?.is_resident || profile?.is_super_admin) {
     return Boolean(profile?.is_resident);
@@ -214,6 +223,15 @@ export const canWriteResidentHospitalReview = (
     return false;
   }
 
+  // Durante la ventana MIR de gracia, un R1 (con o sin email validado) aún
+  // no tiene experiencia suficiente para reseñar el hospital.
+  if (
+    transitionConfig &&
+    canResidentUseSeasonalGrace(profile, transitionConfig, now)
+  ) {
+    return false;
+  }
+
   return !isSeasonalResidentPending(profile, now) &&
     !isResidentLockedMissingCorporateEmail(profile, now);
 };
@@ -224,12 +242,20 @@ export const canWriteResidentHospitalReview = (
 // (doctores, super_admin), no aplica la validación de email del residente.
 export const canResidentCreateExternalRotation = (
   profile,
-  { emailReviewRequest = null, now = new Date() } = {}
+  {
+    emailReviewRequest = null,
+    transitionConfig = null,
+    now = new Date(),
+  } = {}
 ) => {
   if (!profile) return false;
   if (profile.is_super_admin) return true;
   if (profile.is_resident) {
-    return canWriteResidentHospitalReview(profile, { emailReviewRequest, now });
+    return canWriteResidentHospitalReview(profile, {
+      emailReviewRequest,
+      transitionConfig,
+      now,
+    });
   }
   if (profile.is_doctor) return true;
   return false;

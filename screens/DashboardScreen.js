@@ -62,6 +62,7 @@ import {
   isResidentLockedMissingCorporateEmail,
   shouldBypassResidentReviewGate,
 } from "../utils/residentAccess";
+import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
 
 /**
  * Aplica el override de tipo de usuario definido en devConfig.js.
@@ -155,6 +156,7 @@ export default function DashboardScreen({
   updateUrl = null,
 }) {
   const [userProfile, setUserProfile] = useState(null);
+  const [residentTransitionConfig, setResidentTransitionConfig] = useState(null);
   const [isProfileIncomplete, setIsProfileIncomplete] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [selectedHospital, setSelectedHospital] = useState(null);
@@ -483,7 +485,21 @@ export default function DashboardScreen({
     }
   };
 
-  const residentReviewGateBypassed = shouldBypassResidentReviewGate(userProfile);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { config } = await getResidentTransitionConfig();
+      if (!cancelled) setResidentTransitionConfig(config || null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const residentReviewGateBypassed = shouldBypassResidentReviewGate(
+    userProfile,
+    residentTransitionConfig
+  );
   const residentGateEnabled =
     userProfile?.is_resident &&
     !userProfile?.is_super_admin &&

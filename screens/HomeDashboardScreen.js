@@ -38,6 +38,7 @@ import {
   isSeasonalResidentPending,
   shouldBypassResidentReviewGate,
 } from "../utils/residentAccess";
+import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
 
 const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
@@ -250,6 +251,17 @@ export default function HomeDashboardScreen({
   const [payoutReminderTarget, setPayoutReminderTarget] = useState(null);
   const [showPayoutReminder, setShowPayoutReminder] = useState(false);
   const [cachedAgendaHeroSnapshot, setCachedAgendaHeroSnapshot] = useState(null);
+  const [residentTransitionConfig, setResidentTransitionConfig] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { config } = await getResidentTransitionConfig();
+      if (!cancelled) setResidentTransitionConfig(config || null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const {
     hospitals,
@@ -460,7 +472,7 @@ export default function HomeDashboardScreen({
   const residentNeedsReview =
     userProfile?.is_resident &&
     !residentHasReview &&
-    !shouldBypassResidentReviewGate(userProfile) &&
+    !shouldBypassResidentReviewGate(userProfile, residentTransitionConfig) &&
     !isEmailReviewPending &&
     !isEmailReviewRejected;
   const residentMeta = [residentSpecialtyName, residentYearLabel]

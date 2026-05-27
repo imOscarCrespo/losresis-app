@@ -18,10 +18,12 @@ import { formatShortDate } from "../utils/dateUtils";
 import posthogLogger from "../services/posthogService";
 import { COLORS } from "../constants/colors";
 import {
+  canResidentUseSeasonalGrace,
   canWriteResidentHospitalReview,
   formatResidentTransitionDeadline,
   isResidentLockedMissingCorporateEmail,
 } from "../utils/residentAccess";
+import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
 import { StudentQuestionsSection } from "../components/StudentQuestionsSection";
 
 // ============================================================================
@@ -86,11 +88,24 @@ export default function MyReviewScreen({
   );
 
   const { request: emailReviewRequest } = useEmailReviewStatus(userProfile?.id);
+  const [transitionConfig, setTransitionConfig] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { config } = await getResidentTransitionConfig();
+      if (!cancelled) setTransitionConfig(config || null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const isResident = userProfile?.is_resident;
   const reviewWritingDisabled = !canWriteResidentHospitalReview(userProfile, {
     emailReviewRequest,
+    transitionConfig,
   });
   const isEmailReviewPending = emailReviewRequest?.status === "PENDING";
+  const isInMirGrace = canResidentUseSeasonalGrace(userProfile, transitionConfig);
   const isResolvingHospital =
     Boolean(userProfile?.hospital_id) &&
     !hospital &&
@@ -250,6 +265,11 @@ export default function MyReviewScreen({
 
   if (reviewWritingDisabled) {
     const isLocked = isResidentLockedMissingCorporateEmail(userProfile);
+    const graceDeadline =
+      formatResidentTransitionDeadline(transitionConfig?.ends_at) ||
+      formatResidentTransitionDeadline(
+        userProfile?.resident_transition_expires_at
+      );
     const iconName = isEmailReviewPending
       ? "hourglass-outline"
       : isLocked
@@ -259,14 +279,20 @@ export default function MyReviewScreen({
       ? "Estamos validando tu email"
       : isLocked
       ? "Correo corporativo requerido"
+      : isInMirGrace
+      ? "Disponible al terminar el periodo de gracia MIR"
       : "Reseña temporalmente bloqueada";
     const message = isEmailReviewPending
       ? "Tu correo corporativo está en revisión manual. Podrás publicar tu reseña en cuanto lo validemos (normalmente en menos de 1 hora)."
       : isLocked
       ? "La ventana MIR temporal ya ha terminado. Añade tu correo corporativo en tu perfil para continuar."
-      : `Mientras estás en alta temporal MIR puedes usar el resto de funciones de residente, pero no publicar la reseña del hospital. Fecha límite actual: ${formatResidentTransitionDeadline(
-          userProfile?.resident_transition_expires_at
-        ) || "pendiente de configurar"}.`;
+      : isInMirGrace
+      ? `Acabas de empezar tu residencia. Podrás publicar tu reseña a partir del ${
+          graceDeadline || "fin de la ventana MIR"
+        }.`
+      : `Mientras estás en alta temporal MIR puedes usar el resto de funciones de residente, pero no publicar la reseña del hospital. Fecha límite actual: ${
+          graceDeadline || "pendiente de configurar"
+        }.`;
 
     return (
       <View style={styles.container}>

@@ -40,7 +40,12 @@ import { getSpecialties } from "../services/hospitalService";
 import RotationReviewDetailScreen from "./RotationReviewDetailScreen";
 import posthogLogger from "../services/posthogService";
 import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
-import { canResidentCreateExternalRotation } from "../utils/residentAccess";
+import {
+  canResidentCreateExternalRotation,
+  canResidentUseSeasonalGrace,
+  formatResidentTransitionDeadline,
+} from "../utils/residentAccess";
+import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
 
 const PRIMARY = "#670CF5";
 const ACCENT = "#1B0977";
@@ -440,11 +445,23 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   const userId = userProfile?.id;
   const isResident = userProfile?.is_resident;
   const { request: emailReviewRequest } = useEmailReviewStatus(userId);
+  const [transitionConfig, setTransitionConfig] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { config } = await getResidentTransitionConfig();
+      if (!cancelled) setTransitionConfig(config || null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const canCreateExternalRotation = canResidentCreateExternalRotation(
     userProfile,
-    { emailReviewRequest }
+    { emailReviewRequest, transitionConfig }
   );
   const emailReviewStatus = emailReviewRequest?.status || null;
+  const isInMirGrace = canResidentUseSeasonalGrace(userProfile, transitionConfig);
   const creationBlockedReason = !canCreateExternalRotation
     ? emailReviewStatus === "PENDING"
       ? {
@@ -457,6 +474,14 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           title: "Email corporativo no validado",
           message:
             "Tu solicitud anterior fue rechazada. Actualiza tu email en el perfil y solicita una nueva revisión para poder publicar rotaciones externas.",
+        }
+      : isInMirGrace
+      ? {
+          title: "Disponible al terminar el periodo de gracia MIR",
+          message: `Acabas de empezar tu residencia. Podrás crear y publicar rotaciones externas a partir del ${
+            formatResidentTransitionDeadline(transitionConfig?.ends_at) ||
+            "fin de la ventana MIR"
+          }.`,
         }
       : {
           title: "Acción no disponible",

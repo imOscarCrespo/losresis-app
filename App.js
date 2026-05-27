@@ -17,6 +17,7 @@ import {
   getUserProfile,
 } from "./services/authService";
 import { checkResidentReview } from "./services/communityService";
+import { getResidentTransitionConfig } from "./services/residentTransitionConfigService";
 import {
   getEmailReviewRequest,
   subscribeToEmailReviewRequest,
@@ -40,6 +41,19 @@ import {
 } from "./src/services/push/notificationConfig";
 import { addNotificationResponseListener } from "./src/services/push/notificationListener";
 import { useRegisterPushToken } from "./src/hooks/useRegisterPushToken";
+
+// Calcula si hay que saltarse el gate de reseñas para este perfil.
+// Fail-open: si no podemos cargar la ventana MIR (`resident_transition_config`),
+// concedemos bypass a cualquier R1 — preferimos no bloquear por un error de
+// infra al usuario que está empezando residencia.
+const resolveBypassReviewRequirement = async (profile) => {
+  const { success, config } = await getResidentTransitionConfig();
+  if (!success) {
+    const residentYear = Number(profile?.resident_year || 0);
+    return Boolean(profile?.is_resident && residentYear === 1);
+  }
+  return shouldBypassResidentReviewGate(profile, config);
+};
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -262,7 +276,7 @@ export default function App() {
 
           if (profileSuccess && profile) {
             const bypassReviewRequirement =
-              shouldBypassResidentReviewGate(profile);
+              await resolveBypassReviewRequirement(profile);
 
             // El rechazo del email aplica a cualquier usuario que solicitó
             // revisión manual, no solo a residentes (puede haber usuarios
@@ -388,7 +402,8 @@ export default function App() {
       );
 
       if (profileSuccess && profile) {
-        const bypassReviewRequirement = shouldBypassResidentReviewGate(profile);
+        const bypassReviewRequirement =
+          await resolveBypassReviewRequirement(profile);
 
         // Misma política que en checkAuth: el rechazo del email se evalúa
         // para cualquier usuario, no solo residentes.
@@ -494,7 +509,8 @@ export default function App() {
         profile.is_resident &&
         !profile.is_super_admin
       ) {
-        const bypassReviewRequirement = shouldBypassResidentReviewGate(profile);
+        const bypassReviewRequirement =
+          await resolveBypassReviewRequirement(profile);
         // Verificar si ahora tiene review
         const { success: reviewCheckSuccess, hasReview } =
           await checkResidentReview(user.id);

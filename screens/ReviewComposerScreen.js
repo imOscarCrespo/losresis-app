@@ -15,7 +15,12 @@ import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { StarRating } from "../components/StarRating";
 import { useMyReview } from "../hooks/useMyReview";
 import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
-import { canWriteResidentHospitalReview } from "../utils/residentAccess";
+import {
+  canResidentUseSeasonalGrace,
+  canWriteResidentHospitalReview,
+  formatResidentTransitionDeadline,
+} from "../utils/residentAccess";
+import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
 import { COLORS } from "../constants/colors";
 
 const PRIMARY = "#670CF5";
@@ -56,24 +61,47 @@ export default function ReviewComposerScreen({
   const isEditing = mode === "edit";
 
   const { request: emailReviewRequest } = useEmailReviewStatus(userProfile?.id);
+  const [transitionConfig, setTransitionConfig] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { config } = await getResidentTransitionConfig();
+      if (!cancelled) setTransitionConfig(config || null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const canWriteReview = canWriteResidentHospitalReview(userProfile, {
     emailReviewRequest,
+    transitionConfig,
   });
   const isEmailReviewPending = emailReviewRequest?.status === "PENDING";
+  const isInMirGrace = canResidentUseSeasonalGrace(userProfile, transitionConfig);
 
   useEffect(() => {
     fetchReviewQuestions();
   }, [fetchReviewQuestions]);
 
   useEffect(() => {
-    if (!canWriteReview && isEmailReviewPending) {
+    if (canWriteReview) return;
+    if (isEmailReviewPending) {
       Alert.alert(
         "Estamos validando tu email",
         "Tu correo corporativo está en revisión manual. Podrás publicar tu reseña en cuanto lo validemos.",
         [{ text: "Entendido", onPress: () => onBack?.() }]
       );
+    } else if (isInMirGrace) {
+      const deadline = formatResidentTransitionDeadline(transitionConfig?.ends_at);
+      Alert.alert(
+        "Disponible al terminar el periodo de gracia MIR",
+        `Acabas de empezar tu residencia. Podrás publicar tu reseña a partir del ${
+          deadline || "fin de la ventana MIR"
+        }.`,
+        [{ text: "Entendido", onPress: () => onBack?.() }]
+      );
     }
-  }, [canWriteReview, isEmailReviewPending, onBack]);
+  }, [canWriteReview, isEmailReviewPending, isInMirGrace, transitionConfig, onBack]);
 
   useEffect(() => {
     if (!existingReview?.review_answer) return;
