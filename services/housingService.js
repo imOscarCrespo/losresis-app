@@ -4,6 +4,7 @@
 
 import { supabase } from "../config/supabase";
 import { getHospitalByIdFromCatalog } from "./staticCatalogService";
+import { fetchUserQuota } from "./subscriptionService";
 
 const ITEMS_PER_PAGE = 20;
 const HOUSING_BUCKET = "housing_ad";
@@ -320,6 +321,20 @@ export const createHousingAd = async (adData) => {
       };
     }
 
+    // Quota pre-check: avoid uploading images for a doomed insert.
+    if (kind === "offer") {
+      const quota = await fetchUserQuota(user_id);
+      if (quota && quota.canCreate === false) {
+        return {
+          success: false,
+          ad: null,
+          error: "quota_exceeded",
+          code: "QUOTA",
+          quota,
+        };
+      }
+    }
+
     // 1. Crear el anuncio primero
     const insertData = {
       user_id,
@@ -345,10 +360,18 @@ export const createHousingAd = async (adData) => {
 
     if (adError) {
       console.error("Error creating housing ad:", adError);
+      // The SQL trigger (when enabled) raises ERRCODE=P0001 with
+      // message="quota_exceeded". Surface a stable code so the UI can open
+      // the paywall instead of showing a generic error.
+      const isQuotaError =
+        adError.code === "P0001" &&
+        typeof adError.message === "string" &&
+        adError.message.toLowerCase().includes("quota_exceeded");
       return {
         success: false,
         ad: null,
-        error: adError.message,
+        error: isQuotaError ? "quota_exceeded" : adError.message,
+        code: isQuotaError ? "QUOTA" : undefined,
       };
     }
 

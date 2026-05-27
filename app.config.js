@@ -9,4 +9,11 @@ module.exports = {
     ...expo.android,
     googleServicesFile,
   },
+  extra: {
+    ...expo.extra,
+    revenuecat: {
+      iosKey: process.env.EXPO_PUBLIC_RC_API_KEY_IOS || null,
+      androidKey: process.env.EXPO_PUBLIC_RC_API_KEY_ANDROID || null,
+    },
+  },
 };

@@ -40,6 +40,11 @@ import {
 } from "./src/services/push/notificationConfig";
 import { addNotificationResponseListener } from "./src/services/push/notificationListener";
 import { useRegisterPushToken } from "./src/hooks/useRegisterPushToken";
+import {
+  initRevenueCat,
+  identifyRcUser,
+  logoutRcUser,
+} from "./src/services/subscription/revenuecatClient";
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -64,6 +69,12 @@ export default function App() {
   useRegisterPushToken(currentUserId);
 
   useEffect(() => {
+    if (currentUserId) {
+      identifyRcUser(currentUserId).catch(() => {});
+    }
+  }, [currentUserId]);
+
+  useEffect(() => {
     configureNotificationHandler();
     ensureAndroidNotificationChannel();
     const removeListener = addNotificationResponseListener();
@@ -73,6 +84,7 @@ export default function App() {
   useEffect(() => {
     // Inicializar PostHog al iniciar la aplicación
     posthogLogger.initialize();
+    initRevenueCat().catch(() => {});
     trackAppOpenAndSession();
     checkAuth();
   }, []);
@@ -562,6 +574,7 @@ export default function App() {
   const handleSignOut = async () => {
     // Resetear identificación de usuario en PostHog
     posthogLogger.reset();
+    logoutRcUser().catch(() => {});
     gateSessionTrackedRef.current = null;
     setCurrentUserId(null);
     setResidentReviewGateState(null);

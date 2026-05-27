@@ -85,6 +85,10 @@
           "photosPermission": "Permite a LosResis acceder a tus fotos para subir tu imagen de perfil y las fotos de tus viviendas.",
           "cameraPermission": "Permite a LosResis usar la cámara para tomar fotos de tu perfil y tus viviendas."
         }
+      ],
+      [
+        "react-native-purchases",
+        { "automaticAppleSearchAdsAttributionCollection": false }
       ]
     ]
   }

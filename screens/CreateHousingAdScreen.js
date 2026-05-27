@@ -27,6 +27,10 @@ import {
 } from "../services/housingService";
 import { getCachedUserId } from "../services/authService";
 import posthogLogger from "../services/posthogService";
+import { useSubscription } from "../hooks/useSubscription";
+import PaywallSheet from "../components/PaywallSheet";
+
+const PAYWALL_FLAG = "paywall_host_quota_enabled";
 
 // ============================================================================
 // COLORS
@@ -69,6 +73,23 @@ export default function CreateHousingAdScreen({
   const isEditMode = !!adId;
 
   const isHostUser = !!userProfile?.is_host;
+
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [paywallVisible, setPaywallVisible] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const id = await getCachedUserId();
+      if (!cancelled) setCurrentUserId(id);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const subscription = useSubscription(currentUserId);
+  const paywallEnabled = posthogLogger.isFeatureEnabled(PAYWALL_FLAG, false);
 
   const [formData, setFormData] = useState({
     kind: "offer",
@@ -260,6 +281,20 @@ export default function CreateHousingAdScreen({
           return;
         }
 
+        // Gate del paywall: solo aplica cuando el feature flag está activo y
+        // el usuario es host publicando un "offer". Si no puede crear, abrimos
+        // el paywall en lugar de intentar el insert.
+        if (
+          paywallEnabled &&
+          isHostUser &&
+          formData.kind === "offer" &&
+          !subscription.isLoading &&
+          subscription.canCreateListing === false
+        ) {
+          setPaywallVisible(true);
+          return;
+        }
+
         const submitData = {
           user_id: userId,
           kind: formData.kind,
@@ -283,6 +318,9 @@ export default function CreateHousingAdScreen({
             "Tu anuncio de vivienda ha sido publicado correctamente",
             [{ text: "OK", onPress: () => { onSuccess?.(); onBack?.(); } }]
           );
+        } else if (result.code === "QUOTA") {
+          // Red de seguridad: el trigger SQL rechazó el insert. Abrir paywall.
+          setPaywallVisible(true);
         } else {
           setError(result.error || "Error al crear el anuncio");
         }
@@ -292,7 +330,17 @@ export default function CreateHousingAdScreen({
     } finally {
       setLoading(false);
     }
-  }, [isEditMode, adId, formData, selectedImages, onBack, onSuccess]);
+  }, [
+    isEditMode,
+    adId,
+    formData,
+    selectedImages,
+    onBack,
+    onSuccess,
+    paywallEnabled,
+    isHostUser,
+    subscription,
+  ]);
 
   const totalImageCount = existingImages.length + selectedImages.length;
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -623,6 +671,16 @@ export default function CreateHousingAdScreen({
           </>
         )}
       </ScrollView>
+      <PaywallSheet
+        visible={paywallVisible}
+        userId={currentUserId}
+        onClose={() => setPaywallVisible(false)}
+        onPurchaseSuccess={() => {
+          setPaywallVisible(false);
+          subscription.refresh?.();
+        }}
+        source="create_listing"
+      />
     </HeroScreenLayout>
   );
 }

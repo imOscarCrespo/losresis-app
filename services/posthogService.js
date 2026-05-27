@@ -150,6 +150,30 @@ class PostHogLogger {
       console.error("❌ Error al resetear PostHog:", error);
     }
   }
+
+  /**
+   * Comprueba si un feature flag está activo. Devuelve false si PostHog no
+   * está inicializado o la SDK no expone `isFeatureEnabled`.
+   * @param {string} flagKey
+   * @param {boolean} defaultValue
+   */
+  isFeatureEnabled(flagKey, defaultValue = false) {
+    if (!this.isInitialized || !this.posthog) return defaultValue;
+    try {
+      if (typeof this.posthog.isFeatureEnabled === "function") {
+        const value = this.posthog.isFeatureEnabled(flagKey);
+        if (typeof value === "boolean") return value;
+      }
+      if (typeof this.posthog.getFeatureFlag === "function") {
+        const value = this.posthog.getFeatureFlag(flagKey);
+        if (typeof value === "boolean") return value;
+        if (typeof value === "string") return value !== "false";
+      }
+    } catch (error) {
+      console.warn("PostHog isFeatureEnabled error:", error?.message);
+    }
+    return defaultValue;
+  }
 }
 
 // Exportar una instancia singleton
