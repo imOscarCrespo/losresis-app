@@ -5,7 +5,7 @@
 import { supabase } from "../config/supabase";
 import { getHospitalByIdFromCatalog } from "./staticCatalogService";
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 10;
 const HOUSING_BUCKET = "housing_ad";
 const MIME_TYPES_BY_EXTENSION = {
   jpg: "image/jpeg",

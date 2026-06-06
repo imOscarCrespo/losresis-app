@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -84,6 +84,7 @@ export default function CreateHousingAdScreen({
     preferred_contact: "email",
   });
 
+  const scrollRef = useRef(null);
   const [selectedImages, setSelectedImages] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -218,11 +219,21 @@ export default function CreateHousingAdScreen({
       setError("Debe proporcionar al menos un método de contacto");
       return false;
     }
+    if (
+      formData.kind === "offer" &&
+      existingImages.length + selectedImages.length === 0
+    ) {
+      setError("Debes subir al menos una imagen para los anuncios de oferta");
+      return false;
+    }
     return true;
   };
 
   const handleSubmit = useCallback(async () => {
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -252,6 +263,7 @@ export default function CreateHousingAdScreen({
           );
         } else {
           setError(result.error || "Error al actualizar el anuncio");
+          scrollRef.current?.scrollTo({ y: 0, animated: true });
         }
       } else {
         const userId = await getCachedUserId();
@@ -285,10 +297,12 @@ export default function CreateHousingAdScreen({
           );
         } else {
           setError(result.error || "Error al crear el anuncio");
+          scrollRef.current?.scrollTo({ y: 0, animated: true });
         }
       }
     } catch (err) {
       setError("Error inesperado al enviar el anuncio");
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
     } finally {
       setLoading(false);
     }
@@ -304,6 +318,7 @@ export default function CreateHousingAdScreen({
       keyboardAvoiding
     >
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -475,7 +490,10 @@ export default function CreateHousingAdScreen({
 
             {/* ── Images ── */}
             <View style={styles.block}>
-              <SectionHeader icon="images-outline" title="Fotos" />
+              <SectionHeader
+                icon="images-outline"
+                title={formData.kind === "offer" ? "Fotos *" : "Fotos"}
+              />
               <Text style={styles.inputHint}>
                 Añade hasta 5 fotos para dar más visibilidad a tu anuncio
               </Text>

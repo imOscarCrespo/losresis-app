@@ -426,7 +426,7 @@ export default function HousingScreen({ onSectionChange, onBack }) {
 
   const { uniqueCities } = useHospitals();
   const [refreshing, setRefreshing] = useState(false);
-  const [openModal, setOpenModal] = useState(null); // "city" | "kind" | "hospital" | "price" | null
+  const [openModal, setOpenModal] = useState(null); // "city" | "hospital" | "price" | null
 
   useEffect(() => {
     posthogLogger.logScreen("HousingScreen");
@@ -436,15 +436,12 @@ export default function HousingScreen({ onSectionChange, onBack }) {
     return [...(uniqueCities || [])].sort().map((c) => ({ id: c, name: c }));
   }, [uniqueCities]);
 
-  const hasActiveFilters = !!(city || kind || hospitalId || maxPrice || showMyAds);
+  const hasActiveFilters = !!(city || hospitalId || maxPrice || showMyAds);
   const adCountLabel = `${totalCount} ${
     totalCount === 1 ? "anuncio" : "anuncios"
   }`;
 
   // Display labels for chips
-  const kindLabel = kind
-    ? KIND_OPTIONS.find((o) => o.id === kind)?.name ?? "Tipo"
-    : "Tipo";
   const hospitalLabel = hospitalId
     ? hospitalOptions.find((o) => o.id === hospitalId)?.name ?? "Hospital"
     : "Hospital";
@@ -528,21 +525,6 @@ export default function HousingScreen({ onSectionChange, onBack }) {
           <Ionicons name="chevron-down" size={16} color={city ? PRIMARY : ACCENT} />
         </TouchableOpacity>
 
-        {/* Tipo */}
-        <TouchableOpacity
-          style={[styles.chip, kind && styles.chipActive]}
-          onPress={() => setOpenModal("kind")}
-        >
-          <Ionicons name="home" size={16} color={kind ? PRIMARY : ACCENT} />
-          <Text
-            style={[styles.chipText, kind && styles.chipTextActive]}
-            numberOfLines={1}
-          >
-            {kindLabel}
-          </Text>
-          <Ionicons name="chevron-down" size={16} color={kind ? PRIMARY : ACCENT} />
-        </TouchableOpacity>
-
         {/* Hospital */}
         <TouchableOpacity
           style={[styles.chip, hospitalId && styles.chipActive]}
@@ -582,6 +564,30 @@ export default function HousingScreen({ onSectionChange, onBack }) {
         </TouchableOpacity>
 
       </ScrollView>
+
+      {/* Kind segmented control */}
+      <View style={styles.segmented}>
+        {KIND_OPTIONS.map((opt) => {
+          const isActive = kind === opt.id;
+          return (
+            <TouchableOpacity
+              key={opt.id}
+              style={[styles.segmentedItem, isActive && styles.segmentedItemActive]}
+              onPress={() => setKind(opt.id)}
+              activeOpacity={0.85}
+            >
+              <Text
+                style={[
+                  styles.segmentedItemText,
+                  isActive && styles.segmentedItemTextActive,
+                ]}
+              >
+                {opt.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
       {/* Section label */}
       <View style={styles.sectionRow}>
@@ -690,15 +696,6 @@ export default function HousingScreen({ onSectionChange, onBack }) {
             value={city}
             onSelect={setCity}
             placeholder="Todas las ciudades"
-          />
-          <FilterModal
-            visible={openModal === "kind"}
-            onClose={() => setOpenModal(null)}
-            title="Tipo de anuncio"
-            options={KIND_OPTIONS}
-            value={kind}
-            onSelect={setKind}
-            placeholder="Todos los tipos"
           />
           <FilterModal
             visible={openModal === "hospital"}
@@ -843,6 +840,39 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: ERROR,
+  },
+
+  // ── Segmented control (Oferta / Búsqueda) ──
+  segmented: {
+    flexDirection: "row",
+    backgroundColor: "#F1F5F9",
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 8,
+  },
+  segmentedItem: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  segmentedItemActive: {
+    backgroundColor: PRIMARY,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  segmentedItemText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: ACCENT,
+  },
+  segmentedItemTextActive: {
+    color: WHITE,
+    fontWeight: "700",
   },
 
   // ── Section label ──

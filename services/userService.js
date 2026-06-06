@@ -32,54 +32,64 @@ export const updateUserProfile = async (userId, profileData) => {
 
     const previousProfile = previousProfileResult.data || null;
 
-    const updateData = {
-      id: userId,
-      name: profileData.name?.trim() || null,
-      surname: profileData.surname?.trim() || null,
-      phone: profileData.phone?.trim() || null,
-      city: profileData.city?.trim() || null,
-      is_student: profileData.is_student || false,
-      is_resident: profileData.is_resident || false,
-      is_doctor: profileData.is_doctor || false,
-      is_host: profileData.is_host || false,
-      is_super_admin: profileData.is_super_admin || false,
-      work_email: profileData.work_email?.trim() || null,
-      hospital_id: profileData.hospital_id || null,
-      speciality_id: profileData.speciality_id || null,
-      resident_year: profileData.resident_year
+    // IMPORTANTE: este método se llama tanto con payloads completos (onboarding,
+    // pantalla de perfil) como con payloads parciales (p. ej. sólo
+    // { avatar_url } desde ProfileAvatarEditor). El upsert reescribe la fila
+    // entera, así que sólo serializamos los campos que el caller pasó
+    // explícitamente; de lo contrario, una subida de foto borraría
+    // is_resident/hospital_id/etc. y degradaría el rol del residente.
+    const updateData = { id: userId };
+    const has = (key) =>
+      Object.prototype.hasOwnProperty.call(profileData, key);
+
+    if (has("name")) updateData.name = profileData.name?.trim() || null;
+    if (has("surname")) updateData.surname = profileData.surname?.trim() || null;
+    if (has("phone")) updateData.phone = profileData.phone?.trim() || null;
+    if (has("city")) updateData.city = profileData.city?.trim() || null;
+    if (has("is_student")) updateData.is_student = profileData.is_student || false;
+    if (has("is_resident")) updateData.is_resident = profileData.is_resident || false;
+    if (has("is_doctor")) updateData.is_doctor = profileData.is_doctor || false;
+    if (has("is_host")) updateData.is_host = profileData.is_host || false;
+    if (has("is_super_admin"))
+      updateData.is_super_admin = profileData.is_super_admin || false;
+    if (has("work_email"))
+      updateData.work_email = profileData.work_email?.trim() || null;
+    if (has("hospital_id"))
+      updateData.hospital_id = profileData.hospital_id || null;
+    if (has("speciality_id"))
+      updateData.speciality_id = profileData.speciality_id || null;
+    if (has("resident_year")) {
+      updateData.resident_year = profileData.resident_year
         ? parseInt(profileData.resident_year)
-        : null,
-      mir_academy: profileData.mir_academy?.trim() || null,
-      mir_expediente: (() => {
-        const raw = profileData.mir_expediente;
-        if (raw === null || raw === undefined || raw === "") return null;
+        : null;
+    }
+    if (has("mir_academy"))
+      updateData.mir_academy = profileData.mir_academy?.trim() || null;
+    if (has("mir_expediente")) {
+      const raw = profileData.mir_expediente;
+      if (raw === null || raw === undefined || raw === "") {
+        updateData.mir_expediente = null;
+      } else {
         const normalized =
           typeof raw === "string" ? raw.replace(",", ".") : raw;
         const n = Number(normalized);
-        if (!Number.isFinite(n) || n < 5 || n > 10) return null;
-        return n;
-      })(),
-    };
+        updateData.mir_expediente =
+          Number.isFinite(n) && n >= 5 && n <= 10 ? n : null;
+      }
+    }
 
-    if (
-      Object.prototype.hasOwnProperty.call(profileData, "onboarding_completed")
-    ) {
+    if (has("onboarding_completed")) {
       updateData.onboarding_completed = profileData.onboarding_completed;
     }
 
-    if (Object.prototype.hasOwnProperty.call(profileData, "avatar_url")) {
+    if (has("avatar_url")) {
       updateData.avatar_url = profileData.avatar_url || null;
     }
 
-    if (Object.prototype.hasOwnProperty.call(profileData, "resident_state")) {
+    if (has("resident_state")) {
       updateData.resident_state = profileData.resident_state;
     }
-    if (
-      Object.prototype.hasOwnProperty.call(
-        profileData,
-        "resident_transition_expires_at"
-      )
-    ) {
+    if (has("resident_transition_expires_at")) {
       updateData.resident_transition_expires_at =
         profileData.resident_transition_expires_at;
     }

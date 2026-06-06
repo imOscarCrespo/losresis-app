@@ -21,10 +21,21 @@ export const getCommunityUsers = async (
   cityFilter = "",
   specialtyFilter = "",
   hospitalFilter = "",
-  excludeUserId = ""
+  excludeUserId = "",
+  { page = null, limit = null } = {}
 ) => {
   try {
-    // Construir query base para residentes con email y especialidad
+    const paginate =
+      Number.isInteger(page) && Number.isInteger(limit) && limit > 0;
+
+    const applyFilters = (q) => {
+      if (cityFilter) q = q.eq("city", cityFilter);
+      if (specialtyFilter) q = q.eq("speciality_id", specialtyFilter);
+      if (hospitalFilter) q = q.eq("hospital_id", hospitalFilter);
+      if (excludeUserId) q = q.neq("id", excludeUserId);
+      return q;
+    };
+
     let query = supabase
       .from("users")
       .select(
@@ -36,48 +47,52 @@ export const getCommunityUsers = async (
         city,
         speciality_id,
         hospital_id
-      `
+      `,
+        paginate ? { count: "exact" } : undefined
       )
       .eq("is_resident", true)
       .not("work_email", "is", null)
       .not("speciality_id", "is", null);
 
-    // Aplicar filtros si están presentes
-    if (cityFilter) {
-      query = query.eq("city", cityFilter);
+    query = applyFilters(query);
+
+    if (paginate) {
+      const from = page * limit;
+      const to = from + limit - 1;
+      query = query
+        .order("name", { ascending: true })
+        .order("surname", { ascending: true })
+        .range(from, to);
     }
 
-    if (specialtyFilter) {
-      query = query.eq("speciality_id", specialtyFilter);
-    }
-
-    if (hospitalFilter) {
-      query = query.eq("hospital_id", hospitalFilter);
-    }
-
-    if (excludeUserId) {
-      query = query.neq("id", excludeUserId);
-    }
-
-    const { data, error } = await query;
+    const { data, error, count } = await query;
 
     if (error) {
       console.error("Error fetching community users:", error);
       return {
         success: false,
         users: [],
+        total: 0,
+        hasMore: false,
         error: error.message,
       };
     }
 
+    const users = (data || []).map((user) => ({
+      ...user,
+      specialities: getSpecialityByIdFromCatalog(user.speciality_id),
+      hospital_name:
+        getHospitalByIdFromCatalog(user.hospital_id)?.name || null,
+    }));
+
+    const total = paginate ? count || 0 : users.length;
+    const hasMore = paginate ? page * limit + users.length < total : false;
+
     return {
       success: true,
-      users: (data || []).map((user) => ({
-        ...user,
-        specialities: getSpecialityByIdFromCatalog(user.speciality_id),
-        hospital_name:
-          getHospitalByIdFromCatalog(user.hospital_id)?.name || null,
-      })),
+      users,
+      total,
+      hasMore,
       error: null,
     };
   } catch (error) {
@@ -85,6 +100,8 @@ export const getCommunityUsers = async (
     return {
       success: false,
       users: [],
+      total: 0,
+      hasMore: false,
       error: error.message,
     };
   }

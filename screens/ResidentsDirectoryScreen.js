@@ -20,6 +20,7 @@ import { openDirectChat } from "../services/directChatsService";
 import { getResidentState, RESIDENT_STATE } from "../utils/residentAccess";
 import posthogLogger from "../services/posthogService";
 
+const PAGE_SIZE = 25;
 const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
 const ACCENT = "#1B0977";
@@ -100,6 +101,9 @@ export default function ResidentsDirectoryScreen({
 }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState(null);
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [selectedHospital, setSelectedHospital] = useState("");
@@ -141,6 +145,20 @@ export default function ResidentsDirectoryScreen({
     posthogLogger.logScreen("ResidentsDirectoryScreen");
   }, []);
 
+  const mapUser = useCallback(
+    (u) => ({
+      id: u.id,
+      name: u.name,
+      surname: u.surname,
+      specialty_id: u.speciality_id,
+      specialty_name: u.specialities?.name || null,
+      hospital_id: u.hospital_id,
+      hospital_name: u.hospital_name,
+      work_email: u.work_email,
+    }),
+    []
+  );
+
   useEffect(() => {
     let cancelled = false;
 
@@ -151,12 +169,14 @@ export default function ResidentsDirectoryScreen({
       const {
         success,
         users: rawUsers,
+        hasMore: more,
         error: fetchError,
       } = await getCommunityUsers(
         "",
         selectedSpecialty,
         selectedHospital,
-        currentUserId || ""
+        currentUserId || "",
+        { page: 0, limit: PAGE_SIZE }
       );
 
       if (cancelled) return;
@@ -164,25 +184,12 @@ export default function ResidentsDirectoryScreen({
       if (!success) {
         setError(fetchError || "No se pudieron cargar los residentes");
         setUsers([]);
+        setHasMore(false);
       } else {
-        const mapped = (rawUsers || []).map((u) => ({
-          id: u.id,
-          name: u.name,
-          surname: u.surname,
-          specialty_id: u.speciality_id,
-          specialty_name: u.specialities?.name || null,
-          hospital_id: u.hospital_id,
-          hospital_name: u.hospital_name,
-          work_email: u.work_email,
-        }));
-        mapped.sort((a, b) =>
-          `${a.name || ""} ${a.surname || ""}`.localeCompare(
-            `${b.name || ""} ${b.surname || ""}`,
-            "es"
-          )
-        );
-        setUsers(mapped);
+        setUsers((rawUsers || []).map(mapUser));
+        setHasMore(Boolean(more));
       }
+      setPage(0);
       setLoading(false);
     };
 
@@ -190,7 +197,45 @@ export default function ResidentsDirectoryScreen({
     return () => {
       cancelled = true;
     };
-  }, [selectedSpecialty, selectedHospital, currentUserId]);
+  }, [selectedSpecialty, selectedHospital, currentUserId, mapUser]);
+
+  const handleLoadMore = useCallback(async () => {
+    if (loading || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+
+    const {
+      success,
+      users: rawUsers,
+      hasMore: more,
+    } = await getCommunityUsers(
+      "",
+      selectedSpecialty,
+      selectedHospital,
+      currentUserId || "",
+      { page: nextPage, limit: PAGE_SIZE }
+    );
+
+    if (success) {
+      setUsers((prev) => {
+        const seen = new Set(prev.map((u) => u.id));
+        const next = (rawUsers || []).map(mapUser).filter((u) => !seen.has(u.id));
+        return [...prev, ...next];
+      });
+      setHasMore(Boolean(more));
+      setPage(nextPage);
+    }
+    setLoadingMore(false);
+  }, [
+    loading,
+    loadingMore,
+    hasMore,
+    page,
+    selectedSpecialty,
+    selectedHospital,
+    currentUserId,
+    mapUser,
+  ]);
 
   const clearFilters = useCallback(() => {
     setSelectedSpecialty("");
@@ -332,6 +377,15 @@ export default function ResidentsDirectoryScreen({
             data={users}
             keyExtractor={(item) => String(item.id)}
             contentContainerStyle={styles.listContent}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.4}
+            ListFooterComponent={
+              loadingMore ? (
+                <View style={styles.footerLoader}>
+                  <ActivityIndicator size="small" color={PRIMARY} />
+                </View>
+              ) : null
+            }
             renderItem={({ item }) => (
               <ResidentCard
                 user={item}
@@ -519,6 +573,10 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 13,
     color: MUTED,
+  },
+  footerLoader: {
+    paddingVertical: 16,
+    alignItems: "center",
   },
   emptyContainer: {
     alignItems: "center",

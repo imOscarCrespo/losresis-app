@@ -11,7 +11,7 @@ import {
 import { getCurrentUser } from "../services/authService";
 import { usePersistedFilters } from "./usePersistedFilters";
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 10;
 
 const mergeUniqueAds = (existingAds = [], incomingAds = []) => {
   const adsById = new Map();
@@ -53,7 +53,7 @@ export const useHousingAds = () => {
     "housing",
     {
       city: "",
-      kind: "",
+      kind: "offer",
       hospitalId: "",
       maxPrice: null,
       showMyAds: false,
@@ -62,7 +62,7 @@ export const useHousingAds = () => {
   );
 
   const city = filters.city || "";
-  const kind = filters.kind || "";
+  const kind = filters.kind || "offer";
   const hospitalId = filters.hospitalId || "";
   const maxPrice = filters.maxPrice || null;
   const showMyAds = Boolean(filters.showMyAds);
