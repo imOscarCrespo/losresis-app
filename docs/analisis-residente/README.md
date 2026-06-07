@@ -15,6 +15,8 @@ Fecha del análisis: **2026-05-25** · Autor: Oscar Crespo · Datos: PostHog pro
 | [`02-analisis-datos-posthog.md`](./02-analisis-datos-posthog.md) | Qué hacen hoy los residentes en la app con datos reales de PostHog (últimos 30 días). Tamaño del segmento, pantallas usadas, acciones explícitas, engagement, estacionalidad, y comparación con el estudiante. |
 | [`03-investigacion-necesidades-residente.md`](./03-investigacion-necesidades-residente.md) | Investigación web sobre necesidades y pain points reales del residente español 2025-2026: burnout, derechos laborales, tutores, post-MIR. Quotes reales y análisis de competencia (UpToDate, Medscape, MDCalc, Doximity, Univadis, casiMedicos…). |
 | [`04-propuesta-features-engagement.md`](./04-propuesta-features-engagement.md) | Propuesta priorizada de 7 funcionalidades para subir el engagement del residente, con impacto estimado vs esfuerzo, factor diferencial, riesgos y secuencia recomendada. |
+| [`05-investigacion-salud-mental.md`](./05-investigacion-salud-mental.md) | Investigación detallada para implementar la funcionalidad de salud mental: CBI vs MBI (licencias), PAIME por CCAA, recursos de crisis, UX de tracking longitudinal, RGPD datos de salud, y propuesta de fases. |
+| [`06-plan-implementacion-salud-mental.md`](./06-plan-implementacion-salud-mental.md) | Plan técnico de implementación de la sección Salud Mental: migración SQL, servicio/hook/pantallas, contenido completo del CBI (19 ítems), recursos PAIME, decisiones clave y pendientes pre-lanzamiento. |
 
 ## TL;DR
 

@@ -300,6 +300,26 @@ export const mapAgendaEventToLegacyShift = (event) => {
   };
 };
 
+export const createAgendaEventsBatch = async (userId, dates, sharedEventData) => {
+  const created = [];
+  const failed = [];
+
+  for (const date of dates) {
+    try {
+      const event = await createAgendaEvent(userId, {
+        ...sharedEventData,
+        event_type: SHIFT_EVENT_TYPE,
+        event_date: date,
+      });
+      created.push(event);
+    } catch (error) {
+      failed.push({ date, error });
+    }
+  }
+
+  return { created, failed };
+};
+
 export const agendaEventTypeLabels = {
   [AGENDA_REMINDER_NOTIFICATION_TYPE]: "Recordatorio",
   shift: "Guardia",

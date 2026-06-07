@@ -98,6 +98,15 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#F4EEFF",
   },
   {
+    id: "mentalHealth",
+    name: "Salud mental",
+    icon: "heart-circle",
+    description: "Cuida tu bienestar durante la residencia y accede a recursos de ayuda",
+    residentOnly: true,
+    color: "#0EA5E9", // Sky
+    lightColor: "#E0F2FE",
+  },
+  {
     id: "grupos",
     name: "Chats",
     icon: "people",
@@ -237,6 +246,7 @@ export const IMPLEMENTED_SECTIONS = [
   "groupChat",
   "agenda",
   "residentPayouts",
+  "mentalHealth",
   "notifications",
   "clinicalAssistant",
 ];

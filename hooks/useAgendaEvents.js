@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "react-native";
 import {
   createAgendaEvent,
+  createAgendaEventsBatch,
   deleteAgendaEvent,
   getAgendaEvents,
   updateAgendaEvent,
@@ -55,6 +56,28 @@ export const useAgendaEvents = (userId) => {
           success: false,
           message:
             error?.message || "No se pudo guardar el evento en tu agenda",
+        };
+      } finally {
+        setSaving(false);
+      }
+    },
+    [fetchEvents, userId]
+  );
+
+  const createEventsBatch = useCallback(
+    async (dates, sharedEventData) => {
+      setSaving(true);
+      try {
+        const result = await createAgendaEventsBatch(userId, dates, sharedEventData);
+        await fetchEvents();
+        return { success: true, created: result.created, failed: result.failed };
+      } catch (error) {
+        console.error("Error creating batch agenda events:", error);
+        return {
+          success: false,
+          message: error?.message || "No se pudieron guardar las guardias",
+          created: [],
+          failed: [],
         };
       } finally {
         setSaving(false);
@@ -137,6 +160,7 @@ export const useAgendaEvents = (userId) => {
     upcomingEvents,
     unscheduledEvents,
     createEvent,
+    createEventsBatch,
     updateEvent,
     removeEvent,
     refetch: fetchEvents,

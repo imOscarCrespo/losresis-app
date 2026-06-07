@@ -490,6 +490,13 @@ export default function HomeDashboardScreen({
           color: "#2563EB",
         },
         {
+          label: "Salud mental",
+          icon: "heart-circle-outline",
+          section: "mentalHealth",
+          tint: "#E0F2FE",
+          color: "#0EA5E9",
+        },
+        {
           label: "Cursos / Congresos",
           icon: "school-outline",
           section: "cursos",

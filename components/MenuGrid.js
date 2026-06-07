@@ -167,6 +167,13 @@ export const MenuGrid = ({
         return false;
       }
 
+      // Salud mental: visible para todo residente aunque esté bloqueado por el
+      // gate (los recursos de ayuda no deben ocultarse; la propia pantalla bloquea
+      // solo el cuestionario). Ver docs/analisis-residente/06-plan-implementacion-salud-mental.md.
+      if (item.id === "mentalHealth") {
+        return userProfile.is_resident;
+      }
+
       // Si es solo para estudiantes
       if (item.studentOnly) {
         return userProfile.is_student;
@@ -245,11 +252,15 @@ export const MenuGrid = ({
       !residentHasReview &&
       residentReviewGateStatus === "hard"
     ) {
-      return !["mi-resena", "usuario", "contacto"].includes(item.id);
+      return !["mi-resena", "usuario", "contacto", "mentalHealth"].includes(
+        item.id
+      );
     }
 
     if (isResidentLockedMissingCorporateEmail(userProfile)) {
-      return !["inicio", "usuario", "contacto"].includes(item.id);
+      return !["inicio", "usuario", "contacto", "mentalHealth"].includes(
+        item.id
+      );
     }
     return false;
   };

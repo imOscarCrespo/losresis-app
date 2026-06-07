@@ -46,6 +46,7 @@ import SpecialityQuizScreen from "./SpecialityQuizScreen";
 import GroupsScreen from "./GroupsScreen";
 import GroupChatScreen from "./GroupChatScreen";
 import RoommateScreen from "./RoommateScreen";
+import MentalHealthScreen from "./MentalHealthScreen";
 import ResidentPayoutsScreen from "./ResidentPayoutsScreen";
 import ResidentPayoutDetailScreen from "./ResidentPayoutDetailScreen";
 import ResidentPayoutEntryScreen from "./ResidentPayoutEntryScreen";
@@ -109,6 +110,7 @@ const GENERIC_BACK_SECTIONS = new Set([
   "residentPayouts",
   "residentPayoutDetail",
   "residentPayoutEntry",
+  "mentalHealth",
 ]);
 
 const DASHBOARD_NAVIGATION_STATE_VERSION = 1;
@@ -429,6 +431,11 @@ export default function DashboardScreen({
         return;
       }
 
+      if (data?.destination_section === "mentalHealth") {
+        handleSectionChange("mentalHealth");
+        return;
+      }
+
       if (data?.entity_type === "review" && data?.entity_id) {
         handleSectionChange("reviewDetail", {
           reviewId: data.entity_id,
@@ -519,12 +526,15 @@ export default function DashboardScreen({
     "myReview",
     "usuario",
     "contacto",
+    // Salud mental siempre accesible: los recursos de ayuda no deben quedar
+    // detrás del gate de reseña (la propia pantalla bloquea el cuestionario).
+    "mentalHealth",
   ]);
 
   useEffect(() => {
     if (
       isResidentLockedMissingCorporateEmail(userProfile) &&
-      !["inicio", "usuario", "contacto"].includes(currentSection)
+      !["inicio", "usuario", "contacto", "mentalHealth"].includes(currentSection)
     ) {
       setCurrentSection("usuario");
     }
@@ -1627,6 +1637,14 @@ export default function DashboardScreen({
               lockInitialPeriod={residentPayoutRouteParams.lockInitialPeriod}
             />
           </SwipeBackWrapper>
+        );
+
+      case "mentalHealth":
+        return (
+          <MentalHealthScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+          />
         );
 
       case "grupos":

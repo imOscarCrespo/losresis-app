@@ -390,6 +390,9 @@ export const AgendaScreen = ({ userProfile }) => {
   const [deleteCandidate, setDeleteCandidate] = useState(null);
   const [showTeamCalendar, setShowTeamCalendar] = useState(false);
   const [form, setForm] = useState(emptyFormForType("shift", todayString));
+  const [shiftSelectionMode, setShiftSelectionMode] = useState(false);
+  const [selectedShiftDates, setSelectedShiftDates] = useState(new Set());
+  const [batchShiftDates, setBatchShiftDates] = useState([]);
 
   const {
     events,
@@ -398,6 +401,7 @@ export const AgendaScreen = ({ userProfile }) => {
     upcomingEvents,
     unscheduledEvents,
     createEvent,
+    createEventsBatch,
     updateEvent,
     removeEvent,
   } = useAgendaEvents(userId);
@@ -440,15 +444,19 @@ export const AgendaScreen = ({ userProfile }) => {
     return EVENT_TYPE_OPTIONS.filter((option) => eventTypesWithDate.has(option.id));
   }, [events, userProfile?.is_resident]);
 
-  const markedDates = useMemo(() => {
-    const marks = {};
+  const shiftOccupiedDates = useMemo(() => {
+    return new Set(
+      events
+        .filter((e) => e.event_type === "shift" && e.event_date)
+        .map((e) => e.event_date)
+    );
+  }, [events]);
+
+  const eventsByDate = useMemo(() => {
+    const map = {};
 
     events.forEach((event) => {
       if (!event.event_date) return;
-
-      const config =
-        EVENT_TYPE_OPTIONS.find((option) => option.id === event.event_type) ||
-        EVENT_TYPE_OPTIONS[0];
 
       const startDate = new Date(`${event.event_date}T00:00:00`);
       const endDate = new Date(`${(event.end_date || event.event_date)}T00:00:00`);
@@ -459,39 +467,25 @@ export const AgendaScreen = ({ userProfile }) => {
         cursor.setDate(cursor.getDate() + 1)
       ) {
         const dateKey = formatDateKey(cursor);
-
-        if (!marks[dateKey]) {
-          marks[dateKey] = { dots: [] };
+        if (!map[dateKey]) {
+          map[dateKey] = [];
         }
-
-        const alreadyPresent = marks[dateKey].dots.some(
-          (dot) => dot.key === event.event_type
-        );
-
-        if (!alreadyPresent) {
-          marks[dateKey].dots.push({
-            key: event.event_type,
-            color: config.color,
-          });
-        }
+        map[dateKey].push(event);
       }
     });
 
-    marks[todayString] = {
-      ...(marks[todayString] || {}),
-      ...(marks[todayString]?.dots ? { dots: marks[todayString].dots } : {}),
-      today: true,
-    };
+    Object.keys(map).forEach((dateKey) => {
+      map[dateKey].sort((left, right) => {
+        const leftTime = left.start_time || "00:00:00";
+        const rightTime = right.start_time || "00:00:00";
+        return leftTime.localeCompare(rightTime);
+      });
+    });
 
-    marks[selectedDate] = {
-      ...(marks[selectedDate] || {}),
-      ...(marks[selectedDate]?.dots ? { dots: marks[selectedDate].dots } : {}),
-      selected: true,
-      selectedColor: AGENDA_ACCENT,
-    };
+    return map;
+  }, [events]);
 
-    return marks;
-  }, [events, selectedDate, todayString]);
+  const MAX_BADGES_PER_DAY = 3;
 
   const selectedDayEvents = useMemo(() => {
     return events.filter((event) =>
@@ -505,7 +499,42 @@ export const AgendaScreen = ({ userProfile }) => {
       .filter(Boolean);
   }, [events]);
 
+  const exitShiftSelectionMode = () => {
+    setShiftSelectionMode(false);
+    setSelectedShiftDates(new Set());
+    setBatchShiftDates([]);
+  };
+
+  const toggleShiftDate = (dateString) => {
+    setSelectedShiftDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(dateString)) {
+        next.delete(dateString);
+      } else {
+        next.add(dateString);
+      }
+      return next;
+    });
+  };
+
+  const confirmShiftSelection = () => {
+    const dates = Array.from(selectedShiftDates).sort();
+    setBatchShiftDates(dates);
+    setEditingEvent(null);
+    setForm(emptyFormForType("shift", dates[0]));
+    setEditorVisible(true);
+  };
+
   const openCreateFlow = (type, defaultDate = selectedDate) => {
+    if (type === "shift") {
+      const initial = shiftOccupiedDates.has(defaultDate)
+        ? new Set()
+        : new Set([defaultDate]);
+      setSelectedShiftDates(initial);
+      setShiftSelectionMode(true);
+      setTypeModalVisible(false);
+      return;
+    }
     setEditingEvent(null);
     setForm(emptyFormForType(type, defaultDate));
     setTypeModalVisible(false);
@@ -521,6 +550,8 @@ export const AgendaScreen = ({ userProfile }) => {
   const closeEditor = () => {
     setEditorVisible(false);
     setEditingEvent(null);
+    setBatchShiftDates([]);
+    exitShiftSelectionMode();
   };
 
   const closeDeleteDialog = () => {
@@ -560,6 +591,10 @@ export const AgendaScreen = ({ userProfile }) => {
   };
 
   const validateForm = () => {
+    if (batchShiftDates.length > 0) {
+      return null;
+    }
+
     if (form.event_type === "shift" && !form.event_date) {
       return "Selecciona una fecha para el evento.";
     }
@@ -587,6 +622,29 @@ export const AgendaScreen = ({ userProfile }) => {
     const validationMessage = validateForm();
     if (validationMessage) {
       Alert.alert("Revisa el formulario", validationMessage);
+      return;
+    }
+
+    if (batchShiftDates.length > 0) {
+      const sharedData = {
+        notes: form.notes.trim(),
+        metadata: {
+          shift_duration: form.metadata.shift_duration,
+          reminder_offset_days: form.metadata.reminder_offset_days ?? null,
+        },
+      };
+      const result = await createEventsBatch(batchShiftDates, sharedData);
+      const failedCount = result.failed?.length ?? 0;
+      const createdCount = result.created?.length ?? 0;
+      if (failedCount > 0) {
+        Alert.alert(
+          createdCount > 0 ? "Guardias creadas parcialmente" : "Error al crear guardias",
+          createdCount > 0
+            ? `${createdCount} de ${batchShiftDates.length} guardias creadas. ${failedCount} no pudieron guardarse, inténtalo de nuevo.`
+            : "No se pudieron guardar las guardias. Inténtalo de nuevo."
+        );
+      }
+      closeEditor();
       return;
     }
 
@@ -705,6 +763,20 @@ export const AgendaScreen = ({ userProfile }) => {
         >
           <View style={styles.body}>
           <View style={styles.calendarCard}>
+            {shiftSelectionMode ? (
+              <View style={styles.selectionBanner}>
+                <Ionicons
+                  name={selectedShiftDates.size === 0 ? "calendar-outline" : "checkmark-circle"}
+                  size={18}
+                  color="#7C3AED"
+                />
+                <Text style={styles.selectionBannerText}>
+                  {selectedShiftDates.size === 0
+                    ? "Toca los días que tengas guardia"
+                    : `${selectedShiftDates.size} ${selectedShiftDates.size === 1 ? "seleccionada" : "seleccionadas"}`}
+                </Text>
+              </View>
+            ) : null}
             <Calendar
               key={`${visibleMonth.getFullYear()}-${visibleMonth.getMonth()}`}
               firstDay={1}
@@ -715,12 +787,9 @@ export const AgendaScreen = ({ userProfile }) => {
                 1
               )
               )}
-              markedDates={markedDates}
-              onDayPress={(day) => setSelectedDate(day.dateString)}
               onMonthChange={(month) =>
                 setVisibleMonth(new Date(month.year, month.month - 1, 1))
               }
-              markingType="multi-dot"
               hideArrows
               enableSwipeMonths
               theme={{
@@ -732,9 +801,110 @@ export const AgendaScreen = ({ userProfile }) => {
                 dotColor: AGENDA_ACCENT,
               }}
               renderHeader={() => <View />}
+              dayComponent={({ date, state }) => {
+                if (!date) return <View style={styles.dayCell} />;
+
+                const dateString = date.dateString;
+                const isOtherMonth = state === "disabled";
+                const isToday = dateString === todayString;
+
+                if (shiftSelectionMode) {
+                  const isOccupied = shiftOccupiedDates.has(dateString);
+                  const isSelected = selectedShiftDates.has(dateString);
+                  const blocked = isOtherMonth || isOccupied;
+
+                  return (
+                    <TouchableOpacity
+                      style={styles.dayCell}
+                      activeOpacity={blocked ? 1 : 0.7}
+                      disabled={blocked}
+                      onPress={() => toggleShiftDate(dateString)}
+                    >
+                      <View
+                        style={[
+                          styles.dayNumberWrap,
+                          isSelected && styles.dayNumberSelectedShift,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.dayNumber,
+                            isOtherMonth && styles.dayNumberOtherMonth,
+                            isOccupied && styles.dayNumberOccupied,
+                            isToday && !isSelected && styles.dayNumberToday,
+                            isSelected && styles.dayNumberSelectedText,
+                          ]}
+                        >
+                          {date.day}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }
+
+                const dayEvents = isOtherMonth ? [] : eventsByDate[dateString] || [];
+                const isSelected = dateString === selectedDate;
+                const visibleEvents = dayEvents.slice(0, MAX_BADGES_PER_DAY);
+                const extraCount = dayEvents.length - visibleEvents.length;
+
+                return (
+                  <TouchableOpacity
+                    style={styles.dayCell}
+                    activeOpacity={isOtherMonth ? 1 : 0.7}
+                    disabled={isOtherMonth}
+                    onPress={() => setSelectedDate(dateString)}
+                  >
+                    <View
+                      style={[
+                        styles.dayNumberWrap,
+                        isSelected && styles.dayNumberSelected,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.dayNumber,
+                          isOtherMonth && styles.dayNumberOtherMonth,
+                          isToday && !isSelected && styles.dayNumberToday,
+                          isSelected && styles.dayNumberSelectedText,
+                        ]}
+                      >
+                        {date.day}
+                      </Text>
+                    </View>
+
+                    <View style={styles.dayBadges}>
+                      {visibleEvents.map((event, index) => {
+                        const typeMeta =
+                          EVENT_TYPE_OPTIONS.find((o) => o.id === event.event_type) ||
+                          EVENT_TYPE_OPTIONS[0];
+                        return (
+                          <TouchableOpacity
+                            key={`${event.id}-${index}`}
+                            style={[styles.dayBadge, { backgroundColor: typeMeta.color }]}
+                            activeOpacity={0.8}
+                            onPress={() => openEditFlow(event)}
+                          >
+                            <Text style={styles.dayBadgeText} numberOfLines={1}>
+                              {event.title || agendaEventTypeLabels[event.event_type]}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                      {extraCount > 0 ? (
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => setSelectedDate(dateString)}
+                        >
+                          <Text style={styles.dayBadgeMore}>+{extraCount} más</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
             />
 
-            {residentLegendOptions.length > 0 ? (
+            {!shiftSelectionMode && residentLegendOptions.length > 0 ? (
               <View style={styles.legend}>
                 {residentLegendOptions.map((option) => (
                   <View key={option.id} style={styles.legendItem}>
@@ -751,6 +921,8 @@ export const AgendaScreen = ({ userProfile }) => {
             ) : null}
           </View>
 
+          {!shiftSelectionMode ? (
+            <>
           {pendingShiftRequests > 0 ? (
             <View style={styles.infoCard}>
               <Ionicons name="notifications-outline" size={18} color={AGENDA_ACCENT} />
@@ -909,17 +1081,42 @@ export const AgendaScreen = ({ userProfile }) => {
               ))}
             </>
           ) : null}
+            </>
+          ) : null}
           </View>
         </ScrollView>
       </View>
 
-      <FloatingActionButton
-        onPress={() => setTypeModalVisible(true)}
-        icon="add"
-        backgroundColor={AGENDA_ACCENT}
-        bottom={28}
-        right={24}
-      />
+      {shiftSelectionMode ? (
+        <View style={styles.shiftSelectionBar}>
+          <TouchableOpacity onPress={exitShiftSelectionMode} style={styles.selectionBarCancel}>
+            <Text style={styles.selectionBarCancelText}>Cancelar</Text>
+          </TouchableOpacity>
+          <Text style={styles.selectionBarCount}>
+            {selectedShiftDates.size === 0
+              ? "Selecciona fechas"
+              : `${selectedShiftDates.size} ${selectedShiftDates.size === 1 ? "guardia" : "guardias"}`}
+          </Text>
+          <TouchableOpacity
+            onPress={confirmShiftSelection}
+            disabled={selectedShiftDates.size === 0}
+            style={[
+              styles.selectionBarConfirm,
+              selectedShiftDates.size === 0 && styles.selectionBarConfirmDisabled,
+            ]}
+          >
+            <Text style={styles.selectionBarConfirmText}>Continuar</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FloatingActionButton
+          onPress={() => setTypeModalVisible(true)}
+          icon="add"
+          backgroundColor={AGENDA_ACCENT}
+          bottom={28}
+          right={24}
+        />
+      )}
 
       <Modal
         visible={typeModalVisible}
@@ -995,7 +1192,11 @@ export const AgendaScreen = ({ userProfile }) => {
                 <Ionicons name="arrow-back" size={20} color={AGENDA_ACCENT} />
               </TouchableOpacity>
               <Text style={styles.editorTitle}>
-                {editingEvent ? "Editar evento" : `Añadir ${selectedTypeMeta.label.toLowerCase()}`}
+                {editingEvent
+                  ? "Editar evento"
+                  : batchShiftDates.length > 1
+                    ? `Añadir ${batchShiftDates.length} guardias`
+                    : `Añadir ${selectedTypeMeta.label.toLowerCase()}`}
               </Text>
               <View style={styles.headerCirclePlaceholder} />
             </View>
@@ -1020,13 +1221,30 @@ export const AgendaScreen = ({ userProfile }) => {
               </View>
               <View style={styles.editorHeroText}>
                 <Text style={[styles.editorHeroEyebrow, { color: selectedTypeMeta.color }]}>
-                  Nuevo registro
+                  {batchShiftDates.length > 1 ? `${batchShiftDates.length} guardias` : "Nuevo registro"}
                 </Text>
                 <Text style={styles.editorHeroDescription}>
-                  Completa la información principal para que aparezca en tu agenda.
+                  {batchShiftDates.length > 1
+                    ? `Se crearán ${batchShiftDates.length} guardias con la configuración que elijas.`
+                    : "Completa la información principal para que aparezca en tu agenda."}
                 </Text>
               </View>
             </View>
+
+            {batchShiftDates.length > 0 ? (
+              <View style={styles.editorSection}>
+                <Text style={styles.inputLabel}>
+                  Fechas seleccionadas ({batchShiftDates.length})
+                </Text>
+                <View style={styles.choiceRow}>
+                  {batchShiftDates.map((date) => (
+                    <View key={date} style={styles.dateBadge}>
+                      <Text style={styles.dateBadgeText}>{formatHumanDate(date)}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
 
             {showsPrimaryTitleField ? (
               <View style={styles.editorSection}>
@@ -1215,7 +1433,11 @@ export const AgendaScreen = ({ userProfile }) => {
               activeOpacity={0.9}
             >
               <Text style={styles.primaryButtonText}>
-                {saving ? "Guardando..." : chipMeta[form.event_type].submitText}
+                {saving
+                  ? "Guardando..."
+                  : batchShiftDates.length > 1
+                    ? `Crear ${batchShiftDates.length} guardias`
+                    : chipMeta[form.event_type].submitText}
               </Text>
             </TouchableOpacity>
 
@@ -1323,6 +1545,86 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowRadius: 20,
     elevation: 2,
+  },
+  selectionBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#F3E8FF",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginHorizontal: 6,
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  dayCell: {
+    minHeight: 78,
+    width: "100%",
+    alignItems: "center",
+    paddingTop: 2,
+    paddingHorizontal: 2,
+  },
+  dayNumberWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  dayNumberSelected: {
+    backgroundColor: AGENDA_ACCENT,
+  },
+  dayNumberSelectedShift: {
+    backgroundColor: "#7C3AED",
+  },
+  dayNumber: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0F172A",
+  },
+  dayNumberOtherMonth: {
+    color: "#CBD5E1",
+  },
+  dayNumberOccupied: {
+    color: "#CBD5E1",
+  },
+  dayNumberToday: {
+    color: AGENDA_ACCENT,
+    fontWeight: "800",
+  },
+  dayNumberSelectedText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  dayBadges: {
+    width: "100%",
+    gap: 2,
+    alignItems: "stretch",
+  },
+  dayBadge: {
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  dayBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  dayBadgeMore: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#64748B",
+    textAlign: "center",
+    marginTop: 1,
+  },
+  selectionBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#5B21B6",
   },
   legend: {
     flexDirection: "row",
@@ -1781,6 +2083,64 @@ const styles = StyleSheet.create({
     color: "#DC2626",
     fontSize: 15,
     fontWeight: "800",
+  },
+  shiftSelectionBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+    paddingTop: 12,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: -4 },
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  selectionBarCancel: {
+    padding: 10,
+  },
+  selectionBarCancelText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  selectionBarCount: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  selectionBarConfirm: {
+    backgroundColor: "#7C3AED",
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  selectionBarConfirmDisabled: {
+    backgroundColor: "#E2E8F0",
+  },
+  selectionBarConfirmText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  dateBadge: {
+    borderRadius: 999,
+    backgroundColor: "#F3E8FF",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  dateBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#7C3AED",
   },
 });
 
