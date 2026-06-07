@@ -121,13 +121,15 @@ Métodos: `fetchAll`, `saveConsent`, `saveAssessment`, `deleteAllData`.
 
 ### Acceso (gate de residente)
 
-- Los **recursos de crisis** (PAIME, 024, Teléfono de la Esperanza) son accesibles para
-  **todo residente**, sin importar el estado del gate (REVIEW_PENDING/REJECTED, bloqueo
-  estacional MIR). Quien está en burnout no debe encontrarse un muro.
-- El **cuestionario CBI y el guardado de datos** sí requieren ser residente validado
-  (mismas reglas que el resto de features que escriben datos).
-- Implicación de diseño: la pantalla `MentalHealthScreen` debe poder renderizar la sección
-  de recursos aunque el gate bloquee la parte de evaluación.
+- **Toda la sección** (recursos **y** cuestionario) está abierta a cualquier `is_resident`,
+  **incluso si aún no ha verificado su email corporativo** o está bajo gate de reseña /
+  bloqueo estacional MIR. El bienestar no debe depender del estado de validación de la cuenta.
+- En el código: `canAssess = Boolean(userProfile?.is_resident)` (ya no se usa
+  `hasResidentFeatureAccess` para gatear la evaluación). La RLS solo exige
+  `auth.uid() = user_id`, así que un residente no verificado puede guardar sus evaluaciones.
+- Las allow-lists de navegación (`residentHardGateAllowedSections`, redirect de email-lock,
+  y los filtros de `MenuGrid`) incluyen `mentalHealth` para que la sección sea siempre
+  alcanzable.
 
 ### Paso 6 · Integración en navegación
 

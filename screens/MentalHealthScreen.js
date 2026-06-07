@@ -19,7 +19,6 @@ import {
   getPaimeForCcaa,
 } from "../constants/paimeResources";
 import { useMentalHealth } from "../hooks/useMentalHealth";
-import { hasResidentFeatureAccess } from "../utils/residentAccess";
 import MentalHealthQuestionnaireScreen from "./MentalHealthQuestionnaireScreen";
 
 const DOMAIN_ORDER = ["personal", "work", "patient"];
@@ -90,7 +89,10 @@ export default function MentalHealthScreen({ userProfile, onBack }) {
   const [showCcaaPicker, setShowCcaaPicker] = useState(false);
   const [showResources, setShowResources] = useState(false);
 
-  const canAssess = hasResidentFeatureAccess(userProfile);
+  // La evaluación de bienestar está abierta a todo residente (is_resident),
+  // incluso si aún no ha verificado su email corporativo: el bienestar no debe
+  // depender del estado de validación de la cuenta.
+  const canAssess = Boolean(userProfile?.is_resident);
   const previousAssessment = assessments[1] || null;
   const paime = selectedCcaa ? getPaimeForCcaa(selectedCcaa) : null;
 
