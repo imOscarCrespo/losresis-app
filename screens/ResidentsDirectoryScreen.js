@@ -17,6 +17,13 @@ import {
   getSpecialitiesCatalog,
 } from "../services/staticCatalogService";
 import { openDirectChat } from "../services/directChatsService";
+import {
+  CONNECTION_STATUS,
+  getConnectionStatuses,
+  sendConnectionRequest,
+  acceptConnectionRequest,
+  cancelConnectionRequest,
+} from "../services/connectionsService";
 import { getResidentState, RESIDENT_STATE } from "../utils/residentAccess";
 import posthogLogger from "../services/posthogService";
 
@@ -32,7 +39,38 @@ const WARNING_BG = "#FEF3C7";
 const WARNING_BORDER = "#FDE68A";
 const WARNING_TEXT = "#92400E";
 
-function ResidentCard({ user, canChat, onPressChat, isStartingChat }) {
+// Configuración visual del botón contextual según el estado de conexión.
+const ACTION_BY_STATUS = {
+  [CONNECTION_STATUS.CONNECTED]: {
+    icon: "chatbubble-ellipses-outline",
+    label: "Chatear",
+    bg: SECONDARY,
+    fg: "#FFFFFF",
+  },
+  [CONNECTION_STATUS.PENDING_OUTGOING]: {
+    icon: "time-outline",
+    label: "Pendiente",
+    bg: "#F1F5F9",
+    fg: MUTED,
+  },
+  [CONNECTION_STATUS.PENDING_INCOMING]: {
+    icon: "checkmark-circle-outline",
+    label: "Aceptar",
+    bg: PRIMARY,
+    fg: "#FFFFFF",
+  },
+  [CONNECTION_STATUS.NONE]: {
+    icon: "person-add-outline",
+    label: "Conectar",
+    bg: PRIMARY,
+    fg: "#FFFFFF",
+  },
+};
+
+function ResidentCard({ user, canInteract, status, isBusy, onAction }) {
+  const action = ACTION_BY_STATUS[status] || ACTION_BY_STATUS[CONNECTION_STATUS.NONE];
+  const disabled = !canInteract || isBusy;
+
   return (
     <View style={styles.userCard}>
       <View style={styles.userAvatar}>
@@ -64,27 +102,32 @@ function ResidentCard({ user, canChat, onPressChat, isStartingChat }) {
       </View>
 
       <TouchableOpacity
-        style={[styles.chatBtn, !canChat && styles.chatBtnDisabled]}
-        onPress={onPressChat}
-        disabled={!canChat || isStartingChat}
+        style={[
+          styles.chatBtn,
+          { backgroundColor: action.bg },
+          disabled && styles.chatBtnDisabled,
+        ]}
+        onPress={onAction}
+        disabled={disabled}
         activeOpacity={0.85}
       >
-        {isStartingChat ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
+        {isBusy ? (
+          <ActivityIndicator size="small" color={action.fg} />
         ) : (
           <>
             <Ionicons
-              name="chatbubble-ellipses-outline"
+              name={action.icon}
               size={16}
-              color={canChat ? "#FFFFFF" : MUTED}
+              color={canInteract ? action.fg : MUTED}
             />
             <Text
               style={[
                 styles.chatBtnText,
-                !canChat && styles.chatBtnTextDisabled,
+                { color: action.fg },
+                !canInteract && styles.chatBtnTextDisabled,
               ]}
             >
-              Chatear
+              {action.label}
             </Text>
           </>
         )}
@@ -108,13 +151,14 @@ export default function ResidentsDirectoryScreen({
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [selectedHospital, setSelectedHospital] = useState("");
   const [openModal, setOpenModal] = useState(null);
-  const [startingChatUserId, setStartingChatUserId] = useState(null);
+  const [busyUserId, setBusyUserId] = useState(null);
+  const [connectionMap, setConnectionMap] = useState({});
 
   const residentState = useMemo(
     () => getResidentState(currentUserProfile),
     [currentUserProfile]
   );
-  const canChat = residentState === RESIDENT_STATE.ACTIVE;
+  const canInteract = residentState === RESIDENT_STATE.ACTIVE;
 
   const specialtyOptions = useMemo(
     () =>
@@ -159,12 +203,22 @@ export default function ResidentsDirectoryScreen({
     []
   );
 
+  const loadConnectionStatuses = useCallback(async (userList) => {
+    const ids = (userList || []).map((u) => u.id).filter(Boolean);
+    if (ids.length === 0) return;
+    const { success, statuses } = await getConnectionStatuses(ids);
+    if (success) {
+      setConnectionMap((prev) => ({ ...prev, ...statuses }));
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
       setLoading(true);
       setError(null);
+      setConnectionMap({});
 
       const {
         success,
@@ -186,8 +240,10 @@ export default function ResidentsDirectoryScreen({
         setUsers([]);
         setHasMore(false);
       } else {
-        setUsers((rawUsers || []).map(mapUser));
+        const mapped = (rawUsers || []).map(mapUser);
+        setUsers(mapped);
         setHasMore(Boolean(more));
+        loadConnectionStatuses(mapped);
       }
       setPage(0);
       setLoading(false);
@@ -197,7 +253,7 @@ export default function ResidentsDirectoryScreen({
     return () => {
       cancelled = true;
     };
-  }, [selectedSpecialty, selectedHospital, currentUserId, mapUser]);
+  }, [selectedSpecialty, selectedHospital, currentUserId, mapUser, loadConnectionStatuses]);
 
   const handleLoadMore = useCallback(async () => {
     if (loading || loadingMore || !hasMore) return;
@@ -217,13 +273,15 @@ export default function ResidentsDirectoryScreen({
     );
 
     if (success) {
+      let added = [];
       setUsers((prev) => {
         const seen = new Set(prev.map((u) => u.id));
-        const next = (rawUsers || []).map(mapUser).filter((u) => !seen.has(u.id));
-        return [...prev, ...next];
+        added = (rawUsers || []).map(mapUser).filter((u) => !seen.has(u.id));
+        return [...prev, ...added];
       });
       setHasMore(Boolean(more));
       setPage(nextPage);
+      loadConnectionStatuses(added);
     }
     setLoadingMore(false);
   }, [
@@ -235,6 +293,7 @@ export default function ResidentsDirectoryScreen({
     selectedHospital,
     currentUserId,
     mapUser,
+    loadConnectionStatuses,
   ]);
 
   const clearFilters = useCallback(() => {
@@ -242,17 +301,13 @@ export default function ResidentsDirectoryScreen({
     setSelectedHospital("");
   }, []);
 
-  const handlePressChat = useCallback(
+  const openChatWith = useCallback(
     async (user) => {
-      if (!canChat) return;
-      setStartingChatUserId(user.id);
       const response = await openDirectChat({
         otherUserId: user.id,
         otherUserName: `${user.name || ""} ${user.surname || ""}`.trim(),
         onSectionChange,
       });
-      setStartingChatUserId(null);
-
       if (!response?.success) {
         Alert.alert(
           "No se pudo abrir el chat",
@@ -260,7 +315,77 @@ export default function ResidentsDirectoryScreen({
         );
       }
     },
-    [canChat, onSectionChange]
+    [onSectionChange]
+  );
+
+  const setUserStatus = useCallback((userId, patch) => {
+    setConnectionMap((prev) => ({
+      ...prev,
+      [userId]: { ...(prev[userId] || {}), ...patch },
+    }));
+  }, []);
+
+  const handleAction = useCallback(
+    async (user) => {
+      if (!canInteract) return;
+      const current = connectionMap[user.id]?.status || CONNECTION_STATUS.NONE;
+
+      // Conectados: abrir chat directamente, sin estado "busy".
+      if (current === CONNECTION_STATUS.CONNECTED) {
+        setBusyUserId(user.id);
+        await openChatWith(user);
+        setBusyUserId(null);
+        return;
+      }
+
+      setBusyUserId(user.id);
+      let response;
+      if (current === CONNECTION_STATUS.NONE) {
+        response = await sendConnectionRequest(user.id);
+      } else if (current === CONNECTION_STATUS.PENDING_OUTGOING) {
+        const connId = connectionMap[user.id]?.connectionId;
+        response = await cancelConnectionRequest(connId);
+      } else if (current === CONNECTION_STATUS.PENDING_INCOMING) {
+        const connId = connectionMap[user.id]?.connectionId;
+        response = await acceptConnectionRequest(connId);
+      }
+      setBusyUserId(null);
+
+      if (!response?.success) {
+        Alert.alert(
+          "No se pudo completar la acción",
+          response?.error || "Inténtalo de nuevo en un momento."
+        );
+        return;
+      }
+
+      // Reflejar el estado resultante devuelto por el RPC.
+      const result = response.status;
+      if (result === "pending") {
+        setUserStatus(user.id, {
+          status: CONNECTION_STATUS.PENDING_OUTGOING,
+          connectionId: response.connectionId,
+          direction: "outgoing",
+        });
+      } else if (result === "accepted") {
+        setUserStatus(user.id, {
+          status: CONNECTION_STATUS.CONNECTED,
+          connectionId: response.connectionId,
+        });
+      } else if (result === "cancelled" || result === "rejected" || result === "gone") {
+        setUserStatus(user.id, {
+          status: CONNECTION_STATUS.NONE,
+          connectionId: null,
+          direction: null,
+        });
+      }
+    },
+    [
+      canInteract,
+      connectionMap,
+      openChatWith,
+      setUserStatus,
+    ]
   );
 
   return (
@@ -290,12 +415,11 @@ export default function ResidentsDirectoryScreen({
         </>
       }
     >
-      {!canChat ? (
+      {!canInteract ? (
         <View style={styles.banner}>
           <Ionicons name="warning-outline" size={18} color={WARNING_TEXT} />
           <Text style={styles.bannerText}>
-            Verifica tu email corporativo para iniciar chats con otros
-            residentes.
+            Verifica tu email corporativo para conectar con otros residentes.
           </Text>
         </View>
       ) : null}
@@ -375,6 +499,7 @@ export default function ResidentsDirectoryScreen({
         ) : (
           <FlatList
             data={users}
+            extraData={{ connectionMap, busyUserId }}
             keyExtractor={(item) => String(item.id)}
             contentContainerStyle={styles.listContent}
             onEndReached={handleLoadMore}
@@ -389,9 +514,12 @@ export default function ResidentsDirectoryScreen({
             renderItem={({ item }) => (
               <ResidentCard
                 user={item}
-                canChat={canChat}
-                onPressChat={() => handlePressChat(item)}
-                isStartingChat={startingChatUserId === item.id}
+                canInteract={canInteract}
+                status={
+                  connectionMap[item.id]?.status || CONNECTION_STATUS.NONE
+                }
+                isBusy={busyUserId === item.id}
+                onAction={() => handleAction(item)}
               />
             )}
             ListEmptyComponent={

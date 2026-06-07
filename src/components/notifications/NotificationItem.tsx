@@ -1,5 +1,12 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import type { NotificationRow } from "../../services/notificationsService";
 
 function formatRelativeTime(createdAt: string): string {
@@ -24,9 +31,21 @@ function formatRelativeTime(createdAt: string): string {
 type NotificationItemProps = {
   notification: NotificationRow;
   onPress: () => void;
+  // Acciones inline para solicitudes de conexión pendientes dirigidas a mí.
+  showConnectionActions?: boolean;
+  isActionInFlight?: boolean;
+  onAcceptConnection?: () => void;
+  onRejectConnection?: () => void;
 };
 
-export function NotificationItem({ notification, onPress }: NotificationItemProps) {
+export function NotificationItem({
+  notification,
+  onPress,
+  showConnectionActions = false,
+  isActionInFlight = false,
+  onAcceptConnection,
+  onRejectConnection,
+}: NotificationItemProps) {
   const isUnread = !notification.is_read;
 
   return (
@@ -58,6 +77,33 @@ export function NotificationItem({ notification, onPress }: NotificationItemProp
           <Text style={styles.body} numberOfLines={2}>
             {notification.body}
           </Text>
+        ) : null}
+
+        {showConnectionActions ? (
+          <View style={styles.actionsRow}>
+            {isActionInFlight ? (
+              <ActivityIndicator size="small" color="#670CF5" />
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.acceptBtn]}
+                  onPress={onAcceptConnection}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                  <Text style={styles.acceptBtnText}>Aceptar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.rejectBtn]}
+                  onPress={onRejectConnection}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="close" size={16} color="#64748B" />
+                  <Text style={styles.rejectBtnText}>Rechazar</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         ) : null}
       </View>
     </TouchableOpacity>
@@ -142,5 +188,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#64748B",
     fontWeight: "700",
+  },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 14,
+  },
+  actionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  acceptBtn: {
+    backgroundColor: "#00BD7C",
+  },
+  acceptBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  rejectBtn: {
+    backgroundColor: "#F1F5F9",
+  },
+  rejectBtnText: {
+    color: "#64748B",
+    fontSize: 13,
+    fontWeight: "800",
   },
 });

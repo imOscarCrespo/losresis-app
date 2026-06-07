@@ -44,10 +44,10 @@ export const useAgendaEvents = (userId) => {
   }, [fetchEvents]);
 
   const createEvent = useCallback(
-    async (eventData) => {
+    async (eventData, shareUserIds) => {
       setSaving(true);
       try {
-        await createAgendaEvent(userId, eventData);
+        await createAgendaEvent(userId, eventData, shareUserIds);
         await fetchEvents();
         return { success: true };
       } catch (error) {
@@ -87,10 +87,10 @@ export const useAgendaEvents = (userId) => {
   );
 
   const updateEvent = useCallback(
-    async (eventId, eventData) => {
+    async (eventId, eventData, shareUserIds) => {
       setSaving(true);
       try {
-        await updateAgendaEvent(eventId, eventData);
+        await updateAgendaEvent(eventId, eventData, shareUserIds);
         await fetchEvents();
         return { success: true };
       } catch (error) {

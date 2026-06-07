@@ -16,6 +16,20 @@ import {
   type NotificationRow,
 } from "../../services/notificationsService";
 import { NotificationItem } from "../../components/notifications/NotificationItem";
+// connectionsService es JS sin tipos; lo tratamos como any.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+import {
+  CONNECTION_STATUS,
+  getConnectionStatuses,
+  acceptConnectionRequest,
+  rejectConnectionRequest,
+} from "../../../services/connectionsService";
+
+type ConnectionStatusEntry = {
+  status: string;
+  connectionId?: string;
+  direction?: string;
+};
 
 export type NotificationDataPayload = {
   entity_type?: string;
@@ -27,6 +41,8 @@ export type NotificationDataPayload = {
   group_name?: string;
   question_id?: string;
   focus?: string;
+  other_user_id?: string;
+  requester_id?: string;
 };
 
 export type NotificationNavigationPayload =
@@ -41,6 +57,7 @@ export type NotificationNavigationPayload =
       matchId?: string;
       courseId?: string;
       threadId?: string;
+      otherUserId?: string;
     };
 
 type NotificationsScreenProps = {
@@ -60,6 +77,10 @@ export default function NotificationsScreen({
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [connectionStatuses, setConnectionStatuses] = useState<
+    Record<string, ConnectionStatusEntry>
+  >({});
+  const [actionNotifId, setActionNotifId] = useState<string | null>(null);
   const unreadCount = notifications.filter((notification) => !notification.is_read).length;
 
   const loadNotifications = useCallback(async () => {
@@ -67,6 +88,24 @@ export default function NotificationsScreen({
     try {
       const data = await fetchNotifications(userId);
       setNotifications(data);
+
+      // Estado actual de las solicitudes de conexión recibidas, para decidir
+      // qué notificaciones muestran botones aceptar/rechazar.
+      const requesterIds = Array.from(
+        new Set(
+          data
+            .filter((n) => n.type === "connection_request" && n.actor_user_id)
+            .map((n) => n.actor_user_id as string)
+        )
+      );
+      if (requesterIds.length > 0) {
+        const { success, statuses } = await getConnectionStatuses(requesterIds);
+        if (success) {
+          setConnectionStatuses(statuses as Record<string, ConnectionStatusEntry>);
+        }
+      } else {
+        setConnectionStatuses({});
+      }
     } catch (err) {
       console.error("[NotificationsScreen] load error:", err);
     } finally {
@@ -74,6 +113,52 @@ export default function NotificationsScreen({
       setRefreshing(false);
     }
   }, [userId]);
+
+  const resolveConnection = useCallback(
+    async (notification: NotificationRow, accept: boolean) => {
+      const actorId = notification.actor_user_id || "";
+      const entry = connectionStatuses[actorId];
+      const data = (notification.data as NotificationDataPayload | null) ?? {};
+      const connectionId = entry?.connectionId || data.entity_id;
+      if (!connectionId) return;
+
+      setActionNotifId(notification.id);
+      const response = accept
+        ? await acceptConnectionRequest(connectionId)
+        : await rejectConnectionRequest(connectionId);
+      setActionNotifId(null);
+
+      if (!response?.success) {
+        console.error("[NotificationsScreen] connection action error:", response?.error);
+        return;
+      }
+
+      // Ocultar las acciones reflejando el estado REAL devuelto por el RPC
+      // (puede ser 'gone' si se canceló, o el estado previo si ya se resolvió).
+      const nextStatus =
+        response.status === "accepted"
+          ? CONNECTION_STATUS.CONNECTED
+          : CONNECTION_STATUS.NONE;
+      setConnectionStatuses((prev) => ({
+        ...prev,
+        [actorId]: {
+          ...(prev[actorId] || {}),
+          status: nextStatus,
+        },
+      }));
+      if (!notification.is_read) {
+        markNotificationAsRead(notification.id);
+        setNotifications((prev) =>
+          prev.map((n) =>
+            n.id === notification.id
+              ? { ...n, is_read: true, read_at: new Date().toISOString() }
+              : n
+          )
+        );
+      }
+    },
+    [connectionStatuses]
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -106,6 +191,23 @@ export default function NotificationsScreen({
       const groupId = data.group_id;
       const groupName = data.group_name;
       const questionId = data.question_id;
+
+      // Solicitud de conexión: las acciones son inline; al pulsar la tarjeta no
+      // navegamos a ningún sitio (solo marca leída, ya hecho arriba).
+      if (notification.type === "connection_request") {
+        return;
+      }
+
+      // Conexión aceptada: abrir el chat con el otro residente.
+      if (
+        notification.type === "connection_accepted" &&
+        (data as { other_user_id?: string }).other_user_id
+      ) {
+        onNavigateToEntity("directChat", {
+          otherUserId: (data as { other_user_id?: string }).other_user_id,
+        } as NotificationNavigationPayload);
+        return;
+      }
 
       if (data.destination_section === "myReview") {
         onNavigateToEntity("myReview", {
@@ -141,13 +243,26 @@ export default function NotificationsScreen({
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: NotificationRow }) => (
-      <NotificationItem
-        notification={item}
-        onPress={() => handleNotificationPress(item)}
-      />
-    ),
-    [handleNotificationPress]
+    ({ item }: { item: NotificationRow }) => {
+      const entry = item.actor_user_id
+        ? connectionStatuses[item.actor_user_id]
+        : undefined;
+      const showConnectionActions =
+        item.type === "connection_request" &&
+        entry?.status === CONNECTION_STATUS.PENDING_INCOMING;
+
+      return (
+        <NotificationItem
+          notification={item}
+          onPress={() => handleNotificationPress(item)}
+          showConnectionActions={showConnectionActions}
+          isActionInFlight={actionNotifId === item.id}
+          onAcceptConnection={() => resolveConnection(item, true)}
+          onRejectConnection={() => resolveConnection(item, false)}
+        />
+      );
+    },
+    [handleNotificationPress, connectionStatuses, actionNotifId, resolveConnection]
   );
 
   const keyExtractor = useCallback((item: NotificationRow) => item.id, []);

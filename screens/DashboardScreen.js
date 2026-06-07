@@ -12,6 +12,8 @@ import MirSimulatorScreen from "./MirSimulatorScreen";
 import MirOrientationScreen from "./MirOrientationScreen";
 import MirProjectedScoreScreen from "./MirProjectedScoreScreen";
 import ProfileScreen from "./ProfileScreen";
+import ProfileEditScreen from "./ProfileEditScreen";
+import MyConnectionsScreen from "./MyConnectionsScreen";
 import MenuScreen from "./MenuScreen";
 import MyPreferencesScreen from "./MyPreferencesScreen";
 import ComunityScreen from "./ComunityScreen";
@@ -42,6 +44,7 @@ import ClinicalAssistantScreen from "./ClinicalAssistantScreen";
 import NotificationSettingsScreen from "../src/screens/settings/NotificationSettingsScreen";
 import NotificationsScreen from "../src/screens/notifications/NotificationsScreen";
 import { setNotificationNavigationHandler } from "../src/services/push/notificationRouter";
+import { openDirectChat } from "../services/directChatsService";
 import SpecialityQuizScreen from "./SpecialityQuizScreen";
 import GroupsScreen from "./GroupsScreen";
 import GroupChatScreen from "./GroupChatScreen";
@@ -415,6 +418,22 @@ export default function DashboardScreen({
 
   useEffect(() => {
     const cleanup = setNotificationNavigationHandler((data) => {
+      // Solicitud de conexión: llevar a la bandeja, donde se acepta/rechaza inline.
+      if (data?.destination_section === "notifications") {
+        handleSectionChange("notifications");
+        return;
+      }
+
+      // Conexión aceptada: abrir el chat directo con el otro residente.
+      if (data?.destination_section === "directChat" && data?.other_user_id) {
+        openDirectChat({
+          otherUserId: data.other_user_id,
+          otherUserName: "",
+          onSectionChange: handleSectionChange,
+        });
+        return;
+      }
+
       if (data?.destination_section === "groupChat" && data?.group_id) {
         handleSectionChange("groupChat", {
           groupId: data.group_id,
@@ -534,7 +553,9 @@ export default function DashboardScreen({
   useEffect(() => {
     if (
       isResidentLockedMissingCorporateEmail(userProfile) &&
-      !["inicio", "usuario", "contacto", "mentalHealth"].includes(currentSection)
+      !["inicio", "usuario", "profileEdit", "contacto", "mentalHealth"].includes(
+        currentSection
+      )
     ) {
       setCurrentSection("usuario");
     }
@@ -583,7 +604,7 @@ export default function DashboardScreen({
   const handleSectionChange = async (sectionId, params = {}) => {
     if (
       isResidentLockedMissingCorporateEmail(userProfile) &&
-      !["inicio", "usuario", "contacto"].includes(sectionId)
+      !["inicio", "usuario", "profileEdit", "contacto"].includes(sectionId)
     ) {
       Alert.alert(
         "Correo corporativo requerido",
@@ -669,7 +690,11 @@ export default function DashboardScreen({
       setMyReviewAutoFocusQuestions(Boolean(params.focusQuestions));
       setSelectedQuestionId(params.questionId || null);
     }
-    if (sectionId === "usuario" || sectionId === "profile") {
+    if (
+      sectionId === "usuario" ||
+      sectionId === "profile" ||
+      sectionId === "profileEdit"
+    ) {
       setProfileAutoFocusWorkEmail(Boolean(params.autoFocusWorkEmail));
     }
     // Si es reviewDetail, guardar el reviewId
@@ -1353,15 +1378,31 @@ export default function DashboardScreen({
       case "usuario":
         return (
           <ProfileScreen
+            userProfile={userProfile}
             onBack={handleBackFromProfile}
             onSignOut={handleSignOut}
             onProfileUpdated={loadUserProfile}
             onSectionChange={handleSectionChange}
-            currentSection={currentSection}
+          />
+        );
+
+      case "profileEdit":
+        return (
+          <ProfileEditScreen
+            onBack={() => handleSectionChange("usuario")}
+            onProfileUpdated={loadUserProfile}
             autoFocusWorkEmail={profileAutoFocusWorkEmail}
             onAutoFocusWorkEmailHandled={() =>
               setProfileAutoFocusWorkEmail(false)
             }
+          />
+        );
+
+      case "myConnections":
+        return (
+          <MyConnectionsScreen
+            onBack={() => handleSectionChange("usuario")}
+            onSectionChange={handleSectionChange}
           />
         );
 
@@ -1397,6 +1438,12 @@ export default function DashboardScreen({
                 });
               } else if (screenId === "courseDetail") {
                 handleSectionChange("courseDetail", { courseId: entityId });
+              } else if (screenId === "directChat" && entityId?.otherUserId) {
+                openDirectChat({
+                  otherUserId: entityId.otherUserId,
+                  otherUserName: "",
+                  onSectionChange: handleSectionChange,
+                });
               }
             }}
           />

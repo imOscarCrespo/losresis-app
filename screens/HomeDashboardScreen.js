@@ -961,7 +961,9 @@ export default function HomeDashboardScreen({
               </View>
               <TouchableOpacity
                 style={styles.residentReviewHeroButton}
-                onPress={() => onSectionChange?.("usuario")}
+                onPress={() =>
+                  onSectionChange?.("profileEdit", { autoFocusWorkEmail: true })
+                }
                 activeOpacity={0.85}
               >
                 <Text style={styles.residentHeroButtonText}>Ir a mi perfil</Text>
@@ -991,7 +993,7 @@ export default function HomeDashboardScreen({
               <TouchableOpacity
                 style={styles.residentReviewHeroButton}
                 onPress={() =>
-                  onSectionChange?.("usuario", { autoFocusWorkEmail: true })
+                  onSectionChange?.("profileEdit", { autoFocusWorkEmail: true })
                 }
                 activeOpacity={0.85}
               >
@@ -1198,7 +1200,9 @@ export default function HomeDashboardScreen({
           {showSeasonalGraceCountdown ? (
             <TouchableOpacity
               style={styles.seasonalCountdownBanner}
-              onPress={() => onSectionChange?.("usuario")}
+              onPress={() =>
+                onSectionChange?.("profileEdit", { autoFocusWorkEmail: true })
+              }
               activeOpacity={0.9}
             >
               <View style={styles.seasonalCountdownIcon}>

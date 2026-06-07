@@ -91,6 +91,26 @@ const syncAgendaEventReminder = async (event) => {
   }
 };
 
+// Reconcilia los destinatarios del evento contra agenda_event_shares. Se omite
+// para guardias y cuando el llamante no gestiona shares (shareUserIds undefined).
+const syncAgendaEventShares = async (event, shareUserIds) => {
+  if (!event?.id || event.event_type === SHIFT_EVENT_TYPE) {
+    return;
+  }
+  if (!Array.isArray(shareUserIds)) {
+    return;
+  }
+
+  const { error } = await supabase.rpc("set_agenda_event_shares", {
+    p_event_id: event.id,
+    p_user_ids: shareUserIds,
+  });
+
+  if (error) {
+    throw error;
+  }
+};
+
 const createLegacyShift = async ({ userId, eventDate, notes, priceEur }) => {
   const { data, error } = await supabase
     .from("shifts")
@@ -146,7 +166,7 @@ export const getAgendaEvents = async (userId) => {
   return sortAgendaEvents(data || []);
 };
 
-export const createAgendaEvent = async (userId, eventData) => {
+export const createAgendaEvent = async (userId, eventData, shareUserIds) => {
   if (!userId) {
     throw new Error("User ID is required");
   }
@@ -173,11 +193,13 @@ export const createAgendaEvent = async (userId, eventData) => {
   if (event.event_type !== SHIFT_EVENT_TYPE) {
     try {
       await syncAgendaEventReminder(event);
-      return event;
     } catch (reminderError) {
       await supabase.from("agenda_events").delete().eq("id", event.id);
       throw reminderError;
     }
+    // El evento ya existe: un fallo al compartir no debe borrarlo.
+    await syncAgendaEventShares(event, shareUserIds);
+    return event;
   }
 
   let legacyShift = null;
@@ -215,7 +237,7 @@ export const createAgendaEvent = async (userId, eventData) => {
   }
 };
 
-export const updateAgendaEvent = async (eventId, eventData) => {
+export const updateAgendaEvent = async (eventId, eventData, shareUserIds) => {
   if (!eventId) {
     throw new Error("Event ID is required");
   }
@@ -247,6 +269,7 @@ export const updateAgendaEvent = async (eventId, eventData) => {
   }
 
   await syncAgendaEventReminder(updatedEvent);
+  await syncAgendaEventShares(updatedEvent, shareUserIds);
   return updatedEvent;
 };
 
@@ -318,6 +341,37 @@ export const createAgendaEventsBatch = async (userId, dates, sharedEventData) =>
   }
 
   return { created, failed };
+};
+
+// Eventos que mis Conexiones han compartido conmigo (solo-lectura), con el nombre
+// del dueno para etiquetarlos en el calendario.
+export const getSharedWithMeEvents = async () => {
+  const { data, error } = await supabase.rpc("get_events_shared_with_me");
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+};
+
+// IDs de las conexiones con las que un evento propio esta compartido. Sirve para
+// preseleccionar el selector al editar.
+export const getAgendaEventShareUserIds = async (eventId) => {
+  if (!eventId) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("agenda_event_shares")
+    .select("shared_with_user_id")
+    .eq("event_id", eventId);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map((row) => row.shared_with_user_id);
 };
 
 export const agendaEventTypeLabels = {

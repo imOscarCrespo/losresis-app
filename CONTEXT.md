@@ -6,7 +6,7 @@ Usuario de la app que está cursando la residencia médica. Tiene hospital, espe
 
 ## Agenda
 
-Vista unificada de calendario personal del **Residente**. Agrupa todos sus eventos en un solo lugar. Implementada en `screens/AgendaScreen.js`.
+Calendario unificado del **Residente**, implementado en `screens/AgendaScreen.js`. Reúne en una sola vista: (1) sus propios **Eventos de agenda**, (2) las **Guardias de equipo** de sus compañeros, y (3) los **Eventos compartidos** que sus **Conexiones** comparten con él. Lo propio es editable; lo ajeno (guardias de equipo y eventos compartidos) se muestra en solo-lectura, etiquetado con el nombre de la otra persona para distinguirlo.
 
 ## Evento de agenda
 
@@ -23,6 +23,26 @@ Conjunto de **Guardias** creadas en una sola operación a partir de múltiples f
 ## Modo selección de guardias
 
 Estado temporal de la **Agenda** en el que el calendario acepta múltiples toques de fechas para construir un **Lote de guardias**. Se activa al elegir "Guardia" en el selector de tipo. Las fechas que ya tienen una **Guardia** aparecen bloqueadas y no son seleccionables. El modo termina cuando el usuario confirma la selección o cancela.
+
+## Conexión
+
+Vínculo mutuo y aceptado entre dos **Residentes** verificados. Habilita dos cosas entre ambos: el chat directo, y compartir **Eventos de agenda** (ver **Evento compartido**). Sin **Conexión** aceptada no se puede ni chatear ni compartir. Nace de una **Solicitud de conexión** que el destinatario acepta.
+_Evitar_: amistad, amigo, contacto, seguir.
+
+## Guardia de equipo
+
+**Guardia** de otro **Residente** del mismo hospital y especialidad que el usuario actual. Se muestra automáticamente en su **Agenda** (sin necesidad de **Conexión** ni de compartir nada), en solo-lectura y etiquetada con el nombre del compañero. La proximidad de equipo (hospital + especialidad) es la única condición de visibilidad.
+_Evitar_: guardia compartida (una guardia nunca se comparte por **Conexión**).
+
+## Evento compartido
+
+**Evento de agenda** que **no** es una **Guardia** y cuyo dueño comparte con N de sus **Conexiones**. Cada destinatario lo ve en solo-lectura dentro de su propia **Agenda**, etiquetado con el nombre del dueño. Compartir significa compartir el evento completo; no hay selección de campos. Las **Guardias** no se comparten por este mecanismo: ya son visibles a los compañeros como **Guardia de equipo**.
+_Evitar_: invitación a evento, evento de grupo.
+
+## Solicitud de conexión
+
+Petición que un **Residente** verificado envía a otro para establecer una **Conexión**. Mientras no se resuelve está pendiente; el destinatario puede aceptarla (crea la **Conexión**) o rechazarla. Solo residentes verificados pueden enviarla o recibirla.
+_Evitar_: invitación, friend request.
 
 ## Salud mental
 

@@ -19,16 +19,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { ConfirmationModal } from "../components/ConfirmationModal";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
+import { ShareConnectionsPicker } from "../components/ShareConnectionsPicker";
 import { useAgendaEvents } from "../hooks/useAgendaEvents";
-import { useShiftPurchaseRequests } from "../hooks/useShiftPurchaseRequests";
-import { useShiftSwapRequests } from "../hooks/useShiftSwapRequests";
+import { useSharedAgendaEvents } from "../hooks/useSharedAgendaEvents";
+import { useTeamShifts } from "../hooks/useTeamShifts";
 import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
 import {
   agendaEventTypeLabels,
-  mapAgendaEventToLegacyShift,
+  getAgendaEventShareUserIds,
 } from "../services/agendaService";
-import { TeamCalendarView } from "./TeamCalendarView";
+import { getMyConnections } from "../services/connectionsService";
 
 LocaleConfig.locales.es = {
   monthNames: [
@@ -75,6 +76,7 @@ LocaleConfig.defaultLocale = "es";
 
 const AGENDA_ACCENT = "#670CF5";
 const AGENDA_ACCENT_ALT = "#A100C2";
+const TEAM_SHIFT_COLOR = "#F97316";
 
 const EVENT_TYPE_OPTIONS = [
   {
@@ -388,11 +390,14 @@ export const AgendaScreen = ({ userProfile }) => {
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [deleteCandidate, setDeleteCandidate] = useState(null);
-  const [showTeamCalendar, setShowTeamCalendar] = useState(false);
   const [form, setForm] = useState(emptyFormForType("shift", todayString));
   const [shiftSelectionMode, setShiftSelectionMode] = useState(false);
   const [selectedShiftDates, setSelectedShiftDates] = useState(new Set());
   const [batchShiftDates, setBatchShiftDates] = useState([]);
+  const [connections, setConnections] = useState([]);
+  const [connectionsLoaded, setConnectionsLoaded] = useState(false);
+  const [shareUserIds, setShareUserIds] = useState([]);
+  const [sharePickerVisible, setSharePickerVisible] = useState(false);
 
   const {
     events,
@@ -406,12 +411,45 @@ export const AgendaScreen = ({ userProfile }) => {
     removeEvent,
   } = useAgendaEvents(userId);
 
-  const { swapRequests } = useShiftSwapRequests(userId);
-  const { purchaseRequests } = useShiftPurchaseRequests(userId);
+  const { sharedEvents } = useSharedAgendaEvents(userId);
+  const {
+    teamShifts,
+    setCurrentMonth: setTeamMonth,
+    setCurrentYear: setTeamYear,
+  } = useTeamShifts(
+    userId,
+    userProfile?.hospital_id,
+    userProfile?.speciality_id
+  );
 
   useEffect(() => {
     posthogLogger.logScreen("AgendaScreen");
   }, []);
+
+  // Mantener las guardias de equipo en sincronia con el mes visible del calendario.
+  useEffect(() => {
+    setTeamMonth(visibleMonth.getMonth());
+    setTeamYear(visibleMonth.getFullYear());
+  }, [visibleMonth, setTeamMonth, setTeamYear]);
+
+  // Cargar las Conexiones del residente la primera vez que se abre el editor de un
+  // evento compartible (no-guardia).
+  useEffect(() => {
+    if (!editorVisible || connectionsLoaded || form.event_type === "shift") {
+      return;
+    }
+    let active = true;
+    (async () => {
+      const { success, connections: rows } = await getMyConnections();
+      if (active && success) {
+        setConnections(rows);
+        setConnectionsLoaded(true);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [editorVisible, connectionsLoaded, form.event_type]);
 
   const selectedTypeMeta = useMemo(() => {
     return (
@@ -420,8 +458,8 @@ export const AgendaScreen = ({ userProfile }) => {
     );
   }, [form.event_type]);
 
-  const pendingShiftRequests = swapRequests.length + purchaseRequests.length;
   const showsPrimaryTitleField = TITLE_FIELD_TYPES.has(form.event_type);
+  const showsShareField = form.event_type !== "shift";
   const effectiveReminderDate = useMemo(() => {
     if (DATE_TOGGLE_TYPES.has(form.event_type)) {
       return form.hasDate ? form.event_date : selectedDate;
@@ -493,11 +531,52 @@ export const AgendaScreen = ({ userProfile }) => {
     );
   }, [events, selectedDate]);
 
-  const legacyUserShifts = useMemo(() => {
-    return events
-      .map(mapAgendaEventToLegacyShift)
-      .filter(Boolean);
-  }, [events]);
+  // Guardias de equipo indexadas por fecha (solo-lectura, etiquetadas con nombre).
+  const teamShiftsByDate = useMemo(() => {
+    const map = {};
+    (teamShifts || []).forEach((shift) => {
+      if (!shift.date) return;
+      if (!map[shift.date]) {
+        map[shift.date] = [];
+      }
+      map[shift.date].push(shift);
+    });
+    return map;
+  }, [teamShifts]);
+
+  // Eventos compartidos conmigo, expandidos por rango de fechas (solo-lectura).
+  const sharedEventsByDate = useMemo(() => {
+    const map = {};
+    (sharedEvents || []).forEach((event) => {
+      if (!event.event_date) return;
+      const startDate = new Date(`${event.event_date}T00:00:00`);
+      const endDate = new Date(
+        `${event.end_date || event.event_date}T00:00:00`
+      );
+      for (
+        let cursor = new Date(startDate);
+        cursor <= endDate;
+        cursor.setDate(cursor.getDate() + 1)
+      ) {
+        const dateKey = formatDateKey(cursor);
+        if (!map[dateKey]) {
+          map[dateKey] = [];
+        }
+        map[dateKey].push(event);
+      }
+    });
+    return map;
+  }, [sharedEvents]);
+
+  const selectedDayTeamShifts = useMemo(
+    () => teamShiftsByDate[selectedDate] || [],
+    [teamShiftsByDate, selectedDate]
+  );
+
+  const selectedDaySharedEvents = useMemo(
+    () => sharedEventsByDate[selectedDate] || [],
+    [sharedEventsByDate, selectedDate]
+  );
 
   const exitShiftSelectionMode = () => {
     setShiftSelectionMode(false);
@@ -537,6 +616,7 @@ export const AgendaScreen = ({ userProfile }) => {
     }
     setEditingEvent(null);
     setForm(emptyFormForType(type, defaultDate));
+    setShareUserIds([]);
     setTypeModalVisible(false);
     setEditorVisible(true);
   };
@@ -544,13 +624,24 @@ export const AgendaScreen = ({ userProfile }) => {
   const openEditFlow = (event) => {
     setEditingEvent(event);
     setForm(formFromEvent(event));
+    setShareUserIds([]);
     setEditorVisible(true);
+
+    if (event.event_type !== "shift") {
+      getAgendaEventShareUserIds(event.id)
+        .then((ids) => setShareUserIds(ids))
+        .catch((error) =>
+          console.error("Error loading event shares:", error)
+        );
+    }
   };
 
   const closeEditor = () => {
     setEditorVisible(false);
     setEditingEvent(null);
     setBatchShiftDates([]);
+    setShareUserIds([]);
+    setSharePickerVisible(false);
     exitShiftSelectionMode();
   };
 
@@ -662,9 +753,11 @@ export const AgendaScreen = ({ userProfile }) => {
       selectedDate
     );
 
+    const shares = payload.event_type === "shift" ? undefined : shareUserIds;
+
     const result = editingEvent
-      ? await updateEvent(editingEvent.id, payload)
-      : await createEvent(payload);
+      ? await updateEvent(editingEvent.id, payload, shares)
+      : await createEvent(payload, shares);
 
     if (!result.success) {
       Alert.alert("No se pudo guardar", result.message);
@@ -691,30 +784,12 @@ export const AgendaScreen = ({ userProfile }) => {
     closeEditor();
   };
 
-  if (showTeamCalendar) {
-    return (
-      <TeamCalendarView
-        userProfile={userProfile}
-        userShifts={legacyUserShifts}
-        onClose={() => setShowTeamCalendar(false)}
-      />
-    );
-  }
-
   return (
     <View style={styles.container}>
       <View style={styles.heroShell}>
         <BottomMenuHeroHeader
           title="Agenda de residencia"
           subtitle="Calendario unificado para guardias, cursos, estudio e hitos de tu residencia."
-          rightSlot={
-            <TouchableOpacity
-              style={styles.heroIconButton}
-              onPress={() => setShowTeamCalendar(true)}
-            >
-              <Ionicons name="people-outline" size={20} color={COLORS.PRIMARY} />
-            </TouchableOpacity>
-          }
           bottomContent={
             <View style={styles.heroMonthCard}>
               <TouchableOpacity
@@ -842,10 +917,49 @@ export const AgendaScreen = ({ userProfile }) => {
                   );
                 }
 
-                const dayEvents = isOtherMonth ? [] : eventsByDate[dateString] || [];
+                const ownItems = (isOtherMonth ? [] : eventsByDate[dateString] || []).map(
+                  (event) => {
+                    const typeMeta =
+                      EVENT_TYPE_OPTIONS.find((o) => o.id === event.event_type) ||
+                      EVENT_TYPE_OPTIONS[0];
+                    return {
+                      key: `own-${event.id}`,
+                      color: typeMeta.color,
+                      label: event.title || agendaEventTypeLabels[event.event_type],
+                      onPress: () => openEditFlow(event),
+                    };
+                  }
+                );
+
+                const teamItems = (isOtherMonth ? [] : teamShiftsByDate[dateString] || []).map(
+                  (shift) => ({
+                    key: `team-${shift.id}`,
+                    color: TEAM_SHIFT_COLOR,
+                    label: `${shift.user_name || "Compañero"} Gua`,
+                    onPress: () => setSelectedDate(dateString),
+                  })
+                );
+
+                const sharedItems = (
+                  isOtherMonth ? [] : sharedEventsByDate[dateString] || []
+                ).map((event) => {
+                  const typeMeta =
+                    EVENT_TYPE_OPTIONS.find((o) => o.id === event.event_type) ||
+                    EVENT_TYPE_OPTIONS[0];
+                  return {
+                    key: `shared-${event.id}`,
+                    color: typeMeta.color,
+                    label: `${event.owner_name || "Conexión"} ${
+                      event.title || agendaEventTypeLabels[event.event_type]
+                    }`,
+                    onPress: () => setSelectedDate(dateString),
+                  };
+                });
+
+                const dayItems = [...ownItems, ...teamItems, ...sharedItems];
                 const isSelected = dateString === selectedDate;
-                const visibleEvents = dayEvents.slice(0, MAX_BADGES_PER_DAY);
-                const extraCount = dayEvents.length - visibleEvents.length;
+                const visibleItems = dayItems.slice(0, MAX_BADGES_PER_DAY);
+                const extraCount = dayItems.length - visibleItems.length;
 
                 return (
                   <TouchableOpacity
@@ -873,23 +987,18 @@ export const AgendaScreen = ({ userProfile }) => {
                     </View>
 
                     <View style={styles.dayBadges}>
-                      {visibleEvents.map((event, index) => {
-                        const typeMeta =
-                          EVENT_TYPE_OPTIONS.find((o) => o.id === event.event_type) ||
-                          EVENT_TYPE_OPTIONS[0];
-                        return (
-                          <TouchableOpacity
-                            key={`${event.id}-${index}`}
-                            style={[styles.dayBadge, { backgroundColor: typeMeta.color }]}
-                            activeOpacity={0.8}
-                            onPress={() => openEditFlow(event)}
-                          >
-                            <Text style={styles.dayBadgeText} numberOfLines={1}>
-                              {event.title || agendaEventTypeLabels[event.event_type]}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
+                      {visibleItems.map((item) => (
+                        <TouchableOpacity
+                          key={item.key}
+                          style={[styles.dayBadge, { backgroundColor: item.color }]}
+                          activeOpacity={0.8}
+                          onPress={item.onPress}
+                        >
+                          <Text style={styles.dayBadgeText} numberOfLines={1}>
+                            {item.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
                       {extraCount > 0 ? (
                         <TouchableOpacity
                           activeOpacity={0.7}
@@ -923,15 +1032,6 @@ export const AgendaScreen = ({ userProfile }) => {
 
           {!shiftSelectionMode ? (
             <>
-          {pendingShiftRequests > 0 ? (
-            <View style={styles.infoCard}>
-              <Ionicons name="notifications-outline" size={18} color={AGENDA_ACCENT} />
-              <Text style={styles.infoCardText}>
-                Tienes {pendingShiftRequests} solicitudes pendientes relacionadas con tus guardias.
-              </Text>
-            </View>
-          ) : null}
-
           <View style={styles.sectionHeader}>
             <View>
               <Text style={styles.sectionTitle}>{formatLongDate(selectedDate)}</Text>
@@ -944,56 +1044,115 @@ export const AgendaScreen = ({ userProfile }) => {
               <ActivityIndicator color={AGENDA_ACCENT} />
               <Text style={styles.loadingText}>Cargando agenda...</Text>
             </View>
-          ) : selectedDayEvents.length > 0 ? (
-            selectedDayEvents.map((event) => {
-              const option = EVENT_TYPE_OPTIONS.find(
-                (item) => item.id === event.event_type
-              );
+          ) : (
+            <>
+              {selectedDayEvents.map((event) => {
+                const option = EVENT_TYPE_OPTIONS.find(
+                  (item) => item.id === event.event_type
+                );
 
-              return (
-                <TouchableOpacity
-                  key={event.id}
-                  style={styles.eventRow}
-                  activeOpacity={0.88}
-                  onPress={() => openEditFlow(event)}
-                >
-                  <View
-                    style={[
-                      styles.eventIcon,
-                      { backgroundColor: option?.lightColor || COLORS.PURPLE_LIGHT },
-                    ]}
+                return (
+                  <TouchableOpacity
+                    key={event.id}
+                    style={styles.eventRow}
+                    activeOpacity={0.88}
+                    onPress={() => openEditFlow(event)}
                   >
-                    <Ionicons
-                      name={option?.icon || "calendar-outline"}
-                      size={18}
-                      color={option?.color || AGENDA_ACCENT}
-                    />
+                    <View
+                      style={[
+                        styles.eventIcon,
+                        { backgroundColor: option?.lightColor || COLORS.PURPLE_LIGHT },
+                      ]}
+                    >
+                      <Ionicons
+                        name={option?.icon || "calendar-outline"}
+                        size={18}
+                        color={option?.color || AGENDA_ACCENT}
+                      />
+                    </View>
+                    <View style={styles.eventContent}>
+                      <Text style={styles.eventTitle}>{event.title}</Text>
+                      <Text style={styles.eventMeta}>
+                        {agendaEventTypeLabels[event.event_type]}
+                        {event.start_time ? ` · ${formatTimeLabel(event.start_time)}` : ""}
+                        {event.metadata?.location ? ` · ${event.metadata.location}` : ""}
+                      </Text>
+                      {event.notes ? (
+                        <Text style={styles.eventNotes} numberOfLines={2}>
+                          {event.notes}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={COLORS.GRAY} />
+                  </TouchableOpacity>
+                );
+              })}
+
+              {selectedDayTeamShifts.map((shift) => (
+                <View key={`team-${shift.id}`} style={styles.eventRow}>
+                  <View
+                    style={[styles.eventIcon, { backgroundColor: "#FFEDD5" }]}
+                  >
+                    <Ionicons name="medkit-outline" size={18} color={TEAM_SHIFT_COLOR} />
                   </View>
                   <View style={styles.eventContent}>
-                    <Text style={styles.eventTitle}>{event.title}</Text>
-                    <Text style={styles.eventMeta}>
-                      {agendaEventTypeLabels[event.event_type]}
-                      {event.start_time ? ` · ${formatTimeLabel(event.start_time)}` : ""}
-                      {event.metadata?.location ? ` · ${event.metadata.location}` : ""}
+                    <Text style={styles.eventTitle}>
+                      {`${shift.user_name || "Compañero"} ${shift.user_surname || ""}`.trim()}
                     </Text>
-                    {event.notes ? (
-                      <Text style={styles.eventNotes} numberOfLines={2}>
-                        {event.notes}
-                      </Text>
-                    ) : null}
+                    <Text style={styles.eventMeta}>Guardia · Equipo</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={COLORS.GRAY} />
-                </TouchableOpacity>
-              );
-            })
-          ) : (
-            <View style={styles.emptyCard}>
-              <Ionicons name="calendar-clear-outline" size={28} color={COLORS.GRAY} />
-              <Text style={styles.emptyCardTitle}>Sin eventos en esta fecha</Text>
-              <Text style={styles.emptyCardText}>
-                Añade una guardia, sesión de estudio o un día libre para empezar a construir tu agenda.
-              </Text>
-            </View>
+                </View>
+              ))}
+
+              {selectedDaySharedEvents.map((event) => {
+                const option = EVENT_TYPE_OPTIONS.find(
+                  (item) => item.id === event.event_type
+                );
+
+                return (
+                  <View key={`shared-${event.id}`} style={styles.eventRow}>
+                    <View
+                      style={[
+                        styles.eventIcon,
+                        { backgroundColor: option?.lightColor || COLORS.PURPLE_LIGHT },
+                      ]}
+                    >
+                      <Ionicons
+                        name={option?.icon || "calendar-outline"}
+                        size={18}
+                        color={option?.color || AGENDA_ACCENT}
+                      />
+                    </View>
+                    <View style={styles.eventContent}>
+                      <Text style={styles.eventTitle}>{event.title}</Text>
+                      <Text style={styles.eventMeta}>
+                        {`${event.owner_name || "Conexión"} · ${
+                          agendaEventTypeLabels[event.event_type]
+                        }`}
+                        {event.start_time ? ` · ${formatTimeLabel(event.start_time)}` : ""}
+                      </Text>
+                      {event.notes ? (
+                        <Text style={styles.eventNotes} numberOfLines={2}>
+                          {event.notes}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                );
+              })}
+
+              {selectedDayEvents.length === 0 &&
+              selectedDayTeamShifts.length === 0 &&
+              selectedDaySharedEvents.length === 0 ? (
+                <View style={styles.emptyCard}>
+                  <Ionicons name="calendar-clear-outline" size={28} color={COLORS.GRAY} />
+                  <Text style={styles.emptyCardTitle}>Sin eventos en esta fecha</Text>
+                  <Text style={styles.emptyCardText}>
+                    Añade una guardia, sesión de estudio o un día libre para empezar a construir tu agenda.
+                  </Text>
+                </View>
+              ) : null}
+            </>
           )}
 
           <View style={styles.sectionHeader}>
@@ -1407,6 +1566,44 @@ export const AgendaScreen = ({ userProfile }) => {
               />
             </View>
 
+            {showsShareField ? (
+              <View style={styles.editorSection}>
+                <Text style={styles.inputLabel}>Compartir con</Text>
+                {connectionsLoaded && connections.length === 0 ? (
+                  <View style={styles.shareEmpty}>
+                    <Ionicons name="people-outline" size={18} color="#94A3B8" />
+                    <Text style={styles.shareEmptyText}>
+                      Aún no tienes conexiones. Conéctate con otros residentes desde el
+                      directorio de Residentes para poder compartir eventos.
+                    </Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.shareSelector}
+                    activeOpacity={0.85}
+                    onPress={() => setSharePickerVisible(true)}
+                    disabled={!connectionsLoaded}
+                  >
+                    <Ionicons
+                      name="people-outline"
+                      size={20}
+                      color={selectedTypeMeta.color}
+                    />
+                    <Text style={styles.shareSelectorText}>
+                      {shareUserIds.length > 0
+                        ? `${shareUserIds.length} ${
+                            shareUserIds.length === 1 ? "conexión" : "conexiones"
+                          }`
+                        : connectionsLoaded
+                          ? "Elegir conexiones"
+                          : "Cargando conexiones..."}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : null}
+
             {effectiveReminderDate ? (
               <View style={styles.editorSection}>
                 <Text style={styles.inputLabel}>Recordatorio</Text>
@@ -1460,6 +1657,14 @@ export const AgendaScreen = ({ userProfile }) => {
             onCancel={closeDeleteDialog}
             onConfirm={handleDelete}
             useModal={false}
+          />
+
+          <ShareConnectionsPicker
+            visible={sharePickerVisible}
+            onClose={() => setSharePickerVisible(false)}
+            connections={connections}
+            selectedIds={shareUserIds}
+            onConfirm={setShareUserIds}
           />
         </KeyboardAvoidingView>
       </Modal>
@@ -1963,6 +2168,40 @@ const styles = StyleSheet.create({
   },
   textArea: {
     minHeight: 108,
+  },
+  shareSelector: {
+    minHeight: 54,
+    borderRadius: 16,
+    backgroundColor: COLORS.WHITE,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  shareSelectorText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#0F172A",
+  },
+  shareEmpty: {
+    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 14,
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+  },
+  shareEmptyText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#64748B",
+    fontWeight: "600",
   },
   choiceRow: {
     flexDirection: "row",

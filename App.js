@@ -8,7 +8,7 @@ import { ForceUpdateScreen } from "./components/ForceUpdateScreen";
 import { useVersionCheck } from "./hooks/useVersionCheck";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import DashboardScreen from "./screens/DashboardScreen";
-import ProfileScreen from "./screens/ProfileScreen";
+import ProfileEditScreen from "./screens/ProfileEditScreen";
 import OnboardingScreen from "./screens/OnboardingScreen";
 import { supabase } from "./config/supabase";
 import {
@@ -611,16 +611,13 @@ export default function App() {
         // ScreenLayout, así que sin esto el hero header quedaría detrás del
         // notch/status bar y se vería empujado hacia arriba por el banner.
         <SafeAreaView style={appStyles.redirectSafeArea} edges={["top", "left", "right"]}>
-          <ProfileScreen
-            onSignOut={handleSignOut}
+          <ProfileEditScreen
             rejectedEmailBanner={residentEmailRejected}
             lockedSeasonalBanner={residentSeasonalLocked && !residentEmailRejected}
+            autoFocusWorkEmail
             onProfileUpdated={() =>
               checkAuth({ forceProfileRefresh: true })
             }
-            onHospitalPress={() => {}}
-            onStudentPress={() => {}}
-            onReviewsPress={() => {}}
           />
         </SafeAreaView>
       ) : isAuthenticated ? (
