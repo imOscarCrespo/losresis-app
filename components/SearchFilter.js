@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TextInput, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 
 /**
@@ -23,7 +23,7 @@ export const SearchFilter = ({
     <View style={[styles.container, style]}>
       <Text style={styles.label}>{label}</Text>
       <View style={styles.inputContainer}>
-        <Ionicons
+        <Icon
           name="search"
           size={20}
           color={COLORS.TEXT_LIGHT}

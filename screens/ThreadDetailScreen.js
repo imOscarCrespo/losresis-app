@@ -11,7 +11,7 @@ import {
   TextInput,
   Modal,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { COLORS } from "../constants/colors";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { formatShortDate, formatLongDate } from "../utils/dateUtils";
@@ -65,12 +65,12 @@ const PostItem = ({ post, level = 0, onReply, currentUserId }) => {
         {/* Header del post */}
         <View style={styles.postHeader}>
           <View style={styles.authorInfo}>
-            <Ionicons name="person-circle" size={20} color={COLORS.PRIMARY} />
+            <Icon name="person-circle" size={20} color={COLORS.PRIMARY} />
             <Text style={styles.authorName} numberOfLines={1}>
               {post.user?.name} {post.user?.surname}
             </Text>
             {isNested && (
-              <Ionicons
+              <Icon
                 name="arrow-undo"
                 size={14}
                 color={COLORS.GRAY}
@@ -93,7 +93,7 @@ const PostItem = ({ post, level = 0, onReply, currentUserId }) => {
             onPress={() => setShowReplyInput(!showReplyInput)}
             activeOpacity={0.7}
           >
-            <Ionicons
+            <Icon
               name="chatbubble-outline"
               size={16}
               color={COLORS.PRIMARY}
@@ -355,7 +355,7 @@ export default function ThreadDetailScreen({
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={COLORS.ERROR} />
+          <Icon name="alert-circle" size={48} color={COLORS.ERROR} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity
             style={styles.retryButton}
@@ -378,7 +378,7 @@ export default function ThreadDetailScreen({
             <View style={styles.threadCard}>
               <View style={styles.threadHeader}>
                 <View style={styles.authorInfo}>
-                  <Ionicons
+                  <Icon
                     name="person-circle"
                     size={24}
                     color={COLORS.PRIMARY}
@@ -406,7 +406,7 @@ export default function ThreadDetailScreen({
 
             {posts.length === 0 ? (
               <View style={styles.emptyPostsContainer}>
-                <Ionicons
+                <Icon
                   name="chatbubbles-outline"
                   size={48}
                   color={COLORS.GRAY}
@@ -447,7 +447,7 @@ export default function ThreadDetailScreen({
                 onPress={() => setShowCreateModal(false)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="close" size={24} color={COLORS.TEXT_PRIMARY} />
+                <Icon name="close" size={24} color={COLORS.TEXT_PRIMARY} />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>Nueva respuesta</Text>
               <TouchableOpacity

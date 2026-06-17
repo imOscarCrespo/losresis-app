@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import Svg, { Polyline, Circle, Line } from "react-native-svg";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { DatePickerInput } from "../components/DatePickerInput";
@@ -301,7 +301,7 @@ export default function MirProjectedScoreScreen({
           )}
         </View>
         <TouchableOpacity onPress={() => handleDelete(item)} hitSlop={8}>
-          <Ionicons name="trash-outline" size={18} color="#94A3B8" />
+          <Icon name="trash-outline" size={18} color="#94A3B8" />
         </TouchableOpacity>
       </View>
     );
@@ -316,7 +316,7 @@ export default function MirProjectedScoreScreen({
           leftSlot={
             onBack ? (
               <TouchableOpacity onPress={onBack} hitSlop={10}>
-                <Ionicons name="chevron-back" size={26} color={INDIGO} />
+                <Icon name="chevron-back" size={26} color={INDIGO} />
               </TouchableOpacity>
             ) : null
           }
@@ -330,7 +330,7 @@ export default function MirProjectedScoreScreen({
         >
           {!hasExpediente && (
             <View style={styles.expedienteBanner}>
-              <Ionicons name="school" size={18} color={PRIMARY} />
+              <Icon name="school" size={18} color={PRIMARY} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.expedienteBannerTitle}>
                   Añade tu expediente académico
@@ -381,7 +381,7 @@ export default function MirProjectedScoreScreen({
                 onPress={handleOpenSimulator}
                 activeOpacity={0.9}
               >
-                <Ionicons name="school" size={18} color="#FFF" />
+                <Icon name="school" size={18} color="#FFF" />
                 <Text style={styles.ctaButtonText}>Ver qué plazas puedo coger</Text>
               </TouchableOpacity>
 
@@ -390,7 +390,7 @@ export default function MirProjectedScoreScreen({
                 onPress={handleOpenOrientation}
                 activeOpacity={0.9}
               >
-                <Ionicons name="compass" size={18} color={PRIMARY} />
+                <Icon name="compass" size={18} color={PRIMARY} />
                 <Text style={styles.ctaSecondaryButtonText}>
                   Ver qué especialidad me encaja
                 </Text>
@@ -403,7 +403,7 @@ export default function MirProjectedScoreScreen({
             </View>
           ) : (
             <View style={styles.emptyProjection}>
-              <Ionicons name="trending-up" size={28} color={PRIMARY} />
+              <Icon name="trending-up" size={28} color={PRIMARY} />
               <Text style={styles.emptyProjectionTitle}>
                 {results.length === 0
                   ? "Registra tu primer simulacro"
@@ -421,7 +421,7 @@ export default function MirProjectedScoreScreen({
                 }}
                 activeOpacity={0.9}
               >
-                <Ionicons name="add" size={18} color="#FFF" />
+                <Icon name="add" size={18} color="#FFF" />
                 <Text style={styles.emptyCtaButtonText}>Añadir simulacro</Text>
               </TouchableOpacity>
             </View>
@@ -438,7 +438,7 @@ export default function MirProjectedScoreScreen({
                 }}
                 activeOpacity={0.9}
               >
-                <Ionicons name="add" size={18} color="#FFF" />
+                <Icon name="add" size={18} color="#FFF" />
                 <Text style={styles.addButtonText}>Añadir</Text>
               </TouchableOpacity>
             </View>
@@ -479,7 +479,7 @@ export default function MirProjectedScoreScreen({
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Añadir simulacro</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)} hitSlop={8}>
-                <Ionicons name="close" size={24} color="#475569" />
+                <Icon name="close" size={24} color="#475569" />
               </TouchableOpacity>
             </View>
 

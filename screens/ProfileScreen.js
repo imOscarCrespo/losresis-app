@@ -10,7 +10,7 @@ import {
   Modal,
   Pressable,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import * as Clipboard from "expo-clipboard";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
@@ -456,12 +456,12 @@ export default function ProfileScreen({
                   { backgroundColor: tone.bg, borderColor: tone.border },
                 ]}
               >
-                <Ionicons name={statusChip.icon} size={15} color={tone.icon} />
+                <Icon name={statusChip.icon} size={15} color={tone.icon} />
                 <Text style={[styles.statusChipText, { color: tone.text }]}>
                   {statusChip.label}
                 </Text>
                 {statusChip.actionable ? (
-                  <Ionicons name="chevron-forward" size={14} color={tone.icon} />
+                  <Icon name="chevron-forward" size={14} color={tone.icon} />
                 ) : null}
               </TouchableOpacity>
             ) : null}
@@ -510,7 +510,7 @@ export default function ProfileScreen({
                 </View>
               ) : referralAlreadyApplied ? (
                 <View style={styles.referralSuccessRow}>
-                  <Ionicons name="checkmark-circle" size={22} color="#047857" />
+                  <Icon name="checkmark-circle" size={22} color="#047857" />
                   <Text style={styles.referralSuccessText}>
                     Ya has aplicado un código para esta promoción.
                   </Text>
@@ -579,7 +579,7 @@ export default function ProfileScreen({
           <View style={styles.settingsCard}>
             <View style={styles.securityOption}>
               <View style={styles.securityOptionContent}>
-                <Ionicons
+                <Icon
                   name={
                     biometricType === "Face ID" ? "lock-closed" : "finger-print"
                   }
@@ -629,7 +629,7 @@ export default function ProfileScreen({
               activeOpacity={0.7}
             >
               <View style={styles.settingsRowContent}>
-                <Ionicons
+                <Icon
                   name="notifications-outline"
                   size={24}
                   color={COLORS.PRIMARY}
@@ -637,7 +637,7 @@ export default function ProfileScreen({
                 />
                 <Text style={styles.settingsRowTitle}>Notificaciones</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.TEXT_LIGHT} />
+              <Icon name="chevron-forward" size={20} color={COLORS.TEXT_LIGHT} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -646,7 +646,7 @@ export default function ProfileScreen({
               activeOpacity={0.7}
             >
               <View style={styles.settingsRowContent}>
-                <Ionicons
+                <Icon
                   name="gift-outline"
                   size={24}
                   color={COLORS.PRIMARY}
@@ -654,7 +654,7 @@ export default function ProfileScreen({
                 />
                 <Text style={styles.settingsRowTitle}>Código promocional</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.TEXT_LIGHT} />
+              <Icon name="chevron-forward" size={20} color={COLORS.TEXT_LIGHT} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -663,7 +663,7 @@ export default function ProfileScreen({
               activeOpacity={0.7}
             >
               <View style={styles.settingsRowContent}>
-                <Ionicons
+                <Icon
                   name="mail-outline"
                   size={24}
                   color={COLORS.PRIMARY}
@@ -671,7 +671,7 @@ export default function ProfileScreen({
                 />
                 <Text style={styles.settingsRowTitle}>Contacto</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.TEXT_LIGHT} />
+              <Icon name="chevron-forward" size={20} color={COLORS.TEXT_LIGHT} />
             </TouchableOpacity>
           </View>
 
@@ -727,7 +727,7 @@ export default function ProfileScreen({
                 activeOpacity={0.7}
                 style={styles.referralModalCloseButton}
               >
-                <Ionicons name="close" size={20} color="#64748B" />
+                <Icon name="close" size={20} color="#64748B" />
               </TouchableOpacity>
             </View>
 
@@ -756,7 +756,7 @@ export default function ProfileScreen({
               </>
             ) : (
               <View style={styles.referralEmptyCard}>
-                <Ionicons name="gift-outline" size={24} color={COLORS.PRIMARY} />
+                <Icon name="gift-outline" size={24} color={COLORS.PRIMARY} />
                 <Text style={styles.referralEmptyTitle}>
                   Tu código todavía no está disponible
                 </Text>

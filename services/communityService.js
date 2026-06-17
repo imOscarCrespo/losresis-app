@@ -22,17 +22,29 @@ export const getCommunityUsers = async (
   specialtyFilter = "",
   hospitalFilter = "",
   excludeUserId = "",
-  { page = null, limit = null } = {}
+  { page = null, limit = null, searchText = "" } = {}
 ) => {
   try {
     const paginate =
       Number.isInteger(page) && Number.isInteger(limit) && limit > 0;
+
+    // Cada palabra del texto debe coincidir con el nombre o el apellido.
+    // Sanitizamos los caracteres que romperían el filtro `.or()` de PostgREST.
+    const searchTokens = (searchText || "")
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .map((token) => token.replace(/[%,()*]/g, ""))
+      .filter(Boolean);
 
     const applyFilters = (q) => {
       if (cityFilter) q = q.eq("city", cityFilter);
       if (specialtyFilter) q = q.eq("speciality_id", specialtyFilter);
       if (hospitalFilter) q = q.eq("hospital_id", hospitalFilter);
       if (excludeUserId) q = q.neq("id", excludeUserId);
+      searchTokens.forEach((token) => {
+        q = q.or(`name.ilike.%${token}%,surname.ilike.%${token}%`);
+      });
       return q;
     };
 

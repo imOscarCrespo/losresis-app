@@ -455,6 +455,12 @@ export default function DashboardScreen({
         return;
       }
 
+      // Chapó del feed: abrir el inicio, donde vive el feed.
+      if (data?.destination_section === "inicio") {
+        handleSectionChange("inicio");
+        return;
+      }
+
       if (data?.entity_type === "review" && data?.entity_id) {
         handleSectionChange("reviewDetail", {
           reviewId: data.entity_id,

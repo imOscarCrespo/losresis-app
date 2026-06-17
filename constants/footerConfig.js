@@ -1,7 +1,7 @@
 /**
  * Configuración del Footer v2
  * Estudiantes: Inicio, Hospitales, MIR, Chats, Perfil
- * Residentes: Inicio, Mi reseña, Agenda, Chats, Perfil
+ * Residentes: Inicio, Notificaciones, Agenda, Chats, Perfil
  * Doctores: Inicio, Agenda, Chats, Reseñas, Perfil
  */
 
@@ -46,10 +46,10 @@ export const RESIDENT_FOOTER_ITEMS = [
     screen: "inicio",
   },
   {
-    id: "mi-resena",
-    icon: "star",
-    label: "Mi reseña",
-    screen: "myReview",
+    id: "notificaciones",
+    icon: "notifications",
+    label: "Notificaciones",
+    screen: "notifications",
   },
   {
     id: "agenda",

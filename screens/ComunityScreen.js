@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommunityUsers } from "../hooks/useCommunityUsers";
 import { useCities } from "../hooks/useCities";
@@ -57,7 +57,7 @@ function ResidentCard({ user }) {
   return (
     <View style={styles.userCard}>
       <View style={styles.userAvatar}>
-        <Ionicons name="person-outline" size={22} color={PRIMARY} />
+        <Icon name="person-outline" size={22} color={PRIMARY} />
       </View>
       <View style={styles.userCardBody}>
         <Text style={styles.userName}>
@@ -67,19 +67,19 @@ function ResidentCard({ user }) {
         <View style={styles.userMetaList}>
           {user.specialty_name ? (
             <View style={styles.userMetaRow}>
-              <Ionicons name="medkit-outline" size={15} color={PRIMARY} />
+              <Icon name="medkit-outline" size={15} color={PRIMARY} />
               <Text style={styles.userMetaText}>{user.specialty_name}</Text>
             </View>
           ) : null}
 
           <View style={styles.userMetaRow}>
-            <Ionicons name="location-outline" size={15} color={MUTED_LIGHT} />
+            <Icon name="location-outline" size={15} color={MUTED_LIGHT} />
             <Text style={styles.userMetaText}>{user.city}</Text>
           </View>
 
           {user.work_email ? (
             <View style={styles.userMetaRow}>
-              <Ionicons name="mail-outline" size={15} color={INFO} />
+              <Icon name="mail-outline" size={15} color={INFO} />
               <Text style={styles.userMetaText}>{user.work_email}</Text>
             </View>
           ) : null}
@@ -267,7 +267,7 @@ export default function ComunityScreen({
                   <Text style={styles.clusterText}>{pointCount}</Text>
                 </View>
                 <View style={styles.clusterHint}>
-                  <Ionicons name="search" size={10} color={PRIMARY} />
+                  <Icon name="search" size={10} color={PRIMARY} />
                   <Text style={styles.clusterHintText}>Haz zoom</Text>
                 </View>
               </View>
@@ -306,7 +306,7 @@ export default function ComunityScreen({
                 style={styles.modeButton}
                 onPress={() => setViewMode(viewMode === "map" ? "list" : "map")}
               >
-                <Ionicons
+                <Icon
                   name={viewMode === "map" ? "list-outline" : "map-outline"}
                   size={18}
                   color={PRIMARY}
@@ -348,7 +348,7 @@ export default function ComunityScreen({
           style={[styles.chip, selectedCity && styles.chipActive]}
           onPress={() => setOpenModal("city")}
         >
-          <Ionicons
+          <Icon
             name="location-outline"
             size={16}
             color={selectedCity ? PRIMARY : ACCENT}
@@ -356,7 +356,7 @@ export default function ComunityScreen({
           <Text style={[styles.chipText, selectedCity && styles.chipTextActive]}>
             {selectedCityName || "Ciudad"}
           </Text>
-          <Ionicons
+          <Icon
             name="chevron-down"
             size={16}
             color={selectedCity ? PRIMARY : ACCENT}
@@ -367,7 +367,7 @@ export default function ComunityScreen({
           style={[styles.chip, selectedSpecialty && styles.chipActive]}
           onPress={() => setOpenModal("specialty")}
         >
-          <Ionicons
+          <Icon
             name="medkit-outline"
             size={16}
             color={selectedSpecialty ? PRIMARY : ACCENT}
@@ -378,7 +378,7 @@ export default function ComunityScreen({
           >
             {selectedSpecialtyName || "Especialidad"}
           </Text>
-          <Ionicons
+          <Icon
             name="chevron-down"
             size={16}
             color={selectedSpecialty ? PRIMARY : ACCENT}
@@ -387,7 +387,7 @@ export default function ComunityScreen({
 
         {hasActiveFilters ? (
           <TouchableOpacity style={styles.chipClear} onPress={clearFilters}>
-            <Ionicons name="close-circle" size={16} color={DANGER} />
+            <Icon name="close-circle" size={16} color={DANGER} />
             <Text style={styles.chipClearText}>Limpiar</Text>
           </TouchableOpacity>
         ) : null}
@@ -395,7 +395,7 @@ export default function ComunityScreen({
 
       {usersError ? (
         <View style={styles.errorCard}>
-          <Ionicons name="alert-circle" size={20} color={DANGER} />
+          <Icon name="alert-circle" size={20} color={DANGER} />
           <Text style={styles.errorText}>{usersError}</Text>
         </View>
       ) : null}
@@ -445,7 +445,7 @@ export default function ComunityScreen({
               ListHeaderComponent={
                 !MAP_AVAILABLE ? (
                   <View style={styles.infoCard}>
-                    <Ionicons name="information-circle-outline" size={18} color={INFO} />
+                    <Icon name="information-circle-outline" size={18} color={INFO} />
                     <Text style={styles.infoCardText}>
                       El mapa requiere un build nativo actualizado. Mientras tanto se muestra el directorio.
                     </Text>
@@ -456,7 +456,7 @@ export default function ComunityScreen({
                 !isLoadingAccess && !shouldShowReviewPrompt ? (
                   <View style={styles.emptyContainer}>
                     <View style={styles.emptyIconWrap}>
-                      <Ionicons name="people-outline" size={34} color={PRIMARY} />
+                      <Icon name="people-outline" size={34} color={PRIMARY} />
                     </View>
                     <Text style={styles.emptyTitle}>No se encontraron residentes</Text>
                     <Text style={styles.emptyText}>
@@ -475,7 +475,7 @@ export default function ComunityScreen({
           users.length === 0 ? (
             <View style={styles.emptyMapOverlay}>
               <View style={styles.emptyMapCard}>
-                <Ionicons name="people-outline" size={28} color={PRIMARY} />
+                <Icon name="people-outline" size={28} color={PRIMARY} />
                 <Text style={styles.emptyMapTitle}>Sin resultados en el mapa</Text>
                 <Text style={styles.emptyMapText}>
                   No hay residentes que coincidan con los filtros actuales.
@@ -488,7 +488,7 @@ export default function ComunityScreen({
             <View style={styles.reviewPromptOverlay}>
               <View style={styles.reviewPromptCard}>
                 <View style={styles.reviewPromptIcon}>
-                  <Ionicons name="map-outline" size={28} color="#FFFFFF" />
+                  <Icon name="map-outline" size={28} color="#FFFFFF" />
                 </View>
                 <Text style={styles.reviewPromptTitle}>Desbloquea la comunidad</Text>
                 <Text style={styles.reviewPromptText}>
@@ -498,7 +498,7 @@ export default function ComunityScreen({
                   style={styles.reviewPromptButton}
                   onPress={() => navigation?.navigate?.("myReview")}
                 >
-                  <Ionicons name="heart-outline" size={18} color="#FFFFFF" />
+                  <Icon name="heart-outline" size={18} color="#FFFFFF" />
                   <Text style={styles.reviewPromptButtonText}>
                     Compartir mi experiencia
                   </Text>

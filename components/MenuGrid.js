@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 import {
   canWriteResidentHospitalReview,
@@ -45,7 +45,7 @@ const MenuGridItem = ({
 
         {/* Icono en círculo blanco en la esquina superior derecha */}
         <View style={styles.iconCircle}>
-          <Ionicons
+          <Icon
             name={item.icon}
             size={24}
             color={disabled ? COLORS.GRAY_DARK : backgroundColor}
@@ -276,7 +276,7 @@ export const MenuGrid = ({
   if (filteredItems.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Ionicons name="grid-outline" size={48} color={COLORS.GRAY} />
+        <Icon name="grid-outline" size={48} color={COLORS.GRAY} />
         <Text style={styles.emptyText}>No hay opciones disponibles</Text>
       </View>
     );

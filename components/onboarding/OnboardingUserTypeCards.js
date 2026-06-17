@@ -1,6 +1,6 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../Icon";
 
 const OPTIONS = [
   {
@@ -39,14 +39,14 @@ export const OnboardingUserTypeCards = ({ selectedType, onSelect }) => {
             ]}
           >
             <View style={styles.iconWrap}>
-              <Ionicons name={option.icon} size={26} color="#FFFFFF" />
+              <Icon name={option.icon} size={26} color="#FFFFFF" />
             </View>
             <View style={styles.textBlock}>
               <Text style={styles.title}>{option.title}</Text>
               <Text style={styles.subtitle}>{option.subtitle}</Text>
             </View>
             <View style={styles.chevron}>
-              <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+              <Icon name="chevron-forward" size={20} color="#FFFFFF" />
             </View>
           </Pressable>
         );

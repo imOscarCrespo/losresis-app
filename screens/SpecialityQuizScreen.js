@@ -6,7 +6,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { COLORS } from "../constants/colors";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
@@ -613,11 +613,11 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
 
               <View style={styles.stepBadgeRow}>
                 <View style={styles.stepBadge}>
-                  <Ionicons name="medkit-outline" size={14} color={PRIMARY} />
+                  <Icon name="medkit-outline" size={14} color={PRIMARY} />
                   <Text style={styles.stepBadgeText}>Ranking de especialidades</Text>
                 </View>
                 <View style={styles.stepBadge}>
-                  <Ionicons name="stats-chart-outline" size={14} color={PRIMARY} />
+                  <Icon name="stats-chart-outline" size={14} color={PRIMARY} />
                   <Text style={styles.stepBadgeText}>Ranking personalizado</Text>
                 </View>
               </View>
@@ -656,15 +656,15 @@ export default function SpecialityQuizScreen({ userProfile, onBack }) {
               <Text style={styles.sectionTitle}>Qué vas a obtener</Text>
               <View style={styles.featureList}>
                 <View style={styles.featureRow}>
-                  <Ionicons name="checkmark-circle-outline" size={18} color={PRIMARY} />
+                  <Icon name="checkmark-circle-outline" size={18} color={PRIMARY} />
                   <Text style={styles.featureText}>Especialidades ordenadas de mayor a menor afinidad.</Text>
                 </View>
                 <View style={styles.featureRow}>
-                  <Ionicons name="checkmark-circle-outline" size={18} color={PRIMARY} />
+                  <Icon name="checkmark-circle-outline" size={18} color={PRIMARY} />
                   <Text style={styles.featureText}>Un orden claro de tus especialidades más afines.</Text>
                 </View>
                 <View style={styles.featureRow}>
-                  <Ionicons name="checkmark-circle-outline" size={18} color={PRIMARY} />
+                  <Icon name="checkmark-circle-outline" size={18} color={PRIMARY} />
                   <Text style={styles.featureText}>Una lectura resumida del patrón de respuestas que explica el resultado.</Text>
                 </View>
               </View>

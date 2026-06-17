@@ -7,7 +7,7 @@ import {
   Modal,
   ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { StarRating } from "../components/StarRating";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
@@ -123,7 +123,7 @@ export default function MyReviewScreen({
         existingReview.is_approved ? styles.statusChipGreen : styles.statusChipOrange,
       ]}
     >
-      <Ionicons
+      <Icon
         name={existingReview.is_approved ? "checkmark-circle" : "time-outline"}
         size={13}
         color={existingReview.is_approved ? SECONDARY : "#D97706"}
@@ -208,7 +208,7 @@ export default function MyReviewScreen({
           <View style={styles.scrollContent}>
             <View style={styles.messageCard}>
               <View style={styles.messageIconWrap}>
-                <Ionicons name="alert-circle-outline" size={36} color={WARNING} />
+                <Icon name="alert-circle-outline" size={36} color={WARNING} />
               </View>
               <Text style={styles.messageTitle}>Solo para residentes</Text>
               <Text style={styles.messageText}>
@@ -249,7 +249,7 @@ export default function MyReviewScreen({
           <View style={styles.scrollContent}>
             <View style={styles.messageCard}>
               <View style={styles.messageIconWrap}>
-                <Ionicons name="alert-circle-outline" size={36} color={WARNING} />
+                <Icon name="alert-circle-outline" size={36} color={WARNING} />
               </View>
               <Text style={styles.messageTitle}>Perfil incompleto</Text>
               <Text style={styles.messageText}>
@@ -301,7 +301,7 @@ export default function MyReviewScreen({
           <View style={styles.scrollContent}>
             <View style={styles.messageCard}>
               <View style={styles.messageIconWrap}>
-                <Ionicons name={iconName} size={36} color={WARNING} />
+                <Icon name={iconName} size={36} color={WARNING} />
               </View>
               <Text style={styles.messageTitle}>{title}</Text>
               <Text style={styles.messageText}>{message}</Text>
@@ -326,23 +326,23 @@ export default function MyReviewScreen({
         {/* Alerts */}
         {success && (
           <View style={styles.alertSuccess}>
-            <Ionicons name="checkmark-circle" size={18} color={SECONDARY} />
+            <Icon name="checkmark-circle" size={18} color={SECONDARY} />
             <Text style={styles.alertText}>
               {existingReview
                 ? "Reseña eliminada correctamente."
                 : "Operación completada correctamente."}
             </Text>
             <TouchableOpacity onPress={clearSuccess}>
-              <Ionicons name="close" size={18} color={SECONDARY} />
+              <Icon name="close" size={18} color={SECONDARY} />
             </TouchableOpacity>
           </View>
         )}
         {error && (
           <View style={styles.alertError}>
-            <Ionicons name="alert-circle" size={18} color={ERROR} />
+            <Icon name="alert-circle" size={18} color={ERROR} />
             <Text style={[styles.alertText, { color: ERROR }]}>{error}</Text>
             <TouchableOpacity onPress={clearError}>
-              <Ionicons name="close" size={18} color={ERROR} />
+              <Icon name="close" size={18} color={ERROR} />
             </TouchableOpacity>
           </View>
         )}
@@ -365,7 +365,7 @@ export default function MyReviewScreen({
                   </Text>
                   {existingReview.is_anonymous && (
                     <View style={styles.anonBadge}>
-                      <Ionicons name="eye-off-outline" size={12} color={PRIMARY} />
+                      <Icon name="eye-off-outline" size={12} color={PRIMARY} />
                       <Text style={styles.anonBadgeText}>Anónima</Text>
                     </View>
                   )}
@@ -376,7 +376,7 @@ export default function MyReviewScreen({
                     onPress={handleEditReview}
                     activeOpacity={0.85}
                   >
-                    <Ionicons name="pencil" size={15} color={WHITE} />
+                    <Icon name="pencil" size={15} color={WHITE} />
                     <Text style={styles.editBtnText}>Editar</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -384,7 +384,7 @@ export default function MyReviewScreen({
                     onPress={() => setShowDeleteConfirmation(true)}
                     activeOpacity={0.85}
                   >
-                    <Ionicons name="trash-outline" size={15} color={ERROR} />
+                    <Icon name="trash-outline" size={15} color={ERROR} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -458,7 +458,7 @@ export default function MyReviewScreen({
             // ── No review yet ──
             <View>
               <View style={styles.warningBanner}>
-                <Ionicons name="alert-circle-outline" size={18} color={ERROR} />
+                <Icon name="alert-circle-outline" size={18} color={ERROR} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.warningTitle}>Completa tu reseña</Text>
                   <Text style={styles.warningText}>
@@ -477,7 +477,7 @@ export default function MyReviewScreen({
                   onPress={handleStartReview}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="add" size={20} color={WHITE} />
+                  <Icon name="add" size={20} color={WHITE} />
                   <Text style={styles.createBtnText}>Añadir Reseña</Text>
                 </TouchableOpacity>
               </View>
@@ -506,7 +506,7 @@ export default function MyReviewScreen({
           <View style={styles.deleteOverlay}>
             <View style={styles.deleteSheet}>
               <View style={styles.deleteIconWrap}>
-                <Ionicons name="trash-outline" size={28} color={ERROR} />
+                <Icon name="trash-outline" size={28} color={ERROR} />
               </View>
               <Text style={styles.deleteTitle}>Eliminar reseña</Text>
               <Text style={styles.deleteSubtitle}>

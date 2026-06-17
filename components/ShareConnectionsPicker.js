@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const ACCENT = "#670CF5";
@@ -83,7 +83,7 @@ export const ShareConnectionsPicker = ({
       >
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity style={styles.backBtn} onPress={onClose}>
-            <Ionicons name="arrow-back" size={22} color={ACCENT} />
+            <Icon name="arrow-back" size={22} color={ACCENT} />
           </TouchableOpacity>
           <Text style={styles.title} numberOfLines={1}>
             Compartir con
@@ -92,7 +92,7 @@ export const ShareConnectionsPicker = ({
         </View>
 
         <View style={styles.searchWrap}>
-          <Ionicons name="search" size={18} color="#94A3B8" />
+          <Icon name="search" size={18} color="#94A3B8" />
           <TextInput
             style={styles.searchInput}
             value={search}
@@ -103,7 +103,7 @@ export const ShareConnectionsPicker = ({
           />
           {search.length > 0 ? (
             <TouchableOpacity onPress={() => setSearch("")}>
-              <Ionicons name="close-circle" size={18} color="#94A3B8" />
+              <Icon name="close-circle" size={18} color="#94A3B8" />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -131,7 +131,7 @@ export const ShareConnectionsPicker = ({
                   style={[styles.checkbox, isSelected && styles.checkboxSelected]}
                 >
                   {isSelected ? (
-                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                    <Icon name="checkmark" size={16} color="#FFFFFF" />
                   ) : null}
                 </View>
               </TouchableOpacity>

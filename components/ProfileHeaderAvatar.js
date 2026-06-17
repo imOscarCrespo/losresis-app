@@ -7,7 +7,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import * as ImagePicker from "expo-image-picker";
 import { COLORS } from "../constants/colors";
 import { uploadRoommateAvatar } from "../services/roommateService";
@@ -90,7 +90,7 @@ export const ProfileHeaderAvatar = ({ userId, avatarUrl, onAvatarUpdated }) => {
         {previewUri ? (
           <Image source={{ uri: previewUri }} style={styles.avatar} />
         ) : (
-          <Ionicons name="person" size={56} color={COLORS.GRAY} />
+          <Icon name="person" size={56} color={COLORS.GRAY} />
         )}
         {uploading ? (
           <View style={styles.uploadingOverlay}>
@@ -99,7 +99,7 @@ export const ProfileHeaderAvatar = ({ userId, avatarUrl, onAvatarUpdated }) => {
         ) : null}
       </View>
       <View style={styles.cameraBadge}>
-        <Ionicons name="camera" size={16} color="#FFFFFF" />
+        <Icon name="camera" size={16} color="#FFFFFF" />
       </View>
     </Pressable>
   );

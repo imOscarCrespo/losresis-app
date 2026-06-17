@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { DirectChatButton } from "../components";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
@@ -83,7 +83,7 @@ const ScoreCard = ({ label, value }) => {
         <Text style={[styles.scoreValue, isPrimary && styles.scoreValuePrimary]}>
           {value.toFixed(1)}
         </Text>
-        <Ionicons
+        <Icon
           name={scoreIconByLabel[label] || "star"}
           size={18}
           color={isPrimary ? "#FFFFFF" : PRIMARY}
@@ -111,7 +111,7 @@ const InfoChip = ({ icon, label, tone = "primary" }) => {
 
   return (
     <View style={[styles.infoChip, { backgroundColor: toneStyles[tone].backgroundColor }]}>
-      <Ionicons name={icon} size={16} color={toneStyles[tone].color} />
+      <Icon name={icon} size={16} color={toneStyles[tone].color} />
       <Text style={[styles.infoChipText, { color: toneStyles[tone].color }]}>
         {label}
       </Text>
@@ -294,7 +294,7 @@ export default function RotationReviewDetailScreen({
   if (error || !review) {
     return (
       <View style={styles.stateContainer}>
-        <Ionicons name="alert-circle-outline" size={40} color={COLORS.ERROR} />
+        <Icon name="alert-circle-outline" size={40} color={COLORS.ERROR} />
         <Text style={styles.stateTitle}>No se pudo cargar la experiencia</Text>
         <Text style={styles.stateText}>
           {error || "La experiencia ya no está disponible."}
@@ -319,7 +319,7 @@ export default function RotationReviewDetailScreen({
             disabled={favoriteLoading}
             activeOpacity={0.8}
           >
-            <Ionicons
+            <Icon
               name={isFavorite ? "heart" : "heart-outline"}
               size={22}
               color={isFavorite ? COLORS.ERROR : "#670CF5"}
@@ -432,7 +432,7 @@ export default function RotationReviewDetailScreen({
         {(review.tutor_name || review.tutor_email) && (
           <View style={styles.contactCard}>
             <View style={styles.contactTitleRow}>
-              <Ionicons name="mail-outline" size={18} color={PRIMARY} />
+              <Icon name="mail-outline" size={18} color={PRIMARY} />
               <Text style={styles.contactTitle}>
                 Contacto para acceder a la rotación
               </Text>

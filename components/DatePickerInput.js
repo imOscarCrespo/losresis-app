@@ -8,7 +8,7 @@ import {
   Keyboard,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 
 /**
@@ -79,7 +79,7 @@ export const DatePickerInput = ({
         onPress={handlePress}
         activeOpacity={0.7}
       >
-        <Ionicons name="calendar-outline" size={20} color={COLORS.GRAY} />
+        <Icon name="calendar-outline" size={20} color={COLORS.GRAY} />
         <Text style={[styles.inputText, !value && styles.inputPlaceholder]}>
           {formatDate(value)}
         </Text>
@@ -89,7 +89,7 @@ export const DatePickerInput = ({
             style={styles.clearButton}
             activeOpacity={0.7}
           >
-            <Ionicons name="close-circle" size={20} color={COLORS.GRAY} />
+            <Icon name="close-circle" size={20} color={COLORS.GRAY} />
           </TouchableOpacity>
         )}
       </TouchableOpacity>

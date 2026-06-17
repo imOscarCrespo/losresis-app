@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
@@ -130,7 +130,7 @@ function SelectionModal({
       <View style={sheet.container}>
         <View style={[sheet.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity style={sheet.backBtn} onPress={handleClose}>
-            <Ionicons name="arrow-back" size={24} color={ACCENT} />
+            <Icon name="arrow-back" size={24} color={ACCENT} />
           </TouchableOpacity>
           <Text style={sheet.title}>{title}</Text>
           <View style={sheet.backBtn} />
@@ -138,7 +138,7 @@ function SelectionModal({
 
         <View style={sheet.searchWrap}>
           <View style={sheet.searchInner}>
-            <Ionicons name="search" size={20} color={MUTED_LIGHT} />
+            <Icon name="search" size={20} color={MUTED_LIGHT} />
             <TextInput
               style={sheet.searchInput}
               value={search}
@@ -149,7 +149,7 @@ function SelectionModal({
             />
             {search.length > 0 ? (
               <TouchableOpacity onPress={() => setSearch("")}>
-                <Ionicons name="close-circle" size={18} color={MUTED_LIGHT} />
+                <Icon name="close-circle" size={18} color={MUTED_LIGHT} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -478,7 +478,7 @@ export default function CreateCourseScreen({
             <>
               {error ? (
                 <View style={styles.errorCard}>
-                  <Ionicons name="alert-circle" size={20} color={DANGER} />
+                  <Icon name="alert-circle" size={20} color={DANGER} />
                   <Text style={styles.errorText}>{error}</Text>
                 </View>
               ) : null}
@@ -511,14 +511,14 @@ export default function CreateCourseScreen({
                           style={styles.dateItemBody}
                           onPress={() => handleEditDate(index)}
                         >
-                          <Ionicons name="calendar-outline" size={16} color={PRIMARY} />
+                          <Icon name="calendar-outline" size={16} color={PRIMARY} />
                           <Text style={styles.dateItemText}>{formatShortDate(date)}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.dateDeleteButton}
                           onPress={() => handleRemoveDate(index)}
                         >
-                          <Ionicons name="close-circle" size={20} color={DANGER} />
+                          <Icon name="close-circle" size={20} color={DANGER} />
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -526,7 +526,7 @@ export default function CreateCourseScreen({
                 ) : null}
 
                 <TouchableOpacity style={styles.addDateButton} onPress={handleAddDate}>
-                  <Ionicons name="add-circle-outline" size={18} color={PRIMARY} />
+                  <Icon name="add-circle-outline" size={18} color={PRIMARY} />
                   <Text style={styles.addDateText}>Añadir fecha</Text>
                 </TouchableOpacity>
               </FieldCard>
@@ -544,7 +544,7 @@ export default function CreateCourseScreen({
                   >
                     {selectedSpecialtyName || "Seleccionar especialidad"}
                   </Text>
-                  <Ionicons name="chevron-down" size={18} color={MUTED_LIGHT} />
+                  <Icon name="chevron-down" size={18} color={MUTED_LIGHT} />
                 </TouchableOpacity>
               </FieldCard>
 
@@ -615,7 +615,7 @@ export default function CreateCourseScreen({
                     <Text style={styles.submitButtonText}>
                       {isEditMode ? "Guardar cambios" : "Publicar curso"}
                     </Text>
-                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                    <Icon name="arrow-forward" size={18} color="#FFFFFF" />
                   </>
                 )}
               </TouchableOpacity>

@@ -9,7 +9,7 @@ import {
   ScrollView,
   Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { useStudentQuestions } from "../hooks/useStudentQuestions";
 import { formatLongDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
@@ -302,7 +302,7 @@ export const StudentQuestionsSection = ({
         <View style={styles.header}>
           <View style={styles.headerTitleRow}>
             <View style={styles.headerIconWrap}>
-              <Ionicons
+              <Icon
                 name="chatbubbles-outline"
                 size={18}
                 color={COLORS.PRIMARY}
@@ -330,7 +330,7 @@ export const StudentQuestionsSection = ({
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>
           <View style={styles.headerIconWrap}>
-            <Ionicons
+            <Icon
               name="chatbubbles-outline"
               size={18}
               color={COLORS.PRIMARY}
@@ -387,7 +387,7 @@ export const StudentQuestionsSection = ({
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Ionicons name="send" size={16} color="#FFFFFF" />
+                  <Icon name="send" size={16} color="#FFFFFF" />
                   <Text style={styles.sendButtonText}>Enviar</Text>
                 </>
               )}
@@ -404,7 +404,7 @@ export const StudentQuestionsSection = ({
       ) : questions.length === 0 ? (
         <View style={styles.emptyContainer}>
           <View style={styles.emptyIconWrap}>
-            <Ionicons
+            <Icon
               name="chatbubbles-outline"
               size={28}
               color={COLORS.PRIMARY}
@@ -448,7 +448,7 @@ export const StudentQuestionsSection = ({
               <View style={styles.questionHeader}>
                 <View style={styles.questionHeaderLeft}>
                   <View style={styles.avatarBadge}>
-                    <Ionicons name="person" size={14} color={COLORS.PRIMARY} />
+                    <Icon name="person" size={14} color={COLORS.PRIMARY} />
                   </View>
                   <View style={styles.questionAuthorBlock}>
                     <Text style={styles.questionAuthor}>
@@ -475,7 +475,7 @@ export const StudentQuestionsSection = ({
                         }
                         style={styles.actionButton}
                       >
-                        <Ionicons
+                        <Icon
                           name="pencil"
                           size={16}
                           color={COLORS.PRIMARY}
@@ -485,7 +485,7 @@ export const StudentQuestionsSection = ({
                         onPress={() => handleDeleteQuestion(question.id)}
                         style={styles.actionButton}
                       >
-                        <Ionicons name="trash" size={16} color={COLORS.ERROR} />
+                        <Icon name="trash" size={16} color={COLORS.ERROR} />
                       </TouchableOpacity>
                     </>
                   )}
@@ -493,7 +493,7 @@ export const StudentQuestionsSection = ({
                     onPress={() => toggleQuestionExpansion(question.id)}
                     style={styles.actionButton}
                   >
-                    <Ionicons
+                    <Icon
                       name={
                         expandedQuestions.includes(question.id)
                           ? "chevron-up"
@@ -548,7 +548,7 @@ export const StudentQuestionsSection = ({
               {/* Info de la pregunta */}
               <View style={styles.questionInfo}>
                 <View style={styles.questionInfoRow}>
-                  <Ionicons name="time" size={12} color={COLORS.GRAY} />
+                  <Icon name="time" size={12} color={COLORS.GRAY} />
                   <Text style={styles.questionDate}>
                     {formatLongDate(question.created_at)}
                   </Text>
@@ -570,7 +570,7 @@ export const StudentQuestionsSection = ({
                           <View style={styles.answerHeader}>
                             <View style={styles.answerHeaderLeft}>
                               <View style={styles.answerAvatarBadge}>
-                                <Ionicons
+                                <Icon
                                   name="school"
                                   size={14}
                                   color={COLORS.PRIMARY}
@@ -600,7 +600,7 @@ export const StudentQuestionsSection = ({
                                   }
                                   style={styles.actionButton}
                                 >
-                                  <Ionicons
+                                  <Icon
                                     name="pencil"
                                     size={14}
                                     color={COLORS.PRIMARY}
@@ -610,7 +610,7 @@ export const StudentQuestionsSection = ({
                                   onPress={() => handleDeleteAnswer(answer.id)}
                                   style={styles.actionButton}
                                 >
-                                  <Ionicons
+                                  <Icon
                                     name="trash"
                                     size={14}
                                     color={COLORS.ERROR}
@@ -665,7 +665,7 @@ export const StudentQuestionsSection = ({
                           )}
 
                           <View style={styles.answerInfo}>
-                            <Ionicons
+                            <Icon
                               name="time"
                               size={12}
                               color={COLORS.GRAY}
@@ -720,7 +720,7 @@ export const StudentQuestionsSection = ({
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
                             <>
-                              <Ionicons
+                              <Icon
                                 name="send"
                                 size={14}
                                 color="#FFFFFF"

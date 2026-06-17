@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 
 export const ScreenHeader = ({
@@ -54,7 +54,7 @@ export const ScreenHeader = ({
         accessibilityRole="button"
         accessibilityLabel="Volver"
       >
-        <Ionicons
+        <Icon
           name={backIcon}
           size={22}
           color={isBrandVariant ? COLORS.WHITE : COLORS.PRIMARY}
@@ -78,7 +78,7 @@ export const ScreenHeader = ({
           onPress={onNotificationPress}
           activeOpacity={0.7}
         >
-          <Ionicons
+          <Icon
             name="notifications-outline"
             size={22}
             color={isBrandVariant ? COLORS.WHITE : COLORS.GRAY_DARK}
@@ -106,7 +106,7 @@ export const ScreenHeader = ({
             },
           ]}
         >
-          <Ionicons name={iconName} size={iconSize} color={resolvedIconColor} />
+          <Icon name={iconName} size={iconSize} color={resolvedIconColor} />
         </View>
       );
     }

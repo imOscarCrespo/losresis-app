@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 
 /**
@@ -26,7 +26,7 @@ export const RotationCard = ({ rotation, isOwn, onDelete }) => {
           </View>
           {onDelete && (
             <TouchableOpacity style={styles.deleteButton} onPress={onDelete}>
-              <Ionicons name="trash-outline" size={20} color={COLORS.ERROR} />
+              <Icon name="trash-outline" size={20} color={COLORS.ERROR} />
             </TouchableOpacity>
           )}
         </>

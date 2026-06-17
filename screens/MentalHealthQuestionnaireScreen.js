@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLORS } from "../constants/colors";
 import {
@@ -103,7 +103,7 @@ export default function MentalHealthQuestionnaireScreen({
                     {option.label}
                   </Text>
                   {active ? (
-                    <Ionicons
+                    <Icon
                       name="checkmark-circle"
                       size={22}
                       color={COLORS.PRIMARY}
@@ -123,7 +123,7 @@ export default function MentalHealthQuestionnaireScreen({
             onPress={handlePrev}
             activeOpacity={0.85}
           >
-            <Ionicons name="chevron-back" size={18} color={COLORS.PRIMARY} />
+            <Icon name="chevron-back" size={18} color={COLORS.PRIMARY} />
             <Text style={styles.ghostButtonText}>
               {index === 0 ? "Salir" : "Anterior"}
             </Text>
@@ -143,7 +143,7 @@ export default function MentalHealthQuestionnaireScreen({
               {isLast ? (saving ? "Guardando..." : "Ver resultado") : "Siguiente"}
             </Text>
             {!isLast && (
-              <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+              <Icon name="chevron-forward" size={18} color="#FFFFFF" />
             )}
           </TouchableOpacity>
         </View>

@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useLibroSection } from "../hooks/useLibroSection";
 import { exportLibroToPdf } from "../services/libroPdfService";
 import {
@@ -86,7 +86,7 @@ const SectionBadge = ({ icon, label, active = false, onPress }) => (
     onPress={onPress}
     activeOpacity={0.85}
   >
-    <Ionicons name={icon} size={14} color={active ? "#670CF5" : "#64748B"} />
+    <Icon name={icon} size={14} color={active ? "#670CF5" : "#64748B"} />
     <Text style={[styles.stepBadgeText, active && styles.stepBadgeTextActive]}>
       {label}
     </Text>
@@ -105,7 +105,7 @@ const CategoryPill = ({ category, active = false, onPress }) => {
       onPress={onPress}
       activeOpacity={0.85}
     >
-      <Ionicons name={category.icon_name || "folder-outline"} size={16} color={color} />
+      <Icon name={category.icon_name || "folder-outline"} size={16} color={color} />
       <Text style={[styles.categoryPillText, active && { color }]}>{category.name}</Text>
     </TouchableOpacity>
   );
@@ -121,7 +121,7 @@ const ActivityDraftRow = ({ activity, onDelete }) => (
       </Text>
     </View>
     <TouchableOpacity onPress={onDelete} style={styles.iconActionButton}>
-      <Ionicons name="trash-outline" size={18} color="#EF4444" />
+      <Icon name="trash-outline" size={18} color="#EF4444" />
     </TouchableOpacity>
   </View>
 );
@@ -150,7 +150,7 @@ const ProcedureRow = ({ node, onIncrement, onDecrement, onOpenActions }) => {
           </Text>
         </View>
         <TouchableOpacity onPress={() => onOpenActions(node)} style={styles.iconActionButton}>
-          <Ionicons name="ellipsis-horizontal" size={18} color="#64748B" />
+          <Icon name="ellipsis-horizontal" size={18} color="#64748B" />
         </TouchableOpacity>
       </View>
 
@@ -171,10 +171,10 @@ const ProcedureRow = ({ node, onIncrement, onDecrement, onOpenActions }) => {
                 onPress={() => onDecrement(node)}
                 disabled={count <= 0}
               >
-                <Ionicons name="remove" size={16} color={count <= 0 ? "#94A3B8" : "#1B0977"} />
+                <Icon name="remove" size={16} color={count <= 0 ? "#94A3B8" : "#1B0977"} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.counterButton} onPress={() => onIncrement(node)}>
-                <Ionicons name="add" size={16} color="#1B0977" />
+                <Icon name="add" size={16} color="#1B0977" />
               </TouchableOpacity>
             </>
           ) : null}
@@ -206,7 +206,7 @@ const CategoryCard = ({
       <View style={styles.categoryHeader}>
         <View style={styles.categoryHeaderLeft}>
           <View style={[styles.categoryIconWrap, { backgroundColor: `${color}12` }]}>
-            <Ionicons name={node.icon_name || "folder-outline"} size={18} color={color} />
+            <Icon name={node.icon_name || "folder-outline"} size={18} color={color} />
           </View>
           <View style={styles.categoryHeaderCopy}>
             <Text style={styles.categoryTitle}>{node.name}</Text>
@@ -221,7 +221,7 @@ const CategoryCard = ({
             onPress={() => onToggleCollapse?.(node.id)}
             activeOpacity={0.85}
           >
-            <Ionicons
+            <Icon
               name={collapsed ? "chevron-down" : "chevron-up"}
               size={18}
               color="#64748B"
@@ -242,7 +242,7 @@ const CategoryCard = ({
               ])
             }
           >
-            <Ionicons name="ellipsis-horizontal" size={18} color="#64748B" />
+            <Icon name="ellipsis-horizontal" size={18} color="#64748B" />
           </TouchableOpacity>
         </View>
       </View>
@@ -269,7 +269,7 @@ const CategoryCard = ({
           </View>
 
           <TouchableOpacity style={styles.secondaryButton} onPress={() => onAddChild(node)}>
-            <Ionicons name="add-circle-outline" size={16} color="#670CF5" />
+            <Icon name="add-circle-outline" size={16} color="#670CF5" />
             <Text style={styles.secondaryButtonText}>Añadir procedimiento</Text>
           </TouchableOpacity>
 
@@ -286,7 +286,7 @@ const CategoryCard = ({
               ))
             ) : (
               <View style={styles.emptyCategoryState}>
-                <Ionicons name="sparkles-outline" size={18} color="#64748B" />
+                <Icon name="sparkles-outline" size={18} color="#64748B" />
                 <Text style={styles.emptyCategoryText}>
                   Añade el primer procedimiento dentro de esta rotación.
                 </Text>
@@ -992,19 +992,19 @@ export default function ResidenceLibraryScreen({
                   <Text style={styles.sectionTitle}>Qué vas a tener al final</Text>
                   <View style={styles.featureList}>
                     <View style={styles.featureRow}>
-                      <Ionicons name="checkmark-circle-outline" size={18} color="#670CF5" />
+                      <Icon name="checkmark-circle-outline" size={18} color="#670CF5" />
                       <Text style={styles.featureText}>
                         Registro claro de todos tus procedimientos
                       </Text>
                     </View>
                     <View style={styles.featureRow}>
-                      <Ionicons name="checkmark-circle-outline" size={18} color="#670CF5" />
+                      <Icon name="checkmark-circle-outline" size={18} color="#670CF5" />
                       <Text style={styles.featureText}>
                         Crea tus propios objetivos de cada procedimiento
                       </Text>
                     </View>
                     <View style={styles.featureRow}>
-                      <Ionicons name="checkmark-circle-outline" size={18} color="#670CF5" />
+                      <Icon name="checkmark-circle-outline" size={18} color="#670CF5" />
                       <Text style={styles.featureText}>
                         Exporta tu progreso en PDF cuando quieras
                       </Text>
@@ -1057,7 +1057,7 @@ export default function ResidenceLibraryScreen({
                               ]}
                               onPress={() => handleAddSuggestedCategory(category)}
                             >
-                              <Ionicons
+                              <Icon
                                 name={
                                   isSelected
                                     ? "checkmark-circle"
@@ -1109,7 +1109,7 @@ export default function ResidenceLibraryScreen({
                               style={[styles.iconOption, isActive && styles.iconOptionActive]}
                               onPress={() => setNewCategoryIcon(option.id)}
                             >
-                              <Ionicons
+                              <Icon
                                 name={option.id}
                                 size={18}
                                 color={isActive ? "#670CF5" : "#64748B"}
@@ -1165,7 +1165,7 @@ export default function ResidenceLibraryScreen({
                               onPress={() => handleDeleteCategoryDraft(category.id)}
                               style={styles.iconActionButton}
                             >
-                              <Ionicons name="close" size={16} color="#64748B" />
+                              <Icon name="close" size={16} color="#64748B" />
                             </TouchableOpacity>
                           </View>
                         ))
@@ -1363,7 +1363,7 @@ export default function ResidenceLibraryScreen({
             onPress={() => handleProtectedAction(handleExportPdf)}
             disabled={exportingPdf}
           >
-            <Ionicons
+            <Icon
               name={exportingPdf ? "hourglass-outline" : "document-text-outline"}
               size={18}
               color="#670CF5"
@@ -1382,7 +1382,7 @@ export default function ResidenceLibraryScreen({
             }
             disabled={isSelectedBookArchived}
           >
-            <Ionicons name="add" size={18} color="#670CF5" />
+            <Icon name="add" size={18} color="#670CF5" />
           </TouchableOpacity>
         </View>
       }
@@ -1446,7 +1446,7 @@ export default function ResidenceLibraryScreen({
                 <Text style={styles.heroDetailsToggleText}>
                   {heroDetailsCollapsed ? "Ver acciones y libros" : "Ocultar acciones y libros"}
                 </Text>
-                <Ionicons
+                <Icon
                   name={heroDetailsCollapsed ? "chevron-down" : "chevron-up"}
                   size={16}
                   color="#64748B"
@@ -1496,7 +1496,7 @@ export default function ResidenceLibraryScreen({
                       style={styles.nextYearButton}
                       onPress={handleStartNextYearBook}
                     >
-                      <Ionicons
+                      <Icon
                         name="archive-outline"
                         size={16}
                         color="#1B0977"
@@ -1509,7 +1509,7 @@ export default function ResidenceLibraryScreen({
 
                   {isSelectedBookArchived ? (
                     <View style={styles.readOnlyNotice}>
-                      <Ionicons name="lock-closed-outline" size={16} color="#92400E" />
+                      <Icon name="lock-closed-outline" size={16} color="#92400E" />
                       <Text style={styles.readOnlyNoticeText}>
                         Este libro está archivado. Puedes consultarlo y exportarlo, pero no editarlo.
                       </Text>
@@ -1521,7 +1521,7 @@ export default function ResidenceLibraryScreen({
                     onPress={() => handleProtectedAction(handleExportPdf)}
                     disabled={exportingPdf}
                   >
-                    <Ionicons
+                    <Icon
                       name={exportingPdf ? "hourglass-outline" : "download-outline"}
                       size={16}
                       color="#670CF5"
@@ -1536,7 +1536,7 @@ export default function ResidenceLibraryScreen({
 
             {!nodeTree.length ? (
               <View style={styles.emptyBookCard}>
-                <Ionicons name="book-outline" size={22} color="#670CF5" />
+                <Icon name="book-outline" size={22} color="#670CF5" />
                 <Text style={styles.emptyBookTitle}>Este libro está vacío</Text>
                 <Text style={styles.emptyBookText}>
                   {isSelectedBookArchived
@@ -1608,7 +1608,7 @@ export default function ResidenceLibraryScreen({
         <View style={styles.reviewPromptOverlay}>
           <View style={styles.reviewPromptCard}>
             <View style={styles.reviewPromptIcon}>
-              <Ionicons name="mail-outline" size={28} color="#FFFFFF" />
+              <Icon name="mail-outline" size={28} color="#FFFFFF" />
             </View>
             <Text style={styles.reviewPromptTitle}>Activa tu perfil de residente</Text>
             <Text style={styles.reviewPromptText}>
@@ -1627,7 +1627,7 @@ export default function ResidenceLibraryScreen({
         <View style={styles.reviewPromptOverlay}>
           <View style={styles.reviewPromptCard}>
             <View style={styles.reviewPromptIcon}>
-              <Ionicons name="document-text-outline" size={28} color="#FFFFFF" />
+              <Icon name="document-text-outline" size={28} color="#FFFFFF" />
             </View>
             <Text style={styles.reviewPromptTitle}>Desbloquea tu libro</Text>
             <Text style={styles.reviewPromptText}>

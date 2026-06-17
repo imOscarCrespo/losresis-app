@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { MenuGrid } from "../components/MenuGrid";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { NAVIGATION_ITEMS } from "../constants/navigationItems";
@@ -45,7 +45,7 @@ export default function MenuScreen({
       onBack={onBack}
       rightSlot={
         <View style={styles.headerIconCircle}>
-          <Ionicons name="grid-outline" size={20} color="#670CF5" />
+          <Icon name="grid-outline" size={20} color="#670CF5" />
         </View>
       }
       contentStyle={styles.contentSurface}

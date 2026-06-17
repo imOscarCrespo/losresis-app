@@ -11,7 +11,7 @@ import {
   Keyboard,
   ImageBackground,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { SelectFilter } from "../components/SelectFilter";
 import { useHospitals } from "../hooks/useHospitals";
@@ -265,7 +265,7 @@ export default function MirSimulatorScreen({ onBack, userProfile, initialScore }
                   { backgroundColor: tc.bg, borderColor: tc.border },
                 ]}
               >
-                <Ionicons name={tc.icon} size={13} color={tc.color} />
+                <Icon name={tc.icon} size={13} color={tc.color} />
               </View>
             )}
             <View
@@ -287,7 +287,7 @@ export default function MirSimulatorScreen({ onBack, userProfile, initialScore }
         </View>
 
         <View style={styles.resultLocation}>
-          <Ionicons name="location" size={14} color="#6B7280" />
+          <Icon name="location" size={14} color="#6B7280" />
           <Text style={styles.resultLocationText}>
             {item.hospital.city}, {item.hospital.region}
           </Text>
@@ -496,7 +496,7 @@ export default function MirSimulatorScreen({ onBack, userProfile, initialScore }
 
           <View style={styles.helpCard}>
             <View style={styles.helpHeader}>
-              <Ionicons name="school" size={20} color={PRIMARY} />
+              <Icon name="school" size={20} color={PRIMARY} />
               <Text style={styles.helpTitle}>
                 ¿Cómo se calcula la probabilidad?
               </Text>

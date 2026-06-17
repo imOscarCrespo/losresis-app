@@ -8,7 +8,7 @@ import {
   Alert,
   TouchableOpacity,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
@@ -236,10 +236,10 @@ export default function ReviewComposerScreen({
         >
           {error ? (
             <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle" size={18} color="#B91C1C" />
+              <Icon name="alert-circle" size={18} color="#B91C1C" />
               <Text style={styles.errorBannerText}>{error}</Text>
               <TouchableOpacity onPress={clearError} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close" size={18} color="#B91C1C" />
+                <Icon name="close" size={18} color="#B91C1C" />
               </TouchableOpacity>
             </View>
           ) : null}
@@ -247,7 +247,7 @@ export default function ReviewComposerScreen({
           <View style={styles.anonCard}>
             <View style={styles.anonCardRow}>
               <View style={styles.anonCardIcon}>
-                <Ionicons name="eye-off-outline" size={20} color={WHITE} />
+                <Icon name="eye-off-outline" size={20} color={WHITE} />
               </View>
               <View style={styles.anonCardText}>
                 <Text style={styles.anonCardTitle}>Reseña anónima</Text>

@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../Icon";
 import { FALLBACK_ROOMMATE_QUESTIONS } from "../../constants/roommateQuestions";
 import {
   ROOMMATE_THEME,
@@ -147,7 +147,7 @@ export function RoommateProfileDetailModal({
         >
           <View style={styles.hero}>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color="#FFFFFF" />
+              <Icon name="close" size={24} color="#FFFFFF" />
             </TouchableOpacity>
 
             <View style={styles.avatar}>
@@ -182,7 +182,7 @@ export function RoommateProfileDetailModal({
             <View style={styles.grid}>
               {infoRows(bundle).map((item) => (
                 <View key={item.label} style={styles.infoCard}>
-                  <Ionicons name={item.icon} size={18} color={ROOMMATE_THEME.PRIMARY} />
+                  <Icon name={item.icon} size={18} color={ROOMMATE_THEME.PRIMARY} />
                   <Text style={styles.infoLabel}>{item.label}</Text>
                   <Text style={styles.infoValue}>{item.value}</Text>
                 </View>

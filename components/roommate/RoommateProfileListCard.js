@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../Icon";
 import {
   ROOMMATE_THEME,
   getBudgetLabel,
@@ -83,14 +83,14 @@ export function RoommateProfileListCard({ candidate, onPress }) {
 
       <View style={styles.footerRow}>
         <View style={styles.footerHint}>
-          <Ionicons
+          <Icon
             name="chatbubble-ellipses-outline"
             size={16}
             color={ROOMMATE_THEME.PRIMARY}
           />
           <Text style={styles.footerHintText}>Ver perfil y abrir chat</Text>
         </View>
-        <Ionicons
+        <Icon
           name="chevron-forward"
           size={18}
           color={ROOMMATE_THEME.MUTED}

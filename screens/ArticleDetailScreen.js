@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Image,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useArticles } from "../hooks/useArticles";
 import { formatLongDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
@@ -216,7 +216,7 @@ const renderNode = (node, index = 0) => {
                   {emojiIcon ? (
                     <Text style={styles.customBlockEmoji}>{emojiIcon}</Text>
                   ) : iconName ? (
-                    <Ionicons name={iconName} size={20} color={COLORS.ERROR} />
+                    <Icon name={iconName} size={20} color={COLORS.ERROR} />
                   ) : null}
                 </View>
               )}
@@ -346,7 +346,7 @@ export default function ArticleDetailScreen({
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.loadingContent}>
-          <Ionicons name="document-text" size={64} color={COLORS.PRIMARY} />
+          <Icon name="document-text" size={64} color={COLORS.PRIMARY} />
           <Text style={styles.loadingText}>Cargando artículo...</Text>
         </View>
       </View>
@@ -357,7 +357,7 @@ export default function ArticleDetailScreen({
     return (
       <View style={styles.errorContainer}>
         <View style={styles.errorContent}>
-          <Ionicons
+          <Icon
             name="document-text-outline"
             size={64}
             color={COLORS.GRAY}
@@ -387,7 +387,7 @@ export default function ArticleDetailScreen({
           onPress={onBack}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.GRAY_DARK} />
+          <Icon name="arrow-back" size={24} color={COLORS.GRAY_DARK} />
           <Text style={styles.backButtonText}>Volver a Artículos</Text>
         </TouchableOpacity>
       </View>
@@ -405,14 +405,14 @@ export default function ArticleDetailScreen({
         {/* Meta información */}
         <View style={styles.metaContainer}>
           <View style={styles.metaItem}>
-            <Ionicons name="person" size={16} color={COLORS.GRAY} />
+            <Icon name="person" size={16} color={COLORS.GRAY} />
             <Text style={styles.metaText}>
               {article.user?.name} {article.user?.surname}
             </Text>
           </View>
 
           <View style={styles.metaItem}>
-            <Ionicons name="calendar" size={16} color={COLORS.GRAY} />
+            <Icon name="calendar" size={16} color={COLORS.GRAY} />
             <Text style={styles.metaText}>
               {formatLongDate(article.published_at || article.created_at)}
             </Text>
@@ -428,7 +428,7 @@ export default function ArticleDetailScreen({
             disabled={isLiking || !userProfile}
             activeOpacity={0.7}
           >
-            <Ionicons
+            <Icon
               name={article.is_liked ? "heart" : "heart-outline"}
               size={18}
               color={article.is_liked ? COLORS.ERROR : COLORS.GRAY}

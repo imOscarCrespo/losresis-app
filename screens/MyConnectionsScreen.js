@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { getMyConnections } from "../services/connectionsService";
 import { openDirectChat } from "../services/directChatsService";
@@ -53,7 +53,7 @@ function ConnectionCard({ connection, isBusy, onPress }) {
         {avatarUri ? (
           <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
         ) : (
-          <Ionicons name="person-outline" size={22} color={PRIMARY} />
+          <Icon name="person-outline" size={22} color={PRIMARY} />
         )}
       </View>
 
@@ -63,7 +63,7 @@ function ConnectionCard({ connection, isBusy, onPress }) {
         </Text>
         {subtitle ? (
           <View style={styles.metaRow}>
-            <Ionicons name="medkit-outline" size={14} color={PRIMARY} />
+            <Icon name="medkit-outline" size={14} color={PRIMARY} />
             <Text style={styles.metaText} numberOfLines={1}>
               {subtitle}
             </Text>
@@ -71,7 +71,7 @@ function ConnectionCard({ connection, isBusy, onPress }) {
         ) : null}
         {hospitalName ? (
           <View style={styles.metaRow}>
-            <Ionicons name="business-outline" size={14} color={MUTED_LIGHT} />
+            <Icon name="business-outline" size={14} color={MUTED_LIGHT} />
             <Text style={styles.metaText} numberOfLines={1}>
               {hospitalName}
             </Text>
@@ -82,7 +82,7 @@ function ConnectionCard({ connection, isBusy, onPress }) {
       {isBusy ? (
         <ActivityIndicator size="small" color={PRIMARY} />
       ) : (
-        <Ionicons name="chatbubble-ellipses-outline" size={22} color={PRIMARY} />
+        <Icon name="chatbubble-ellipses-outline" size={22} color={PRIMARY} />
       )}
     </TouchableOpacity>
   );
@@ -146,7 +146,7 @@ export default function MyConnectionsScreen({ onBack, onSectionChange }) {
         </View>
       ) : connections.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="people-outline" size={48} color={MUTED_LIGHT} />
+          <Icon name="people-outline" size={48} color={MUTED_LIGHT} />
           <Text style={styles.emptyTitle}>Aún no tienes conexiones</Text>
           <Text style={styles.emptyText}>
             Conecta con otros residentes desde el directorio para poder chatear

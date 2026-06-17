@@ -5,7 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { openAppUpdateStore } from "../services/appUpdateService";
 
 const APP_NAME = "LosResis";
@@ -29,7 +29,7 @@ export const UpdateBanner = ({ updateUrl }) => {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <Ionicons name="arrow-down-circle" size={20} color="#FFFFFF" />
+        <Icon name="arrow-down-circle" size={20} color="#FFFFFF" />
         <Text style={styles.text}>
           Actualiza {APP_NAME} para disfrutar de las últimas mejoras
         </Text>

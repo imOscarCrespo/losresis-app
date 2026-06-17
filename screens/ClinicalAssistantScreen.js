@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SelectorModal } from "../components/SelectorModal";
 import { askClinicalAssistant } from "../services/clinicalAssistantService";
@@ -156,7 +156,7 @@ const ReasoningSection = ({ reasoning, loading }) => {
           ) : null}
           <Text style={styles.reasoningLabel}>Razonamiento</Text>
         </View>
-        <Ionicons
+        <Icon
           name={expanded ? "chevron-up" : "chevron-down"}
           size={18}
           color={PRIMARY}
@@ -704,7 +704,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
       return (
         <View style={styles.stateContainer}>
           <View style={styles.emptyIconWrap}>
-            <Ionicons name="lock-closed-outline" size={30} color={PRIMARY} />
+            <Icon name="lock-closed-outline" size={30} color={PRIMARY} />
           </View>
           <Text style={styles.emptyTitle}>Acceso no disponible</Text>
           <Text style={styles.emptySubtitle}>
@@ -717,7 +717,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
     return (
       <View style={styles.emptyContainer}>
         <View style={styles.emptyIconWrap}>
-          <Ionicons name="medical-outline" size={30} color={PRIMARY} />
+          <Icon name="medical-outline" size={30} color={PRIMARY} />
         </View>
         <Text style={styles.emptyTitle}>Pregunta sobre un caso de guardia</Text>
         <Text style={styles.emptySubtitle}>
@@ -732,7 +732,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
               activeOpacity={0.78}
             >
               <Text style={styles.starterText}>{prompt}</Text>
-              <Ionicons name="arrow-forward" size={15} color={PRIMARY} />
+              <Icon name="arrow-forward" size={15} color={PRIMARY} />
             </TouchableOpacity>
           ))}
         </View>
@@ -751,7 +751,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
             accessibilityRole="button"
             accessibilityLabel="Volver"
           >
-            <Ionicons name="arrow-back" size={22} color={PRIMARY} />
+            <Icon name="arrow-back" size={22} color={PRIMARY} />
           </TouchableOpacity>
 
           <View style={styles.headerInfo}>
@@ -772,7 +772,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
               accessibilityLabel="Seleccionar modo del asistente"
             >
               <Text style={styles.modeButtonText}>{assistantModeLabel}</Text>
-              <Ionicons name="chevron-down" size={16} color={PRIMARY} />
+              <Icon name="chevron-down" size={16} color={PRIMARY} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.headerIconBtn, (!messages.length || sending) && styles.disabled]}
@@ -782,7 +782,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
               accessibilityRole="button"
               accessibilityLabel="Borrar conversacion"
             >
-              <Ionicons name="trash-outline" size={18} color={PRIMARY} />
+              <Icon name="trash-outline" size={18} color={PRIMARY} />
             </TouchableOpacity>
           </View>
         </View>
@@ -879,7 +879,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
 
           {!!error && (
             <View style={styles.errorBar}>
-              <Ionicons name="alert-circle-outline" size={16} color={ERROR} />
+              <Icon name="alert-circle-outline" size={16} color={ERROR} />
               <Text style={styles.errorBarText}>{error}</Text>
             </View>
           )}
@@ -888,7 +888,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
             messages.length >= CONVERSATION_WARN_THRESHOLD &&
             messages.length < CONVERSATION_HARD_LIMIT && (
               <View style={styles.warnBar}>
-                <Ionicons name="information-circle-outline" size={16} color={PRIMARY} />
+                <Icon name="information-circle-outline" size={16} color={PRIMARY} />
                 <Text style={styles.warnBarText}>
                   Esta conversación es larga. Para mejor calidad, considera borrarla y empezar una nueva.
                 </Text>
@@ -921,7 +921,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
                 accessibilityRole="button"
                 accessibilityLabel="Adjuntar"
               >
-                <Ionicons name="add" size={32} color="#111111" />
+                <Icon name="add" size={32} color="#111111" />
               </TouchableOpacity>
               <View style={styles.composer}>
                 <TextInput
@@ -947,7 +947,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
                     accessibilityRole="button"
                     accessibilityLabel="Dictar"
                   >
-                    <Ionicons name="mic-outline" size={22} color="#666666" />
+                    <Icon name="mic-outline" size={22} color="#666666" />
                   </TouchableOpacity>
                 ) : null}
                 <TouchableOpacity
@@ -964,7 +964,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
                   {sending ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Ionicons
+                    <Icon
                       name={inputText.trim() ? "arrow-up" : "mic"}
                       size={inputText.trim() ? 24 : 25}
                       color="#FFFFFF"

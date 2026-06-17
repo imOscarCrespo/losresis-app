@@ -5,7 +5,7 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
 import { MotionPressable } from "../components/MotionPressable";
@@ -82,7 +82,7 @@ export default function SportsSelectionScreen({ onSectionChange, userProfile }) 
           scaleTo={0.9}
           pressedOpacity={0.72}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT_PRIMARY} />
+          <Icon name="arrow-back" size={24} color={COLORS.TEXT_PRIMARY} />
         </MotionPressable>
         <View style={styles.headerContent}>
           <Text style={styles.title}>Deporte</Text>
@@ -113,13 +113,13 @@ export default function SportsSelectionScreen({ onSectionChange, userProfile }) 
                 { backgroundColor: option.backgroundColor },
               ]}
             >
-              <Ionicons name={option.icon} size={32} color={option.iconColor} />
+              <Icon name={option.icon} size={32} color={option.iconColor} />
             </View>
             <View style={styles.optionContent}>
               <Text style={styles.optionTitle}>{option.title}</Text>
               <Text style={styles.optionDescription}>{option.description}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={24} color={COLORS.GRAY} />
+            <Icon name="chevron-forward" size={24} color={COLORS.GRAY} />
           </MotionPressable>
         ))}
       </ScrollView>

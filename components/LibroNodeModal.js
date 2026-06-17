@@ -11,7 +11,7 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 import { ScreenHeader } from "./ScreenHeader";
 import { ScreenScaffold } from "./ScreenScaffold";
@@ -147,7 +147,7 @@ export const LibroNodeModal = ({
                 { backgroundColor: `${COLOR_TOKEN_MAP[selectedColor] || COLORS.PRIMARY}14` },
               ]}
             >
-              <Ionicons
+              <Icon
                 name={selectedIcon}
                 size={22}
                 color={COLOR_TOKEN_MAP[selectedColor] || COLORS.PRIMARY}
@@ -265,7 +265,7 @@ export const LibroNodeModal = ({
                       onPress={() => setSelectedIcon(option.id)}
                       activeOpacity={0.85}
                     >
-                      <Ionicons
+                      <Icon
                         name={option.id}
                         size={18}
                         color={isActive ? accentColor : COLORS.GRAY_DARK}
@@ -313,7 +313,7 @@ export const LibroNodeModal = ({
 
         {!isChildNode ? (
           <View style={styles.helperBanner}>
-            <Ionicons name="sparkles-outline" size={16} color={COLORS.PRIMARY} />
+            <Icon name="sparkles-outline" size={16} color={COLORS.PRIMARY} />
             <Text style={styles.helperBannerText}>
               Después podrás añadir dentro todos los procedimientos que necesites.
             </Text>
@@ -389,7 +389,7 @@ export const LibroNodeModal = ({
           <View style={styles.header}>
             <Text style={styles.title}>{modalTitle}</Text>
             <TouchableOpacity onPress={handleClose}>
-              <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
+              <Icon name="close" size={24} color={COLORS.GRAY_DARK} />
             </TouchableOpacity>
           </View>
           {formBody}

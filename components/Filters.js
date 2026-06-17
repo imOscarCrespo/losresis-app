@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { SearchFilter } from "./SearchFilter";
 import { SelectFilter } from "./SelectFilter";
 import { FilterCountBadge } from "./FilterCountBadge";
@@ -44,7 +44,7 @@ export const Filters = ({
     <View style={[styles.container, style]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="filter" size={20} color={COLORS.PRIMARY} />
+          <Icon name="filter" size={20} color={COLORS.PRIMARY} />
           <Text style={styles.headerTitle}>Filtros</Text>
           {showCount && (
             <FilterCountBadge count={activeFiltersCount} variant={countVariant} />

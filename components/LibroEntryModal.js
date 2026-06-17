@@ -11,7 +11,7 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 
 /**
@@ -90,7 +90,7 @@ export const LibroEntryModal = ({
               )}
             </View>
             <TouchableOpacity onPress={handleClose}>
-              <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
+              <Icon name="close" size={24} color={COLORS.GRAY_DARK} />
             </TouchableOpacity>
           </View>
 

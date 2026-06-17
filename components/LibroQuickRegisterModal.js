@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { SelectFilter } from "./SelectFilter";
 
 const TRACKING_MODE_COPY = {
@@ -130,7 +130,7 @@ export const LibroQuickRegisterModal = ({
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={22} color="#1B0977" />
+              <Icon name="close" size={22} color="#1B0977" />
             </TouchableOpacity>
           </View>
 

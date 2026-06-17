@@ -25,6 +25,8 @@ que tienen su propia autorización legítima.
   (incluiría parejas que solo chatearon por roommates/rotaciones, no por vínculo deseado).
 - El gate para enviar y recibir solicitudes es el **mismo que el del chat actual**
   (`getResidentState === ACTIVE`), enforzado server-side en el RPC, no solo en cliente.
+  **(Modificado por [ADR-0005](./0005-acceso-social-incluye-r1-en-gracia-mir.md): el gate pasa a
+  incluir también a los R1 en gracia MIR `pending_corporate_email_seasonal`, no solo `ACTIVE`.)**
 
 ## Alternativas consideradas
 

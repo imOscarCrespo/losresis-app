@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { Button } from "../components";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLORS } from "../constants/colors";
@@ -117,7 +117,7 @@ export default function ResidentPayoutDetailScreen({
       onBack={onBack}
       rightSlot={
         <View style={styles.headerIconCircle}>
-          <Ionicons name="cash-outline" size={20} color="#670CF5" />
+          <Icon name="cash-outline" size={20} color="#670CF5" />
         </View>
       }
       contentStyle={styles.contentSurface}

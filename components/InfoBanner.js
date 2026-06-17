@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from "./Icon";
 import { COLORS } from '../constants/colors';
 
 /**
@@ -45,7 +45,7 @@ export const InfoBanner = ({ id, text }) => {
   return (
     <View style={styles.container}>
       <View style={styles.iconContainer}>
-        <Ionicons name="information-circle" size={24} color={COLORS.PRIMARY} />
+        <Icon name="information-circle" size={24} color={COLORS.PRIMARY} />
       </View>
       <Text style={styles.text}>{text}</Text>
       <TouchableOpacity
@@ -53,7 +53,7 @@ export const InfoBanner = ({ id, text }) => {
         style={styles.closeButton}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Ionicons name="close" size={20} color={COLORS.GRAY} />
+        <Icon name="close" size={20} color={COLORS.GRAY} />
       </TouchableOpacity>
     </View>
   );

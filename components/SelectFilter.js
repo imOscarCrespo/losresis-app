@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { SelectorModal } from "./SelectorModal";
 
 /**
@@ -86,7 +86,7 @@ export const SelectFilter = ({
         >
           {displayText}
         </Text>
-        <Ionicons name="chevron-down" size={18} color="#1B0977" />
+        <Icon name="chevron-down" size={18} color="#1B0977" />
       </TouchableOpacity>
 
       <SelectorModal

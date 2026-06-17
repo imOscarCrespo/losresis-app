@@ -21,7 +21,7 @@ import {
   Keyboard,
   Dimensions,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { COLORS } from "../constants/colors";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { formatShortDate } from "../utils/dateUtils";
@@ -81,7 +81,7 @@ const ThreadCard = ({ thread, onPress, onDelete, currentUserId, deleting }) => {
     >
       <View style={styles.threadHeader}>
         <View style={styles.authorInfo}>
-          <Ionicons name="person-circle" size={20} color={COLORS.PRIMARY} />
+          <Icon name="person-circle" size={20} color={COLORS.PRIMARY} />
           <Text style={styles.authorName} numberOfLines={1}>
             {thread.user?.name} {thread.user?.surname}
           </Text>
@@ -100,7 +100,7 @@ const ThreadCard = ({ thread, onPress, onDelete, currentUserId, deleting }) => {
               {deleting === thread.id ? (
                 <ActivityIndicator size="small" color={COLORS.ERROR} />
               ) : (
-                <Ionicons name="trash-outline" size={18} color={COLORS.ERROR} />
+                <Icon name="trash-outline" size={18} color={COLORS.ERROR} />
               )}
             </TouchableOpacity>
           )}
@@ -433,7 +433,7 @@ export default function LeisureForumScreen({
           onPress={handleBack}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.TEXT_PRIMARY} />
+          <Icon name="arrow-back" size={24} color={COLORS.TEXT_PRIMARY} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.title}>{formatForumTypeName(forumType)}</Text>
@@ -446,7 +446,7 @@ export default function LeisureForumScreen({
           onPress={() => setShowMyThreads(!showMyThreads)}
           activeOpacity={0.7}
         >
-          <Ionicons
+          <Icon
             name={showMyThreads ? "filter" : "filter-outline"}
             size={24}
             color={showMyThreads ? COLORS.PRIMARY : COLORS.GRAY}
@@ -462,7 +462,7 @@ export default function LeisureForumScreen({
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={COLORS.ERROR} />
+          <Icon name="alert-circle" size={48} color={COLORS.ERROR} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity
             style={styles.retryButton}
@@ -480,7 +480,7 @@ export default function LeisureForumScreen({
           }
         >
           <View style={styles.emptyContainer}>
-            <Ionicons
+            <Icon
               name="chatbubbles-outline"
               size={64}
               color={COLORS.GRAY}
@@ -551,7 +551,7 @@ export default function LeisureForumScreen({
             {/* Header */}
             <View style={styles.modalHeader}>
               <TouchableOpacity onPress={handleCloseModal} activeOpacity={0.7}>
-                <Ionicons name="close" size={24} color={COLORS.TEXT_PRIMARY} />
+                <Icon name="close" size={24} color={COLORS.TEXT_PRIMARY} />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>Nueva publicación</Text>
               <TouchableOpacity

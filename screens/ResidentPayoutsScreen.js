@@ -8,7 +8,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import Svg, { Line, Rect, Text as SvgText } from "react-native-svg";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLORS } from "../constants/colors";
@@ -174,7 +174,7 @@ export default function ResidentPayoutsScreen({
             onPress={onCreateEntry}
             activeOpacity={0.9}
           >
-            <Ionicons name="add" size={22} color="#FFFFFF" />
+            <Icon name="add" size={22} color="#FFFFFF" />
             <Text style={styles.floatingButtonText}>Nuevo registro</Text>
           </TouchableOpacity>
         ) : null
@@ -200,7 +200,7 @@ export default function ResidentPayoutsScreen({
                   onPress={() => setSelectedYear((prev) => prev - 1)}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="chevron-back" size={16} color="#1B0977" />
+                  <Icon name="chevron-back" size={16} color="#1B0977" />
                 </TouchableOpacity>
                 <Text style={styles.yearLabel}>{selectedYear}</Text>
                 <TouchableOpacity
@@ -208,7 +208,7 @@ export default function ResidentPayoutsScreen({
                   onPress={() => setSelectedYear((prev) => prev + 1)}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="chevron-forward" size={16} color="#1B0977" />
+                  <Icon name="chevron-forward" size={16} color="#1B0977" />
                 </TouchableOpacity>
               </View>
             </View>

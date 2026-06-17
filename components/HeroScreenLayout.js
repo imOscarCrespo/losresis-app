@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { BottomMenuHeroHeader } from "./BottomMenuHeroHeader";
 
 export const HeroScreenLayout = ({
@@ -37,7 +37,7 @@ export const HeroScreenLayout = ({
             accessibilityRole="button"
             accessibilityLabel="Volver"
           >
-            <Ionicons name="arrow-back" size={22} color="#670CF5" />
+            <Icon name="arrow-back" size={22} color="#670CF5" />
           </TouchableOpacity>
         )
       : null;

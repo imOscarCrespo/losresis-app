@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 
 // Intentar importar MapView
@@ -36,7 +36,7 @@ export const RotationMap = ({ rotations, userId, loading, region }) => {
   if (!MAP_AVAILABLE) {
     return (
       <View style={styles.unavailable}>
-        <Ionicons name="map-outline" size={48} color={COLORS.GRAY} />
+        <Icon name="map-outline" size={48} color={COLORS.GRAY} />
         <Text style={styles.unavailableTitle}>Mapa no disponible</Text>
         <Text style={styles.unavailableText}>
           El mapa requiere un desarrollo build de Expo.

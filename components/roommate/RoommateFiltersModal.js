@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../Icon";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ROOMMATE_FORM_DEFAULTS,
@@ -73,7 +73,7 @@ export function RoommateFiltersModal({
       <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
         <View style={[styles.header, { paddingTop: Math.max(insets.top + 12, 28) }]}>
           <TouchableOpacity style={styles.iconButton} onPress={onClose}>
-            <Ionicons name="close" size={24} color={ROOMMATE_THEME.ACCENT} />
+            <Icon name="close" size={24} color={ROOMMATE_THEME.ACCENT} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Filtros del listado</Text>
           <TouchableOpacity style={styles.resetButton} onPress={handleReset}>

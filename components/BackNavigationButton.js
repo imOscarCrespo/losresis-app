@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 
 export function BackNavigationButton({
   onPress,
@@ -16,7 +16,7 @@ export function BackNavigationButton({
         accessibilityRole="button"
         accessibilityLabel={label}
       >
-        <Ionicons name="chevron-back" size={18} color="#1B0977" />
+        <Icon name="chevron-back" size={18} color="#1B0977" />
         <Text style={styles.label}>{label}</Text>
       </TouchableOpacity>
     </View>

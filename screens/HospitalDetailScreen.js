@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
   getDetailedGrades,
@@ -268,7 +268,7 @@ export default function HospitalDetailScreen({
         <View style={styles.cutOffSection}>
           <View style={styles.cutOffHeader}>
             <View style={styles.cutOffLabelRow}>
-              <Ionicons name="bar-chart" size={14} color={TEXT_MEDIUM} />
+              <Icon name="bar-chart" size={14} color={TEXT_MEDIUM} />
               <Text style={styles.cutOffLabel}>NOTAS DE CORTE</Text>
             </View>
             <TouchableOpacity
@@ -284,7 +284,7 @@ export default function HospitalDetailScreen({
               >
                 {isExpanded ? "Ver menos" : "Ver más"}
               </Text>
-              <Ionicons
+              <Icon
                 name={isExpanded ? "chevron-up" : "chevron-down"}
                 size={13}
                 color={isExpanded ? WHITE : PRIMARY}
@@ -365,7 +365,7 @@ export default function HospitalDetailScreen({
     return (
       <View style={styles.stateContainer}>
         <View style={styles.stateIconWrap}>
-          <Ionicons name="alert-circle-outline" size={36} color={ERROR} />
+          <Icon name="alert-circle-outline" size={36} color={ERROR} />
         </View>
         <Text style={styles.errorTitle}>Hospital no encontrado</Text>
       </View>
@@ -382,20 +382,20 @@ export default function HospitalDetailScreen({
         <View style={styles.scrollContent}>
         <View style={styles.hospitalCard}>
           <View style={styles.hospitalIconWrap}>
-            <Ionicons name="business" size={26} color={PRIMARY} />
+            <Icon name="business" size={26} color={PRIMARY} />
           </View>
           <Text style={styles.hospitalName}>{hospital.name}</Text>
 
           <View style={styles.hospitalMeta}>
             <View style={styles.metaRow}>
-              <Ionicons name="location-outline" size={14} color={TEXT_MEDIUM} />
+              <Icon name="location-outline" size={14} color={TEXT_MEDIUM} />
               <Text style={styles.metaText}>
                 {hospital.city}, {hospital.region}
               </Text>
             </View>
             {hospital.specialtyCount !== undefined && (
               <View style={styles.metaRow}>
-                <Ionicons name="school" size={14} color={PRIMARY} />
+                <Icon name="school" size={14} color={PRIMARY} />
                 <Text style={[styles.metaText, styles.metaTextAccent]}>
                   {hospital.specialtyCount} especialidades MIR
                 </Text>
@@ -413,7 +413,7 @@ export default function HospitalDetailScreen({
           <View style={styles.hospitalInfoEntryCard}>
             <View style={styles.hospitalInfoEntryHeader}>
               <View style={styles.hospitalInfoEntryIconWrap}>
-                <Ionicons name="document-text-outline" size={24} color={PRIMARY} />
+                <Icon name="document-text-outline" size={24} color={PRIMARY} />
               </View>
               <Text style={styles.hospitalInfoEntryTitle}>
                 Información proporcionada por el hospital
@@ -449,7 +449,7 @@ export default function HospitalDetailScreen({
         ) : filteredSpecialties.length === 0 ? (
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconWrap}>
-              <Ionicons name="school-outline" size={36} color={PRIMARY} />
+              <Icon name="school-outline" size={36} color={PRIMARY} />
             </View>
             <Text style={styles.emptyTitle}>Sin especialidades</Text>
             <Text style={styles.emptySubtitle}>

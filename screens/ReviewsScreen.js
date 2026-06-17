@@ -13,7 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { useReviews } from "../hooks/useReviews";
@@ -104,7 +104,7 @@ function FilterModal({ visible, onClose, title, options, value, onSelect, placeh
       >
         <View style={[modal.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity style={modal.backBtn} onPress={handleClose}>
-            <Ionicons name="arrow-back" size={24} color={ACCENT} />
+            <Icon name="arrow-back" size={24} color={ACCENT} />
           </TouchableOpacity>
           <Text style={modal.title}>{title}</Text>
           <View style={modal.backBtn} />
@@ -112,7 +112,7 @@ function FilterModal({ visible, onClose, title, options, value, onSelect, placeh
 
         <View style={modal.searchWrap}>
           <View style={modal.searchInner}>
-            <Ionicons name="search" size={20} color={TEXT_LIGHT} />
+            <Icon name="search" size={20} color={TEXT_LIGHT} />
             <TextInput
               style={modal.searchInput}
               value={search}
@@ -123,7 +123,7 @@ function FilterModal({ visible, onClose, title, options, value, onSelect, placeh
             />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch("")}>
-                <Ionicons name="close-circle" size={18} color={TEXT_LIGHT} />
+                <Icon name="close-circle" size={18} color={TEXT_LIGHT} />
               </TouchableOpacity>
             )}
           </View>
@@ -198,7 +198,7 @@ const ReviewSummaryCard = memo(({ summary, onPress }) => {
     >
       {/* Hospital name */}
       <View style={styles.cardTitleRow}>
-        <Ionicons name="business" size={16} color={ACCENT} />
+        <Icon name="business" size={16} color={ACCENT} />
         <Text style={styles.hospitalName} numberOfLines={1}>
           {summary.hospital_name}
         </Text>
@@ -206,7 +206,7 @@ const ReviewSummaryCard = memo(({ summary, onPress }) => {
 
       {/* Location */}
       <View style={styles.locationRow}>
-        <Ionicons name="location-outline" size={12} color={TEXT_MEDIUM} />
+        <Icon name="location-outline" size={12} color={TEXT_MEDIUM} />
         <Text style={styles.locationText} numberOfLines={1}>
           {summary.hospital_city} · {summary.hospital_region}
         </Text>
@@ -214,7 +214,7 @@ const ReviewSummaryCard = memo(({ summary, onPress }) => {
 
       {/* Specialty badge */}
       <View style={styles.specialtyBadge}>
-        <Ionicons name="school" size={13} color={PRIMARY} />
+        <Icon name="school" size={13} color={PRIMARY} />
         <Text style={styles.specialtyText} numberOfLines={1}>
           {summary.speciality_name}
         </Text>
@@ -223,14 +223,14 @@ const ReviewSummaryCard = memo(({ summary, onPress }) => {
       {/* Footer */}
       <View style={styles.cardFooter}>
         <View style={styles.dateRow}>
-          <Ionicons name="calendar-outline" size={12} color={TEXT_LIGHT} />
+          <Icon name="calendar-outline" size={12} color={TEXT_LIGHT} />
           <Text style={styles.dateText}>
             {formatShortDate(summary.latest_review_date)}
           </Text>
         </View>
         <View style={styles.seeBtn}>
           <Text style={styles.seeBtnText}>Ver reseña</Text>
-          <Ionicons name="chevron-forward" size={13} color={WHITE} />
+          <Icon name="chevron-forward" size={13} color={WHITE} />
         </View>
       </View>
     </TouchableOpacity>
@@ -320,7 +320,7 @@ export default function ReviewsScreen({
       <View style={styles.contentShell}>
         <View style={styles.listHeader}>
           <View style={styles.searchWrap}>
-            <Ionicons
+            <Icon
               name="search"
               size={18}
               color={TEXT_LIGHT}
@@ -336,7 +336,7 @@ export default function ReviewsScreen({
             />
             {hospitalSearchTerm.length > 0 && (
               <TouchableOpacity onPress={() => setHospitalSearchTerm("")}>
-                <Ionicons name="close-circle" size={18} color={TEXT_LIGHT} />
+                <Icon name="close-circle" size={18} color={TEXT_LIGHT} />
               </TouchableOpacity>
             )}
           </View>
@@ -351,7 +351,7 @@ export default function ReviewsScreen({
               style={[styles.chip, selectedHospital && styles.chipActive]}
               onPress={() => setOpenModal("hospital")}
             >
-              <Ionicons
+              <Icon
                 name="business"
                 size={15}
                 color={selectedHospital ? PRIMARY : ACCENT}
@@ -366,7 +366,7 @@ export default function ReviewsScreen({
                     )[0] ?? "Hospital"
                   : "Hospital"}
               </Text>
-              <Ionicons
+              <Icon
                 name="chevron-down"
                 size={15}
                 color={selectedHospital ? PRIMARY : ACCENT}
@@ -377,7 +377,7 @@ export default function ReviewsScreen({
               style={[styles.chip, selectedSpecialty && styles.chipActive]}
               onPress={() => setOpenModal("specialty")}
             >
-              <Ionicons
+              <Icon
                 name="school"
                 size={15}
                 color={selectedSpecialty ? PRIMARY : ACCENT}
@@ -388,7 +388,7 @@ export default function ReviewsScreen({
               >
                 {specialtyLabel}
               </Text>
-              <Ionicons
+              <Icon
                 name="chevron-down"
                 size={15}
                 color={selectedSpecialty ? PRIMARY : ACCENT}
@@ -421,7 +421,7 @@ export default function ReviewsScreen({
           </View>
         ) : error ? (
           <View style={styles.stateContainer}>
-            <Ionicons name="alert-circle" size={48} color={ERROR} />
+            <Icon name="alert-circle" size={48} color={ERROR} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : reviewSummaries.length === 0 ? (
@@ -432,7 +432,7 @@ export default function ReviewsScreen({
           >
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconWrap}>
-                <Ionicons
+                <Icon
                   name="document-text-outline"
                   size={40}
                   color={PRIMARY}

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, TouchableOpacity, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 
 /**
  * Componente de valoración por estrellas
@@ -39,7 +39,7 @@ export const StarRating = ({
             style={styles.starButton}
             activeOpacity={0.7}
           >
-            <Ionicons
+            <Icon
               name={isFilled ? "star" : "star-outline"}
               size={size}
               color={isFilled ? color : "#D1D5DB"}

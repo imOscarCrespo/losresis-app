@@ -13,7 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { useUnreadNotificationsCount } from "../src/hooks/useUnreadNotificationsCount";
@@ -94,7 +94,7 @@ function FilterModal({
           style={[modal.header, { paddingTop: Math.max(insets.top, 16) }]}
         >
           <TouchableOpacity style={modal.backBtn} onPress={handleClose}>
-            <Ionicons name="arrow-back" size={24} color={ACCENT} />
+            <Icon name="arrow-back" size={24} color={ACCENT} />
           </TouchableOpacity>
           <Text style={modal.title}>{title}</Text>
           <View style={modal.backBtn} />
@@ -103,7 +103,7 @@ function FilterModal({
         {/* Search */}
         <View style={modal.searchWrap}>
           <View style={modal.searchInner}>
-            <Ionicons name="search" size={20} color="#94A3B8" />
+            <Icon name="search" size={20} color="#94A3B8" />
             <TextInput
               style={modal.searchInput}
               value={search}
@@ -114,7 +114,7 @@ function FilterModal({
             />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch("")}>
-                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                <Icon name="close-circle" size={18} color="#94A3B8" />
               </TouchableOpacity>
             )}
           </View>
@@ -282,7 +282,7 @@ export default function HospitalsScreen({
         </View>
 
         <View style={styles.cardLocationRow}>
-          <Ionicons name="location" size={14} color="#94A3B8" />
+          <Icon name="location" size={14} color="#94A3B8" />
           <Text style={styles.cardLocation}>
             {item.city}, {item.region}
           </Text>
@@ -296,7 +296,7 @@ export default function HospitalsScreen({
               </Text>
             </View>
           )}
-          <Ionicons name="arrow-forward" size={20} color={PRIMARY} />
+          <Icon name="arrow-forward" size={20} color={PRIMARY} />
         </View>
       </View>
     </TouchableOpacity>
@@ -313,7 +313,7 @@ export default function HospitalsScreen({
 
       {/* Search bar */}
       <View style={styles.searchWrap}>
-        <Ionicons
+        <Icon
           name="search"
           size={20}
           color="#94A3B8"
@@ -329,7 +329,7 @@ export default function HospitalsScreen({
         />
         {searchTerm.length > 0 && (
           <TouchableOpacity onPress={() => setSearchTerm("")}>
-            <Ionicons name="close-circle" size={18} color="#94A3B8" />
+            <Icon name="close-circle" size={18} color="#94A3B8" />
           </TouchableOpacity>
         )}
       </View>
@@ -345,7 +345,7 @@ export default function HospitalsScreen({
           style={[styles.chip, selectedSpecialty && styles.chipActive]}
           onPress={() => setOpenModal("specialty")}
         >
-          <Ionicons
+          <Icon
             name="medkit"
             size={16}
             color={selectedSpecialty ? PRIMARY : ACCENT}
@@ -356,7 +356,7 @@ export default function HospitalsScreen({
           >
             {selectedSpecialtyName ?? "Especialidad"}
           </Text>
-          <Ionicons
+          <Icon
             name="chevron-down"
             size={16}
             color={selectedSpecialty ? PRIMARY : ACCENT}
@@ -367,7 +367,7 @@ export default function HospitalsScreen({
           style={[styles.chip, selectedRegion && styles.chipActive]}
           onPress={() => setOpenModal("region")}
         >
-          <Ionicons
+          <Icon
             name="map"
             size={16}
             color={selectedRegion ? PRIMARY : ACCENT}
@@ -378,7 +378,7 @@ export default function HospitalsScreen({
           >
             {selectedRegion || "Comunidad"}
           </Text>
-          <Ionicons
+          <Icon
             name="chevron-down"
             size={16}
             color={selectedRegion ? PRIMARY : ACCENT}
@@ -389,7 +389,7 @@ export default function HospitalsScreen({
           style={[styles.chip, selectedCity && styles.chipActive]}
           onPress={() => setOpenModal("city")}
         >
-          <Ionicons
+          <Icon
             name="business"
             size={16}
             color={selectedCity ? PRIMARY : ACCENT}
@@ -400,7 +400,7 @@ export default function HospitalsScreen({
           >
             {selectedCity || "Ciudad"}
           </Text>
-          <Ionicons
+          <Icon
             name="chevron-down"
             size={16}
             color={selectedCity ? PRIMARY : ACCENT}
@@ -411,7 +411,7 @@ export default function HospitalsScreen({
           style={[styles.chip, sortMode !== "ranking" && styles.chipActive]}
           onPress={() => setOpenModal("sort")}
         >
-          <Ionicons
+          <Icon
             name="swap-vertical"
             size={16}
             color={sortMode !== "ranking" ? PRIMARY : ACCENT}
@@ -422,7 +422,7 @@ export default function HospitalsScreen({
           >
             {selectedSortName}
           </Text>
-          <Ionicons
+          <Icon
             name="chevron-down"
             size={16}
             color={sortMode !== "ranking" ? PRIMARY : ACCENT}
@@ -433,7 +433,7 @@ export default function HospitalsScreen({
           style={[styles.chip, sponsorshipOnly && styles.chipActive]}
           onPress={() => setSponsorshipOnly(!sponsorshipOnly)}
         >
-          <Ionicons
+          <Icon
             name="megaphone"
             size={16}
             color={sponsorshipOnly ? PRIMARY : ACCENT}

@@ -21,7 +21,7 @@ import {
   Pressable,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { FloatingActionButton } from "../components/FloatingActionButton";
@@ -331,7 +331,7 @@ function FilterModal({ visible, onClose, title, options, value, onSelect, placeh
       >
         <View style={[filterModal.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity style={filterModal.backBtn} onPress={handleClose}>
-            <Ionicons name="arrow-back" size={24} color={ACCENT} />
+            <Icon name="arrow-back" size={24} color={ACCENT} />
           </TouchableOpacity>
           <Text style={filterModal.title}>{title}</Text>
           <View style={filterModal.backBtn} />
@@ -339,7 +339,7 @@ function FilterModal({ visible, onClose, title, options, value, onSelect, placeh
 
         <View style={filterModal.searchWrap}>
           <View style={filterModal.searchInner}>
-            <Ionicons name="search" size={20} color={TEXT_LIGHT} />
+            <Icon name="search" size={20} color={TEXT_LIGHT} />
             <TextInput
               style={filterModal.searchInput}
               value={search}
@@ -350,7 +350,7 @@ function FilterModal({ visible, onClose, title, options, value, onSelect, placeh
             />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch("")}>
-                <Ionicons name="close-circle" size={18} color={TEXT_LIGHT} />
+                <Icon name="close-circle" size={18} color={TEXT_LIGHT} />
               </TouchableOpacity>
             )}
           </View>
@@ -430,7 +430,7 @@ function ChatListRow({ item, joiningId, onPress }) {
         ]}
       >
         {item.kind === "group" ? (
-          <Ionicons name="people" size={20} color={avatarTone.color} />
+          <Icon name="people" size={20} color={avatarTone.color} />
         ) : (
           <Text style={[styles.chatAvatarText, { color: avatarTone.color }]}>
             {buildInitials(item.title)}
@@ -488,7 +488,7 @@ function ChatListRow({ item, joiningId, onPress }) {
                 <ActivityIndicator size="small" color={WHITE} />
               ) : (
                 <>
-                  <Ionicons name="add" size={14} color={WHITE} />
+                  <Icon name="add" size={14} color={WHITE} />
                   <Text style={styles.chatJoinPillText}>Unirse</Text>
                 </>
               )}
@@ -515,7 +515,7 @@ function FilterChip({ label, active, icon, onPress }) {
       activeOpacity={0.7}
     >
       {icon && (
-        <Ionicons name={icon} size={14} color={active ? PRIMARY : ACCENT} />
+        <Icon name={icon} size={14} color={active ? PRIMARY : ACCENT} />
       )}
       <Text
         style={[styles.chipText, active && styles.chipTextActive]}
@@ -523,7 +523,7 @@ function FilterChip({ label, active, icon, onPress }) {
       >
         {label}
       </Text>
-      <Ionicons
+      <Icon
         name="chevron-down"
         size={14}
         color={active ? PRIMARY : TEXT_MEDIUM}
@@ -1134,14 +1134,14 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
         >
           <View style={styles.scopeBannerHeader}>
             <View style={styles.scopeBannerTitleWrap}>
-              <Ionicons
+              <Icon
                 name="information-circle-outline"
                 size={16}
                 color={PRIMARY}
               />
               <Text style={styles.scopeBannerTitle}>Cómo mostramos los chats</Text>
             </View>
-            <Ionicons
+            <Icon
               name={isScopeBannerCollapsed ? "chevron-down" : "chevron-up"}
               size={16}
               color={TEXT_MEDIUM}
@@ -1172,7 +1172,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
       )}
 
       <View style={styles.telegramSearchWrap}>
-        <Ionicons name="search" size={18} color={TEXT_LIGHT} />
+        <Icon name="search" size={18} color={TEXT_LIGHT} />
         <TextInput
           style={styles.telegramSearchInput}
           value={chatSearch}
@@ -1184,7 +1184,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
         />
         {chatSearch ? (
           <TouchableOpacity onPress={() => setChatSearch("")} activeOpacity={0.7}>
-            <Ionicons name="close-circle" size={18} color={TEXT_LIGHT} />
+            <Icon name="close-circle" size={18} color={TEXT_LIGHT} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -1211,7 +1211,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
   const ListEmpty = (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIconWrap}>
-        <Ionicons name="people-outline" size={40} color={PRIMARY} />
+        <Icon name="people-outline" size={40} color={PRIMARY} />
       </View>
       <Text style={styles.emptyTitle}>
         {normalizedChatSearch
@@ -1246,7 +1246,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
               onPress={() => setShowMyGroups(!showMyGroups)}
               activeOpacity={0.7}
             >
-              <Ionicons
+              <Icon
                 name={showMyGroups ? "person" : "person-outline"}
                 size={14}
                 color={showMyGroups ? WHITE : ACCENT}
@@ -1272,7 +1272,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
           </View>
         ) : error ? (
           <View style={styles.stateContainer}>
-            <Ionicons name="alert-circle" size={48} color={ERROR} />
+            <Icon name="alert-circle" size={48} color={ERROR} />
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity
               style={styles.retryButton}
@@ -1349,12 +1349,12 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
                 onPress={closeCityExplorer}
                 activeOpacity={0.8}
               >
-                <Ionicons name="close" size={18} color={TEXT_MEDIUM} />
+                <Icon name="close" size={18} color={TEXT_MEDIUM} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.cityExplorerSearchWrap}>
-              <Ionicons name="search" size={18} color={TEXT_LIGHT} />
+              <Icon name="search" size={18} color={TEXT_LIGHT} />
               <TextInput
                 style={styles.cityExplorerSearchInput}
                 value={cityExplorerSearch}
@@ -1369,7 +1369,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
                   onPress={() => setCityExplorerSearch("")}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="close-circle" size={18} color={TEXT_LIGHT} />
+                  <Icon name="close-circle" size={18} color={TEXT_LIGHT} />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -1411,7 +1411,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
 
                             {isMember ? (
                               <View style={styles.cityExplorerJoinedBadge}>
-                                <Ionicons
+                                <Icon
                                   name="checkmark-circle"
                                   size={14}
                                   color={GREEN}
@@ -1431,7 +1431,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
                                   <ActivityIndicator size="small" color={WHITE} />
                                 ) : (
                                   <>
-                                    <Ionicons name="add" size={14} color={WHITE} />
+                                    <Icon name="add" size={14} color={WHITE} />
                                     <Text style={styles.cityExplorerJoinBadgeText}>
                                       Unirse
                                     </Text>
@@ -1446,7 +1446,7 @@ export default function GroupsScreen({ onSectionChange, userProfile }) {
                   ))
                 ) : (
                   <View style={styles.cityExplorerState}>
-                    <Ionicons name="search-outline" size={28} color={TEXT_LIGHT} />
+                    <Icon name="search-outline" size={28} color={TEXT_LIGHT} />
                     <Text style={styles.cityExplorerStateText}>
                       No hemos encontrado grupos para esa búsqueda.
                     </Text>

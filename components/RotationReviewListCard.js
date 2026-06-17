@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from "./Icon";
 import { COLORS } from '../constants/colors';
 import { formatShortDate } from '../utils/dateUtils';
 
@@ -15,7 +15,7 @@ export const RotationReviewListCard = ({ review, onPress }) => {
       activeOpacity={0.7}
     >
       <View style={styles.header}>
-        <Ionicons name="business" size={20} color={COLORS.PRIMARY} />
+        <Icon name="business" size={20} color={COLORS.PRIMARY} />
         <Text style={styles.hospitalName}>
           {review.external_hospital_name}
         </Text>

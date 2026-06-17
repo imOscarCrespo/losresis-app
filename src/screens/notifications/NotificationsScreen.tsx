@@ -7,7 +7,7 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../../../components/Icon";
 import { HeroScreenLayout } from "../../../components/HeroScreenLayout";
 import { COLORS } from "../../../constants/colors";
 import {
@@ -222,6 +222,12 @@ export default function NotificationsScreen({
         return;
       }
 
+      // Chapó del feed: el feed vive en el inicio.
+      if (data.destination_section === "inicio") {
+        onNavigateToEntity("inicio", {});
+        return;
+      }
+
       if (entityType && entityId) {
         if (entityType === "review") {
           onNavigateToEntity("reviewDetail", {
@@ -270,7 +276,7 @@ export default function NotificationsScreen({
   const renderEmpty = useCallback(
     () => (
       <View style={styles.emptyContainer}>
-        <Ionicons
+        <Icon
           name="notifications-off-outline"
           size={64}
           color="#94A3B8"

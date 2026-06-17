@@ -5,7 +5,7 @@ import {
   Text,
   TouchableOpacity,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 
 const PRIMARY = "#670CF5";
 const WHITE = "#FFFFFF";
@@ -38,7 +38,7 @@ export function DirectChatButton({
       {loading ? (
         <ActivityIndicator size="small" color={WHITE} />
       ) : (
-        <Ionicons
+        <Icon
           name="chatbubbles-outline"
           size={compact ? 14 : 18}
           color={WHITE}

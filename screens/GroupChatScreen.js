@@ -19,7 +19,7 @@ import {
   Platform,
   Modal,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getGroupMessages,
@@ -224,7 +224,7 @@ const MessageBubble = React.memo(function MessageBubble({
               {formatTime(message.created_at)}
             </Text>
             {isOwn ? (
-              <Ionicons
+              <Icon
                 name="checkmark-done"
                 size={12}
                 color={WHITE + "B8"}
@@ -266,7 +266,7 @@ const ChatComposer = React.memo(function ChatComposer({
       ]}
     >
       <View style={styles.inputShell}>
-        <Ionicons
+        <Icon
           name="chatbox-ellipses-outline"
           size={18}
           color={TEXT_LIGHT}
@@ -300,7 +300,7 @@ const ChatComposer = React.memo(function ChatComposer({
         {sending ? (
           <ActivityIndicator size="small" color={WHITE} />
         ) : (
-          <Ionicons name="send" size={18} color={WHITE} />
+          <Icon name="send" size={18} color={WHITE} />
         )}
       </TouchableOpacity>
     </View>
@@ -718,7 +718,7 @@ export default function GroupChatScreen({
             onPress={onBack}
             activeOpacity={0.7}
           >
-            <Ionicons name="arrow-back" size={22} color={ACCENT} />
+            <Icon name="arrow-back" size={22} color={ACCENT} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -727,7 +727,7 @@ export default function GroupChatScreen({
             activeOpacity={0.75}
           >
             <View style={styles.headerAvatar}>
-              <Ionicons
+              <Icon
                 name={isDirectChat ? "person" : "people"}
                 size={18}
                 color={WHITE}
@@ -764,7 +764,7 @@ export default function GroupChatScreen({
               {muteLoading ? (
                 <ActivityIndicator size="small" color={PRIMARY} />
               ) : (
-                <Ionicons
+                <Icon
                   name={
                     isMuted
                       ? "notifications-off-outline"
@@ -782,7 +782,7 @@ export default function GroupChatScreen({
                 onPress={handleLeaveGroup}
                 activeOpacity={0.7}
               >
-                <Ionicons name="exit-outline" size={18} color={ERROR} />
+                <Icon name="exit-outline" size={18} color={ERROR} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -804,7 +804,7 @@ export default function GroupChatScreen({
               </View>
             ) : error ? (
               <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={48} color={ERROR} />
+                <Icon name="alert-circle" size={48} color={ERROR} />
                 <Text style={styles.errorText}>{error}</Text>
                 <TouchableOpacity
                   style={styles.retryButton}
@@ -875,7 +875,7 @@ export default function GroupChatScreen({
                 ListEmptyComponent={
                   <View style={styles.emptyChat}>
                     <View style={styles.emptyChatIconWrap}>
-                      <Ionicons
+                      <Icon
                         name="chatbubbles-outline"
                         size={34}
                         color={PRIMARY}
@@ -960,7 +960,7 @@ export default function GroupChatScreen({
                 onPress={() => setMembersVisible(false)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="close" size={20} color={ACCENT} />
+                <Icon name="close" size={20} color={ACCENT} />
               </TouchableOpacity>
             </View>
 
@@ -991,7 +991,7 @@ export default function GroupChatScreen({
                     {groupInfoItems.map((item) => (
                       <View key={item.key} style={styles.groupInfoRow}>
                         <View style={styles.groupInfoLabelWrap}>
-                          <Ionicons name={item.icon} size={16} color={PRIMARY} />
+                          <Icon name={item.icon} size={16} color={PRIMARY} />
                           <Text style={styles.groupInfoLabel}>{item.label}</Text>
                         </View>
                         <Text style={styles.groupInfoValue}>{item.value}</Text>

@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Country, City } from "country-state-city";
 import { COLORS } from "../constants/colors";
@@ -280,7 +280,7 @@ const MiniDestinationCard = ({ review, onPress }) => (
     </View>
     <View style={styles.miniDestinationRating}>
       <View style={styles.miniRatingRow}>
-        <Ionicons name="star" size={14} color="#F4B740" />
+        <Icon name="star" size={14} color="#F4B740" />
         <Text style={styles.miniDestinationRatingValue}>
           {averageRatingLabel(review)}
         </Text>
@@ -321,12 +321,12 @@ const MatchCard = ({
     <View style={styles.matchBody}>
       {item.dateLabel ? (
         <View style={styles.matchInfoRow}>
-          <Ionicons name="calendar-outline" size={14} color={PRIMARY} />
+          <Icon name="calendar-outline" size={14} color={PRIMARY} />
           <Text style={styles.matchInfoText}>{item.dateLabel}</Text>
         </View>
       ) : null}
       <View style={styles.matchInfoRow}>
-        <Ionicons name="location-outline" size={14} color={PRIMARY} />
+        <Icon name="location-outline" size={14} color={PRIMARY} />
         <Text style={styles.matchInfoText}>{item.location}</Text>
       </View>
     </View>
@@ -347,7 +347,7 @@ const FilterChip = ({ label, active, icon, onPress, disabled = false }) => (
     activeOpacity={disabled ? 1 : 0.75}
     disabled={disabled}
   >
-    <Ionicons
+    <Icon
       name={icon}
       size={14}
       color={disabled ? TEXT_MUTED : active ? PRIMARY : TEXT}
@@ -362,7 +362,7 @@ const FilterChip = ({ label, active, icon, onPress, disabled = false }) => (
     >
       {label}
     </Text>
-    <Ionicons
+    <Icon
       name="chevron-down"
       size={14}
       color={disabled ? TEXT_MUTED : active ? PRIMARY : TEXT_MUTED}
@@ -383,7 +383,7 @@ const ReviewListCard = ({ review, onPress }) => (
         </Text>
       </View>
       <View style={styles.reviewRatingInline}>
-        <Ionicons name="star" size={14} color="#F4B740" />
+        <Icon name="star" size={14} color="#F4B740" />
         <Text style={styles.reviewRatingInlineText}>
           {averageRatingLabel(review)}
         </Text>
@@ -408,7 +408,7 @@ const ContactOptionCard = ({ icon, color, backgroundColor, title, subtitle, onPr
     activeOpacity={0.85}
   >
     <View style={[styles.contactOptionIconWrap, { backgroundColor }]}>
-      <Ionicons name={icon} size={22} color={color} />
+      <Icon name={icon} size={22} color={color} />
     </View>
     <View style={styles.contactOptionCopy}>
       <Text style={[styles.contactOptionTitle, primary && styles.contactOptionTitlePrimary]}>
@@ -418,7 +418,7 @@ const ContactOptionCard = ({ icon, color, backgroundColor, title, subtitle, onPr
         {subtitle}
       </Text>
     </View>
-    <Ionicons
+    <Icon
       name={primary ? "arrow-forward" : "chevron-forward"}
       size={18}
       color={primary ? "#FFFFFF" : TEXT_MUTED}
@@ -429,7 +429,7 @@ const ContactOptionCard = ({ icon, color, backgroundColor, title, subtitle, onPr
 const EmptyState = ({ icon, title, description, actionLabel, onAction }) => (
   <View style={styles.emptyState}>
     <View style={styles.emptyStateIcon}>
-      <Ionicons name={icon} size={28} color={PRIMARY} />
+      <Icon name={icon} size={28} color={PRIMARY} />
     </View>
     <Text style={styles.emptyStateTitle}>{title}</Text>
     <Text style={styles.emptyStateDescription}>{description}</Text>
@@ -1433,7 +1433,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
                 onPress={() => setReviewToDelete(primaryUserReview)}
                 activeOpacity={0.85}
               >
-                <Ionicons name="trash-outline" size={16} color={COLORS.ERROR} />
+                <Icon name="trash-outline" size={16} color={COLORS.ERROR} />
                 <Text style={styles.hubDangerButtonText}>Eliminar</Text>
               </TouchableOpacity>
             </View>
@@ -1646,7 +1646,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
               onPress={() => setRotationToDelete(primaryUserRotation)}
               activeOpacity={0.85}
             >
-              <Ionicons name="trash-outline" size={16} color={COLORS.ERROR} />
+              <Icon name="trash-outline" size={16} color={COLORS.ERROR} />
               <Text style={styles.hubDangerButtonText}>Eliminar</Text>
             </TouchableOpacity>
           </View>
@@ -1842,7 +1842,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
               >
                 {formatDateForDisplay(publishForm.startDate)}
               </Text>
-              <Ionicons name="calendar-outline" size={20} color={TEXT_MUTED} />
+              <Icon name="calendar-outline" size={20} color={TEXT_MUTED} />
             </TouchableOpacity>
           </View>
 
@@ -1866,7 +1866,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
               >
                 {formatDateForDisplay(publishForm.endDate)}
               </Text>
-              <Ionicons
+              <Icon
                 name="calendar-outline"
                 size={20}
                 color={TEXT_MUTED}
@@ -1935,7 +1935,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
                         }))
                       }
                     >
-                      <Ionicons
+                      <Icon
                         name="star"
                         size={18}
                         color={
@@ -2108,7 +2108,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
             >
               {formatDateForDisplay(rotationForm.startDate)}
             </Text>
-            <Ionicons name="calendar-outline" size={20} color={TEXT_MUTED} />
+            <Icon name="calendar-outline" size={20} color={TEXT_MUTED} />
           </TouchableOpacity>
         </View>
 
@@ -2132,7 +2132,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
             >
               {formatDateForDisplay(rotationForm.endDate)}
             </Text>
-            <Ionicons name="calendar-outline" size={20} color={TEXT_MUTED} />
+            <Icon name="calendar-outline" size={20} color={TEXT_MUTED} />
           </TouchableOpacity>
         </View>
       </View>
@@ -2197,7 +2197,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       >
         <View style={styles.contactHero}>
           <View style={styles.contactAvatar}>
-            <Ionicons name="person" size={42} color={PRIMARY} />
+            <Icon name="person" size={42} color={PRIMARY} />
           </View>
           <Text style={styles.contactResidentName}>{resident.residentName}</Text>
           {residentMeta ? (
@@ -2229,7 +2229,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   if (!isResident) {
     return (
       <View style={styles.centeredState}>
-        <Ionicons name="alert-circle-outline" size={40} color={COLORS.ORANGE} />
+        <Icon name="alert-circle-outline" size={40} color={COLORS.ORANGE} />
         <Text style={styles.centeredStateTitle}>
           Funcionalidad solo para residentes
         </Text>

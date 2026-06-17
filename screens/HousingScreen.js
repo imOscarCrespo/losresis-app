@@ -16,7 +16,7 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHousingAds } from "../hooks/useHousingAds";
 import { useHospitals } from "../hooks/useHospitals";
@@ -152,7 +152,7 @@ function FilterModal({ visible, onClose, title, options, value, onSelect, placeh
         {/* Header */}
         <View style={[modal.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity style={modal.backBtn} onPress={handleClose}>
-            <Ionicons name="arrow-back" size={24} color={ACCENT} />
+            <Icon name="arrow-back" size={24} color={ACCENT} />
           </TouchableOpacity>
           <Text style={modal.title}>{title}</Text>
           <View style={modal.backBtn} />
@@ -161,7 +161,7 @@ function FilterModal({ visible, onClose, title, options, value, onSelect, placeh
         {/* Search */}
         <View style={modal.searchWrap}>
           <View style={modal.searchInner}>
-            <Ionicons name="search" size={20} color="#94A3B8" />
+            <Icon name="search" size={20} color="#94A3B8" />
             <TextInput
               style={modal.searchInput}
               value={search}
@@ -172,7 +172,7 @@ function FilterModal({ visible, onClose, title, options, value, onSelect, placeh
             />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch("")}>
-                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                <Icon name="close-circle" size={18} color="#94A3B8" />
               </TouchableOpacity>
             )}
           </View>
@@ -276,7 +276,7 @@ const HousingAdCard = memo(({ ad, currentUserId, onPress, onDelete, onEdit }) =>
             <Image source={{ uri: imageUrl }} style={styles.cardImage} resizeMode="cover" />
           ) : (
             <View style={styles.cardImagePlaceholder}>
-              <Ionicons name="home-outline" size={36} color="#CBD5E1" />
+              <Icon name="home-outline" size={36} color="#CBD5E1" />
             </View>
           )}
 
@@ -292,7 +292,7 @@ const HousingAdCard = memo(({ ad, currentUserId, onPress, onDelete, onEdit }) =>
 
           {!ad.is_active && (
             <View style={styles.inactiveBadge}>
-              <Ionicons name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
+              <Icon name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
               <Text style={styles.inactiveBadgeText}>Inactivo</Text>
             </View>
           )}
@@ -312,7 +312,7 @@ const HousingAdCard = memo(({ ad, currentUserId, onPress, onDelete, onEdit }) =>
             )}
             {!ad.is_active && (
               <View style={styles.inactiveBadgeInline}>
-                <Ionicons name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
+                <Icon name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
                 <Text style={styles.inactiveBadgeText}>Inactivo</Text>
               </View>
             )}
@@ -327,7 +327,7 @@ const HousingAdCard = memo(({ ad, currentUserId, onPress, onDelete, onEdit }) =>
 
         {locationText ? (
           <View style={styles.locationRow}>
-            <Ionicons name="location-outline" size={13} color={TEXT_MEDIUM} />
+            <Icon name="location-outline" size={13} color={TEXT_MEDIUM} />
             <Text style={styles.locationText} numberOfLines={1}>{locationText}</Text>
           </View>
         ) : null}
@@ -336,7 +336,7 @@ const HousingAdCard = memo(({ ad, currentUserId, onPress, onDelete, onEdit }) =>
 
         {(ad.available_from || ad.available_to) ? (
           <View style={styles.datesRow}>
-            <Ionicons name="calendar-outline" size={12} color={TEXT_LIGHT} />
+            <Icon name="calendar-outline" size={12} color={TEXT_LIGHT} />
             <Text style={styles.datesText}>
               {ad.available_from && `Desde ${formatDateOnly(ad.available_from)}`}
               {ad.available_from && ad.available_to && "  —  "}
@@ -360,7 +360,7 @@ const HousingAdCard = memo(({ ad, currentUserId, onPress, onDelete, onEdit }) =>
           ) : isMyAd ? (
             <View style={styles.authorRow}>
               <View style={[styles.avatar, { backgroundColor: PRIMARY + "18" }]}>
-                <Ionicons name="person" size={13} color={PRIMARY} />
+                <Icon name="person" size={13} color={PRIMARY} />
               </View>
               <Text style={[styles.authorName, { color: PRIMARY }]}>Mi anuncio</Text>
             </View>
@@ -372,12 +372,12 @@ const HousingAdCard = memo(({ ad, currentUserId, onPress, onDelete, onEdit }) =>
             <View style={styles.ownAdActions}>
               {onEdit && (
                 <TouchableOpacity style={styles.iconBtn} onPress={handleEdit} activeOpacity={0.7}>
-                  <Ionicons name="pencil-outline" size={17} color={PRIMARY} />
+                  <Icon name="pencil-outline" size={17} color={PRIMARY} />
                 </TouchableOpacity>
               )}
               {onDelete && (
                 <TouchableOpacity style={styles.iconBtn} onPress={handleDelete} activeOpacity={0.7}>
-                  <Ionicons name="trash-outline" size={17} color={ERROR} />
+                  <Icon name="trash-outline" size={17} color={ERROR} />
                 </TouchableOpacity>
               )}
             </View>
@@ -515,14 +515,14 @@ export default function HousingScreen({ onSectionChange, onBack }) {
           style={[styles.chip, city && styles.chipActive]}
           onPress={() => setOpenModal("city")}
         >
-          <Ionicons name="business" size={16} color={city ? PRIMARY : ACCENT} />
+          <Icon name="business" size={16} color={city ? PRIMARY : ACCENT} />
           <Text
             style={[styles.chipText, city && styles.chipTextActive]}
             numberOfLines={1}
           >
             {city || "Ciudad"}
           </Text>
-          <Ionicons name="chevron-down" size={16} color={city ? PRIMARY : ACCENT} />
+          <Icon name="chevron-down" size={16} color={city ? PRIMARY : ACCENT} />
         </TouchableOpacity>
 
         {/* Hospital */}
@@ -530,7 +530,7 @@ export default function HousingScreen({ onSectionChange, onBack }) {
           style={[styles.chip, hospitalId && styles.chipActive]}
           onPress={() => setOpenModal("hospital")}
         >
-          <Ionicons
+          <Icon
             name="business-outline"
             size={16}
             color={hospitalId ? PRIMARY : ACCENT}
@@ -541,7 +541,7 @@ export default function HousingScreen({ onSectionChange, onBack }) {
           >
             {hospitalLabel}
           </Text>
-          <Ionicons
+          <Icon
             name="chevron-down"
             size={16}
             color={hospitalId ? PRIMARY : ACCENT}
@@ -553,14 +553,14 @@ export default function HousingScreen({ onSectionChange, onBack }) {
           style={[styles.chip, maxPrice && styles.chipActive]}
           onPress={() => setOpenModal("price")}
         >
-          <Ionicons name="cash" size={16} color={maxPrice ? PRIMARY : ACCENT} />
+          <Icon name="cash" size={16} color={maxPrice ? PRIMARY : ACCENT} />
           <Text
             style={[styles.chipText, maxPrice && styles.chipTextActive]}
             numberOfLines={1}
           >
             {priceLabel}
           </Text>
-          <Ionicons name="chevron-down" size={16} color={maxPrice ? PRIMARY : ACCENT} />
+          <Icon name="chevron-down" size={16} color={maxPrice ? PRIMARY : ACCENT} />
         </TouchableOpacity>
 
       </ScrollView>
@@ -612,7 +612,7 @@ export default function HousingScreen({ onSectionChange, onBack }) {
   const ListEmpty = (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIconWrap}>
-        <Ionicons name="home-outline" size={40} color={PRIMARY} />
+        <Icon name="home-outline" size={40} color={PRIMARY} />
       </View>
       <Text style={styles.emptyTitle}>Sin anuncios disponibles</Text>
       <Text style={styles.emptySubtitle}>
@@ -641,7 +641,7 @@ export default function HousingScreen({ onSectionChange, onBack }) {
         onPress={() => setShowMyAds(!showMyAds)}
         activeOpacity={0.7}
       >
-        <Ionicons
+        <Icon
           name={showMyAds ? "person" : "person-outline"}
           size={14}
           color={showMyAds ? PRIMARY : WHITE}
@@ -668,7 +668,7 @@ export default function HousingScreen({ onSectionChange, onBack }) {
     return (
       <HeroScreenLayout {...heroProps}>
         <View style={styles.stateContainer}>
-          <Ionicons name="alert-circle" size={48} color={ERROR} />
+          <Icon name="alert-circle" size={48} color={ERROR} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={refreshHousingAds}>
             <Text style={styles.retryButtonText}>Reintentar</Text>

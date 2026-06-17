@@ -5,10 +5,11 @@ import {
   FlatList,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import FilterRadioModal from "../components/FilterRadioModal";
 import { getCommunityUsers } from "../services/communityService";
@@ -24,7 +25,7 @@ import {
   acceptConnectionRequest,
   cancelConnectionRequest,
 } from "../services/connectionsService";
-import { getResidentState, RESIDENT_STATE } from "../utils/residentAccess";
+import { hasResidentFeatureAccess } from "../utils/residentAccess";
 import posthogLogger from "../services/posthogService";
 
 const PAGE_SIZE = 25;
@@ -74,7 +75,7 @@ function ResidentCard({ user, canInteract, status, isBusy, onAction }) {
   return (
     <View style={styles.userCard}>
       <View style={styles.userAvatar}>
-        <Ionicons name="person-outline" size={22} color={PRIMARY} />
+        <Icon name="person-outline" size={22} color={PRIMARY} />
       </View>
 
       <View style={styles.userCardBody}>
@@ -84,7 +85,7 @@ function ResidentCard({ user, canInteract, status, isBusy, onAction }) {
 
         {user.specialty_name ? (
           <View style={styles.userMetaRow}>
-            <Ionicons name="medkit-outline" size={14} color={PRIMARY} />
+            <Icon name="medkit-outline" size={14} color={PRIMARY} />
             <Text style={styles.userMetaText} numberOfLines={1}>
               {user.specialty_name}
             </Text>
@@ -93,7 +94,7 @@ function ResidentCard({ user, canInteract, status, isBusy, onAction }) {
 
         {user.hospital_name ? (
           <View style={styles.userMetaRow}>
-            <Ionicons name="business-outline" size={14} color={MUTED_LIGHT} />
+            <Icon name="business-outline" size={14} color={MUTED_LIGHT} />
             <Text style={styles.userMetaText} numberOfLines={1}>
               {user.hospital_name}
             </Text>
@@ -115,7 +116,7 @@ function ResidentCard({ user, canInteract, status, isBusy, onAction }) {
           <ActivityIndicator size="small" color={action.fg} />
         ) : (
           <>
-            <Ionicons
+            <Icon
               name={action.icon}
               size={16}
               color={canInteract ? action.fg : MUTED}
@@ -150,15 +151,18 @@ export default function ResidentsDirectoryScreen({
   const [error, setError] = useState(null);
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [selectedHospital, setSelectedHospital] = useState("");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [openModal, setOpenModal] = useState(null);
   const [busyUserId, setBusyUserId] = useState(null);
   const [connectionMap, setConnectionMap] = useState({});
 
-  const residentState = useMemo(
-    () => getResidentState(currentUserProfile),
+  // Acceso social (CONTEXT.md "Residente con acceso social", ADR-0005): residentes
+  // activos y R1 en gracia MIR (pending_corporate_email_seasonal). Excluye locked.
+  const canInteract = useMemo(
+    () => hasResidentFeatureAccess(currentUserProfile),
     [currentUserProfile]
   );
-  const canInteract = residentState === RESIDENT_STATE.ACTIVE;
 
   const specialtyOptions = useMemo(
     () =>
@@ -188,6 +192,12 @@ export default function ResidentsDirectoryScreen({
   useEffect(() => {
     posthogLogger.logScreen("ResidentsDirectoryScreen");
   }, []);
+
+  // Debounce del texto para no consultar a Supabase en cada pulsación.
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(handle);
+  }, [search]);
 
   const mapUser = useCallback(
     (u) => ({
@@ -230,7 +240,7 @@ export default function ResidentsDirectoryScreen({
         selectedSpecialty,
         selectedHospital,
         currentUserId || "",
-        { page: 0, limit: PAGE_SIZE }
+        { page: 0, limit: PAGE_SIZE, searchText: debouncedSearch }
       );
 
       if (cancelled) return;
@@ -253,7 +263,7 @@ export default function ResidentsDirectoryScreen({
     return () => {
       cancelled = true;
     };
-  }, [selectedSpecialty, selectedHospital, currentUserId, mapUser, loadConnectionStatuses]);
+  }, [selectedSpecialty, selectedHospital, debouncedSearch, currentUserId, mapUser, loadConnectionStatuses]);
 
   const handleLoadMore = useCallback(async () => {
     if (loading || loadingMore || !hasMore) return;
@@ -269,7 +279,7 @@ export default function ResidentsDirectoryScreen({
       selectedSpecialty,
       selectedHospital,
       currentUserId || "",
-      { page: nextPage, limit: PAGE_SIZE }
+      { page: nextPage, limit: PAGE_SIZE, searchText: debouncedSearch }
     );
 
     if (success) {
@@ -291,6 +301,7 @@ export default function ResidentsDirectoryScreen({
     page,
     selectedSpecialty,
     selectedHospital,
+    debouncedSearch,
     currentUserId,
     mapUser,
     loadConnectionStatuses,
@@ -417,19 +428,37 @@ export default function ResidentsDirectoryScreen({
     >
       {!canInteract ? (
         <View style={styles.banner}>
-          <Ionicons name="warning-outline" size={18} color={WARNING_TEXT} />
+          <Icon name="warning-outline" size={18} color={WARNING_TEXT} />
           <Text style={styles.bannerText}>
             Verifica tu email corporativo para conectar con otros residentes.
           </Text>
         </View>
       ) : null}
 
+      <View style={styles.searchWrap}>
+        <Icon name="search" size={18} color={MUTED_LIGHT} />
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Buscar por nombre..."
+          placeholderTextColor={MUTED_LIGHT}
+          returnKeyType="search"
+          autoCorrect={false}
+        />
+        {search.length > 0 ? (
+          <TouchableOpacity onPress={() => setSearch("")}>
+            <Icon name="close-circle" size={18} color={MUTED_LIGHT} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
       <View style={styles.filtersRow}>
         <TouchableOpacity
           style={[styles.chip, selectedSpecialty && styles.chipActive]}
           onPress={() => setOpenModal("specialty")}
         >
-          <Ionicons
+          <Icon
             name="medkit-outline"
             size={16}
             color={selectedSpecialty ? PRIMARY : ACCENT}
@@ -443,7 +472,7 @@ export default function ResidentsDirectoryScreen({
           >
             {selectedSpecialtyName || "Especialidad"}
           </Text>
-          <Ionicons
+          <Icon
             name="chevron-down"
             size={16}
             color={selectedSpecialty ? PRIMARY : ACCENT}
@@ -454,7 +483,7 @@ export default function ResidentsDirectoryScreen({
           style={[styles.chip, selectedHospital && styles.chipActive]}
           onPress={() => setOpenModal("hospital")}
         >
-          <Ionicons
+          <Icon
             name="business-outline"
             size={16}
             color={selectedHospital ? PRIMARY : ACCENT}
@@ -468,7 +497,7 @@ export default function ResidentsDirectoryScreen({
           >
             {selectedHospitalName || "Hospital"}
           </Text>
-          <Ionicons
+          <Icon
             name="chevron-down"
             size={16}
             color={selectedHospital ? PRIMARY : ACCENT}
@@ -477,7 +506,7 @@ export default function ResidentsDirectoryScreen({
 
         {hasActiveFilters ? (
           <TouchableOpacity style={styles.chipClear} onPress={clearFilters}>
-            <Ionicons name="close-circle" size={16} color={DANGER} />
+            <Icon name="close-circle" size={16} color={DANGER} />
             <Text style={styles.chipClearText}>Limpiar</Text>
           </TouchableOpacity>
         ) : null}
@@ -485,7 +514,7 @@ export default function ResidentsDirectoryScreen({
 
       {error ? (
         <View style={styles.errorCard}>
-          <Ionicons name="alert-circle" size={20} color={DANGER} />
+          <Icon name="alert-circle" size={20} color={DANGER} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : null}
@@ -525,13 +554,17 @@ export default function ResidentsDirectoryScreen({
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <View style={styles.emptyIconWrap}>
-                  <Ionicons name="people-outline" size={32} color={PRIMARY} />
+                  <Icon name="people-outline" size={32} color={PRIMARY} />
                 </View>
                 <Text style={styles.emptyTitle}>
-                  No hay residentes con estos filtros
+                  {debouncedSearch
+                    ? "Sin resultados para tu búsqueda"
+                    : "No hay residentes con estos filtros"}
                 </Text>
                 <Text style={styles.emptyText}>
-                  Prueba a quitar el filtro de hospital o de especialidad.
+                  {debouncedSearch
+                    ? "Prueba con otro nombre o quita los filtros."
+                    : "Prueba a quitar el filtro de hospital o de especialidad."}
                 </Text>
               </View>
             }
@@ -562,6 +595,25 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: WARNING_TEXT,
     fontWeight: "500",
+  },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    minHeight: 48,
+    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: ACCENT,
+    paddingVertical: 12,
   },
   filtersRow: {
     flexDirection: "row",

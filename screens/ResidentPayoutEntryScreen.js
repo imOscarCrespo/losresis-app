@@ -12,7 +12,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { Button } from "../components";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLORS } from "../constants/colors";
@@ -260,7 +260,7 @@ export default function ResidentPayoutEntryScreen({
             <View style={styles.container}>
               {lockInitialPeriod && initialYear && initialMonth ? (
                 <View style={styles.lockBanner}>
-                  <Ionicons name="time-outline" size={18} color="#670CF5" />
+                  <Icon name="time-outline" size={18} color="#670CF5" />
                   <Text style={styles.lockBannerText}>
                     Registro sugerido para {formatPayoutPeriodLabel(formState.periodYear, formState.periodMonth)}.
                   </Text>
@@ -285,7 +285,7 @@ export default function ResidentPayoutEntryScreen({
                         : "Puedes cambiarlo si necesitas cargar otro mes"}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-down" size={18} color="#64748B" />
+                  <Icon name="chevron-down" size={18} color="#64748B" />
                 </TouchableOpacity>
 
                 <Text style={styles.fieldLabel}>Total nómina</Text>
@@ -354,7 +354,7 @@ export default function ResidentPayoutEntryScreen({
                               onPress={() => updateCounterField(item.key, -1)}
                               activeOpacity={0.82}
                             >
-                              <Ionicons name="remove" size={18} color="#1E293B" />
+                              <Icon name="remove" size={18} color="#1E293B" />
                             </TouchableOpacity>
                             <Text style={styles.counterValue}>{formState[item.key]}</Text>
                             <TouchableOpacity
@@ -362,7 +362,7 @@ export default function ResidentPayoutEntryScreen({
                               onPress={() => updateCounterField(item.key, 1)}
                               activeOpacity={0.82}
                             >
-                              <Ionicons name="add" size={18} color="#1E293B" />
+                              <Icon name="add" size={18} color="#1E293B" />
                             </TouchableOpacity>
                           </View>
                         </View>

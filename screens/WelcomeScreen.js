@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { FaceIdLogo } from "../components/FaceIdLogo";
@@ -799,7 +799,7 @@ export default function WelcomeScreen({ onAuthSuccess }) {
                               } después de iniciar sesión`}
                         </Text>
                       </View>
-                      <Ionicons
+                      <Icon
                         name="chevron-forward"
                         size={20}
                         color={COLORS.PRIMARY}

@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../../../components/Icon";
 import type { NotificationRow } from "../../services/notificationsService";
 
 function formatRelativeTime(createdAt: string): string {
@@ -90,7 +90,7 @@ export function NotificationItem({
                   onPress={onAcceptConnection}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                  <Icon name="checkmark" size={16} color="#FFFFFF" />
                   <Text style={styles.acceptBtnText}>Aceptar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -98,7 +98,7 @@ export function NotificationItem({
                   onPress={onRejectConnection}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="close" size={16} color="#64748B" />
+                  <Icon name="close" size={16} color="#64748B" />
                   <Text style={styles.rejectBtnText}>Rechazar</Text>
                 </TouchableOpacity>
               </>

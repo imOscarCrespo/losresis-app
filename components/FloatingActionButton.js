@@ -1,6 +1,6 @@
 import React from "react";
 import { TouchableOpacity, StyleSheet, Platform, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 
 /**
@@ -8,7 +8,7 @@ import { COLORS } from "../constants/colors";
  * Se posiciona en la esquina inferior derecha de la pantalla
  *
  * @param {Function} onPress - Callback cuando se presiona el botón
- * @param {string} icon - Nombre del icono de Ionicons (default: "add")
+ * @param {string} icon - Nombre del icono (ver components/Icon) (default: "add")
  * @param {string} backgroundColor - Color de fondo del botón (default: COLORS.PRIMARY)
  * @param {string} iconColor - Color del icono (default: COLORS.WHITE)
  * @param {number} size - Tamaño del botón (default: 56)
@@ -44,7 +44,7 @@ export const FloatingActionButton = ({
       hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
     >
       <View style={styles.iconContainer}>
-        <Ionicons name={icon} size={size * 0.5} color={iconColor} />
+        <Icon name={icon} size={size * 0.5} color={iconColor} />
       </View>
     </TouchableOpacity>
   );

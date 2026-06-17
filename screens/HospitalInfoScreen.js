@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
   getHospitalOpenDayRegistrationStatus,
@@ -273,7 +273,7 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
         <View style={styles.openDayGlowSmall} />
         <View style={styles.openDayContent}>
           <View style={styles.openDayBadge}>
-            <Ionicons name="calendar-outline" size={14} color={WHITE} />
+            <Icon name="calendar-outline" size={14} color={WHITE} />
             <Text style={styles.openDayBadgeText}>Próximo evento</Text>
           </View>
 
@@ -345,7 +345,7 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
           <View style={styles.planDetailHeroGlow} />
           <View style={styles.planDetailHeroContent}>
             <View style={styles.planDetailIconWrap}>
-              <Ionicons name="medkit-outline" size={24} color={PRIMARY} />
+              <Icon name="medkit-outline" size={24} color={PRIMARY} />
             </View>
             <View style={styles.planDetailHeader}>
               <Text style={styles.planDetailTitle}>{selectedPlan.speciality_name}</Text>
@@ -375,7 +375,7 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
             <>
               <View style={styles.pdfCardHeader}>
                 <View style={styles.pdfIconWrap}>
-                  <Ionicons name="document-text-outline" size={28} color={ERROR} />
+                  <Icon name="document-text-outline" size={28} color={ERROR} />
                   <Text style={styles.pdfIconLabel}>PDF</Text>
                 </View>
                 <View style={styles.pdfCopy}>
@@ -392,7 +392,7 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
                   activeOpacity={0.85}
                   onPress={() => handleOpenPlanPdf(selectedPlan)}
                 >
-                  <Ionicons name="eye-outline" size={16} color={WHITE} />
+                  <Icon name="eye-outline" size={16} color={WHITE} />
                   <Text style={styles.primaryActionButtonText}>Ver documento</Text>
                 </TouchableOpacity>
 
@@ -405,7 +405,7 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
                   {downloadingPlanId === selectedPlan.speciality_id ? (
                     <ActivityIndicator size="small" color={PRIMARY} />
                   ) : (
-                    <Ionicons name="download-outline" size={16} color={PRIMARY} />
+                    <Icon name="download-outline" size={16} color={PRIMARY} />
                   )}
                   <Text style={styles.secondaryActionButtonText}>
                     {downloadingPlanId === selectedPlan.speciality_id
@@ -427,7 +427,7 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
           activeOpacity={0.82}
           onPress={() => setSelectedPlanId(null)}
         >
-          <Ionicons name="chevron-back" size={16} color={PRIMARY} />
+          <Icon name="chevron-back" size={16} color={PRIMARY} />
           <Text style={styles.planBackButtonText}>Ver otras especialidades</Text>
         </TouchableOpacity>
       </View>
@@ -552,7 +552,7 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
 
                             <View style={styles.planCardFooter}>
                               <Text style={styles.planCardAction}>Ver detalle</Text>
-                              <Ionicons
+                              <Icon
                                 name="chevron-forward"
                                 size={16}
                                 color={PRIMARY}

@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 
 /**
  * Componente para mostrar la sección de revisión manual de email
@@ -32,7 +32,7 @@ export const EmailReviewSection = ({
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.iconContainer}>
-          <Ionicons name="mail" size={24} color="#D97706" />
+          <Icon name="mail" size={24} color="#D97706" />
         </View>
         <View style={styles.headerText}>
           <Text style={styles.title}>No pudimos validar tu email del hospital</Text>

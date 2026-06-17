@@ -12,7 +12,7 @@ import {
   Linking,
   Alert,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { DirectChatButton } from "../components";
 import { useHousingAds } from "../hooks/useHousingAds";
@@ -67,7 +67,7 @@ const getImageUrl = (imagePath) => {
 const SectionHeader = ({ icon, title }) => (
   <View style={styles.sectionHeader}>
     <View style={styles.sectionIconWrap}>
-      <Ionicons name={icon} size={16} color={PRIMARY} />
+      <Icon name={icon} size={16} color={PRIMARY} />
     </View>
     <Text style={styles.sectionTitle}>{title}</Text>
   </View>
@@ -77,7 +77,7 @@ const SectionHeader = ({ icon, title }) => (
 const InfoRow = ({ icon, iconColor = PRIMARY, label, value }) => (
   <View style={styles.infoRow}>
     <View style={[styles.infoIconCircle, { backgroundColor: iconColor + "15" }]}>
-      <Ionicons name={icon} size={15} color={iconColor} />
+      <Icon name={icon} size={15} color={iconColor} />
     </View>
     <View style={styles.infoTextGroup}>
       {label ? <Text style={styles.infoLabel}>{label}</Text> : null}
@@ -245,14 +245,14 @@ export default function HousingAdDetailScreen({
           onPress={handleEdit}
           activeOpacity={0.7}
         >
-          <Ionicons name="pencil-outline" size={18} color={WHITE} />
+          <Icon name="pencil-outline" size={18} color={WHITE} />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.headerIconBtn, styles.headerDangerBtn]}
           onPress={handleDelete}
           activeOpacity={0.7}
         >
-          <Ionicons name="trash-outline" size={18} color={WHITE} />
+          <Icon name="trash-outline" size={18} color={WHITE} />
         </TouchableOpacity>
       </View>
     ) : null,
@@ -276,7 +276,7 @@ export default function HousingAdDetailScreen({
       <HeroScreenLayout {...heroProps}>
         <View style={styles.stateContainer}>
           <View style={styles.errorIconWrap}>
-            <Ionicons name="alert-circle-outline" size={36} color={ERROR} />
+            <Icon name="alert-circle-outline" size={36} color={ERROR} />
           </View>
           <Text style={styles.errorTitle}>{error || "Anuncio no encontrado"}</Text>
           <Text style={styles.errorSubtitle}>
@@ -328,7 +328,7 @@ export default function HousingAdDetailScreen({
               </View>
               {!ad.is_active && (
                 <View style={styles.inactiveBadge}>
-                  <Ionicons name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
+                  <Icon name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
                   <Text style={styles.inactiveBadgeText}>Inactivo</Text>
                 </View>
               )}
@@ -349,7 +349,7 @@ export default function HousingAdDetailScreen({
             </View>
             {!ad.is_active && (
               <View style={styles.inactiveBadge}>
-                <Ionicons name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
+                <Icon name="eye-off-outline" size={11} color={TEXT_MEDIUM} />
                 <Text style={styles.inactiveBadgeText}>Inactivo</Text>
               </View>
             )}
@@ -361,7 +361,7 @@ export default function HousingAdDetailScreen({
           <Text style={styles.adTitle}>{ad.title}</Text>
           {ad.price_eur ? (
             <View style={styles.priceRow}>
-              <Ionicons name="cash-outline" size={18} color={SECONDARY} />
+              <Icon name="cash-outline" size={18} color={SECONDARY} />
               <Text style={styles.priceText}>{formatPrice(ad.price_eur)}/mes</Text>
             </View>
           ) : null}
@@ -478,7 +478,7 @@ export default function HousingAdDetailScreen({
                   onPress={() => handleContact("email", ad.contact_email)}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="mail-outline" size={18} color={WHITE} />
+                  <Icon name="mail-outline" size={18} color={WHITE} />
                   <Text style={styles.contactBtnText}>{ad.contact_email}</Text>
                 </TouchableOpacity>
               ) : null}
@@ -488,7 +488,7 @@ export default function HousingAdDetailScreen({
                   onPress={() => handleContact("phone", ad.contact_phone)}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="call-outline" size={18} color={WHITE} />
+                  <Icon name="call-outline" size={18} color={WHITE} />
                   <Text style={styles.contactBtnText}>{ad.contact_phone}</Text>
                 </TouchableOpacity>
               ) : null}
@@ -547,7 +547,7 @@ export default function HousingAdDetailScreen({
             onPress={() => setSelectedImage(null)}
             activeOpacity={0.7}
           >
-            <Ionicons name="close" size={26} color={WHITE} />
+            <Icon name="close" size={26} color={WHITE} />
           </TouchableOpacity>
           {selectedImage ? (
             <Image

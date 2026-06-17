@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import * as ImagePicker from "expo-image-picker";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { useHospitals } from "../hooks/useHospitals";
@@ -186,7 +186,7 @@ const buildStepDefinitions = () => [
               />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Ionicons
+                <Icon
                   name="camera-outline"
                   size={24}
                   color={ROOMMATE_THEME.PRIMARY}
@@ -204,7 +204,7 @@ const buildStepDefinitions = () => [
               onPress={onPickAvatar}
               activeOpacity={0.85}
             >
-              <Ionicons
+              <Icon
                 name="camera"
                 size={16}
                 color="#FFFFFF"
@@ -246,7 +246,7 @@ const buildStepDefinitions = () => [
             onPress={onOpenHospitalModal}
             activeOpacity={0.8}
           >
-            <Ionicons
+            <Icon
               name="business"
               size={16}
               color={
@@ -264,7 +264,7 @@ const buildStepDefinitions = () => [
             >
               {hospitalLabel}
             </Text>
-            <Ionicons
+            <Icon
               name="chevron-down"
               size={16}
               color={

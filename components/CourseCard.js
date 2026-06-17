@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 import { formatShortDate } from "../utils/dateUtils";
 import { openURL } from "../utils/courseUtils";
@@ -30,7 +30,7 @@ export const CourseCard = memo(({ course, onPress, isMine = false }) => {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.iconContainer}>
-            <Ionicons name="school" size={24} color={COLORS.PRIMARY} />
+            <Icon name="school" size={24} color={COLORS.PRIMARY} />
           </View>
           <View style={styles.headerText}>
             <Text style={styles.title} numberOfLines={2}>
@@ -49,7 +49,7 @@ export const CourseCard = memo(({ course, onPress, isMine = false }) => {
       <View style={styles.details}>
         {/* Dates */}
         <View style={styles.detailRow}>
-          <Ionicons name="calendar" size={16} color={COLORS.GRAY} />
+          <Icon name="calendar" size={16} color={COLORS.GRAY} />
           <Text style={styles.detailText}>
             {formatDateRange()}
             {course.event_dates.length > 1 && (
@@ -64,7 +64,7 @@ export const CourseCard = memo(({ course, onPress, isMine = false }) => {
         {/* Teaching Hours */}
         {course.teaching_hours && (
           <View style={styles.detailRow}>
-            <Ionicons name="time" size={16} color={COLORS.GRAY} />
+            <Icon name="time" size={16} color={COLORS.GRAY} />
             <Text style={styles.detailText}>{course.teaching_hours}</Text>
           </View>
         )}
@@ -72,7 +72,7 @@ export const CourseCard = memo(({ course, onPress, isMine = false }) => {
         {/* Venue */}
         {course.venue_name && (
           <View style={styles.detailRow}>
-            <Ionicons name="location" size={16} color={COLORS.GRAY} />
+            <Icon name="location" size={16} color={COLORS.GRAY} />
             <Text style={styles.detailText} numberOfLines={1}>
               {course.venue_name}
             </Text>
@@ -82,7 +82,7 @@ export const CourseCard = memo(({ course, onPress, isMine = false }) => {
         {/* Hospital */}
         {course.hospital && (
           <View style={styles.detailRow}>
-            <Ionicons name="business" size={16} color={COLORS.GRAY} />
+            <Icon name="business" size={16} color={COLORS.GRAY} />
             <Text style={styles.detailText} numberOfLines={1}>
               {course.hospital.name} - {course.hospital.city}
             </Text>
@@ -92,7 +92,7 @@ export const CourseCard = memo(({ course, onPress, isMine = false }) => {
         {/* Specialty */}
         {course.speciality && (
           <View style={styles.detailRow}>
-            <Ionicons name="school" size={16} color={COLORS.PURPLE} />
+            <Icon name="school" size={16} color={COLORS.PURPLE} />
             <Text style={styles.detailTextSpecialty}>
               {course.speciality.name}
             </Text>
@@ -106,7 +106,7 @@ export const CourseCard = memo(({ course, onPress, isMine = false }) => {
           {/* Price */}
           {course.price_text && (
             <View style={styles.priceContainer}>
-              <Ionicons name="cash" size={16} color={COLORS.SUCCESS} />
+              <Icon name="cash" size={16} color={COLORS.SUCCESS} />
               <Text style={styles.priceText} numberOfLines={1}>
                 {course.price_text}
               </Text>
@@ -116,7 +116,7 @@ export const CourseCard = memo(({ course, onPress, isMine = false }) => {
           {/* Seats */}
           {course.seats_available && (
             <View style={styles.seatsContainer}>
-              <Ionicons name="people" size={16} color={COLORS.PRIMARY} />
+              <Icon name="people" size={16} color={COLORS.PRIMARY} />
               <Text style={styles.seatsText}>
                 {course.seats_available} plazas
               </Text>
@@ -130,7 +130,7 @@ export const CourseCard = memo(({ course, onPress, isMine = false }) => {
             onPress={handleRegister}
             style={styles.registrationButton}
           >
-            <Ionicons name="link" size={16} color={COLORS.PRIMARY} />
+            <Icon name="link" size={16} color={COLORS.PRIMARY} />
             <Text style={styles.registrationButtonText}>Inscribirse</Text>
           </TouchableOpacity>
         )}

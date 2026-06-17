@@ -7,7 +7,7 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from "./Icon";
 import { COLORS } from '../constants/colors';
 
 /**
@@ -115,7 +115,7 @@ export const DatePickerModal = ({ visible, selectedDate, onSelect, onClose }) =>
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity onPress={handlePrevMonth} style={styles.navButton}>
-              <Ionicons name="chevron-back" size={24} color={COLORS.PRIMARY} />
+              <Icon name="chevron-back" size={24} color={COLORS.PRIMARY} />
             </TouchableOpacity>
 
             <Text style={styles.headerText}>
@@ -123,7 +123,7 @@ export const DatePickerModal = ({ visible, selectedDate, onSelect, onClose }) =>
             </Text>
 
             <TouchableOpacity onPress={handleNextMonth} style={styles.navButton}>
-              <Ionicons name="chevron-forward" size={24} color={COLORS.PRIMARY} />
+              <Icon name="chevron-forward" size={24} color={COLORS.PRIMARY} />
             </TouchableOpacity>
           </View>
 

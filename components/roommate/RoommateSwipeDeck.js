@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../Icon";
 import {
   ROOMMATE_THEME,
   getRoommateAvatarUrl,
@@ -73,12 +73,12 @@ const CandidateCard = memo(function CandidateCard({
         <View style={styles.cardBody}>
           <View style={styles.bodyGrid}>
             <View style={styles.infoCard}>
-              <Ionicons name="wallet-outline" size={18} color={ROOMMATE_THEME.PRIMARY} />
+              <Icon name="wallet-outline" size={18} color={ROOMMATE_THEME.PRIMARY} />
               <Text style={styles.infoLabel}>Presupuesto</Text>
               <Text style={styles.infoValue}>{budgetLabel}</Text>
             </View>
             <View style={styles.infoCard}>
-              <Ionicons
+              <Icon
                 name="calendar-outline"
                 size={18}
                 color={ROOMMATE_THEME.SECONDARY}
@@ -102,14 +102,14 @@ const CandidateCard = memo(function CandidateCard({
               onPress={() => onOpenProfile?.(candidate)}
             >
               <Text style={styles.detailButtonText}>Ver perfil completo</Text>
-              <Ionicons
+              <Icon
                 name="arrow-forward-outline"
                 size={16}
                 color={ROOMMATE_THEME.ACCENT}
               />
             </TouchableOpacity>
             <TouchableOpacity style={styles.filterIcon} onPress={onOpenFilters}>
-              <Ionicons name="options-outline" size={18} color={ROOMMATE_THEME.ACCENT} />
+              <Icon name="options-outline" size={18} color={ROOMMATE_THEME.ACCENT} />
             </TouchableOpacity>
           </View>
         </View>
@@ -159,7 +159,7 @@ export function RoommateSwipeDeck({
     return (
       <View style={styles.emptyWrap}>
         <View style={styles.emptyOrb}>
-          <Ionicons name="sparkles" size={28} color={ROOMMATE_THEME.PRIMARY} />
+          <Icon name="sparkles" size={28} color={ROOMMATE_THEME.PRIMARY} />
         </View>
         <Text style={styles.emptyTitle}>No quedan perfiles por revisar</Text>
         <Text style={styles.emptyText}>
@@ -167,7 +167,7 @@ export function RoommateSwipeDeck({
           piso.
         </Text>
         <TouchableOpacity style={styles.secondaryCta} onPress={onOpenFilters}>
-          <Ionicons name="options-outline" size={18} color={ROOMMATE_THEME.PRIMARY} />
+          <Icon name="options-outline" size={18} color={ROOMMATE_THEME.PRIMARY} />
           <Text style={styles.secondaryCtaText}>Abrir filtros</Text>
         </TouchableOpacity>
       </View>
@@ -219,16 +219,16 @@ export function RoommateSwipeDeck({
           style={[styles.actionButton, styles.rejectButton]}
           onPress={() => animateToDecision("pass")}
         >
-          <Ionicons name="close" size={28} color={ROOMMATE_THEME.DANGER} />
+          <Icon name="close" size={28} color={ROOMMATE_THEME.DANGER} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.boostButton} onPress={onOpenFilters}>
-          <Ionicons name="options-outline" size={20} color={ROOMMATE_THEME.ACCENT} />
+          <Icon name="options-outline" size={20} color={ROOMMATE_THEME.ACCENT} />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.likeButton]}
           onPress={() => animateToDecision("like")}
         >
-          <Ionicons name="heart" size={24} color="#FFFFFF" />
+          <Icon name="heart" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </View>

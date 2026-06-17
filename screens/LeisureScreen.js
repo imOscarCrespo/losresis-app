@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
@@ -29,7 +29,7 @@ const LeisureGridItem = ({ item, onPress }) => {
 
         {/* Icono en círculo blanco en la esquina superior derecha */}
         <View style={styles.iconCircle}>
-          <Ionicons name={item.icon} size={24} color={item.color} />
+          <Icon name={item.icon} size={24} color={item.color} />
         </View>
 
         {/* Contenido principal */}
@@ -107,7 +107,7 @@ export default function LeisureScreen({ onSectionChange, onBack, userProfile }) 
       onBack={onBack}
       rightSlot={
         <View style={styles.headerIconCircle}>
-          <Ionicons name="wine-outline" size={20} color="#670CF5" />
+          <Icon name="wine-outline" size={20} color="#670CF5" />
         </View>
       }
       contentStyle={styles.contentSurface}

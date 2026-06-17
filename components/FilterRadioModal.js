@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const PRIMARY = "#670CF5";
@@ -98,7 +98,7 @@ export default function FilterRadioModal({
       >
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity style={styles.backBtn} onPress={handleClose}>
-            <Ionicons name="arrow-back" size={24} color={ACCENT} />
+            <Icon name="arrow-back" size={24} color={ACCENT} />
           </TouchableOpacity>
           <Text style={styles.title}>{title}</Text>
           <View style={styles.backBtn} />
@@ -107,7 +107,7 @@ export default function FilterRadioModal({
         {searchable ? (
           <View style={styles.searchWrap}>
             <View style={styles.searchInner}>
-              <Ionicons name="search" size={20} color={MUTED_LIGHT} />
+              <Icon name="search" size={20} color={MUTED_LIGHT} />
               <TextInput
                 style={styles.searchInput}
                 value={search}
@@ -119,7 +119,7 @@ export default function FilterRadioModal({
               />
               {search.length > 0 ? (
                 <TouchableOpacity onPress={() => setSearch("")}>
-                  <Ionicons name="close-circle" size={18} color={MUTED_LIGHT} />
+                  <Icon name="close-circle" size={18} color={MUTED_LIGHT} />
                 </TouchableOpacity>
               ) : null}
             </View>

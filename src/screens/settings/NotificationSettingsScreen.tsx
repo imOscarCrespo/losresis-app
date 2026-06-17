@@ -8,7 +8,7 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../../../components/Icon";
 import { HeroScreenLayout } from "../../../components/HeroScreenLayout";
 import { COLORS } from "../../../constants/colors";
 import * as Notifications from "expo-notifications";
@@ -285,7 +285,7 @@ export default function NotificationSettingsScreen({
 
             {permissionGranted === false && (
               <View style={styles.warningBox}>
-                <Ionicons
+                <Icon
                   name="alert-circle-outline"
                   size={18}
                   color="#B45309"

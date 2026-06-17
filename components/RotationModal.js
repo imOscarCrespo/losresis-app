@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Country, City } from "country-state-city";
 import { COLORS } from "../constants/colors";
@@ -356,7 +356,7 @@ export const RotationModal = ({
               {existingRotation ? "Editar Rotación" : "Nueva Rotación"}
             </Text>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
+              <Icon name="close" size={24} color={COLORS.GRAY_DARK} />
             </TouchableOpacity>
           </View>
 
@@ -461,7 +461,7 @@ export const RotationModal = ({
                 <Text style={styles.dateButtonText}>
                   {formData.start_date.toLocaleDateString("es-ES")}
                 </Text>
-                <Ionicons
+                <Icon
                   name="calendar-outline"
                   size={20}
                   color={COLORS.GRAY_DARK}
@@ -486,7 +486,7 @@ export const RotationModal = ({
                 style={[styles.checkbox, hasEndDate && styles.checkboxChecked]}
               >
                 {hasEndDate && (
-                  <Ionicons name="checkmark" size={16} color={COLORS.WHITE} />
+                  <Icon name="checkmark" size={16} color={COLORS.WHITE} />
                 )}
               </View>
               <Text style={styles.checkboxLabel}>¿Tiene fecha de fin?</Text>
@@ -505,7 +505,7 @@ export const RotationModal = ({
                       ? formData.end_date.toLocaleDateString("es-ES")
                       : "Seleccionar fecha"}
                   </Text>
-                  <Ionicons
+                  <Icon
                     name="calendar-outline"
                     size={20}
                     color={COLORS.GRAY_DARK}

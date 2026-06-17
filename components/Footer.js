@@ -1,7 +1,7 @@
 import React, { useMemo, memo, useCallback, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { getFooterConfig } from "../constants/footerConfig";
 import { useUnreadChatsCount } from "../src/hooks/useUnreadChatsCount";
 import { COLORS } from "../constants/colors";
@@ -36,7 +36,7 @@ const FooterItem = memo(({ item, isActive, onPress, showBadge = false }) => {
       accessibilityState={{ selected: isActive }}
     >
       <View style={styles.iconWrapper}>
-        <Ionicons
+        <Icon
           name={item.icon}
           size={ICON_SIZE}
           color={isActive ? FOOTER_COLORS.ACTIVE : FOOTER_COLORS.INACTIVE}

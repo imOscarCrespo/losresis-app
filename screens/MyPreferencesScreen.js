@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePreferences } from "../hooks/usePreferences";
 import { useHospitals } from "../hooks/useHospitals";
@@ -68,7 +68,7 @@ const PreferenceCard = ({
       {/* Top row: specialty + position badge */}
       <View style={styles.cardTitleRow}>
         <View style={styles.specialtyRow}>
-          <Ionicons name="school" size={15} color={PRIMARY} />
+          <Icon name="school" size={15} color={PRIMARY} />
           <Text style={styles.cardSpecialty} numberOfLines={1}>
             {preference.specialty.name}
           </Text>
@@ -83,13 +83,13 @@ const PreferenceCard = ({
       {/* Hospital info */}
       <View style={styles.hospitalBlock}>
         <View style={styles.hospitalRow}>
-          <Ionicons name="business" size={14} color={ACCENT} />
+          <Icon name="business" size={14} color={ACCENT} />
           <Text style={styles.hospitalName} numberOfLines={2}>
             {preference.hospital.name}
           </Text>
         </View>
         <View style={styles.locationRow}>
-          <Ionicons name="location-outline" size={12} color={TEXT_MEDIUM} />
+          <Icon name="location-outline" size={12} color={TEXT_MEDIUM} />
           <Text style={styles.locationText} numberOfLines={1}>
             {preference.hospital.city}, {preference.hospital.region}
           </Text>
@@ -108,7 +108,7 @@ const PreferenceCard = ({
               onPress={() => onMoveUp(preference.id)}
               disabled={!canMoveUp}
             >
-              <Ionicons
+              <Icon
                 name="chevron-up"
                 size={18}
                 color={canMoveUp ? ACCENT : TEXT_LIGHT}
@@ -119,7 +119,7 @@ const PreferenceCard = ({
               onPress={() => onMoveDown(preference.id)}
               disabled={!canMoveDown}
             >
-              <Ionicons
+              <Icon
                 name="chevron-down"
                 size={18}
                 color={canMoveDown ? ACCENT : TEXT_LIGHT}
@@ -132,7 +132,7 @@ const PreferenceCard = ({
             onPress={() => onDelete(preference.id)}
             activeOpacity={0.7}
           >
-            <Ionicons name="trash-outline" size={17} color={ERROR} />
+            <Icon name="trash-outline" size={17} color={ERROR} />
           </TouchableOpacity>
         )}
       </View>
@@ -217,7 +217,7 @@ const AddPreferenceModal = ({
           {/* Header */}
           <View style={modal.header}>
             <TouchableOpacity style={modal.closeBtn} onPress={handleClose}>
-              <Ionicons name="close" size={22} color={ACCENT} />
+              <Icon name="close" size={22} color={ACCENT} />
             </TouchableOpacity>
             <Text style={modal.title}>Nueva preferencia</Text>
             <TouchableOpacity
@@ -236,7 +236,7 @@ const AddPreferenceModal = ({
           {/* Error */}
           {errorMessage ? (
             <View style={modal.errorBox}>
-              <Ionicons name="alert-circle-outline" size={16} color={ERROR} />
+              <Icon name="alert-circle-outline" size={16} color={ERROR} />
               <Text style={modal.errorText}>{errorMessage}</Text>
             </View>
           ) : null}
@@ -466,7 +466,7 @@ export default function MyPreferencesScreen({
       {editingOrder && (
         <View style={styles.editBar}>
           <View style={styles.editBarLeft}>
-            <Ionicons name="brush" size={17} color={PRIMARY} />
+            <Icon name="brush" size={17} color={PRIMARY} />
             <Text style={styles.editBarText}>Reorganiza tus preferencias</Text>
           </View>
           <View style={styles.editBarActions}>
@@ -480,7 +480,7 @@ export default function MyPreferencesScreen({
                 <ActivityIndicator size="small" color={WHITE} />
               ) : (
                 <>
-                  <Ionicons name="checkmark" size={17} color={WHITE} />
+                  <Icon name="checkmark" size={17} color={WHITE} />
                   <Text style={styles.saveBtnText}>Guardar</Text>
                 </>
               )}
@@ -493,7 +493,7 @@ export default function MyPreferencesScreen({
               }}
               disabled={savingOrder}
             >
-              <Ionicons name="close" size={20} color={TEXT_MEDIUM} />
+              <Icon name="close" size={20} color={TEXT_MEDIUM} />
             </TouchableOpacity>
           </View>
         </View>
@@ -521,7 +521,7 @@ export default function MyPreferencesScreen({
         {preferences.length === 0 ? (
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconWrap}>
-              <Ionicons name="heart-outline" size={40} color={PRIMARY} />
+              <Icon name="heart-outline" size={40} color={PRIMARY} />
             </View>
             <Text style={styles.emptyTitle}>Aún no tienes preferencias</Text>
             <Text style={styles.emptySubtitle}>

@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 import { Calendar, LocaleConfig } from "react-native-calendars";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { ConfirmationModal } from "../components/ConfirmationModal";
@@ -164,8 +164,13 @@ const TITLE_FIELD_TYPES = new Set([
   "reminder",
 ]);
 
-const monthTitle = (date) =>
-  date.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+const monthTitle = (date) => {
+  const label = date.toLocaleDateString("es-ES", {
+    month: "long",
+    year: "numeric",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
 
 const normalizeDate = (value = new Date()) => {
   const date = new Date(value);
@@ -209,6 +214,92 @@ const formatLongDate = (value) => {
 const formatTimeLabel = (value) => {
   if (!value) return "Sin hora";
   return value.slice(0, 5);
+};
+
+// Construye las filas de información que se muestran en el detalle de solo
+// lectura de un evento compartido por una Conexión.
+const buildSharedEventDetailRows = (event) => {
+  if (!event) return [];
+
+  const rows = [];
+  const metadata = event.metadata || {};
+
+  rows.push({
+    key: "owner",
+    icon: "person-circle-outline",
+    label: "Compartido por",
+    value: event.owner_name || "Conexión",
+  });
+
+  if (event.event_date) {
+    const dateValue = event.end_date && event.end_date !== event.event_date
+      ? `${formatLongDate(event.event_date)} – ${formatLongDate(event.end_date)}`
+      : formatLongDate(event.event_date);
+    rows.push({ key: "date", icon: "calendar-outline", label: "Fecha", value: dateValue });
+  }
+
+  if (!event.all_day && (event.start_time || event.end_time)) {
+    const timeValue = event.end_time
+      ? `${formatTimeLabel(event.start_time)} – ${formatTimeLabel(event.end_time)}`
+      : formatTimeLabel(event.start_time);
+    rows.push({ key: "time", icon: "time-outline", label: "Hora", value: timeValue });
+  }
+
+  if (metadata.shift_duration) {
+    rows.push({
+      key: "shift_duration",
+      icon: "hourglass-outline",
+      label: "Duración",
+      value: metadata.shift_duration,
+    });
+  }
+
+  if (metadata.research_status) {
+    rows.push({
+      key: "research_status",
+      icon: "flask-outline",
+      label: "Estado",
+      value: metadata.research_status,
+    });
+  }
+
+  if (metadata.research_role) {
+    rows.push({
+      key: "research_role",
+      icon: "ribbon-outline",
+      label: "Rol",
+      value: metadata.research_role,
+    });
+  }
+
+  if (metadata.conference_role) {
+    rows.push({
+      key: "conference_role",
+      icon: "people-outline",
+      label: "Participación",
+      value: metadata.conference_role,
+    });
+  }
+
+  if (metadata.study_minutes) {
+    rows.push({
+      key: "study_minutes",
+      icon: "book-outline",
+      label: "Tiempo de estudio",
+      value: `${metadata.study_minutes} min`,
+    });
+  }
+
+  if (metadata.location) {
+    rows.push({
+      key: "location",
+      icon: "location-outline",
+      label: "Ubicación",
+      value: metadata.location,
+    });
+  }
+
+  return rows;
 };
 
 const addDaysToDateString = (value, daysToAdd) => {
@@ -398,6 +489,7 @@ export const AgendaScreen = ({ userProfile }) => {
   const [connectionsLoaded, setConnectionsLoaded] = useState(false);
   const [shareUserIds, setShareUserIds] = useState([]);
   const [sharePickerVisible, setSharePickerVisible] = useState(false);
+  const [detailEvent, setDetailEvent] = useState(null);
 
   const {
     events,
@@ -636,6 +728,16 @@ export const AgendaScreen = ({ userProfile }) => {
     }
   };
 
+  // Los eventos compartidos por una Conexión son de solo lectura: el residente
+  // puede abrir su detalle pero solo el creador (owner) puede editarlos.
+  const openSharedDetail = (event) => {
+    setDetailEvent(event);
+  };
+
+  const closeSharedDetail = () => {
+    setDetailEvent(null);
+  };
+
   const closeEditor = () => {
     setEditorVisible(false);
     setEditingEvent(null);
@@ -790,44 +892,6 @@ export const AgendaScreen = ({ userProfile }) => {
         <BottomMenuHeroHeader
           title="Agenda de residencia"
           subtitle="Calendario unificado para guardias, cursos, estudio e hitos de tu residencia."
-          bottomContent={
-            <View style={styles.heroMonthCard}>
-              <TouchableOpacity
-                style={styles.heroArrow}
-                onPress={() =>
-                  setVisibleMonth(
-                    new Date(
-                      visibleMonth.getFullYear(),
-                      visibleMonth.getMonth() - 1,
-                      1
-                    )
-                  )
-                }
-              >
-                <Ionicons name="chevron-back" size={18} color={COLORS.PRIMARY} />
-              </TouchableOpacity>
-              <View>
-                <Text style={styles.heroMonthLabel}>Calendario</Text>
-                <Text style={styles.heroMonthValue}>
-                  {monthTitle(visibleMonth)}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.heroArrow}
-                onPress={() =>
-                  setVisibleMonth(
-                    new Date(
-                      visibleMonth.getFullYear(),
-                      visibleMonth.getMonth() + 1,
-                      1
-                    )
-                  )
-                }
-              >
-                <Ionicons name="chevron-forward" size={18} color={COLORS.PRIMARY} />
-              </TouchableOpacity>
-            </View>
-          }
         />
       </View>
 
@@ -838,9 +902,42 @@ export const AgendaScreen = ({ userProfile }) => {
         >
           <View style={styles.body}>
           <View style={styles.calendarCard}>
+            <View style={styles.calendarMonthHeader}>
+              <TouchableOpacity
+                style={styles.calendarMonthArrow}
+                onPress={() =>
+                  setVisibleMonth(
+                    new Date(
+                      visibleMonth.getFullYear(),
+                      visibleMonth.getMonth() - 1,
+                      1
+                    )
+                  )
+                }
+              >
+                <Icon name="chevron-back" size={18} color={AGENDA_ACCENT} />
+              </TouchableOpacity>
+              <Text style={styles.calendarMonthValue}>
+                {monthTitle(visibleMonth)}
+              </Text>
+              <TouchableOpacity
+                style={styles.calendarMonthArrow}
+                onPress={() =>
+                  setVisibleMonth(
+                    new Date(
+                      visibleMonth.getFullYear(),
+                      visibleMonth.getMonth() + 1,
+                      1
+                    )
+                  )
+                }
+              >
+                <Icon name="chevron-forward" size={18} color={AGENDA_ACCENT} />
+              </TouchableOpacity>
+            </View>
             {shiftSelectionMode ? (
               <View style={styles.selectionBanner}>
-                <Ionicons
+                <Icon
                   name={selectedShiftDates.size === 0 ? "calendar-outline" : "checkmark-circle"}
                   size={18}
                   color="#7C3AED"
@@ -866,7 +963,7 @@ export const AgendaScreen = ({ userProfile }) => {
                 setVisibleMonth(new Date(month.year, month.month - 1, 1))
               }
               hideArrows
-              enableSwipeMonths
+              disableMonthChange
               theme={{
                 calendarBackground: COLORS.WHITE,
                 textMonthFontWeight: "700",
@@ -952,7 +1049,7 @@ export const AgendaScreen = ({ userProfile }) => {
                     label: `${event.owner_name || "Conexión"} ${
                       event.title || agendaEventTypeLabels[event.event_type]
                     }`,
-                    onPress: () => setSelectedDate(dateString),
+                    onPress: () => openSharedDetail(event),
                   };
                 });
 
@@ -1064,7 +1161,7 @@ export const AgendaScreen = ({ userProfile }) => {
                         { backgroundColor: option?.lightColor || COLORS.PURPLE_LIGHT },
                       ]}
                     >
-                      <Ionicons
+                      <Icon
                         name={option?.icon || "calendar-outline"}
                         size={18}
                         color={option?.color || AGENDA_ACCENT}
@@ -1083,7 +1180,7 @@ export const AgendaScreen = ({ userProfile }) => {
                         </Text>
                       ) : null}
                     </View>
-                    <Ionicons name="chevron-forward" size={18} color={COLORS.GRAY} />
+                    <Icon name="chevron-forward" size={18} color={COLORS.GRAY} />
                   </TouchableOpacity>
                 );
               })}
@@ -1093,7 +1190,7 @@ export const AgendaScreen = ({ userProfile }) => {
                   <View
                     style={[styles.eventIcon, { backgroundColor: "#FFEDD5" }]}
                   >
-                    <Ionicons name="medkit-outline" size={18} color={TEAM_SHIFT_COLOR} />
+                    <Icon name="medkit-outline" size={18} color={TEAM_SHIFT_COLOR} />
                   </View>
                   <View style={styles.eventContent}>
                     <Text style={styles.eventTitle}>
@@ -1110,14 +1207,19 @@ export const AgendaScreen = ({ userProfile }) => {
                 );
 
                 return (
-                  <View key={`shared-${event.id}`} style={styles.eventRow}>
+                  <TouchableOpacity
+                    key={`shared-${event.id}`}
+                    style={styles.eventRow}
+                    activeOpacity={0.88}
+                    onPress={() => openSharedDetail(event)}
+                  >
                     <View
                       style={[
                         styles.eventIcon,
                         { backgroundColor: option?.lightColor || COLORS.PURPLE_LIGHT },
                       ]}
                     >
-                      <Ionicons
+                      <Icon
                         name={option?.icon || "calendar-outline"}
                         size={18}
                         color={option?.color || AGENDA_ACCENT}
@@ -1137,7 +1239,8 @@ export const AgendaScreen = ({ userProfile }) => {
                         </Text>
                       ) : null}
                     </View>
-                  </View>
+                    <Icon name="chevron-forward" size={18} color={COLORS.GRAY} />
+                  </TouchableOpacity>
                 );
               })}
 
@@ -1145,7 +1248,7 @@ export const AgendaScreen = ({ userProfile }) => {
               selectedDayTeamShifts.length === 0 &&
               selectedDaySharedEvents.length === 0 ? (
                 <View style={styles.emptyCard}>
-                  <Ionicons name="calendar-clear-outline" size={28} color={COLORS.GRAY} />
+                  <Icon name="calendar-clear-outline" size={28} color={COLORS.GRAY} />
                   <Text style={styles.emptyCardTitle}>Sin eventos en esta fecha</Text>
                   <Text style={styles.emptyCardText}>
                     Añade una guardia, sesión de estudio o un día libre para empezar a construir tu agenda.
@@ -1184,7 +1287,7 @@ export const AgendaScreen = ({ userProfile }) => {
                         { backgroundColor: option?.lightColor || COLORS.PURPLE_LIGHT },
                       ]}
                     >
-                      <Ionicons
+                      <Icon
                         name={option?.icon || "calendar-outline"}
                         size={30}
                         color={option?.color || AGENDA_ACCENT}
@@ -1295,7 +1398,7 @@ export const AgendaScreen = ({ userProfile }) => {
                 style={styles.closeCircle}
                 onPress={() => setTypeModalVisible(false)}
               >
-                <Ionicons name="close" size={16} color={COLORS.GRAY} />
+                <Icon name="close" size={16} color={COLORS.GRAY} />
               </TouchableOpacity>
             </View>
 
@@ -1312,7 +1415,7 @@ export const AgendaScreen = ({ userProfile }) => {
                     { backgroundColor: option.lightColor },
                   ]}
                 >
-                  <Ionicons name={option.icon} size={20} color={option.color} />
+                  <Icon name={option.icon} size={20} color={option.color} />
                 </View>
                 <View style={styles.typeRowBody}>
                   <Text style={styles.typeRowTitle}>{option.label}</Text>
@@ -1320,9 +1423,101 @@ export const AgendaScreen = ({ userProfile }) => {
                     {option.description}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
+                <Icon name="chevron-forward" size={18} color="#CBD5E1" />
               </TouchableOpacity>
             ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={!!detailEvent}
+        transparent
+        animationType="slide"
+        onRequestClose={closeSharedDetail}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={closeSharedDetail}>
+          <Pressable style={styles.detailSheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            {detailEvent
+              ? (() => {
+                  const detailMeta =
+                    EVENT_TYPE_OPTIONS.find(
+                      (item) => item.id === detailEvent.event_type
+                    ) || EVENT_TYPE_OPTIONS[0];
+                  const detailRows = buildSharedEventDetailRows(detailEvent);
+
+                  return (
+                    <>
+                      <View style={styles.sheetHeader}>
+                        <View style={styles.detailHeaderText}>
+                          <View
+                            style={[
+                              styles.detailHeaderIcon,
+                              { backgroundColor: detailMeta.lightColor },
+                            ]}
+                          >
+                            <Icon
+                              name={detailMeta.icon}
+                              size={20}
+                              color={detailMeta.color}
+                            />
+                          </View>
+                          <View style={styles.detailHeaderTitles}>
+                            <Text style={styles.sheetTitle} numberOfLines={2}>
+                              {detailEvent.title ||
+                                agendaEventTypeLabels[detailEvent.event_type]}
+                            </Text>
+                            <Text style={styles.detailHeaderSubtitle}>
+                              {agendaEventTypeLabels[detailEvent.event_type]}
+                            </Text>
+                          </View>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.closeCircle}
+                          onPress={closeSharedDetail}
+                        >
+                          <Icon name="close" size={16} color={COLORS.GRAY} />
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={styles.detailReadonlyBadge}>
+                        <Icon
+                          name="lock-closed-outline"
+                          size={13}
+                          color={COLORS.GRAY}
+                        />
+                        <Text style={styles.detailReadonlyText}>
+                          Solo lectura · únicamente quien lo creó puede editarlo
+                        </Text>
+                      </View>
+
+                      {detailRows.map((row) => (
+                        <View key={row.key} style={styles.detailRow}>
+                          <Icon
+                            name={row.icon}
+                            size={18}
+                            color={AGENDA_ACCENT}
+                          />
+                          <View style={styles.detailRowText}>
+                            <Text style={styles.detailRowLabel}>{row.label}</Text>
+                            <Text style={styles.detailRowValue}>{row.value}</Text>
+                          </View>
+                        </View>
+                      ))}
+
+                      {detailEvent.notes ? (
+                        <View style={styles.detailNotesBlock}>
+                          <Text style={styles.detailRowLabel}>Notas</Text>
+                          <Text style={styles.detailNotesText}>
+                            {detailEvent.notes}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </>
+                  );
+                })()
+              : null}
           </Pressable>
         </Pressable>
       </Modal>
@@ -1348,7 +1543,7 @@ export const AgendaScreen = ({ userProfile }) => {
           >
             <View style={styles.editorHeader}>
               <TouchableOpacity style={styles.headerCircle} onPress={closeEditor}>
-                <Ionicons name="arrow-back" size={20} color={AGENDA_ACCENT} />
+                <Icon name="arrow-back" size={20} color={AGENDA_ACCENT} />
               </TouchableOpacity>
               <Text style={styles.editorTitle}>
                 {editingEvent
@@ -1372,7 +1567,7 @@ export const AgendaScreen = ({ userProfile }) => {
                   { backgroundColor: `${selectedTypeMeta.color}22` },
                 ]}
               >
-                <Ionicons
+                <Icon
                   name={selectedTypeMeta.icon}
                   size={26}
                   color={selectedTypeMeta.color}
@@ -1571,7 +1766,7 @@ export const AgendaScreen = ({ userProfile }) => {
                 <Text style={styles.inputLabel}>Compartir con</Text>
                 {connectionsLoaded && connections.length === 0 ? (
                   <View style={styles.shareEmpty}>
-                    <Ionicons name="people-outline" size={18} color="#94A3B8" />
+                    <Icon name="people-outline" size={18} color="#94A3B8" />
                     <Text style={styles.shareEmptyText}>
                       Aún no tienes conexiones. Conéctate con otros residentes desde el
                       directorio de Residentes para poder compartir eventos.
@@ -1584,7 +1779,7 @@ export const AgendaScreen = ({ userProfile }) => {
                     onPress={() => setSharePickerVisible(true)}
                     disabled={!connectionsLoaded}
                   >
-                    <Ionicons
+                    <Icon
                       name="people-outline"
                       size={20}
                       color={selectedTypeMeta.color}
@@ -1598,7 +1793,7 @@ export const AgendaScreen = ({ userProfile }) => {
                           ? "Elegir conexiones"
                           : "Cargando conexiones..."}
                     </Text>
-                    <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
+                    <Icon name="chevron-forward" size={18} color="#CBD5E1" />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1696,46 +1891,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(103,12,245,0.10)",
   },
-  heroMonthCard: {
-    marginTop: 18,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.96)",
-    borderWidth: 1,
-    borderColor: "rgba(0,122,255,0.14)",
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    shadowColor: COLORS.PRIMARY,
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 18,
-    elevation: 2,
-  },
-  heroArrow: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.92)",
-    borderWidth: 1,
-    borderColor: "rgba(0,122,255,0.18)",
-  },
-  heroMonthLabel: {
-    color: COLORS.TEXT_LIGHT,
-    textTransform: "uppercase",
-    fontSize: 11,
-    letterSpacing: 1.1,
-    textAlign: "center",
-  },
-  heroMonthValue: {
-    color: "#1B3A70",
-    fontSize: 18,
-    fontWeight: "700",
-    marginTop: 2,
-  },
   body: {
     paddingHorizontal: 14,
     gap: 16,
@@ -1750,6 +1905,29 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowRadius: 20,
     elevation: 2,
+  },
+  calendarMonthHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 6,
+    paddingTop: 4,
+    paddingBottom: 6,
+  },
+  calendarMonthArrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3E8FF",
+  },
+  calendarMonthValue: {
+    flex: 1,
+    textAlign: "center",
+    color: "#1B0977",
+    fontSize: 17,
+    fontWeight: "800",
   },
   selectionBanner: {
     flexDirection: "row",
@@ -2054,6 +2232,87 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F1F5F9",
+  },
+  detailSheet: {
+    backgroundColor: COLORS.WHITE,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingBottom: 32,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  detailHeaderText: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+    paddingRight: 12,
+  },
+  detailHeaderIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  detailHeaderTitles: {
+    flex: 1,
+  },
+  detailHeaderSubtitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.GRAY,
+    marginTop: 2,
+  },
+  detailReadonlyBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  detailReadonlyText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.GRAY,
+    flex: 1,
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E2E8F0",
+  },
+  detailRowText: {
+    flex: 1,
+  },
+  detailRowLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.GRAY,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  detailRowValue: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#0F172A",
+    marginTop: 2,
+  },
+  detailNotesBlock: {
+    marginTop: 16,
+  },
+  detailNotesText: {
+    fontSize: 15,
+    color: "#334155",
+    lineHeight: 22,
+    marginTop: 6,
   },
   typeRow: {
     flexDirection: "row",

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 
 /**
@@ -82,7 +82,7 @@ export const ProfileStatusCard = ({
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <Ionicons
+        <Icon
           name={content.icon}
           size={24}
           color={content.iconColor}

@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   Linking,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
@@ -44,7 +44,7 @@ const buildInitialFormData = (userProfile) => ({
 
 const ContactPill = ({ icon, label }) => (
   <View style={styles.pill}>
-    <Ionicons name={icon} size={14} color="#670CF5" />
+    <Icon name={icon} size={14} color="#670CF5" />
     <Text style={styles.pillText}>{label}</Text>
   </View>
 );
@@ -152,7 +152,7 @@ ${formData.message}`;
       onBack={onBack}
       rightSlot={
         <View style={styles.headerIconCircle}>
-          <Ionicons name="mail-outline" size={20} color="#670CF5" />
+          <Icon name="mail-outline" size={20} color="#670CF5" />
         </View>
       }
       contentStyle={styles.contentSurface}
@@ -181,7 +181,7 @@ ${formData.message}`;
               <View style={styles.infoCard}>
                 <View style={styles.infoHeader}>
                   <View style={styles.infoIconWrap}>
-                    <Ionicons name="mail-outline" size={18} color="#670CF5" />
+                    <Icon name="mail-outline" size={18} color="#670CF5" />
                   </View>
                   <View style={styles.infoText}>
                     <Text style={styles.infoTitle}>Email de contacto</Text>
@@ -224,7 +224,7 @@ ${formData.message}`;
                         : styles.messageError,
                     ]}
                   >
-                    <Ionicons
+                    <Icon
                       name={
                         message.type === "success"
                           ? "checkmark-circle-outline"
@@ -250,7 +250,7 @@ ${formData.message}`;
                   <View style={[styles.inputGroup, styles.inputGroupHalf]}>
                     <Text style={styles.inputLabel}>Nombre *</Text>
                     <View style={styles.inputWrap}>
-                      <Ionicons
+                      <Icon
                         name="person-outline"
                         size={18}
                         color="#64748B"
@@ -269,7 +269,7 @@ ${formData.message}`;
                   <View style={[styles.inputGroup, styles.inputGroupHalf]}>
                     <Text style={styles.inputLabel}>Email *</Text>
                     <View style={styles.inputWrap}>
-                      <Ionicons
+                      <Icon
                         name="mail-outline"
                         size={18}
                         color="#64748B"
@@ -291,7 +291,7 @@ ${formData.message}`;
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Asunto *</Text>
                   <View style={styles.inputWrap}>
-                    <Ionicons
+                    <Icon
                       name="create-outline"
                       size={18}
                       color="#64748B"
@@ -338,7 +338,7 @@ ${formData.message}`;
                     </>
                   ) : (
                     <>
-                      <Ionicons name="paper-plane-outline" size={18} color="#FFFFFF" />
+                      <Icon name="paper-plane-outline" size={18} color="#FFFFFF" />
                       <Text style={styles.submitButtonText}>Abrir email</Text>
                     </>
                   )}

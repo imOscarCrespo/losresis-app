@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MotionPressable } from "./MotionPressable";
 
@@ -138,7 +138,7 @@ export function SelectorModal({
             scaleTo={0.92}
             pressedOpacity={0.75}
           >
-            <Ionicons name="arrow-back" size={24} color={accentColor} />
+            <Icon name="arrow-back" size={24} color={accentColor} />
           </MotionPressable>
           <Text style={[styles.title, { color: accentColor }]} numberOfLines={1}>
             {title}
@@ -149,7 +149,7 @@ export function SelectorModal({
         {enableSearch ? (
           <View style={styles.searchWrap}>
             <View style={styles.searchInner}>
-              <Ionicons name="search" size={20} color="#94A3B8" />
+              <Icon name="search" size={20} color="#94A3B8" />
               <TextInput
                 style={styles.searchInput}
                 value={search}
@@ -165,7 +165,7 @@ export function SelectorModal({
                   scaleTo={0.9}
                   pressedOpacity={0.72}
                 >
-                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                  <Icon name="close-circle" size={18} color="#94A3B8" />
                 </MotionPressable>
               ) : null}
             </View>

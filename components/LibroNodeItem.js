@@ -7,7 +7,7 @@ import {
   Animated,
   PanResponder,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 
 const SWIPE_THRESHOLD = 80; // Distancia mínima para activar el swipe
@@ -196,7 +196,7 @@ export const LibroNodeItem = ({
               onPress={handleDeletePress}
               activeOpacity={0.7}
             >
-              <Ionicons name="trash-outline" size={24} color={COLORS.WHITE} />
+              <Icon name="trash-outline" size={24} color={COLORS.WHITE} />
             </TouchableOpacity>
           </Animated.View>
 
@@ -229,7 +229,7 @@ export const LibroNodeItem = ({
               onPress={handleEditPress}
               activeOpacity={0.7}
             >
-              <Ionicons name="pencil" size={24} color={COLORS.WHITE} />
+              <Icon name="pencil" size={24} color={COLORS.WHITE} />
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -256,14 +256,14 @@ export const LibroNodeItem = ({
                   activeOpacity={0.7}
                   disabled={!onDragStart}
                 >
-                  <Ionicons
+                  <Icon
                     name="reorder-three-outline"
                     size={20}
                     color={isDragging ? COLORS.PRIMARY : COLORS.GRAY}
                     style={styles.dragIcon}
                   />
                 </TouchableOpacity>
-                <Ionicons
+                <Icon
                   name="folder-outline"
                   size={24}
                   color={COLORS.PRIMARY}
@@ -274,7 +274,7 @@ export const LibroNodeItem = ({
                     onPress={onToggleExpand}
                     style={styles.expandButton}
                   >
-                    <Ionicons
+                    <Icon
                       name={isExpanded ? "chevron-down" : "chevron-forward"}
                       size={16}
                       color={COLORS.GRAY_DARK}
@@ -283,7 +283,7 @@ export const LibroNodeItem = ({
                 )}
               </View>
             ) : (
-              <Ionicons
+              <Icon
                 name="document-text-outline"
                 size={24}
                 color={COLORS.SUCCESS}
@@ -318,7 +318,7 @@ export const LibroNodeItem = ({
                   count <= 0 && styles.disabledButton,
                 ]}
               >
-                <Ionicons
+                <Icon
                   name="remove"
                   size={16}
                   color={count <= 0 ? COLORS.GRAY : COLORS.ERROR}
@@ -332,7 +332,7 @@ export const LibroNodeItem = ({
                 onPress={onIncrement}
                 style={[styles.actionButton, styles.incrementButton]}
               >
-                <Ionicons name="add" size={16} color={COLORS.PRIMARY} />
+                <Icon name="add" size={16} color={COLORS.PRIMARY} />
               </TouchableOpacity>
             )}
 
@@ -343,21 +343,21 @@ export const LibroNodeItem = ({
                   onPress={onAddChild}
                   style={[styles.actionButton, styles.addChildButton]}
                 >
-                  <Ionicons name="add" size={16} color={COLORS.GRAY} />
+                  <Icon name="add" size={16} color={COLORS.GRAY} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={onEdit}
                   style={[styles.actionButton, styles.editButton]}
                 >
-                  <Ionicons name="pencil" size={16} color={COLORS.GRAY_DARK} />
+                  <Icon name="pencil" size={16} color={COLORS.GRAY_DARK} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={onDelete}
                   style={[styles.actionButton, styles.deleteButton]}
                 >
-                  <Ionicons
+                  <Icon
                     name="trash-outline"
                     size={16}
                     color={COLORS.GRAY_DARK}

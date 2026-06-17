@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { DirectChatButton } from "../components";
 import {
@@ -251,7 +251,7 @@ export default function RoommateScreen({
         onPress={() => setFiltersVisible(true)}
         activeOpacity={0.75}
       >
-        <Ionicons
+        <Icon
           name="options-outline"
           size={18}
           color={ROOMMATE_THEME.PRIMARY}
@@ -270,7 +270,7 @@ export default function RoommateScreen({
             style={[styles.tabButton, active && styles.tabButtonActive]}
             onPress={() => setActiveTab(tab.id)}
           >
-            <Ionicons
+            <Icon
               name={tab.icon}
               size={18}
               color={active ? ROOMMATE_THEME.PRIMARY : ROOMMATE_THEME.MUTED}
@@ -287,7 +287,7 @@ export default function RoommateScreen({
   const renderNoProfile = () => (
     <View style={styles.emptyCard}>
       <View style={styles.emptyBadge}>
-        <Ionicons name="home-outline" size={28} color={ROOMMATE_THEME.PRIMARY} />
+        <Icon name="home-outline" size={28} color={ROOMMATE_THEME.PRIMARY} />
       </View>
       <Text style={styles.emptyTitle}>Crea tu perfil RoomieMIR</Text>
       <Text style={styles.emptyDescription}>
@@ -320,7 +320,7 @@ export default function RoommateScreen({
             style={styles.subtleAction}
             onPress={() => setFiltersVisible(true)}
           >
-            <Ionicons
+            <Icon
               name="options-outline"
               size={16}
               color={ROOMMATE_THEME.PRIMARY}
@@ -342,7 +342,7 @@ export default function RoommateScreen({
         ) : (
           <View style={styles.emptyCard}>
             <View style={styles.emptyBadge}>
-              <Ionicons
+              <Icon
                 name="people-outline"
                 size={28}
                 color={ROOMMATE_THEME.SECONDARY}

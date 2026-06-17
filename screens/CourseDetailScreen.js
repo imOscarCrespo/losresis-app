@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
@@ -40,7 +40,7 @@ function InfoPill({ icon, text, accent = "purple" }) {
         accent === "blue" && styles.infoPillBlue,
       ]}
     >
-      <Ionicons
+      <Icon
         name={icon}
         size={16}
         color={
@@ -78,7 +78,7 @@ function InfoRow({ icon, label, value }) {
   return (
     <View style={styles.infoRow}>
       <View style={styles.infoIconWrap}>
-        <Ionicons name={icon} size={15} color={PRIMARY} />
+        <Icon name={icon} size={15} color={PRIMARY} />
       </View>
       <View style={styles.infoCopy}>
         <Text style={styles.infoLabel}>{label}</Text>
@@ -269,7 +269,7 @@ export default function CourseDetailScreen({
     return (
       <View style={styles.stateContainer}>
         <View style={styles.stateIconWrap}>
-          <Ionicons name="alert-circle-outline" size={32} color={DANGER} />
+          <Icon name="alert-circle-outline" size={32} color={DANGER} />
         </View>
         <Text style={styles.stateTitle}>{error || "Curso no encontrado"}</Text>
         <Text style={styles.stateText}>
@@ -295,7 +295,7 @@ export default function CourseDetailScreen({
                 onPress={() => onEdit(course.id)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="pencil-outline" size={18} color="#670CF5" />
+                <Icon name="pencil-outline" size={18} color="#670CF5" />
               </TouchableOpacity>
             ) : null}
             {onDelete ? (
@@ -304,7 +304,7 @@ export default function CourseDetailScreen({
                 onPress={handleDelete}
                 activeOpacity={0.7}
               >
-                <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                <Icon name="trash-outline" size={18} color="#EF4444" />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -322,12 +322,12 @@ export default function CourseDetailScreen({
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
             <View style={styles.heroBadge}>
-              <Ionicons name="school-outline" size={16} color={PRIMARY} />
+              <Icon name="school-outline" size={16} color={PRIMARY} />
               <Text style={styles.heroBadgeText}>Curso</Text>
             </View>
             {course.is_liked ? (
               <View style={styles.savedBadge}>
-                <Ionicons name="heart" size={14} color={SECONDARY} />
+                <Icon name="heart" size={14} color={SECONDARY} />
                 <Text style={styles.savedBadgeText}>Guardado</Text>
               </View>
             ) : null}
@@ -361,7 +361,7 @@ export default function CourseDetailScreen({
               activeOpacity={0.88}
               disabled={favoriteLoading}
             >
-              <Ionicons
+              <Icon
                 name={course.is_liked ? "heart" : "heart-outline"}
                 size={18}
                 color={course.is_liked ? "#FFFFFF" : PRIMARY}
@@ -383,7 +383,7 @@ export default function CourseDetailScreen({
                 activeOpacity={0.88}
               >
                 <Text style={styles.primaryButtonText}>Inscribirme</Text>
-                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                <Icon name="arrow-forward" size={18} color="#FFFFFF" />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -460,7 +460,7 @@ export default function CourseDetailScreen({
                 activeOpacity={0.85}
               >
                 <Text style={styles.secondaryActionText}>Abrir enlace</Text>
-                <Ionicons name="open-outline" size={16} color={PRIMARY} />
+                <Icon name="open-outline" size={16} color={PRIMARY} />
               </TouchableOpacity>
             </SectionCard>
           ) : null}

@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 import { openAppUpdateStore } from "../services/appUpdateService";
 
@@ -24,7 +24,7 @@ export const ForceUpdateScreen = ({
       <View style={styles.container}>
         <View style={styles.card}>
           <View style={styles.iconWrapper}>
-            <Ionicons name="cloud-download-outline" size={36} color="#FFFFFF" />
+            <Icon name="cloud-download-outline" size={36} color="#FFFFFF" />
           </View>
           <Text style={styles.title}>Actualización obligatoria</Text>
           <Text style={styles.message}>

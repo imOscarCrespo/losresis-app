@@ -10,7 +10,7 @@ import {
   Image,
   Alert,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import * as ImagePicker from "expo-image-picker";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { SelectFilter } from "../components/SelectFilter";
@@ -50,7 +50,7 @@ const ERROR_BG = "#FEF2F2";
 const SectionHeader = ({ icon, title }) => (
   <View style={styles.sectionHeader}>
     <View style={styles.sectionIconWrap}>
-      <Ionicons name={icon} size={16} color={PRIMARY} />
+      <Icon name={icon} size={16} color={PRIMARY} />
     </View>
     <Text style={styles.sectionTitle}>{title}</Text>
   </View>
@@ -334,7 +334,7 @@ export default function CreateHousingAdScreen({
             {/* ── Error banner ── */}
             {error && (
               <View style={styles.errorBanner}>
-                <Ionicons name="alert-circle-outline" size={18} color={ERROR} />
+                <Icon name="alert-circle-outline" size={18} color={ERROR} />
                 <Text style={styles.errorBannerText}>{error}</Text>
               </View>
             )}
@@ -351,7 +351,7 @@ export default function CreateHousingAdScreen({
                   onPress={() => updateFormData("kind", "offer")}
                   activeOpacity={0.8}
                 >
-                  <Ionicons
+                  <Icon
                     name="home-outline"
                     size={16}
                     color={formData.kind === "offer" ? PRIMARY : TEXT_MEDIUM}
@@ -374,7 +374,7 @@ export default function CreateHousingAdScreen({
                     onPress={() => updateFormData("kind", "seek")}
                     activeOpacity={0.8}
                   >
-                    <Ionicons
+                    <Icon
                       name="search-outline"
                       size={16}
                       color={formData.kind === "seek" ? PRIMARY : TEXT_MEDIUM}
@@ -514,7 +514,7 @@ export default function CreateHousingAdScreen({
                           onPress={() => removeExistingImage(index)}
                           activeOpacity={0.8}
                         >
-                          <Ionicons name="close" size={12} color={WHITE} />
+                          <Icon name="close" size={12} color={WHITE} />
                         </TouchableOpacity>
                       </View>
                     );
@@ -532,7 +532,7 @@ export default function CreateHousingAdScreen({
                       onPress={() => removeImage(index)}
                       activeOpacity={0.8}
                     >
-                      <Ionicons name="close" size={12} color={WHITE} />
+                      <Icon name="close" size={12} color={WHITE} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -544,7 +544,7 @@ export default function CreateHousingAdScreen({
                     onPress={handleImageSelect}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="camera-outline" size={24} color={PRIMARY} />
+                    <Icon name="camera-outline" size={24} color={PRIMARY} />
                     <Text style={styles.addImageCellText}>
                       {totalImageCount === 0 ? "Añadir fotos" : "Añadir más"}
                     </Text>
@@ -630,7 +630,7 @@ export default function CreateHousingAdScreen({
                       {isEditMode ? "Actualizar" : "Publicar anuncio"}
                     </Text>
                     {!isEditMode && (
-                      <Ionicons name="arrow-forward" size={16} color={WHITE} />
+                      <Icon name="arrow-forward" size={16} color={WHITE} />
                     )}
                   </>
                 )}

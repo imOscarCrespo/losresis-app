@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/colors";
 import { OnboardingProgressBar } from "./OnboardingProgressBar";
@@ -48,7 +48,7 @@ export const OnboardingStepLayout = ({
             style={styles.backButton}
             accessibilityLabel="Volver"
           >
-            <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+            <Icon name="chevron-back" size={22} color="#FFFFFF" />
           </Pressable>
         ) : null}
       </View>

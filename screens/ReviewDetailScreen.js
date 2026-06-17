@@ -9,7 +9,7 @@ import {
   Image,
   Dimensions,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { useReviewDetail } from "../hooks/useReviewDetail";
@@ -44,7 +44,7 @@ const StarRating = React.memo(({ rating }) => {
   return (
     <View style={styles.starRow}>
       {[1, 2, 3, 4, 5].map((star) => (
-        <Ionicons
+        <Icon
           key={star}
           name={star <= rating ? "star" : "star-outline"}
           size={16}
@@ -126,7 +126,7 @@ export default function ReviewDetailScreen({
         <View style={styles.container}>
           <View style={styles.stateContainer}>
             <View style={styles.stateIconWrap}>
-              <Ionicons name="alert-circle-outline" size={36} color={ERROR} />
+              <Icon name="alert-circle-outline" size={36} color={ERROR} />
             </View>
             <Text style={styles.errorTitle}>Error al cargar la reseña</Text>
             <Text style={styles.errorText}>
@@ -154,7 +154,7 @@ export default function ReviewDetailScreen({
           {/* User row */}
           <View style={styles.infoRow}>
             <View style={styles.infoIconWrap}>
-              <Ionicons name="person" size={18} color={TEXT_MEDIUM} />
+              <Icon name="person" size={18} color={TEXT_MEDIUM} />
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoValue}>
@@ -177,12 +177,12 @@ export default function ReviewDetailScreen({
                 )}
                 {review.approved_at ? (
                   <View style={styles.badgeGreen}>
-                    <Ionicons name="checkmark-circle" size={12} color={SECONDARY} />
+                    <Icon name="checkmark-circle" size={12} color={SECONDARY} />
                     <Text style={styles.badgeGreenText}>Aprobada</Text>
                   </View>
                 ) : (
                   <View style={styles.badgeOrange}>
-                    <Ionicons name="time-outline" size={12} color="#D97706" />
+                    <Icon name="time-outline" size={12} color="#D97706" />
                     <Text style={styles.badgeOrangeText}>Pendiente</Text>
                   </View>
                 )}
@@ -195,7 +195,7 @@ export default function ReviewDetailScreen({
           {/* Date row */}
           <View style={styles.infoRow}>
             <View style={styles.infoIconWrap}>
-              <Ionicons name="calendar-outline" size={18} color={TEXT_MEDIUM} />
+              <Icon name="calendar-outline" size={18} color={TEXT_MEDIUM} />
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoValue}>{formatLongDate(review.created_at)}</Text>
@@ -208,7 +208,7 @@ export default function ReviewDetailScreen({
           {/* Hospital row */}
           <View style={styles.infoRow}>
             <View style={styles.infoIconWrap}>
-              <Ionicons name="business" size={18} color={PRIMARY} />
+              <Icon name="business" size={18} color={PRIMARY} />
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoValue}>{review.hospital?.name}</Text>
@@ -223,7 +223,7 @@ export default function ReviewDetailScreen({
           {/* Specialty row */}
           <View style={styles.infoRow}>
             <View style={styles.infoIconWrap}>
-              <Ionicons name="school" size={18} color={PRIMARY} />
+              <Icon name="school" size={18} color={PRIMARY} />
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoValue}>{review.speciality?.name}</Text>
@@ -294,7 +294,7 @@ export default function ReviewDetailScreen({
             </View>
           ) : (
             <View style={styles.emptyInCard}>
-              <Ionicons name="chatbubbles-outline" size={40} color={TEXT_LIGHT} />
+              <Icon name="chatbubbles-outline" size={40} color={TEXT_LIGHT} />
               <Text style={styles.emptyInCardText}>
                 No hay respuestas registradas para esta reseña.
               </Text>
@@ -307,7 +307,7 @@ export default function ReviewDetailScreen({
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Comentario adicional</Text>
             <View style={styles.commentBox}>
-              <Ionicons
+              <Icon
                 name="chatbubble-outline"
                 size={16}
                 color={PRIMARY}
@@ -345,7 +345,7 @@ export default function ReviewDetailScreen({
             </View>
           ) : (
             <View style={styles.emptyInCard}>
-              <Ionicons name="images-outline" size={40} color={TEXT_LIGHT} />
+              <Icon name="images-outline" size={40} color={TEXT_LIGHT} />
               <Text style={styles.emptyInCardText}>
                 No hay imágenes en esta reseña
               </Text>
@@ -380,7 +380,7 @@ export default function ReviewDetailScreen({
             onPress={handleCloseImageModal}
             activeOpacity={0.8}
           >
-            <Ionicons name="close" size={26} color={WHITE} />
+            <Icon name="close" size={26} color={WHITE} />
           </TouchableOpacity>
           {selectedImage && (
             <Image

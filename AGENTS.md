@@ -33,6 +33,14 @@
 - No reimplementar headers manuales con `View` + back button propio en pantallas nuevas; si necesitas un header distinto, primero amplía `HeroScreenLayout`/`BottomMenuHeroHeader` para que el patrón siga siendo uno solo.
 - Para vistas embebidas dentro de un Dashboard que no son pantallas raíz (p.ej. listas dentro de una tab interna sin botón volver), sigue usando `HeroScreenLayout` y simplemente no pases `onBack`.
 
+## Icon Library Convention
+
+- La librería de iconos oficial de la app es **Phosphor** (`phosphor-react-native`). Todos los iconos se renderizan a través del wrapper `components/Icon.js` (`<Icon name="..." />`), que mapea nombres estilo Ionicons a componentes Phosphor.
+- **Prohibido** importar `@expo/vector-icons` (Ionicons, MaterialCommunityIcons, etc.) u otra librería de iconos en cualquier `screen` o `component` nuevo. Usa siempre `import { Icon } from "<ruta>/components/Icon"`.
+- Si necesitas un icono que aún no está mapeado, añade la entrada a `IONICON_TO_PHOSPHOR` en `components/Icon.js` (y, si su relleno tiene significado de estado activo, a `FILLED`). No lo resuelvas importando otra librería.
+- El `<Icon>` acepta `name`, `size`, `color` y `weight` (`thin|light|regular|bold|fill|duotone`). Por defecto usa `regular`, salvo los nombres en `FILLED` que usan `fill`. Para iconos directos de Phosphor (p.ej. menús con componentes), importa el componente concreto desde `phosphor-react-native`.
+- Excepción de marca: el componente del menú horizontal de la home (`components/QuickActionsPager.js`) **no debe usar nunca el morado de marca** (`#670CF5`).
+
 ## Speciality Quiz Versioning
 
 - El test de especialidad MIR tiene actualmente dos versiones que deben poder convivir en base de datos y en la app mientras existan usuarios sin actualizar.

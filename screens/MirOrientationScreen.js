@@ -10,7 +10,7 @@ import {
   Keyboard,
   InteractionManager,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { SelectFilter } from "../components/SelectFilter";
 import { useHospitals } from "../hooks/useHospitals";
@@ -142,7 +142,7 @@ export default function MirOrientationScreen({ onBack, userProfile, initialScore
         </View>
 
         <View style={styles.hospitalLocation}>
-          <Ionicons name="location" size={13} color="#6B7280" />
+          <Icon name="location" size={13} color="#6B7280" />
           <Text style={styles.hospitalLocationText}>
             {hospital.hospital.city}, {hospital.hospital.region}
           </Text>
@@ -291,7 +291,7 @@ export default function MirOrientationScreen({ onBack, userProfile, initialScore
           {isPending ? (
             <ActivityIndicator size="small" color={PRIMARY} />
           ) : (
-            <Ionicons
+            <Icon
               name={isExpanded ? "chevron-up" : "chevron-down"}
               size={20}
               color="#94A3B8"
@@ -417,7 +417,7 @@ export default function MirOrientationScreen({ onBack, userProfile, initialScore
                   </View>
                 </View>
                 <View style={styles.legendCaptionRow}>
-                  <Ionicons
+                  <Icon
                     name="information-circle-outline"
                     size={13}
                     color="#94A3B8"
@@ -436,7 +436,7 @@ export default function MirOrientationScreen({ onBack, userProfile, initialScore
 
           {hasSearched && !loading && results.length === 0 && (
             <View style={styles.emptyCard}>
-              <Ionicons name="search" size={28} color="#94A3B8" />
+              <Icon name="search" size={28} color="#94A3B8" />
               <Text style={styles.emptyText}>
                 No se encontraron especialidades con datos para los filtros
                 seleccionados.
@@ -446,7 +446,7 @@ export default function MirOrientationScreen({ onBack, userProfile, initialScore
 
           <View style={styles.helpCard}>
             <View style={styles.helpHeader}>
-              <Ionicons name="compass" size={20} color={PRIMARY} />
+              <Icon name="compass" size={20} color={PRIMARY} />
               <Text style={styles.helpTitle}>¿Cómo funciona?</Text>
             </View>
             <Text style={styles.helpText}>

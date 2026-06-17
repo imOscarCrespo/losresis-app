@@ -8,7 +8,7 @@ import {
   Keyboard,
   findNodeHandle,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
@@ -449,7 +449,7 @@ export default function ProfileEditScreen({
         <View style={styles.contentInner}>
           {rejectedEmailBanner ? (
             <View style={styles.rejectedEmailBanner}>
-              <Ionicons
+              <Icon
                 name="alert-circle"
                 size={22}
                 color="#B91C1C"
@@ -463,7 +463,7 @@ export default function ProfileEditScreen({
             </View>
           ) : lockedSeasonalBanner ? (
             <View style={styles.rejectedEmailBanner}>
-              <Ionicons
+              <Icon
                 name="time-outline"
                 size={22}
                 color="#B91C1C"
@@ -499,7 +499,7 @@ export default function ProfileEditScreen({
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Nombre *</Text>
                   <View style={styles.inputContainer}>
-                    <Ionicons
+                    <Icon
                       name="person"
                       size={20}
                       color="#999"
@@ -517,7 +517,7 @@ export default function ProfileEditScreen({
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Apellidos</Text>
                   <View style={styles.inputContainer}>
-                    <Ionicons
+                    <Icon
                       name="person"
                       size={20}
                       color="#999"
@@ -537,7 +537,7 @@ export default function ProfileEditScreen({
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Teléfono</Text>
                   <View style={styles.inputContainer}>
-                    <Ionicons
+                    <Icon
                       name="call"
                       size={20}
                       color="#999"
@@ -590,7 +590,7 @@ export default function ProfileEditScreen({
                       Nota del expediente académico (5.00 – 10.00, opcional)
                     </Text>
                     <View style={styles.inputContainer}>
-                      <Ionicons
+                      <Icon
                         name="school"
                         size={20}
                         color="#999"
@@ -683,7 +683,7 @@ export default function ProfileEditScreen({
                     )}
                   </Text>
                   <View style={styles.inputContainer}>
-                    <Ionicons
+                    <Icon
                       name="mail"
                       size={20}
                       color={isEmailInputDisabled ? "#CCC" : "#999"}
@@ -786,7 +786,7 @@ export default function ProfileEditScreen({
           ]}
         >
           <View style={styles.unsavedChangesCard}>
-            <Ionicons name="save-outline" size={20} color={COLORS.PRIMARY} />
+            <Icon name="save-outline" size={20} color={COLORS.PRIMARY} />
             <View style={styles.unsavedChangesTextBlock}>
               <Text style={styles.unsavedChangesTitle}>
                 Tienes cambios sin guardar

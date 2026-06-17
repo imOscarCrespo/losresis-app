@@ -9,7 +9,7 @@ import {
   Image,
   RefreshControl,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useArticles } from "../hooks/useArticles";
 import { formatShortDate, formatLongDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
@@ -76,7 +76,7 @@ const ArticleCard = memo(({ article, onPress, onLike, currentUserId }) => {
         {/* Header */}
         <View style={styles.cardHeader}>
           <View style={styles.authorInfo}>
-            <Ionicons name="person-circle" size={20} color={COLORS.PRIMARY} />
+            <Icon name="person-circle" size={20} color={COLORS.PRIMARY} />
             <Text style={styles.authorName} numberOfLines={1}>
               {article.user?.name} {article.user?.surname}
             </Text>
@@ -107,7 +107,7 @@ const ArticleCard = memo(({ article, onPress, onLike, currentUserId }) => {
             disabled={!currentUserId}
             activeOpacity={0.7}
           >
-            <Ionicons
+            <Icon
               name={article.is_liked ? "heart" : "heart-outline"}
               size={18}
               color={article.is_liked ? COLORS.ERROR : COLORS.GRAY}
@@ -124,7 +124,7 @@ const ArticleCard = memo(({ article, onPress, onLike, currentUserId }) => {
 
           <View style={styles.readMoreContainer}>
             <Text style={styles.readMoreText}>Leer más</Text>
-            <Ionicons name="arrow-forward" size={16} color={COLORS.PRIMARY} />
+            <Icon name="arrow-forward" size={16} color={COLORS.PRIMARY} />
           </View>
         </View>
       </View>
@@ -208,7 +208,7 @@ export default function ArticlesScreen({ onSectionChange, userProfile, onBack })
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={COLORS.ERROR} />
+          <Icon name="alert-circle" size={48} color={COLORS.ERROR} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity
             style={styles.retryButton}
@@ -226,7 +226,7 @@ export default function ArticlesScreen({ onSectionChange, userProfile, onBack })
           }
         >
           <View style={styles.emptyContainer}>
-            <Ionicons
+            <Icon
               name="document-text-outline"
               size={64}
               color={COLORS.GRAY}

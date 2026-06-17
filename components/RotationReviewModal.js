@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { Country, City } from "country-state-city";
 import { COLORS } from "../constants/colors";
 import { StarRating } from "./StarRating";
@@ -324,7 +324,7 @@ export const RotationReviewModal = ({
               {isEditing ? "Editar Reseña" : "Nueva Reseña"}
             </Text>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={COLORS.GRAY_DARK} />
+              <Icon name="close" size={24} color={COLORS.GRAY_DARK} />
             </TouchableOpacity>
           </View>
 

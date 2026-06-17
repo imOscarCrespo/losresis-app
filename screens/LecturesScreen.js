@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
@@ -100,7 +100,7 @@ function FilterModal({
       <View style={modal.container}>
         <View style={[modal.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity style={modal.backBtn} onPress={handleClose}>
-            <Ionicons name="arrow-back" size={24} color={ACCENT} />
+            <Icon name="arrow-back" size={24} color={ACCENT} />
           </TouchableOpacity>
           <Text style={modal.title}>{title}</Text>
           <View style={modal.backBtn} />
@@ -108,7 +108,7 @@ function FilterModal({
 
         <View style={modal.searchWrap}>
           <View style={modal.searchInner}>
-            <Ionicons name="search" size={20} color={MUTED_LIGHT} />
+            <Icon name="search" size={20} color={MUTED_LIGHT} />
             <TextInput
               style={modal.searchInput}
               value={search}
@@ -119,7 +119,7 @@ function FilterModal({
             />
             {search.length > 0 ? (
               <TouchableOpacity onPress={() => setSearch("")}>
-                <Ionicons name="close-circle" size={18} color={MUTED_LIGHT} />
+                <Icon name="close-circle" size={18} color={MUTED_LIGHT} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -227,7 +227,7 @@ function CourseListCard({ course, isMine, onPress }) {
     >
       <View style={styles.cardTopRow}>
         <View style={styles.cardIcon}>
-          <Ionicons name="school-outline" size={22} color={PRIMARY} />
+          <Icon name="school-outline" size={22} color={PRIMARY} />
         </View>
 
         <View style={styles.cardHeading}>
@@ -251,7 +251,7 @@ function CourseListCard({ course, isMine, onPress }) {
 
       <View style={styles.cardInfoList}>
         <View style={styles.cardInfoRow}>
-          <Ionicons name="calendar-outline" size={16} color={MUTED_LIGHT} />
+          <Icon name="calendar-outline" size={16} color={MUTED_LIGHT} />
           <Text style={styles.cardInfoText}>
             {dateLabel}
             {course.event_dates?.length > 1 ? ` · ${course.event_dates.length} días` : ""}
@@ -260,14 +260,14 @@ function CourseListCard({ course, isMine, onPress }) {
 
         {course.teaching_hours ? (
           <View style={styles.cardInfoRow}>
-            <Ionicons name="time-outline" size={16} color={MUTED_LIGHT} />
+            <Icon name="time-outline" size={16} color={MUTED_LIGHT} />
             <Text style={styles.cardInfoText}>{course.teaching_hours}</Text>
           </View>
         ) : null}
 
         {course.venue_name ? (
           <View style={styles.cardInfoRow}>
-            <Ionicons name="location-outline" size={16} color={MUTED_LIGHT} />
+            <Icon name="location-outline" size={16} color={MUTED_LIGHT} />
             <Text style={styles.cardInfoText} numberOfLines={1}>
               {course.venue_name}
             </Text>
@@ -276,7 +276,7 @@ function CourseListCard({ course, isMine, onPress }) {
 
         {course.hospital ? (
           <View style={styles.cardInfoRow}>
-            <Ionicons name="business-outline" size={16} color={MUTED_LIGHT} />
+            <Icon name="business-outline" size={16} color={MUTED_LIGHT} />
             <Text style={styles.cardInfoText} numberOfLines={1}>
               {course.hospital.name}
               {course.hospital.city ? ` · ${course.hospital.city}` : ""}
@@ -297,7 +297,7 @@ function CourseListCard({ course, isMine, onPress }) {
                 badge.tone === "blue" && styles.metaBadgeBlue,
               ]}
             >
-              <Ionicons
+              <Icon
                 name={badge.icon}
                 size={14}
                 color={
@@ -340,7 +340,7 @@ function CourseListCard({ course, isMine, onPress }) {
             }}
           >
             <Text style={styles.registerInlineText}>Inscribirse</Text>
-            <Ionicons name="arrow-forward" size={16} color={PRIMARY} />
+            <Icon name="arrow-forward" size={16} color={PRIMARY} />
           </TouchableOpacity>
         ) : (
           <View style={styles.registerInlineGhost}>
@@ -447,7 +447,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
           onPress={() => setShowCreatedCourses(!showCreatedCourses)}
           activeOpacity={0.7}
         >
-          <Ionicons
+          <Icon
             name={showCreatedCourses ? "person" : "person-outline"}
             size={14}
             color={showCreatedCourses ? "#FFFFFF" : PRIMARY}
@@ -503,7 +503,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
             style={[styles.chip, showLikedCourses && styles.chipActive]}
             onPress={() => setShowLikedCourses(!showLikedCourses)}
           >
-            <Ionicons
+            <Icon
               name={showLikedCourses ? "heart" : "heart-outline"}
               size={16}
               color={showLikedCourses ? PRIMARY : ACCENT}
@@ -522,7 +522,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
             style={[styles.chip, selectedHospital && styles.chipActive]}
             onPress={() => setOpenModal("hospital")}
           >
-            <Ionicons
+            <Icon
               name="business-outline"
               size={16}
               color={selectedHospital ? PRIMARY : ACCENT}
@@ -533,7 +533,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
             >
               {selectedHospitalName || "Hospital"}
             </Text>
-            <Ionicons
+            <Icon
               name="chevron-down"
               size={16}
               color={selectedHospital ? PRIMARY : ACCENT}
@@ -544,7 +544,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
             style={[styles.chip, selectedSpecialty && styles.chipActive]}
             onPress={() => setOpenModal("specialty")}
           >
-            <Ionicons
+            <Icon
               name="medkit-outline"
               size={16}
               color={selectedSpecialty ? PRIMARY : ACCENT}
@@ -555,7 +555,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
             >
               {selectedSpecialtyName || "Especialidad"}
             </Text>
-            <Ionicons
+            <Icon
               name="chevron-down"
               size={16}
               color={selectedSpecialty ? PRIMARY : ACCENT}
@@ -595,7 +595,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
             <>
               {error ? (
                 <View style={styles.errorCard}>
-                  <Ionicons name="alert-circle" size={20} color={DANGER} />
+                  <Icon name="alert-circle" size={20} color={DANGER} />
                   <Text style={styles.errorText}>{error}</Text>
                 </View>
               ) : null}
@@ -628,7 +628,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
                     ) : (
                       <>
                         <Text style={styles.loadMoreText}>Cargar más cursos</Text>
-                        <Ionicons name="arrow-down" size={16} color="#FFFFFF" />
+                        <Icon name="arrow-down" size={16} color="#FFFFFF" />
                       </>
                     )}
                   </TouchableOpacity>
@@ -643,7 +643,7 @@ export const LecturesScreen = ({ navigation, onBack }) => {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconWrap}>
-                <Ionicons name="school-outline" size={36} color={PRIMARY} />
+                <Icon name="school-outline" size={36} color={PRIMARY} />
               </View>
               <Text style={styles.emptyTitle}>No se encontraron cursos</Text>
               <Text style={styles.emptyText}>

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { COLORS } from "../constants/colors";
 
 /**
@@ -17,7 +17,7 @@ export const MyRotationReviewCard = ({
       {existingReview ? (
         <View style={styles.content}>
           <View style={styles.header}>
-            <Ionicons
+            <Icon
               name="checkmark-circle"
               size={24}
               color={COLORS.SUCCESS}
@@ -31,18 +31,18 @@ export const MyRotationReviewCard = ({
           </View>
           <View style={styles.actions}>
             <TouchableOpacity style={styles.editButton} onPress={onEdit}>
-              <Ionicons name="pencil" size={18} color={COLORS.PRIMARY} />
+              <Icon name="pencil" size={18} color={COLORS.PRIMARY} />
               <Text style={styles.editText}>Editar</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.deleteButton} onPress={onDelete}>
-              <Ionicons name="trash" size={18} color={COLORS.ERROR} />
+              <Icon name="trash" size={18} color={COLORS.ERROR} />
               <Text style={styles.deleteText}>Eliminar</Text>
             </TouchableOpacity>
           </View>
         </View>
       ) : (
         <View style={styles.empty}>
-          <Ionicons name="star-outline" size={48} color={COLORS.GRAY} />
+          <Icon name="star-outline" size={48} color={COLORS.GRAY} />
           <Text style={styles.emptyText}>
             Aún no has creado una reseña de tu rotación externa
           </Text>

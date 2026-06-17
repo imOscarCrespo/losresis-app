@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import * as ImagePicker from "expo-image-picker";
 import { COLORS } from "../constants/colors";
 import { getOnboardingSteps } from "../constants/onboardingSteps";
@@ -460,7 +460,7 @@ export default function OnboardingScreen({ userId, onComplete }) {
               />
               {showEmailReviewSection ? (
                 <View style={styles.reviewHint}>
-                  <Ionicons
+                  <Icon
                     name="time-outline"
                     size={18}
                     color="rgba(255,255,255,0.85)"
@@ -570,7 +570,7 @@ export default function OnboardingScreen({ userId, onComplete }) {
               {asset?.uri ? (
                 <Image source={{ uri: asset.uri }} style={styles.avatarPreview} />
               ) : (
-                <Ionicons name="camera-outline" size={36} color="#FFFFFF" />
+                <Icon name="camera-outline" size={36} color="#FFFFFF" />
               )}
             </View>
             <Pressable
@@ -580,7 +580,7 @@ export default function OnboardingScreen({ userId, onComplete }) {
                 pressed && styles.avatarCtaPressed,
               ]}
             >
-              <Ionicons
+              <Icon
                 name="camera"
                 size={16}
                 color={COLORS.PRIMARY}
@@ -602,7 +602,7 @@ export default function OnboardingScreen({ userId, onComplete }) {
         return (
           <View style={styles.doneBlock}>
             <View style={styles.doneIcon}>
-              <Ionicons name="checkmark" size={42} color="#FFFFFF" />
+              <Icon name="checkmark" size={42} color="#FFFFFF" />
             </View>
             <Text style={styles.doneBody}>
               Hemos guardado tu información. Ya puedes empezar a usar la app.
@@ -613,7 +613,7 @@ export default function OnboardingScreen({ userId, onComplete }) {
         return (
           <View style={styles.doneBlock}>
             <View style={styles.instagramIcon}>
-              <Ionicons name="logo-instagram" size={48} color="#FFFFFF" />
+              <Icon name="logo-instagram" size={48} color="#FFFFFF" />
             </View>
             <Text style={styles.doneBody}>
               @losresis · novedades, recursos y vida residente.

@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLORS } from "../constants/colors";
 import { CBI_DOMAINS } from "../constants/cbiQuestionnaire";
@@ -211,7 +211,7 @@ export default function MentalHealthScreen({ userProfile, onBack }) {
           {/* Nudge mensual (no bloquea nada) */}
           {canAssess && isDueThisMonth && (
             <View style={styles.nudgeCard}>
-              <Ionicons name="heart-outline" size={20} color={COLORS.PRIMARY} />
+              <Icon name="heart-outline" size={20} color={COLORS.PRIMARY} />
               <Text style={styles.nudgeText}>
                 {lastAssessment
                   ? "Toca tu evaluación de bienestar de este mes."
@@ -224,7 +224,7 @@ export default function MentalHealthScreen({ userProfile, onBack }) {
           {assessments.length === 0 && (
             <View style={styles.card}>
               <View style={styles.introIconWrap}>
-                <Ionicons name="heart-circle" size={34} color={COLORS.PRIMARY} />
+                <Icon name="heart-circle" size={34} color={COLORS.PRIMARY} />
               </View>
               <Text style={styles.introTitle}>Cuida tu bienestar, mes a mes</Text>
               <Text style={styles.introText}>
@@ -270,7 +270,7 @@ export default function MentalHealthScreen({ userProfile, onBack }) {
                     </View>
                     {delta && (
                       <View style={styles.deltaRow}>
-                        <Ionicons
+                        <Icon
                           name={delta.icon}
                           size={13}
                           color={delta.color}
@@ -297,14 +297,14 @@ export default function MentalHealthScreen({ userProfile, onBack }) {
               onPress={handleStart}
               activeOpacity={0.9}
             >
-              <Ionicons name="clipboard-outline" size={18} color="#FFFFFF" />
+              <Icon name="clipboard-outline" size={18} color="#FFFFFF" />
               <Text style={styles.primaryButtonText}>
                 {lastAssessment ? "Nueva evaluación" : "Hacer mi primera evaluación"}
               </Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.lockedCard}>
-              <Ionicons name="lock-closed-outline" size={18} color={COLORS.GRAY} />
+              <Icon name="lock-closed-outline" size={18} color={COLORS.GRAY} />
               <Text style={styles.lockedText}>
                 La evaluación de bienestar estará disponible cuando completes la
                 validación de tu cuenta de residente. Mientras tanto, los recursos
@@ -327,7 +327,7 @@ export default function MentalHealthScreen({ userProfile, onBack }) {
                   fortaleza.
                 </Text>
               </View>
-              <Ionicons
+              <Icon
                 name={showResources ? "chevron-up" : "chevron-down"}
                 size={22}
                 color={COLORS.PRIMARY}
@@ -344,7 +344,7 @@ export default function MentalHealthScreen({ userProfile, onBack }) {
                 activeOpacity={0.85}
               >
                 <View style={styles.resourceIcon}>
-                  <Ionicons name="call" size={18} color={COLORS.PRIMARY} />
+                  <Icon name="call" size={18} color={COLORS.PRIMARY} />
                 </View>
                 <View style={styles.resourceBody}>
                   <Text style={styles.resourceName}>{res.name}</Text>
@@ -367,7 +367,7 @@ export default function MentalHealthScreen({ userProfile, onBack }) {
                 <Text style={styles.ccaaSelectorText}>
                   {selectedCcaa || "Elige tu comunidad autónoma"}
                 </Text>
-                <Ionicons
+                <Icon
                   name={showCcaaPicker ? "chevron-up" : "chevron-down"}
                   size={18}
                   color={COLORS.PRIMARY}
@@ -409,7 +409,7 @@ export default function MentalHealthScreen({ userProfile, onBack }) {
                         style={styles.paimeAction}
                         onPress={() => callNumber(paime.phone)}
                       >
-                        <Ionicons name="call" size={15} color={COLORS.PRIMARY} />
+                        <Icon name="call" size={15} color={COLORS.PRIMARY} />
                         <Text style={styles.paimeActionText}>{paime.phone}</Text>
                       </TouchableOpacity>
                     )}
@@ -418,7 +418,7 @@ export default function MentalHealthScreen({ userProfile, onBack }) {
                         style={styles.paimeAction}
                         onPress={() => openWeb(paime.web)}
                       >
-                        <Ionicons name="globe" size={15} color={COLORS.PRIMARY} />
+                        <Icon name="globe" size={15} color={COLORS.PRIMARY} />
                         <Text style={styles.paimeActionText}>Más info</Text>
                       </TouchableOpacity>
                     )}
@@ -437,7 +437,7 @@ export default function MentalHealthScreen({ userProfile, onBack }) {
               onPress={handleDelete}
               activeOpacity={0.85}
             >
-              <Ionicons name="trash-outline" size={16} color={COLORS.ERROR} />
+              <Icon name="trash-outline" size={16} color={COLORS.ERROR} />
               <Text style={styles.deleteButtonText}>Borrar mi historial</Text>
             </TouchableOpacity>
           )}

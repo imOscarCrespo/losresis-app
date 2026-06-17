@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "./Icon";
 import { MotionPressable } from "./MotionPressable";
 import { COLORS } from "../constants/colors";
 
@@ -56,7 +56,7 @@ export const UserTypeSelector = ({ selectedType, onTypeChange }) => {
                   isSelected && { backgroundColor: `${type.color}14` },
                 ]}
               >
-                <Ionicons
+                <Icon
                   name={type.icon}
                   size={22}
                   color={isSelected ? type.color : "#64748B"}
@@ -83,7 +83,7 @@ export const UserTypeSelector = ({ selectedType, onTypeChange }) => {
                 ]}
               >
                 {isSelected ? (
-                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                  <Icon name="checkmark" size={16} color="#FFFFFF" />
                 ) : null}
               </View>
             </MotionPressable>

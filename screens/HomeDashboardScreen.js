@@ -1,22 +1,41 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   ActivityIndicator,
   ImageBackground,
   useWindowDimensions,
+  Alert,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Icon } from "../components/Icon";
+import { useFeed } from "../hooks/useFeed";
+import { deleteFeedPost } from "../services/feedService";
+import FeedItemCard from "../components/feed/FeedItemCard";
+import FeedComposer from "../components/feed/FeedComposer";
+import FeedSkeleton from "../components/feed/FeedSkeleton";
+import { QuickActionsPager } from "../components/QuickActionsPager";
+import {
+  Book,
+  Money,
+  Users,
+  Heart,
+  House,
+  AirplaneTilt,
+  Brain,
+  GraduationCap,
+  Star,
+  Stethoscope,
+} from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHospitals } from "../hooks/useHospitals";
 import { useAgendaEvents } from "../hooks/useAgendaEvents";
 import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
 import { agendaEventTypeLabels } from "../services/agendaService";
-import { getCourses } from "../services/lectureService";
 import { getHospitalRatings } from "../services/reviewsService";
 import { getMirSimulatorStats } from "../services/mirSimulatorService";
 import { getLastQuizSessionForUser } from "../services/specialityQuizService";
@@ -111,20 +130,6 @@ function getGreeting() {
   return "BUENAS NOCHES";
 }
 
-function getCurrentWeekdayIndex() {
-  const day = new Date().getDay();
-  return day === 0 ? 6 : day - 1;
-}
-
-function getStartOfWeek(value = new Date()) {
-  const date = new Date(value);
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setDate(date.getDate() + diff);
-  date.setHours(12, 0, 0, 0);
-  return date;
-}
-
 function eventIncludesDate(event, targetDate) {
   if (!event?.event_date || !targetDate) return false;
 
@@ -179,54 +184,6 @@ function getAgendaHeroConfig(eventType) {
   }
 }
 
-function formatCourseDateLabel(course) {
-  const dates = Array.isArray(course?.event_dates)
-    ? [...course.event_dates].sort()
-    : [];
-
-  if (dates.length === 0) return "Sin fecha";
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const nextDate = dates.find((date) => {
-    const parsedDate = new Date(`${date}T00:00:00`);
-    return parsedDate >= today;
-  }) || dates[0];
-
-  return new Date(`${nextDate}T00:00:00`).toLocaleDateString("es-ES", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-}
-
-function getCourseKindLabel(course) {
-  if (course?.title?.toLowerCase().includes("congreso")) {
-    return "Congreso";
-  }
-
-  return "Curso";
-}
-
-function getNextUpcomingCourseDate(course) {
-  const dates = Array.isArray(course?.event_dates)
-    ? [...course.event_dates].sort()
-    : [];
-
-  if (dates.length === 0) return null;
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  return (
-    dates.find((date) => {
-      const parsedDate = new Date(`${date}T00:00:00`);
-      return parsedDate >= today;
-    }) || null
-  );
-}
-
 const getAgendaHeroCacheKey = (userId) =>
   `${AGENDA_HERO_CACHE_KEY_PREFIX}${userId}`;
 
@@ -243,8 +200,6 @@ export default function HomeDashboardScreen({
   const [hospitalRatings, setHospitalRatings] = useState({});
   const [mirStats, setMirStats] = useState({ count: 0, lastGrade: null });
   const [lastQuizTopSpeciality, setLastQuizTopSpeciality] = useState(null);
-  const [residentCourses, setResidentCourses] = useState([]);
-  const [loadingResidentCourses, setLoadingResidentCourses] = useState(false);
   const [dashboardAds, setDashboardAds] = useState([]);
   const [loadingDashboardAds, setLoadingDashboardAds] = useState(false);
   const [activeAdIndex, setActiveAdIndex] = useState(0);
@@ -272,6 +227,67 @@ export default function HomeDashboardScreen({
   const { events: agendaEvents, loading: loadingAgendaEvents } = useAgendaEvents(
     userProfile?.id
   );
+  const {
+    items: feedItems,
+    hydrated: feedHydrated,
+    loadingMore: loadingMoreFeed,
+    hasMore: feedHasMore,
+    refresh: refreshFeed,
+    loadMore: loadMoreFeed,
+    toggleChapo: toggleFeedChapo,
+    removeItem: removeFeedItem,
+  } = useFeed(userProfile?.is_resident ? userProfile?.id : null);
+
+  // Memoizado para no recrear la callback en cada render: si cambia, FlatList
+  // re-renderiza todas las FeedItemCard (rompe React.memo). refreshFeed y
+  // removeFeedItem son estables (useCallback en useFeed).
+  const handleDeleteFeedPost = useCallback(
+    (item) => {
+      Alert.alert(
+        "Borrar publicación",
+        "¿Seguro que quieres borrar esta publicación? Se perderán sus Chapós.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Borrar",
+            style: "destructive",
+            onPress: async () => {
+              removeFeedItem(item.type, item.id);
+              const res = await deleteFeedPost(item.id);
+              if (!res.success) {
+                Alert.alert(
+                  "No se pudo borrar",
+                  res.error || "Inténtalo de nuevo."
+                );
+                refreshFeed();
+              }
+            },
+          },
+        ]
+      );
+    },
+    [removeFeedItem, refreshFeed]
+  );
+
+  // Lista virtualizada del feed: sólo los residentes con ítems tienen data.
+  // El resto de la pantalla (cabecera, secciones de estudiante, esqueleto/empty
+  // del feed) va en ListHeaderComponent / ListFooterComponent.
+  const feedListData =
+    userProfile?.is_resident && feedHydrated && feedItems.length > 0
+      ? feedItems
+      : [];
+  const feedKeyExtractor = useCallback((item) => `${item.type}:${item.id}`, []);
+  const renderFeedItem = useCallback(
+    ({ item }) => (
+      <FeedItemCard
+        item={item}
+        isOwn={item.authorId === userProfile?.id}
+        onToggleChapo={toggleFeedChapo}
+        onDelete={handleDeleteFeedPost}
+      />
+    ),
+    [userProfile?.id, toggleFeedChapo, handleDeleteFeedPost]
+  );
 
   useEffect(() => {
     getHospitalRatings().then(({ success, ratings }) => {
@@ -290,47 +306,6 @@ export default function HomeDashboardScreen({
       }
     });
   }, [userProfile?.id]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadResidentCourses = async () => {
-      if (!hasResidentFeatureAccess(userProfile) || !userProfile?.speciality_id) {
-        if (isMounted) {
-          setResidentCourses([]);
-          setLoadingResidentCourses(false);
-        }
-        return;
-      }
-
-      setLoadingResidentCourses(true);
-      try {
-        const result = await getCourses({
-          specialityId: userProfile.speciality_id,
-          page: 0,
-        });
-
-        if (isMounted) {
-          setResidentCourses((result.courses || []).slice(0, 6));
-        }
-      } catch (error) {
-        console.error("Error loading resident courses:", error);
-        if (isMounted) {
-          setResidentCourses([]);
-        }
-      } finally {
-        if (isMounted) {
-          setLoadingResidentCourses(false);
-        }
-      }
-    };
-
-    loadResidentCourses();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [userProfile]);
 
   useEffect(() => {
     let isMounted = true;
@@ -421,23 +396,6 @@ export default function HomeDashboardScreen({
     const sourceName = (userProfile?.name || displayName).trim();
     return sourceName.split(/\s+/)[0] || "Usuario";
   }, [displayName, userProfile?.name]);
-  const residentHospital = useMemo(
-    () => hospitals.find((hospital) => hospital.id === userProfile?.hospital_id),
-    [hospitals, userProfile?.hospital_id]
-  );
-  const residentSpecialty = useMemo(
-    () => specialties.find((specialty) => specialty.id === userProfile?.speciality_id),
-    [specialties, userProfile?.speciality_id]
-  );
-  const residentHospitalName =
-    userProfile?.hospital?.name || userProfile?.hospital_name || residentHospital?.name;
-  const residentSpecialtyName =
-    userProfile?.speciality?.name ||
-    userProfile?.speciality_name ||
-    residentSpecialty?.name;
-  const residentYearLabel = userProfile?.resident_year
-    ? `R${userProfile.resident_year}`
-    : "Residente";
   const { request: emailReviewRequest } = useEmailReviewStatus(userProfile?.id);
   const isEmailReviewPending = emailReviewRequest?.status === "PENDING";
   const isEmailReviewRejected = emailReviewRequest?.status === "REJECTED";
@@ -475,76 +433,79 @@ export default function HomeDashboardScreen({
     !shouldBypassResidentReviewGate(userProfile, residentTransitionConfig) &&
     !isEmailReviewPending &&
     !isEmailReviewRejected;
-  const residentMeta = [residentSpecialtyName, residentYearLabel]
-    .filter(Boolean)
-    .join(" · ");
-  const currentWeekdayIndex = getCurrentWeekdayIndex();
   const residentQuickActions = useMemo(
     () =>
       [
         {
           label: "Libro de residentes",
-          icon: "book-outline",
+          icon: Book,
           section: "residenceLibrary",
           tint: "#DBEAFE",
           color: "#2563EB",
         },
         {
+          label: "Nóminas",
+          icon: Money,
+          section: "residentPayouts",
+          tint: "#D1FAE5",
+          color: "#059669",
+        },
+        {
+          label: "Residentes",
+          icon: Users,
+          section: "residentsDirectory",
+          tint: "#CFFAFE",
+          color: "#0891B2",
+        },
+        {
+          label: "Roomies",
+          icon: Heart,
+          section: "roomies",
+          tint: "#FFE4E6",
+          color: "#E11D48",
+        },
+        {
+          label: "Vivienda",
+          icon: House,
+          section: "vivienda",
+          tint: "#E5E7EB",
+          color: "#475569",
+        },
+        {
+          label: "Rotaciones externas",
+          icon: AirplaneTilt,
+          section: "rotaciones-externas",
+          tint: "#CCFBF1",
+          color: "#0F766E",
+        },
+        {
           label: "Salud mental",
-          icon: "heart-circle-outline",
+          icon: Brain,
           section: "mentalHealth",
           tint: "#E0F2FE",
           color: "#0EA5E9",
         },
         {
           label: "Cursos / Congresos",
-          icon: "school-outline",
+          icon: GraduationCap,
           section: "cursos",
           tint: "#FFEDD5",
           color: "#F97316",
         },
         {
-          label: "Notificaciones",
-          icon: "notifications-outline",
-          section: "notifications",
-          tint: "#E0F2FE",
-          color: "#0284C7",
+          label: "Mi reseña",
+          icon: Star,
+          section: "myReview",
+          tint: "#FEF3C7",
+          color: "#D97706",
         },
         {
           label: "Chat clínico",
-          icon: "medical-outline",
+          icon: Stethoscope,
           section: "clinicalAssistant",
           tint: "#DCFCE7",
           color: "#15803D",
           badge: "NUEVO",
-        },
-        {
-          label: "Rotaciones externas",
-          icon: "airplane-outline",
-          section: "rotaciones-externas",
-          tint: "#CCFBF1",
-          color: "#0F766E",
-        },
-        {
-          label: "Nóminas",
-          icon: "cash-outline",
-          section: "residentPayouts",
-          tint: "#F4EEFF",
-          color: "#670CF5",
-        },
-        {
-          label: "Vivienda",
-          icon: "home-outline",
-          section: "vivienda",
-          tint: "#E5E7EB",
-          color: "#475569",
-        },
-        {
-          label: "Residentes",
-          icon: "people-outline",
-          section: "residentsDirectory",
-          tint: "#EDE9FE",
-          color: "#7C3AED",
         },
       ].filter(
         (action) =>
@@ -552,17 +513,6 @@ export default function HomeDashboardScreen({
           userProfile?.can_use_clinical_assistant
       ),
     [userProfile?.can_use_clinical_assistant]
-  );
-  const upcomingResidentCourses = useMemo(
-    () =>
-      residentCourses
-        .filter((course) => Boolean(getNextUpcomingCourseDate(course)))
-        .sort((a, b) => {
-          const aNextDate = getNextUpcomingCourseDate(a) || "9999-12-31";
-          const bNextDate = getNextUpcomingCourseDate(b) || "9999-12-31";
-          return aNextDate.localeCompare(bNextDate);
-        }),
-    [residentCourses]
   );
   const residentHeroEvent = useMemo(() => {
     const today = new Date();
@@ -639,25 +589,6 @@ export default function HomeDashboardScreen({
             agendaEventTypeLabels[effectiveAgendaHeroSnapshot.event?.event_type]?.toLowerCase() || "evento"
           } ya está programado`
         : "";
-  const weekOverview = useMemo(() => {
-    const startOfWeek = getStartOfWeek();
-
-    return ["L", "M", "X", "J", "V", "S", "D"].map((dayLabel, index) => {
-      const date = new Date(startOfWeek);
-      date.setDate(startOfWeek.getDate() + index);
-
-      const matchingEvent = agendaEvents.find((event) => eventIncludesDate(event, date));
-      const agendaHeroConfig = getAgendaHeroConfig(matchingEvent?.event_type);
-
-      return {
-        day: dayLabel,
-        icon: matchingEvent ? agendaHeroConfig.icon : "add",
-        hasEvent: Boolean(matchingEvent),
-        event: matchingEvent || null,
-      };
-    });
-  }, [agendaEvents]);
-
   useEffect(() => {
     let isMounted = true;
 
@@ -809,7 +740,7 @@ export default function HomeDashboardScreen({
             onPress={() => onSectionChange?.("createHousingAd")}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: `${ACCENT}20` }]}>
-              <Ionicons name="add-circle-outline" size={22} color={ACCENT} />
+              <Icon name="add-circle-outline" size={22} color={ACCENT} />
             </View>
             <Text style={styles.quickActionLabel}>Publicar anuncio</Text>
           </TouchableOpacity>
@@ -818,7 +749,7 @@ export default function HomeDashboardScreen({
             onPress={() => onSectionChange?.("vivienda")}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: "#E2E8F0" }]}>
-              <Ionicons name="business-outline" size={22} color="#475569" />
+              <Icon name="business-outline" size={22} color="#475569" />
             </View>
             <Text style={styles.quickActionLabel}>Mis anuncios</Text>
           </TouchableOpacity>
@@ -827,7 +758,7 @@ export default function HomeDashboardScreen({
             onPress={() => onSectionChange?.("grupos")}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: `${SECONDARY}20` }]}>
-              <Ionicons name="chatbubbles-outline" size={22} color={SECONDARY} />
+              <Icon name="chatbubbles-outline" size={22} color={SECONDARY} />
             </View>
             <Text style={styles.quickActionLabel}>Chats</Text>
           </TouchableOpacity>
@@ -837,29 +768,22 @@ export default function HomeDashboardScreen({
   }
 
   return (
-    <ScrollView
+    <FlatList
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
       showsVerticalScrollIndicator={false}
-    >
+      data={feedListData}
+      keyExtractor={feedKeyExtractor}
+      renderItem={renderFeedItem}
+      initialNumToRender={6}
+      maxToRenderPerBatch={8}
+      windowSize={11}
+      removeClippedSubviews={false}
+      ListHeaderComponent={
+        <View>
       {/* Header púrpura */}
       <View style={[styles.header, { paddingTop: 16 }]}>
         <View style={styles.headerBlur} />
-        <View style={styles.headerRow}>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.greeting}>{getGreeting()}</Text>
-            <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">
-              {firstName}
-            </Text>
-            <Text style={styles.headerSubtitle} numberOfLines={1} ellipsizeMode="tail">
-              {userProfile?.is_resident
-                ? [residentMeta, residentHospitalName || "Tu hospital"]
-                    .filter(Boolean)
-                    .join(" · ")
-                : "Tu próxima residencia te espera"}
-            </Text>
-          </View>
-        </View>
 
         {/* Card puntuación MIR (residentes) / CTA prep MIR (estudiantes) */}
         {isEmailReviewPending ? (
@@ -873,7 +797,7 @@ export default function HomeDashboardScreen({
             <View style={styles.residentReviewHeroMain}>
               <View style={styles.residentReviewHeroHeader}>
                 <View style={styles.residentHeroIconWrap}>
-                  <Ionicons name="hourglass-outline" size={22} color="#FFF" />
+                  <Icon name="hourglass-outline" size={22} color="#FFF" />
                 </View>
                 <View style={styles.residentHeroTextWrap}>
                   <Text style={styles.residentHeroTitle}>
@@ -949,7 +873,7 @@ export default function HomeDashboardScreen({
             <View style={styles.residentReviewHeroMain}>
               <View style={styles.residentReviewHeroHeader}>
                 <View style={styles.residentHeroIconWrap}>
-                  <Ionicons name="mail-outline" size={22} color="#FFF" />
+                  <Icon name="mail-outline" size={22} color="#FFF" />
                 </View>
                 <View style={styles.residentHeroTextWrap}>
                   <Text style={styles.residentHeroTitle}>Añade tu correo corporativo</Text>
@@ -1023,13 +947,13 @@ export default function HomeDashboardScreen({
               </View>
               <View style={styles.residentReviewReminderBenefits}>
                 <View style={styles.residentReviewReminderChip}>
-                  <Ionicons name="timer-outline" size={14} color="#FFF" />
+                  <Icon name="timer-outline" size={14} color="#FFF" />
                   <Text style={styles.residentReviewReminderChipText}>
                     Menos de 2 min
                   </Text>
                 </View>
                 <View style={styles.residentReviewReminderChip}>
-                  <Ionicons name="shield-checkmark-outline" size={14} color="#FFF" />
+                  <Icon name="shield-checkmark-outline" size={14} color="#FFF" />
                   <Text style={styles.residentReviewReminderChipText}>
                     Opción anónima
                   </Text>
@@ -1059,7 +983,7 @@ export default function HomeDashboardScreen({
                 >
                   Escribir mi reseña
                 </Text>
-                <Ionicons name="arrow-forward" size={16} color={PRIMARY} />
+                <Icon name="arrow-forward" size={16} color={PRIMARY} />
               </TouchableOpacity>
             </View>
             <Text
@@ -1086,7 +1010,7 @@ export default function HomeDashboardScreen({
             )}
             <View style={styles.residentHeroBody}>
               <View style={styles.residentHeroIconWrap}>
-                <Ionicons name={residentHeroConfig.icon} size={22} color="#FFF" />
+                <Icon name={residentHeroConfig.icon} size={22} color="#FFF" />
               </View>
               <View style={styles.residentHeroTextWrap}>
                 <Text style={styles.residentHeroTitle}>{residentHeroTitle}</Text>
@@ -1118,7 +1042,7 @@ export default function HomeDashboardScreen({
               onPress={() => onSectionChange?.("vivienda")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: "#E2E8F0" }]}>
-                <Ionicons name="business-outline" size={22} color="#475569" />
+                <Icon name="business-outline" size={22} color="#475569" />
               </View>
               <Text style={styles.quickActionLabel}>Vivienda</Text>
             </TouchableOpacity>
@@ -1127,7 +1051,7 @@ export default function HomeDashboardScreen({
               onPress={() => onSectionChange?.("reseñas")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: `${SECONDARY}20` }]}>
-                <Ionicons name="star-outline" size={22} color={SECONDARY} />
+                <Icon name="star-outline" size={22} color={SECONDARY} />
               </View>
               <Text style={styles.quickActionLabel}>Reseñas</Text>
             </TouchableOpacity>
@@ -1136,7 +1060,7 @@ export default function HomeDashboardScreen({
               onPress={() => onSectionChange?.("myPreferences")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: `${ACCENT}20` }]}>
-                <Ionicons name="heart-outline" size={22} color={ACCENT} />
+                <Icon name="heart-outline" size={22} color={ACCENT} />
               </View>
               <Text style={styles.quickActionLabel}>Preferencias</Text>
             </TouchableOpacity>
@@ -1145,7 +1069,7 @@ export default function HomeDashboardScreen({
               onPress={() => onSectionChange?.("orientador-mir")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: `${PRIMARY}20` }]}>
-                <Ionicons name="compass-outline" size={22} color={PRIMARY} />
+                <Icon name="compass-outline" size={22} color={PRIMARY} />
               </View>
               <Text style={styles.quickActionLabel}>Orientador MIR</Text>
             </TouchableOpacity>
@@ -1154,7 +1078,7 @@ export default function HomeDashboardScreen({
               onPress={() => onSectionChange?.("nota-proyectada")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: `${PRIMARY}20` }]}>
-                <Ionicons name="trending-up-outline" size={22} color={PRIMARY} />
+                <Icon name="trending-up-outline" size={22} color={PRIMARY} />
               </View>
               <Text style={styles.quickActionLabel}>Nota proyectada</Text>
             </TouchableOpacity>
@@ -1206,7 +1130,7 @@ export default function HomeDashboardScreen({
               activeOpacity={0.9}
             >
               <View style={styles.seasonalCountdownIcon}>
-                <Ionicons name="time-outline" size={20} color="#B45309" />
+                <Icon name="time-outline" size={20} color="#B45309" />
               </View>
               <View style={styles.seasonalCountdownCopy}>
                 <Text style={styles.seasonalCountdownEyebrow}>
@@ -1225,7 +1149,7 @@ export default function HomeDashboardScreen({
                 </Text>
               </View>
               <View style={styles.seasonalCountdownArrow}>
-                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                <Icon name="arrow-forward" size={18} color="#FFFFFF" />
               </View>
             </TouchableOpacity>
           ) : null}
@@ -1243,7 +1167,7 @@ export default function HomeDashboardScreen({
               activeOpacity={0.9}
             >
               <View style={styles.payoutBannerIcon}>
-                <Ionicons name="cash-outline" size={20} color="#670CF5" />
+                <Icon name="cash-outline" size={20} color="#670CF5" />
               </View>
               <View style={styles.payoutBannerCopy}>
                 <Text style={styles.payoutBannerEyebrow}>CIERRE MENSUAL</Text>
@@ -1259,87 +1183,69 @@ export default function HomeDashboardScreen({
                 </Text>
               </View>
               <View style={styles.payoutBannerArrow}>
-                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                <Icon name="arrow-forward" size={18} color="#FFFFFF" />
               </View>
             </TouchableOpacity>
           ) : null}
 
-          <View style={styles.residentWeekCard}>
-            <View style={styles.residentCardHeader}>
-              <Text style={styles.residentCardTitle}>Semana actual</Text>
-              <TouchableOpacity
-                onPress={() => onSectionChange?.("agenda")}
-                activeOpacity={0.75}
-              >
-                <Text style={styles.residentCardLink}>Ver agenda</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.residentWeekRow}>
-              {weekOverview.map((item, index) => {
-                const isActive = index === currentWeekdayIndex;
-                const isAdd = item.icon === "add";
-
-                return (
-                  <View
-                    key={item.day}
-                    style={[styles.residentWeekItem, isActive && styles.residentWeekItemActive]}
-                  >
-                    <Text
-                      style={[
-                        styles.residentWeekDay,
-                        isActive && styles.residentWeekDayActive,
-                      ]}
-                    >
-                      {item.day}
-                    </Text>
-                    {isAdd ? (
-                      <Ionicons
-                        name="add"
-                        size={16}
-                        color={isActive ? PRIMARY : "#C7CCD8"}
-                      />
-                    ) : (
-                      <Ionicons
-                        name={item.icon}
-                        size={16}
-                        color={isActive ? PRIMARY : item.hasEvent ? ACCENT : "#C7CCD8"}
-                      />
-                    )}
-                  </View>
-                );
-              })}
-            </View>
+          <View style={styles.residentActionsRow}>
+            <QuickActionsPager
+              actions={residentQuickActions}
+              onPress={(section) => onSectionChange?.(section)}
+            />
           </View>
 
-          <View style={styles.residentActionsCard}>
-            <View style={styles.residentActionsGrid}>
-              {residentQuickActions.map((action) => (
+          {/* Feed social: cuerpo principal del inicio del residente.
+              Ver docs/adr/0004-feed-actividad-de-guardia-por-conexion.md */}
+          <View style={styles.feedSection}>
+            <View style={styles.feedHeaderRow}>
+              <View style={styles.sectionBarPurple} />
+              <Text style={styles.feedHeaderTitle}>Tu feed</Text>
+            </View>
+            <FeedComposer userId={userProfile?.id} onPosted={refreshFeed} />
+
+            {!feedHydrated && feedItems.length === 0 ? (
+              <FeedSkeleton />
+            ) : feedItems.length === 0 ? (
+              <View style={styles.feedEmpty}>
+                <Icon name="people-outline" size={28} color="#A78BFA" />
+                <Text style={styles.feedEmptyTitle}>Tu feed está tranquilo</Text>
+                <Text style={styles.feedEmptyText}>
+                  Conecta con otros residentes para ver sus guardias y
+                  publicaciones, y darles un Chapó.
+                </Text>
                 <TouchableOpacity
-                  key={action.label}
-                  style={styles.residentActionItem}
-                  onPress={() => onSectionChange?.(action.section)}
-                  activeOpacity={0.78}
+                  style={styles.feedEmptyBtn}
+                  onPress={() => onSectionChange?.("residentsDirectory")}
+                  activeOpacity={0.85}
                 >
-                  <View
-                    style={[
-                      styles.residentActionIconWrap,
-                      { backgroundColor: action.tint },
-                    ]}
-                  >
-                    <Ionicons name={action.icon} size={22} color={action.color} />
-                    {!!action.badge && (
-                      <View style={styles.residentActionBadge}>
-                        <Text style={styles.residentActionBadgeText}>
-                          {action.badge}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.residentActionLabel}>{action.label}</Text>
+                  <Text style={styles.feedEmptyBtnText}>Buscar residentes</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
+              </View>
+            ) : null}
           </View>
+        </View>
+      )}
+        </View>
+      }
+      ListFooterComponent={
+        <View>
+      {userProfile?.is_resident && (
+        <View style={styles.residentTopStack}>
+          {feedItems.length > 0 && feedHasMore && (
+            <TouchableOpacity
+              style={styles.feedLoadMore}
+              onPress={loadMoreFeed}
+              disabled={loadingMoreFeed}
+              activeOpacity={0.8}
+            >
+              {loadingMoreFeed ? (
+                <ActivityIndicator size="small" color={PRIMARY} />
+              ) : (
+                <Text style={styles.feedLoadMoreText}>Cargar más</Text>
+              )}
+            </TouchableOpacity>
+          )}
 
           {!loadingDashboardAds && carouselHasAds && (
             <View style={styles.section}>
@@ -1371,29 +1277,6 @@ export default function HomeDashboardScreen({
               </View>
             </View>
           )}
-
-          <TouchableOpacity
-            style={styles.roomiesBanner}
-            onPress={() => onSectionChange?.("roomies")}
-            activeOpacity={0.9}
-          >
-            <View style={styles.roomiesBannerContent}>
-              <View style={styles.roomiesBadge}>
-                <Ionicons name="heart" size={18} color={PRIMARY} />
-              </View>
-              <View style={styles.roomiesTextWrap}>
-                <Text style={styles.roomiesBrandTitle}>RoomiesMIR</Text>
-                <Text style={styles.roomiesTitle}>Nuevo: matching de convivencia</Text>
-                <Text style={styles.roomiesText}>
-                  Crea tu perfil roomie, responde el quiz y swipea futuros compis de piso.
-                </Text>
-              </View>
-            </View>
-            <View style={styles.roomiesArrow}>
-              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>
-
         </View>
       )}
 
@@ -1413,7 +1296,7 @@ export default function HomeDashboardScreen({
             </View>
           </View>
           <View style={styles.roomiesArrow}>
-            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            <Icon name="arrow-forward" size={18} color="#FFFFFF" />
           </View>
         </TouchableOpacity>
       )}
@@ -1437,7 +1320,7 @@ export default function HomeDashboardScreen({
                 Haz el test y obtén un ranking de especialidades con porcentaje de afinidad.
               </Text>
               <View style={styles.specialityQuizMetaRow}>
-                <Ionicons name="sparkles-outline" size={15} color="#0F766E" />
+                <Icon name="sparkles-outline" size={15} color="#0F766E" />
                 <Text style={styles.specialityQuizMetaText}>
                   Especialidad top: {lastQuizTopSpeciality ?? "pendiente"}
                 </Text>
@@ -1445,7 +1328,7 @@ export default function HomeDashboardScreen({
             </View>
 
             <View style={styles.specialityQuizArrow}>
-              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+              <Icon name="arrow-forward" size={18} color="#FFFFFF" />
             </View>
           </View>
         </TouchableOpacity>
@@ -1487,20 +1370,20 @@ export default function HomeDashboardScreen({
                         {hospital.name}
                       </Text>
                       <View style={styles.hospitalCardRow}>
-                        <Ionicons name="location" size={12} color="#6B7280" />
+                        <Icon name="location" size={12} color="#6B7280" />
                         <Text style={styles.hospitalCardMeta}>
                           {hospital.city}, {hospital.region}
                         </Text>
                       </View>
                       <View style={styles.hospitalCardRow}>
-                        <Ionicons name="school" size={12} color={SECONDARY} />
+                        <Icon name="school" size={12} color={SECONDARY} />
                         <Text style={styles.hospitalCardSpecialty}>
                           {hospital.specialtyCount ?? 0} especialidades MIR
                         </Text>
                       </View>
                       <View style={styles.hospitalCardDivider} />
                       <View style={styles.hospitalCardRow}>
-                        <Ionicons name="star" size={14} color="#FBBF24" />
+                        <Icon name="star" size={14} color="#FBBF24" />
                         <Text style={styles.hospitalCardRating}>
                           {rating ? rating.avgRating.toFixed(1) : "–"}
                         </Text>
@@ -1534,7 +1417,7 @@ export default function HomeDashboardScreen({
                 </Text>
               </View>
               <View style={styles.housingBannerIcon}>
-                <Ionicons name="home" size={40} color={SECONDARY} />
+                <Icon name="home" size={40} color={SECONDARY} />
               </View>
             </View>
           </TouchableOpacity>
@@ -1566,7 +1449,7 @@ export default function HomeDashboardScreen({
                     </Text>
                     <View style={styles.alsoCardRow}>
                       <View style={styles.alsoCardStars}>
-                        <Ionicons name="star" size={14} color="#FBBF24" />
+                        <Icon name="star" size={14} color="#FBBF24" />
                         <Text style={styles.alsoCardRating}>4.7</Text>
                       </View>
                       <Text style={styles.alsoCardSpecialty}>
@@ -1580,71 +1463,9 @@ export default function HomeDashboardScreen({
           </View>
         </>
       )}
-
-      {userProfile?.is_resident && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.residentCoursesTitle}>Próximos cursos y congresos</Text>
-          </View>
-          {loadingResidentCourses ? (
-            <ActivityIndicator size="small" color={PRIMARY} style={styles.loader} />
-          ) : upcomingResidentCourses.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.residentCoursesRow}
-            >
-              {upcomingResidentCourses.slice(0, 2).map((course) => (
-                <TouchableOpacity
-                  key={course.id}
-                  style={styles.residentCourseCard}
-                  onPress={() =>
-                    onSectionChange?.("courseDetail", {
-                      courseId: course.id,
-                      fromSection: "inicio",
-                    })
-                  }
-                  activeOpacity={0.86}
-                >
-                  <Text
-                    style={[
-                      styles.residentCourseKind,
-                      getCourseKindLabel(course) === "Congreso"
-                        ? styles.residentCourseKindCongress
-                        : styles.residentCourseKindCourse,
-                    ]}
-                  >
-                    {getCourseKindLabel(course)}
-                  </Text>
-                  <Text style={styles.residentCourseName} numberOfLines={2}>
-                    {course.title}
-                  </Text>
-                  <Text style={styles.residentCourseMeta} numberOfLines={1}>
-                    {formatCourseDateLabel(course)}
-                    {course.hospital?.name ? ` · ${course.hospital.name}` : ""}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          ) : (
-            <TouchableOpacity
-              style={styles.residentCoursesEmpty}
-              onPress={() => onSectionChange?.("cursos")}
-              activeOpacity={0.84}
-            >
-              <Ionicons name="school-outline" size={20} color={PRIMARY} />
-              <Text style={styles.residentCoursesEmptyTitle}>
-                Sin cursos para tu especialidad
-              </Text>
-              <Text style={styles.residentCoursesEmptyText}>
-                Revisa las formaciones disponibles o crea una nueva.
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
-      )}
-
-    </ScrollView>
+      }
+    />
   );
 }
 
@@ -2036,57 +1857,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#D97706",
   },
-  residentWeekCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 22,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: "rgba(27,9,119,0.06)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  residentCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  residentCardTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: ACCENT,
-  },
-  residentCardLink: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: PRIMARY,
-  },
-  residentWeekRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 6,
-  },
-  residentWeekItem: {
-    flex: 1,
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  residentWeekItemActive: {
-    backgroundColor: "rgba(103,12,245,0.08)",
-  },
-  residentWeekDay: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: "#9CA3AF",
-  },
-  residentWeekDayActive: {
-    color: PRIMARY,
-  },
   residentActionsCard: {
     backgroundColor: "#FFF",
     borderRadius: 24,
@@ -2110,106 +1880,70 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  residentActionIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+  residentActionsRow: {
+    marginHorizontal: -16,
+  },
+  sectionBarPurple: {
+    width: 4,
+    height: 18,
+    borderRadius: 2,
+    backgroundColor: "#670CF5",
+  },
+  feedSection: {
+    marginTop: 4,
+  },
+  feedHeaderRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
+    gap: 8,
+    marginBottom: 12,
   },
-  residentActionBadge: {
-    position: "absolute",
-    top: -7,
-    right: -13,
-    minWidth: 34,
-    height: 17,
-    borderRadius: 9,
-    paddingHorizontal: 5,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#15803D",
-    borderWidth: 1,
-    borderColor: "#FFFFFF",
-  },
-  residentActionBadgeText: {
-    fontSize: 8,
-    fontWeight: "900",
-    color: "#FFFFFF",
-  },
-  residentActionLabel: {
-    fontSize: 10,
+  feedHeaderTitle: {
+    fontSize: 18,
     fontWeight: "800",
-    color: "#334155",
-    textAlign: "center",
-    lineHeight: 14,
+    color: "#1B0977",
   },
-  residentCoursesTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#334155",
-  },
-  residentCoursesRow: {
-    gap: 12,
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  residentCourseCard: {
-    width: 208,
-    backgroundColor: "#FFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(27,9,119,0.06)",
-    padding: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  residentCourseKind: {
-    fontSize: 10,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    marginBottom: 6,
-  },
-  residentCourseKindCourse: {
-    color: "#2563EB",
-  },
-  residentCourseKindCongress: {
-    color: "#F97316",
-  },
-  residentCourseName: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#1F2937",
-    lineHeight: 17,
-  },
-  residentCourseMeta: {
-    fontSize: 10,
-    color: "#6B7280",
-    marginTop: 6,
-    lineHeight: 14,
-  },
-  residentCoursesEmpty: {
-    marginTop: 12,
+  feedEmpty: {
     backgroundColor: "#FFF",
     borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(27,9,119,0.06)",
-    padding: 16,
-    alignItems: "flex-start",
-    gap: 6,
+    padding: 24,
+    alignItems: "center",
+    gap: 8,
   },
-  residentCoursesEmptyTitle: {
-    fontSize: 14,
+  feedEmptyTitle: {
+    fontSize: 15,
     fontWeight: "800",
-    color: ACCENT,
+    color: "#1B0977",
+    marginTop: 4,
   },
-  residentCoursesEmptyText: {
-    fontSize: 12,
+  feedEmptyText: {
+    fontSize: 13.5,
+    lineHeight: 19,
     color: "#6B7280",
-    lineHeight: 17,
+    textAlign: "center",
+  },
+  feedEmptyBtn: {
+    marginTop: 10,
+    backgroundColor: "#670CF5",
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: 999,
+  },
+  feedEmptyBtnText: {
+    color: "#FFF",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  feedLoadMore: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    marginBottom: 8,
+  },
+  feedLoadMoreText: {
+    color: "#670CF5",
+    fontWeight: "700",
+    fontSize: 14,
   },
   residentMetricsRow: {
     flexDirection: "row",
