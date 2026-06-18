@@ -470,7 +470,7 @@ const EventChip = ({ label, selected, onPress, color }) => (
   </TouchableOpacity>
 );
 
-export const AgendaScreen = ({ userProfile }) => {
+export const AgendaScreen = ({ userProfile, navigation }) => {
   const insets = useSafeAreaInsets();
   const userId = userProfile?.id;
   const today = normalizeDate();
@@ -745,6 +745,23 @@ export const AgendaScreen = ({ userProfile }) => {
     setShareUserIds([]);
     setSharePickerVisible(false);
     exitShiftSelectionMode();
+  };
+
+  // Desde el selector vacío de "Compartir con": llevar al residente al
+  // directorio de Residentes para que pueda crear conexiones.
+  // El picker es un Modal anidado dentro del Modal del editor, así que hay que
+  // cerrarlos en secuencia (interno -> externo) y navegar solo cuando ya no
+  // queda ningún Modal en pantalla. Si navegamos mientras un Modal sigue
+  // (des)montándose, DashboardScreen desmonta AgendaScreen y la ventana nativa
+  // del Modal queda huérfana => pantalla en negro.
+  const handleAddConnection = () => {
+    setSharePickerVisible(false);
+    setTimeout(() => {
+      closeEditor();
+      setTimeout(() => {
+        navigation?.navigate?.("residentsDirectory");
+      }, 320);
+    }, 280);
   };
 
   const closeDeleteDialog = () => {
@@ -1764,38 +1781,28 @@ export const AgendaScreen = ({ userProfile }) => {
             {showsShareField ? (
               <View style={styles.editorSection}>
                 <Text style={styles.inputLabel}>Compartir con</Text>
-                {connectionsLoaded && connections.length === 0 ? (
-                  <View style={styles.shareEmpty}>
-                    <Icon name="people-outline" size={18} color="#94A3B8" />
-                    <Text style={styles.shareEmptyText}>
-                      Aún no tienes conexiones. Conéctate con otros residentes desde el
-                      directorio de Residentes para poder compartir eventos.
-                    </Text>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.shareSelector}
-                    activeOpacity={0.85}
-                    onPress={() => setSharePickerVisible(true)}
-                    disabled={!connectionsLoaded}
-                  >
-                    <Icon
-                      name="people-outline"
-                      size={20}
-                      color={selectedTypeMeta.color}
-                    />
-                    <Text style={styles.shareSelectorText}>
-                      {shareUserIds.length > 0
-                        ? `${shareUserIds.length} ${
-                            shareUserIds.length === 1 ? "conexión" : "conexiones"
-                          }`
-                        : connectionsLoaded
-                          ? "Elegir conexiones"
-                          : "Cargando conexiones..."}
-                    </Text>
-                    <Icon name="chevron-forward" size={18} color="#CBD5E1" />
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  style={styles.shareSelector}
+                  activeOpacity={0.85}
+                  onPress={() => setSharePickerVisible(true)}
+                  disabled={!connectionsLoaded}
+                >
+                  <Icon
+                    name="people-outline"
+                    size={20}
+                    color={selectedTypeMeta.color}
+                  />
+                  <Text style={styles.shareSelectorText}>
+                    {shareUserIds.length > 0
+                      ? `${shareUserIds.length} ${
+                          shareUserIds.length === 1 ? "conexión" : "conexiones"
+                        }`
+                      : connectionsLoaded
+                        ? "Elegir conexiones"
+                        : "Cargando conexiones..."}
+                  </Text>
+                  <Icon name="chevron-forward" size={18} color="#CBD5E1" />
+                </TouchableOpacity>
               </View>
             ) : null}
 
@@ -1860,6 +1867,7 @@ export const AgendaScreen = ({ userProfile }) => {
             connections={connections}
             selectedIds={shareUserIds}
             onConfirm={setShareUserIds}
+            onAddConnection={handleAddConnection}
           />
         </KeyboardAvoidingView>
       </Modal>
@@ -2444,23 +2452,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#0F172A",
-  },
-  shareEmpty: {
-    borderRadius: 16,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    padding: 14,
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-  },
-  shareEmptyText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-    color: "#64748B",
-    fontWeight: "600",
   },
   choiceRow: {
     flexDirection: "row",

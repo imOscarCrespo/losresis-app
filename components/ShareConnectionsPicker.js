@@ -32,6 +32,7 @@ export const ShareConnectionsPicker = ({
   connections = [],
   selectedIds = [],
   onConfirm,
+  onAddConnection,
 }) => {
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState("");
@@ -138,9 +139,28 @@ export const ShareConnectionsPicker = ({
             );
           }}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>Sin resultados</Text>
-            </View>
+            connections.length === 0 ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyText}>
+                  Aún no tienes conexiones
+                </Text>
+                <Text style={styles.emptyHint}>
+                  Conéctate con otros residentes para poder compartir eventos.
+                </Text>
+                <TouchableOpacity
+                  style={styles.addConnectionBtn}
+                  activeOpacity={0.85}
+                  onPress={() => onAddConnection?.()}
+                >
+                  <Icon name="person-add-outline" size={18} color={ACCENT} />
+                  <Text style={styles.addConnectionText}>Añadir conexión</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.empty}>
+                <Text style={styles.emptyText}>Sin resultados</Text>
+              </View>
+            )
           }
         />
 
@@ -257,6 +277,31 @@ const styles = StyleSheet.create({
     color: "#64748B",
     fontSize: 15,
     fontWeight: "600",
+    textAlign: "center",
+  },
+  emptyHint: {
+    color: "#94A3B8",
+    fontSize: 13,
+    fontWeight: "500",
+    textAlign: "center",
+    marginTop: 6,
+  },
+  addConnectionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: ACCENT,
+    backgroundColor: "#F5F1FE",
+  },
+  addConnectionText: {
+    color: ACCENT,
+    fontSize: 15,
+    fontWeight: "800",
   },
   footer: {
     paddingHorizontal: 16,
