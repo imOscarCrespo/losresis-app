@@ -130,6 +130,13 @@ function getGreeting() {
   return "BUENAS NOCHES";
 }
 
+function getGreetingSentence() {
+  const h = new Date().getHours();
+  if (h < 12) return "Buenos días";
+  if (h < 20) return "Buenas tardes";
+  return "Buenas noches";
+}
+
 function eventIncludesDate(event, targetDate) {
   if (!event?.event_date || !targetDate) return false;
 
@@ -440,6 +447,13 @@ export default function HomeDashboardScreen({
           label: "Libro de residentes",
           icon: Book,
           section: "residenceLibrary",
+          tint: "#D1FAE5",
+          color: "#059669",
+        },
+        {
+          label: "Comunidad",
+          icon: Users,
+          section: "residentsDirectory",
           tint: "#DBEAFE",
           color: "#2563EB",
         },
@@ -447,57 +461,50 @@ export default function HomeDashboardScreen({
           label: "Nóminas",
           icon: Money,
           section: "residentPayouts",
-          tint: "#D1FAE5",
-          color: "#059669",
+          tint: "#FFEDD5",
+          color: "#F97316",
         },
         {
-          label: "Residentes",
-          icon: Users,
-          section: "residentsDirectory",
-          tint: "#CFFAFE",
-          color: "#0891B2",
-        },
-        {
-          label: "Roomies",
+          label: "RoomiesMIR",
           icon: Heart,
           section: "roomies",
-          tint: "#FFE4E6",
-          color: "#E11D48",
+          tint: "#FEF9C3",
+          color: "#CA8A04",
         },
         {
-          label: "Vivienda",
+          label: "Cursos y congresos",
+          icon: GraduationCap,
+          section: "cursos",
+          tint: "#DBEAFE",
+          color: "#2563EB",
+        },
+        {
+          label: "Rotaciones externas",
+          icon: AirplaneTilt,
+          section: "rotaciones-externas",
+          tint: "#EDE9FE",
+          color: "#6D28D9",
+        },
+        {
+          label: "Viviendas",
           icon: House,
           section: "vivienda",
           tint: "#E5E7EB",
           color: "#475569",
         },
         {
-          label: "Rotaciones externas",
-          icon: AirplaneTilt,
-          section: "rotaciones-externas",
-          tint: "#CCFBF1",
-          color: "#0F766E",
-        },
-        {
           label: "Salud mental",
           icon: Brain,
           section: "mentalHealth",
-          tint: "#E0F2FE",
-          color: "#0EA5E9",
-        },
-        {
-          label: "Cursos / Congresos",
-          icon: GraduationCap,
-          section: "cursos",
-          tint: "#FFEDD5",
-          color: "#F97316",
+          tint: "#D1FAE5",
+          color: "#059669",
         },
         {
           label: "Mi reseña",
           icon: Star,
           section: "myReview",
-          tint: "#FEF3C7",
-          color: "#D97706",
+          tint: "#FFEDD5",
+          color: "#F97316",
         },
         {
           label: "Chat clínico",
@@ -784,6 +791,11 @@ export default function HomeDashboardScreen({
       {/* Header púrpura */}
       <View style={[styles.header, { paddingTop: 16 }]}>
         <View style={styles.headerBlur} />
+        <View style={styles.headerRow}>
+          <Text style={styles.greetingSentence} numberOfLines={2} ellipsizeMode="tail">
+            {getGreetingSentence()}, {firstName}
+          </Text>
+        </View>
 
         {/* Card puntuación MIR (residentes) / CTA prep MIR (estudiantes) */}
         {isEmailReviewPending ? (
@@ -1518,6 +1530,11 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 28,
+    fontWeight: "800",
+    color: "#FFF",
+  },
+  greetingSentence: {
+    fontSize: 20,
     fontWeight: "800",
     color: "#FFF",
   },

@@ -59,6 +59,15 @@ _Evitar_: guardia compartida, guardia del feed (la guardia no se comparte; se de
 Publicación de contenido libre que un **Residente** crea en su **Feed**: **texto** (obligatorio) y **opcionalmente una imagen**. No tiene fecha de calendario ni estructura (a diferencia del **Evento de agenda**). Lo ven sus **Conexiones** en el **Feed**. Se le pueden dar **Chapós**. En v1 no admite comentarios.
 _Evitar_: publicación de agenda, evento social, estado.
 
+## Mis publicaciones
+
+Vista propia del **Residente** sobre los **Posts** que él mismo ha creado, accesible desde **Mi perfil** (pantalla dedicada, separada del **Feed**). Existe porque el **Feed** solo muestra lo de las **Conexiones**: sin esta vista, un residente no puede ver ni gestionar lo que él ha publicado. Reúne **únicamente Posts** (no **Actividades de guardia**, que son derivadas y se gestionan desde la **Agenda**). Desde aquí el residente puede **ver**, **publicar** y **eliminar** sus Posts; editar **no** está contemplado en esta versión. En cada Post propio el **Chapó** se muestra como contador de solo-lectura (un residente no se da Chapó a sí mismo). **Mi perfil** expone esta vista como una de tres métricas de cabecera: **Conexiones**, **Publicaciones** (abre **Mis publicaciones**) y **Chapós recibidos**.
+_Evitar_: mi feed, mi muro (el **Feed** es la actividad de las **Conexiones**, no la propia).
+
+## Chapós recibidos
+
+Métrica de reconocimiento del **Residente** en su **Mi perfil**: el total de **Chapós** que ha recibido sumando los de sus **Posts** y los de sus **Actividades de guardia**. Es el "kudos total" del residente (análogo a Strava). Es solo un número informativo (no navega a detalle).
+
 ## Chapó
 
 Única reacción del **Feed**: un reconocimiento positivo que un **Residente** da a un **Post** o a una **Actividad de guardia** de una **Conexión** (equivalente al "kudos" de Strava). Es **binario** por usuario e ítem (lo das o lo quitas), no hay tipos ni grados. Su sentido es felicitar/animar de forma genérica, sirve para cualquier ítem del feed.

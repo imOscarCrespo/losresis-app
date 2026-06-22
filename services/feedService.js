@@ -147,6 +147,59 @@ export const getFeed = async ({ limit = 20, before = null } = {}) => {
   }
 };
 
+// Lee los Posts propios del usuario (historial completo, sin ventana de 30 días)
+// paginado por cursor. `before` es el activity_at del último ítem cargado.
+// Reutiliza la misma forma de ítem que getFeed para pintar con FeedItemCard.
+export const getMyPosts = async ({ limit = 20, before = null } = {}) => {
+  try {
+    const { data, error } = await supabase.rpc("get_my_posts", {
+      p_limit: limit,
+      p_before: before,
+    });
+    if (error) {
+      return { success: false, items: [], error: error.message };
+    }
+    const items = (data || []).map((row) => ({
+      type: row.item_type, // siempre 'post'
+      id: row.item_id,
+      authorId: row.author_id,
+      authorName: [row.author_name, row.author_surname]
+        .filter(Boolean)
+        .join(" ")
+        .trim(),
+      authorAvatarUrl: row.author_avatar_url || null,
+      authorResidentYear: row.author_resident_year || null,
+      activityAt: row.activity_at,
+      body: row.body || null,
+      imageUrl: getFeedImageUrl(row.image_path),
+      chapoCount: row.chapo_count ?? 0,
+      viewerHasChapo: Boolean(row.viewer_has_chapo),
+    }));
+    return { success: true, items };
+  } catch (error) {
+    return { success: false, items: [], error: error.message };
+  }
+};
+
+// Métricas de cabecera de Mi perfil: nº de Posts propios y total de Chapós
+// recibidos (en Posts + Actividades de guardia).
+export const getMyFeedStats = async () => {
+  try {
+    const { data, error } = await supabase.rpc("get_my_feed_stats");
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    const row = firstRow(data);
+    return {
+      success: true,
+      postsCount: row?.posts_count ?? 0,
+      chaposReceived: row?.chapos_received ?? 0,
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 export default {
   getFeedImageUrl,
   uploadFeedPostImage,
@@ -154,4 +207,6 @@ export default {
   deleteFeedPost,
   toggleChapo,
   getFeed,
+  getMyPosts,
+  getMyFeedStats,
 };

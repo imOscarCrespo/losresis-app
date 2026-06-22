@@ -14,6 +14,7 @@ import MirProjectedScoreScreen from "./MirProjectedScoreScreen";
 import ProfileScreen from "./ProfileScreen";
 import ProfileEditScreen from "./ProfileEditScreen";
 import MyConnectionsScreen from "./MyConnectionsScreen";
+import MyPostsScreen from "./MyPostsScreen";
 import MenuScreen from "./MenuScreen";
 import MyPreferencesScreen from "./MyPreferencesScreen";
 import ComunityScreen from "./ComunityScreen";
@@ -1409,6 +1410,14 @@ export default function DashboardScreen({
           <MyConnectionsScreen
             onBack={() => handleSectionChange("usuario")}
             onSectionChange={handleSectionChange}
+          />
+        );
+
+      case "myPosts":
+        return (
+          <MyPostsScreen
+            userProfile={userProfile}
+            onBack={() => handleSectionChange("usuario")}
           />
         );
 

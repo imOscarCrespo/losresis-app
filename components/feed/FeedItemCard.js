@@ -56,6 +56,7 @@ function FeedItemCard({
   isOwn = false,
   onToggleChapo,
   onDelete,
+  readOnlyChapo = false,
 }) {
   const avatarUri = item.authorAvatarUrl
     ? getRoommateAvatarUrl(item.authorAvatarUrl)
@@ -190,31 +191,45 @@ function FeedItemCard({
         />
       )}
 
-      {/* Pie: Chapó */}
+      {/* Pie: Chapó. En modo solo-lectura (mis propias publicaciones) no se puede
+          dar Chapó a uno mismo: solo se muestra el recuento recibido. */}
       <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.chapoBtn, item.viewerHasChapo && styles.chapoBtnActive]}
-          onPress={() => onToggleChapo?.(item)}
-          activeOpacity={0.8}
-        >
-          <Icon
-            name={item.viewerHasChapo ? "thumbs-up" : "thumbs-up-outline"}
-            size={17}
-            color={item.viewerHasChapo ? "#FFF" : PRIMARY}
-          />
-          <Text
-            style={[
-              styles.chapoLabel,
-              item.viewerHasChapo && styles.chapoLabelActive,
-            ]}
-          >
-            Chapó
+        {readOnlyChapo ? (
+          <Text style={styles.chapoCountReadOnly}>
+            {item.chapoCount === 1
+              ? "1 Chapó"
+              : `${item.chapoCount || 0} Chapós`}
           </Text>
-        </TouchableOpacity>
-        {item.chapoCount > 0 && (
-          <Text style={styles.chapoCount}>
-            {item.chapoCount} {item.chapoCount === 1 ? "Chapó" : "Chapós"}
-          </Text>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={[
+                styles.chapoBtn,
+                item.viewerHasChapo && styles.chapoBtnActive,
+              ]}
+              onPress={() => onToggleChapo?.(item)}
+              activeOpacity={0.8}
+            >
+              <Icon
+                name={item.viewerHasChapo ? "thumbs-up" : "thumbs-up-outline"}
+                size={17}
+                color={item.viewerHasChapo ? "#FFF" : PRIMARY}
+              />
+              <Text
+                style={[
+                  styles.chapoLabel,
+                  item.viewerHasChapo && styles.chapoLabelActive,
+                ]}
+              >
+                Chapó
+              </Text>
+            </TouchableOpacity>
+            {item.chapoCount > 0 && (
+              <Text style={styles.chapoCount}>
+                {item.chapoCount} {item.chapoCount === 1 ? "Chapó" : "Chapós"}
+              </Text>
+            )}
+          </>
         )}
       </View>
     </View>
@@ -331,4 +346,5 @@ const styles = StyleSheet.create({
   chapoLabel: { fontSize: 13.5, fontWeight: "700", color: PRIMARY },
   chapoLabelActive: { color: "#FFF" },
   chapoCount: { fontSize: 13, color: MUTED, fontWeight: "600" },
+  chapoCountReadOnly: { fontSize: 14, color: PRIMARY, fontWeight: "700" },
 });

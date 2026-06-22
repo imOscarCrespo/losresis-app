@@ -86,7 +86,7 @@ export default function FeedComposer({ userId, onPosted }) {
         <View style={styles.triggerIcon}>
           <Icon name="create-outline" size={18} color={PRIMARY} />
         </View>
-        <Text style={styles.triggerText}>Comparte algo con tus conexiones…</Text>
+        <Text style={styles.triggerText}>¿De qué quieres hablar?</Text>
         <Icon name="image-outline" size={20} color={MUTED} />
       </TouchableOpacity>
 
@@ -121,7 +121,7 @@ export default function FeedComposer({ userId, onPosted }) {
 
             <TextInput
               style={styles.input}
-              placeholder="¿Qué quieres compartir?"
+              placeholder="¿De qué quieres hablar?"
               placeholderTextColor="#9CA3AF"
               multiline
               autoFocus

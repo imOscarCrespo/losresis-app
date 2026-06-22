@@ -31,6 +31,7 @@ import {
   checkBiometricAvailability,
 } from "../services/biometricService";
 import { getResidentConnectionCount } from "../services/connectionsService";
+import { getMyFeedStats } from "../services/feedService";
 import {
   getHospitalByIdFromCatalog,
   getSpecialityByIdFromCatalog,
@@ -82,6 +83,9 @@ export default function ProfileScreen({
   // Conexiones (solo residentes)
   const [connectionCount, setConnectionCount] = useState(null);
 
+  // Métricas de feed (solo residentes): publicaciones propias y Chapós recibidos.
+  const [feedStats, setFeedStats] = useState(null);
+
   // Referido
   const FIVE_MINUTES_MS = 5 * 60 * 1000;
   const userCreatedAtRaw = userProfile?.created_at;
@@ -127,7 +131,14 @@ export default function ProfileScreen({
         setConnectionCount(count);
       }
     };
+    const loadStats = async () => {
+      const { success, postsCount, chaposReceived } = await getMyFeedStats();
+      if (!cancelled && success) {
+        setFeedStats({ postsCount, chaposReceived });
+      }
+    };
     loadCount();
+    loadStats();
     return () => {
       cancelled = true;
     };
@@ -469,18 +480,48 @@ export default function ProfileScreen({
             {roleLine ? <Text style={styles.roleLine}>{roleLine}</Text> : null}
 
             {showConnections ? (
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => onSectionChange?.("myConnections")}
-                style={styles.connectionsRow}
-              >
-                <Text style={styles.connectionsCount}>
-                  {connectionCount ?? "—"}
-                </Text>
-                <Text style={styles.connectionsLabel}>
-                  {connectionCount === 1 ? "conexión" : "conexiones"}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.metricsRow}>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => onSectionChange?.("myConnections")}
+                  style={styles.metric}
+                >
+                  <Text style={styles.metricValue}>
+                    {connectionCount ?? "—"}
+                  </Text>
+                  <Text style={styles.metricLabel}>
+                    {connectionCount === 1 ? "conexión" : "conexiones"}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.metricDivider} />
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => onSectionChange?.("myPosts")}
+                  style={styles.metric}
+                >
+                  <Text style={styles.metricValue}>
+                    {feedStats?.postsCount ?? "—"}
+                  </Text>
+                  <Text style={styles.metricLabel}>
+                    {feedStats?.postsCount === 1
+                      ? "publicación"
+                      : "publicaciones"}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.metricDivider} />
+
+                <View style={styles.metric}>
+                  <Text style={styles.metricValue}>
+                    {feedStats?.chaposReceived ?? "—"}
+                  </Text>
+                  <Text style={styles.metricLabel}>
+                    {feedStats?.chaposReceived === 1 ? "Chapó" : "Chapós"}
+                  </Text>
+                </View>
+              </View>
             ) : null}
 
             <Button
@@ -850,21 +891,34 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 21,
   },
-  connectionsRow: {
+  metricsRow: {
     flexDirection: "row",
-    alignItems: "baseline",
-    gap: 6,
-    marginTop: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "stretch",
+    marginTop: 16,
   },
-  connectionsCount: {
-    fontSize: 16,
+  metric: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  metricDivider: {
+    width: 1,
+    alignSelf: "stretch",
+    marginVertical: 4,
+    backgroundColor: "#E8EAF3",
+  },
+  metricValue: {
+    fontSize: 20,
     fontWeight: "800",
     color: "#1B0977",
   },
-  connectionsLabel: {
-    fontSize: 14,
+  metricLabel: {
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748B",
+    marginTop: 2,
   },
   editButton: {
     marginTop: 18,
