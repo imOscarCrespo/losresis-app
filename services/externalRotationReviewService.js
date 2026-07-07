@@ -253,12 +253,27 @@ export const checkExistingRotationReview = async (userId, rotationId) => {
  */
 export const getRotationReviewQuestions = async () => {
   try {
-    const data = getExternalRotationQuestionsCatalog();
+    // Fuente de verdad: tabla `external_rotation_question` en Supabase, para que
+    // los cambios de admin (is_active, orden, textos) se reflejen sin redeploy.
+    // El catálogo estático solo es fallback si la lectura de red falla.
+    const { data, error } = await supabase
+      .from("external_rotation_question")
+      .select("*")
+      .eq("is_active", true)
+      .order("position", { ascending: true });
+
+    if (error) {
+      console.warn(
+        "⚠️ Error fetching external rotation questions from DB, using static fallback:",
+        error.message
+      );
+      return getExternalRotationQuestionsCatalog() || [];
+    }
 
     return data || [];
   } catch (error) {
     console.error("❌ Exception in getRotationReviewQuestions:", error);
-    throw error;
+    return getExternalRotationQuestionsCatalog() || [];
   }
 };
 

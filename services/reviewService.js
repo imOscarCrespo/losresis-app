@@ -11,7 +11,26 @@ import { getReviewQuestionsCatalog } from "./staticCatalogService";
  */
 export const getReviewQuestions = async () => {
   try {
-    const data = getReviewQuestionsCatalog();
+    // Fuente de verdad: tabla `question` en Supabase, para que los cambios de
+    // admin (is_active, texto, orden) se reflejen sin redeploy. El catálogo
+    // estático solo es fallback si la lectura de red falla.
+    const { data, error } = await supabase
+      .from("question")
+      .select("*")
+      .eq("is_active", true)
+      .order("position", { ascending: true });
+
+    if (error) {
+      console.warn(
+        "⚠️ Error fetching review questions from DB, using static fallback:",
+        error.message
+      );
+      return {
+        success: true,
+        questions: getReviewQuestionsCatalog() || [],
+        error: null,
+      };
+    }
 
     return {
       success: true,
@@ -21,8 +40,8 @@ export const getReviewQuestions = async () => {
   } catch (error) {
     console.error("Exception in getReviewQuestions:", error);
     return {
-      success: false,
-      questions: [],
+      success: true,
+      questions: getReviewQuestionsCatalog() || [],
       error: error.message,
     };
   }

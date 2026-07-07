@@ -166,13 +166,44 @@ const parseBundleForSave = (bundle) => {
 
 export const getRoommateQuestions = async () => {
   try {
-    const data = getRoommateQuestionsCatalog();
+    // Fuente de verdad: tabla `roommate_question` en Supabase, para que los
+    // cambios de admin (is_active, orden, textos) se reflejen sin redeploy.
+    // Si la red falla, caemos al catálogo estático y luego al fallback en código.
+    const { data, error } = await supabase
+      .from("roommate_question")
+      .select("*")
+      .eq("is_active", true)
+      .order("step_number", { ascending: true })
+      .order("display_order", { ascending: true });
 
+    if (error) {
+      console.warn(
+        "⚠️ Error fetching roommate questions from DB, using static fallback:",
+        error.message
+      );
+      const cached = getRoommateQuestionsCatalog();
+      return {
+        success: true,
+        questions:
+          cached && cached.length ? cached : FALLBACK_ROOMMATE_QUESTIONS,
+        fallback: !cached?.length,
+      };
+    }
+
+    if (data && data.length) {
+      return {
+        success: true,
+        questions: data,
+        fallback: false,
+      };
+    }
+
+    const cached = getRoommateQuestionsCatalog();
     return {
       success: true,
       questions:
-        data && data.length ? data : FALLBACK_ROOMMATE_QUESTIONS,
-      fallback: !data?.length,
+        cached && cached.length ? cached : FALLBACK_ROOMMATE_QUESTIONS,
+      fallback: !cached?.length,
     };
   } catch (error) {
     console.error("Exception fetching roommate questions:", error);
