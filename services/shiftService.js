@@ -5,6 +5,15 @@ import { supabase } from "../config/supabase";
  * Gestión de guardias médicas
  */
 
+// Formatea en YYYY-MM-DD usando la zona horaria local. toISOString() trabaja
+// en UTC y en España (UTC+1/+2) desplaza la medianoche local al día anterior.
+const toLocalDateString = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 /**
  * Obtiene todas las guardias de un usuario
  * @param {string} userId - ID del usuario
@@ -54,7 +63,7 @@ export const createShift = async (shiftData, userId) => {
       shiftData.month,
       parseInt(shiftData.day)
     );
-    const dateString = date.toISOString().split("T")[0];
+    const dateString = toLocalDateString(date);
 
     // Determinar el tipo de guardia basado en el día de la semana
     const dayOfWeek = date.getDay();
@@ -190,8 +199,8 @@ export const getTeamShifts = async (
     }
 
     // Calcular el rango de fechas para el mes
-    const startDate = new Date(year, month, 1).toISOString().split("T")[0];
-    const endDate = new Date(year, month + 1, 0).toISOString().split("T")[0];
+    const startDate = toLocalDateString(new Date(year, month, 1));
+    const endDate = toLocalDateString(new Date(year, month + 1, 0));
 
     let query = supabase
       .from("shifts")

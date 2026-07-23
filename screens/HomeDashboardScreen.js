@@ -49,6 +49,8 @@ import {
   getResidentPayoutForMonth,
   shouldShowPayoutReminder,
 } from "../services/residentPayoutService";
+import { getAgendaEvents } from "../services/agendaService";
+import { countMonthShiftsByCategory } from "../services/shiftPayrollService";
 import posthogLogger from "../services/posthogService";
 import {
   formatResidentTransitionDeadline,
@@ -212,6 +214,7 @@ export default function HomeDashboardScreen({
   const [activeAdIndex, setActiveAdIndex] = useState(0);
   const [payoutReminderTarget, setPayoutReminderTarget] = useState(null);
   const [showPayoutReminder, setShowPayoutReminder] = useState(false);
+  const [payoutReminderShiftTotal, setPayoutReminderShiftTotal] = useState(0);
   const [cachedAgendaHeroSnapshot, setCachedAgendaHeroSnapshot] = useState(null);
   const [residentTransitionConfig, setResidentTransitionConfig] = useState(null);
   useEffect(() => {
@@ -370,13 +373,35 @@ export default function HomeDashboardScreen({
 
         if (!isMounted) return;
 
+        const show = shouldShowPayoutReminder({
+          userProfile,
+          existingRecord,
+        });
+
+        // Guardias del mes según la agenda, para personalizar el banner.
+        // Si falla, el banner cae al copy genérico.
+        let shiftTotal = 0;
+        if (show) {
+          try {
+            const agendaEvents = await getAgendaEvents(userProfile.id);
+            shiftTotal = countMonthShiftsByCategory(
+              agendaEvents,
+              targetDate.year,
+              targetDate.month
+            ).total;
+          } catch (agendaError) {
+            console.error(
+              "Error loading agenda shifts for payout reminder:",
+              agendaError
+            );
+          }
+        }
+
+        if (!isMounted) return;
+
         setPayoutReminderTarget(targetDate);
-        setShowPayoutReminder(
-          shouldShowPayoutReminder({
-            userProfile,
-            existingRecord,
-          })
-        );
+        setPayoutReminderShiftTotal(shiftTotal);
+        setShowPayoutReminder(show);
       } catch (error) {
         console.error("Error loading payout reminder:", error);
         if (isMounted) {
@@ -1191,7 +1216,11 @@ export default function HomeDashboardScreen({
                   )}
                 </Text>
                 <Text style={styles.payoutBannerText}>
-                  Guarda la nómina, guardias y extras del mes antes de que cierre la ventana.
+                  {payoutReminderShiftTotal > 0
+                    ? payoutReminderShiftTotal === 1
+                      ? "Según tu agenda hiciste 1 guardia este mes. Registra tu nómina y comprueba que te la han pagado."
+                      : `Según tu agenda hiciste ${payoutReminderShiftTotal} guardias este mes. Registra tu nómina y comprueba que te las han pagado.`
+                    : "Guarda la nómina, guardias y extras del mes antes de que cierre la ventana."}
                 </Text>
               </View>
               <View style={styles.payoutBannerArrow}>

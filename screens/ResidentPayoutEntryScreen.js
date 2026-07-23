@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -22,6 +22,21 @@ import {
   getResidentPayoutForMonth,
   upsertResidentPayout,
 } from "../services/residentPayoutService";
+import { getAgendaEvents } from "../services/agendaService";
+import {
+  buildPayoutMismatches,
+  buildPendingPaymentDescription,
+  countMonthShiftsByCategory,
+  formatCountsSummary,
+} from "../services/shiftPayrollService";
+
+const GUARD_COUNT_FIELD_BY_CATEGORY = {
+  weekday: "weekdayGuardCount",
+  friday: "fridayGuardCount",
+  saturday: "saturdayGuardCount",
+  sunday: "sundayGuardCount",
+  holiday: "holidayGuardCount",
+};
 
 const buildEmptyFormState = (year, month) => ({
   periodYear: year,
@@ -97,6 +112,109 @@ export default function ResidentPayoutEntryScreen({
   const [formState, setFormState] = useState(
     buildEmptyFormState(defaultYear, defaultMonth)
   );
+  // null = aún cargando; [] = cargado (con o sin eventos)
+  const [agendaEvents, setAgendaEvents] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAgendaEvents = async () => {
+      if (!userProfile?.id) {
+        if (isMounted) setAgendaEvents([]);
+        return;
+      }
+
+      try {
+        const events = await getAgendaEvents(userProfile.id);
+        if (isMounted) setAgendaEvents(events);
+      } catch (error) {
+        console.error("Error loading agenda shifts for payout:", error);
+        if (isMounted) setAgendaEvents([]);
+      }
+    };
+
+    loadAgendaEvents();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userProfile?.id]);
+
+  const agendaCounts = useMemo(
+    () =>
+      countMonthShiftsByCategory(
+        agendaEvents || [],
+        formState.periodYear,
+        formState.periodMonth
+      ),
+    [agendaEvents, formState.periodYear, formState.periodMonth]
+  );
+
+  const formGuardCounts = useMemo(
+    () => ({
+      weekday: Number(formState.weekdayGuardCount) || 0,
+      friday: Number(formState.fridayGuardCount) || 0,
+      saturday: Number(formState.saturdayGuardCount) || 0,
+      sunday: Number(formState.sundayGuardCount) || 0,
+      holiday: Number(formState.holidayGuardCount) || 0,
+    }),
+    [
+      formState.weekdayGuardCount,
+      formState.fridayGuardCount,
+      formState.saturdayGuardCount,
+      formState.sundayGuardCount,
+      formState.holidayGuardCount,
+    ]
+  );
+
+  const formMatchesAgenda = useMemo(
+    () =>
+      Object.entries(GUARD_COUNT_FIELD_BY_CATEGORY).every(
+        ([category]) => formGuardCounts[category] === (agendaCounts[category] || 0)
+      ),
+    [formGuardCounts, agendaCounts]
+  );
+
+  // Prefill: en un mes sin registro previo y con el formulario intacto,
+  // proponemos el desglose de guardias que ya conoce la agenda.
+  useEffect(() => {
+    if (loading || editingId || !agendaEvents || agendaCounts.total === 0) {
+      return;
+    }
+
+    setFormState((prev) => {
+      const formTotal = Object.values(GUARD_COUNT_FIELD_BY_CATEGORY).reduce(
+        (sum, field) => sum + (Number(prev[field]) || 0),
+        0
+      );
+
+      if (prev.hasGuards || formTotal > 0) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        hasGuards: true,
+        weekdayGuardCount: agendaCounts.weekday,
+        fridayGuardCount: agendaCounts.friday,
+        saturdayGuardCount: agendaCounts.saturday,
+        sundayGuardCount: agendaCounts.sunday,
+        holidayGuardCount: agendaCounts.holiday,
+      };
+    });
+  }, [loading, editingId, agendaEvents, agendaCounts]);
+
+  const applyAgendaCounts = () => {
+    setFormState((prev) => ({
+      ...prev,
+      hasGuards: agendaCounts.total > 0,
+      weekdayGuardCount: agendaCounts.weekday,
+      fridayGuardCount: agendaCounts.friday,
+      saturdayGuardCount: agendaCounts.saturday,
+      sundayGuardCount: agendaCounts.sunday,
+      holidayGuardCount: agendaCounts.holiday,
+    }));
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -180,7 +298,39 @@ export default function ResidentPayoutEntryScreen({
     );
   };
 
-  const handleSave = async () => {
+  const persistPayout = async (parsedValues, pendingOverride = null) => {
+    setSaving(true);
+    try {
+      await upsertResidentPayout({
+        user_id: userProfile.id,
+        period_year: formState.periodYear,
+        period_month: formState.periodMonth,
+        gross_total_eur: parsedValues.grossTotal,
+        weekday_guard_count: parsedValues.weekdayGuardCount,
+        friday_guard_count: parsedValues.fridayGuardCount,
+        saturday_guard_count: parsedValues.saturdayGuardCount,
+        sunday_guard_count: parsedValues.sundayGuardCount,
+        holiday_guard_count: parsedValues.holidayGuardCount,
+        strike_count: parsedValues.strikeCount,
+        has_double_pay: formState.hasDoublePay,
+        has_pending_payment: pendingOverride
+          ? true
+          : formState.hasPendingPayment,
+        pending_payment_description: pendingOverride
+          ? pendingOverride.description
+          : formState.pendingPaymentDescription,
+      });
+
+      onBack?.();
+    } catch (error) {
+      console.error("Error saving resident payout:", error);
+      Alert.alert("Error", "No se ha podido guardar la nómina.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSave = () => {
     const grossTotal = Number(String(formState.grossTotalEur).replace(",", "."));
     const strikeCount = Number(formState.strikeCount);
     const weekdayGuardCount = Number(formState.weekdayGuardCount);
@@ -211,31 +361,60 @@ export default function ResidentPayoutEntryScreen({
       return;
     }
 
-    setSaving(true);
-    try {
-      await upsertResidentPayout({
-        user_id: userProfile.id,
-        period_year: formState.periodYear,
-        period_month: formState.periodMonth,
-        gross_total_eur: grossTotal,
-        weekday_guard_count: weekdayGuardCount,
-        friday_guard_count: fridayGuardCount,
-        saturday_guard_count: saturdayGuardCount,
-        sunday_guard_count: sundayGuardCount,
-        holiday_guard_count: holidayGuardCount,
-        strike_count: strikeCount,
-        has_double_pay: formState.hasDoublePay,
-        has_pending_payment: formState.hasPendingPayment,
-        pending_payment_description: formState.pendingPaymentDescription,
-      });
+    const parsedValues = {
+      grossTotal,
+      strikeCount,
+      weekdayGuardCount,
+      fridayGuardCount,
+      saturdayGuardCount,
+      sundayGuardCount,
+      holidayGuardCount,
+    };
 
-      onBack?.();
-    } catch (error) {
-      console.error("Error saving resident payout:", error);
-      Alert.alert("Error", "No se ha podido guardar la nómina.");
-    } finally {
-      setSaving(false);
+    // Contraste agenda ↔ nómina: si la nómina recoge menos guardias de las
+    // que hay en la agenda del mes, proponemos marcarlo como pago pendiente.
+    const mismatches = buildPayoutMismatches(agendaCounts, {
+      weekday: weekdayGuardCount,
+      friday: fridayGuardCount,
+      saturday: saturdayGuardCount,
+      sunday: sundayGuardCount,
+      holiday: holidayGuardCount,
+    });
+
+    if (mismatches.length > 0 && !formState.hasPendingPayment) {
+      const periodLabel = formatPayoutPeriodLabel(
+        formState.periodYear,
+        formState.periodMonth
+      );
+      const missingSummary = mismatches
+        .map((item) => `${item.missing} ${item.label}`)
+        .join(", ");
+
+      Alert.alert(
+        "Guardias sin reflejar",
+        `Según tu agenda, en ${periodLabel} hiciste ${agendaCounts.total} guardias y en esta nómina faltan ${missingSummary}. ¿Quieres marcarlo como pago pendiente para hacer seguimiento?`,
+        [
+          {
+            text: "Marcar pendiente y guardar",
+            onPress: () =>
+              persistPayout(parsedValues, {
+                description: buildPendingPaymentDescription(
+                  mismatches,
+                  periodLabel
+                ),
+              }),
+          },
+          {
+            text: "Guardar sin marcar",
+            onPress: () => persistPayout(parsedValues),
+          },
+          { text: "Cancelar", style: "cancel" },
+        ]
+      );
+      return;
     }
+
+    persistPayout(parsedValues);
   };
 
   return (
@@ -311,6 +490,31 @@ export default function ResidentPayoutEntryScreen({
                     />
                   </View>
                 </View>
+
+                {agendaCounts.total > 0 ? (
+                  <View style={styles.agendaHintCard}>
+                    <Icon name="calendar-outline" size={18} color="#670CF5" />
+                    <View style={styles.agendaHintCopy}>
+                      <Text style={styles.agendaHintText}>
+                        Según tu agenda, en{" "}
+                        {getPayoutMonthLabel(formState.periodMonth, "long")}{" "}
+                        hiciste {agendaCounts.total}{" "}
+                        {agendaCounts.total === 1 ? "guardia" : "guardias"}:{" "}
+                        {formatCountsSummary(agendaCounts)}.
+                      </Text>
+                      {!formMatchesAgenda ? (
+                        <TouchableOpacity
+                          onPress={applyAgendaCounts}
+                          activeOpacity={0.82}
+                        >
+                          <Text style={styles.agendaHintAction}>
+                            Usar recuento de la agenda
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  </View>
+                ) : null}
 
                 <View style={styles.switchRow}>
                   <View style={styles.switchCopy}>
@@ -388,7 +592,7 @@ export default function ResidentPayoutEntryScreen({
                   <View style={styles.switchCopy}>
                     <Text style={styles.switchTitle}>Pago pendiente</Text>
                     <Text style={styles.switchSubtitle}>
-                      Indica si te han abonado importes pendientes de otro mes.
+                      Indica si te quedan importes por cobrar o te han abonado atrasos.
                     </Text>
                   </View>
                   <Switch
@@ -603,6 +807,29 @@ const styles = StyleSheet.create({
   },
   pendingPaymentField: {
     marginBottom: 4,
+  },
+  agendaHintCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "#F4EEFF",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+  },
+  agendaHintCopy: {
+    flex: 1,
+    gap: 6,
+  },
+  agendaHintText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#4C1D95",
+  },
+  agendaHintAction: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#670CF5",
   },
   primaryAction: {
     marginTop: 16,

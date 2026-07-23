@@ -52,3 +52,6 @@ yarn-error.*
 
 # local native config
 /google-services.json
+
+# resultados generados por los scripts de scraping/upsert (derivados, no versionar)
+/scripts/output/

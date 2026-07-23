@@ -112,12 +112,12 @@ export default function MirOrientationScreen({ onBack, userProfile, initialScore
   };
 
   const renderHospitalRow = (hospital, slotsYear) => {
-    // Ocultar de la rejilla histórica el año cuyas plazas estamos mostrando aparte
-    // (no hay nota de corte aún para esa convocatoria).
+    // Ocultar de la rejilla histórica el año cuyas plazas estamos mostrando aparte,
+    // pero solo mientras esa convocatoria no tenga nota de corte publicada.
     const filteredGrades = hospital.grades.filter((grade) => {
       const year =
         typeof grade.year === "string" ? parseInt(grade.year, 10) : grade.year;
-      return slotsYear == null || year !== slotsYear;
+      return slotsYear == null || year !== slotsYear || grade.grade != null;
     });
 
     return (

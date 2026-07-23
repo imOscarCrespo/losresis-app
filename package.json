@@ -11,6 +11,7 @@
     "web": "expo start --web",
     "build:web": "expo export --platform web",
     "export:static-catalog": "node scripts/export_static_catalog.mjs",
+    "scrape:cto-grades-2026": "node scripts/scrape_cto_grades_2026.mjs",
     "sync:cache-aliases": "node scripts/sync_storage_cache_aliases.mjs",
     "weekly-courses-bot:local": "RUN_LOCAL=1 deno run --allow-net --allow-env --env-file=supabase/functions/weekly-courses-bot/.env.local supabase/functions/weekly-courses-bot/index.ts"
   },

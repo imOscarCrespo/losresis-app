@@ -145,7 +145,7 @@ const RESEARCH_ROLE_OPTIONS = [
   "Tesista",
 ];
 const CONFERENCE_ROLE_OPTIONS = ["Asistente", "Ponente", "Póster / Comunicación"];
-const SHIFT_DURATION_OPTIONS = ["24h", "12h"];
+const SHIFT_DURATION_OPTIONS = ["24h", "17h", "12h"];
 const REMINDER_OPTIONS = [
   { value: null, label: "Sin recordatorio" },
   { value: 1, label: "1 día antes" },
@@ -251,6 +251,15 @@ const buildSharedEventDetailRows = (event) => {
       icon: "hourglass-outline",
       label: "Duración",
       value: metadata.shift_duration,
+    });
+  }
+
+  if (metadata.shift_is_holiday) {
+    rows.push({
+      key: "shift_is_holiday",
+      icon: "calendar-outline",
+      label: "Festivo",
+      value: "Sí",
     });
   }
 
@@ -361,6 +370,7 @@ const emptyFormForType = (type, defaultDate = "") => ({
     research_role: "",
     conference_role: CONFERENCE_ROLE_OPTIONS[0],
     shift_duration: SHIFT_DURATION_OPTIONS[0],
+    shift_is_holiday: false,
     reminder_offset_days: null,
   },
 });
@@ -394,6 +404,7 @@ const formFromEvent = (event) => ({
     research_role: event.metadata?.research_role || "",
     conference_role: event.metadata?.conference_role || CONFERENCE_ROLE_OPTIONS[0],
     shift_duration: event.metadata?.shift_duration || SHIFT_DURATION_OPTIONS[0],
+    shift_is_holiday: Boolean(event.metadata?.shift_is_holiday),
     reminder_offset_days:
       typeof event.metadata?.reminder_offset_days === "number"
         ? event.metadata.reminder_offset_days
@@ -409,6 +420,7 @@ const buildPayloadFromForm = (form, existingEvent = null, selectedDate = "") => 
 
   if (form.event_type === "shift") {
     metadata.shift_duration = form.metadata.shift_duration;
+    metadata.shift_is_holiday = Boolean(form.metadata.shift_is_holiday);
   }
 
   if (form.event_type === "research") {
@@ -840,6 +852,7 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
         notes: form.notes.trim(),
         metadata: {
           shift_duration: form.metadata.shift_duration,
+          shift_is_holiday: Boolean(form.metadata.shift_is_holiday),
           reminder_offset_days: form.metadata.reminder_offset_days ?? null,
         },
       };
@@ -1713,6 +1726,38 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                       />
                     ))}
                   </View>
+                </View>
+
+                <View style={styles.toggleRow}>
+                  <View>
+                    <Text style={styles.toggleTitle}>Festivo</Text>
+                    <Text style={styles.toggleDescription}>
+                      Márcalo si la guardia cae en día festivo.
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() =>
+                      patchMetadata(
+                        "shift_is_holiday",
+                        !form.metadata.shift_is_holiday
+                      )
+                    }
+                    activeOpacity={0.85}
+                    style={[
+                      styles.toggleSwitch,
+                      form.metadata.shift_is_holiday && {
+                        backgroundColor: selectedTypeMeta.color,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.toggleCircle,
+                        form.metadata.shift_is_holiday &&
+                          styles.toggleCircleActive,
+                      ]}
+                    />
+                  </TouchableOpacity>
                 </View>
               </>
             ) : null}

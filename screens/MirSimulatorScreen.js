@@ -224,10 +224,12 @@ export default function MirSimulatorScreen({ onBack, userProfile, initialScore }
 
   const renderResultCard = (item) => {
     const currentYear = new Date().getFullYear();
+    // Ocultar el año en curso solo mientras no tenga nota publicada (durante la
+    // elección de plaza ya hay notas de esa convocatoria y deben mostrarse).
     const filteredGrades = item.grades.filter((grade) => {
       const year =
         typeof grade.year === "string" ? parseInt(grade.year, 10) : grade.year;
-      return year !== currentYear;
+      return year !== currentYear || grade.grade != null;
     });
 
     const trend = getGradeTrend(filteredGrades);
@@ -481,7 +483,7 @@ export default function MirSimulatorScreen({ onBack, userProfile, initialScore }
               <View style={styles.resultsHeader}>
                 <Text style={styles.resultsTitle}>Resultados de probabilidad</Text>
                 <Text style={styles.resultsSubtitle}>
-                  Basado en las notas de corte de los últimos 7 años (2019-2025)
+                  Basado en las notas de corte de los últimos años (2019-2026)
                 </Text>
               </View>
               <FlatList
@@ -503,7 +505,7 @@ export default function MirSimulatorScreen({ onBack, userProfile, initialScore }
             </View>
             <Text style={styles.helpText}>
               La probabilidad se basa en los años disponibles de notas de corte
-              (2019-2025). Solo se incluyen en el cálculo los años que tienen datos
+              (2019-2026). Solo se incluyen en el cálculo los años que tienen datos
               válidos. En el MIR, los números más bajos representan mejores
               posiciones. Si tu posición es igual o mejor (menor) que la nota de
               corte histórica, tu probabilidad aumenta significativamente.
