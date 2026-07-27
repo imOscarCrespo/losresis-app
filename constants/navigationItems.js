@@ -89,6 +89,15 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#CCFBF1",
   },
   {
+    id: "recordatoriosServicio",
+    name: "Recordatorios del servicio",
+    icon: "checkmark-done",
+    description: "Lo pendiente que tu servicio comparte contigo",
+    residentOnly: true,
+    color: "#0F5F8F",
+    lightColor: "#E0F2FE",
+  },
+  {
     id: "residentPayouts",
     name: "Nóminas",
     icon: "cash",

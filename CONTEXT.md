@@ -17,6 +17,11 @@ Unidad mínima de la **Agenda**. Tiene fecha, tipo y metadatos opcionales según
 Evento de agenda de tipo `service`: la copia que el responsable de la especialidad proyecta en la agenda del **Residente** al convocarle a un acto (sesión clínica, curso, reunión) desde el panel del hospital. Vive en `agenda_events` con el `user_id` del residente, pero es de **solo lectura**: no se crea, edita ni borra desde la app — el selector de "Añadir a la agenda" no lo ofrece y al tocarlo se abre el detalle, etiquetado "‹Especialidad› · Servicio". Crearlo, cambiarlo o cancelarlo avisa por push. La entidad madre (`evento_servicio`) vive en el panel; ver el glosario de `losresis-panel`.
 _Evitar_: convocatoria (aquí es la edición del examen MIR), evento compartido (eso es de Conexiones).
 
+## Recordatorio del servicio
+
+La vista del **Residente** sobre el tablón de pendientes que su servicio comparte en losresis-panel (tabla `recordatorio`, su ADR 0008). **No** es el Recordatorio de agenda (tipo `reminder` de `agenda_events`, nota personal): es la misma entidad que ve el panel, con el mismo ciclo — se cierra a mano ("Hecho", registrando quién y cuándo), lo no cerrado se arrastra vencido, y lo vencido más de ~7 días se archiva solo. La pantalla (`screens/ServiceRemindersScreen.js`, solo residentes) muestra dos listas: **Para mí** (señalados a él, con push `recordatorio_asignado` al asignarse) y **Del servicio, sin asignar** (de quien esté de turno — cualquiera puede cerrarlos). El residente también crea recordatorios: texto, fecha, NHC opcional y destinatario opcional entre los residentes de su hospital+especialidad; el autor declarado es él mismo, automático.
+_Evitar_: recordatorio (a secas, ambiguo con el de agenda), tarea, pendiente.
+
 ## Guardia
 
 Evento de agenda de tipo `shift`. Representa un turno de guardia médica del **Residente**. Siempre tiene una fecha exacta y una duración (`24h` o `12h`). Al crearse, genera simultáneamente un registro en la tabla legacy `shifts` enlazado por `source_shift_id`.

@@ -35,6 +35,7 @@ import CreateCourseScreen from "./CreateCourseScreen";
 import ReviewComposerScreen from "./ReviewComposerScreen";
 import ContactScreen from "./ContactScreen";
 import AgendaScreen from "./AgendaScreen";
+import ServiceRemindersScreen from "./ServiceRemindersScreen";
 import { ExternalRotationsScreen } from "./ExternalRotationsScreen";
 import { LecturesScreen } from "./LecturesScreen";
 import LeisureScreen from "./LeisureScreen";
@@ -224,7 +225,10 @@ export default function DashboardScreen({
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
-        loadUserProfile({ forceRefresh: true }).catch((error) => {
+        // Revalidación silenciosa: sin pasar por loadingProfile para no
+        // desmontar la sección activa (la agenda perdía el día/detalle
+        // abiertos al volver de otra app).
+        loadUserProfile({ forceRefresh: true, silent: true }).catch((error) => {
           console.warn("Error revalidando perfil del dashboard:", error);
         });
       }
@@ -468,6 +472,12 @@ export default function DashboardScreen({
         return;
       }
 
+      // Recordatorio del servicio asignado: abrir el tablón del residente.
+      if (data?.destination_section === "recordatoriosServicio") {
+        handleSectionChange("recordatoriosServicio");
+        return;
+      }
+
       if (data?.entity_type === "review" && data?.entity_id) {
         handleSectionChange("reviewDetail", {
           reviewId: data.entity_id,
@@ -497,9 +507,11 @@ export default function DashboardScreen({
     return cleanup;
   }, []);
 
-  const loadUserProfile = async ({ forceRefresh = false } = {}) => {
+  const loadUserProfile = async ({ forceRefresh = false, silent = false } = {}) => {
     try {
-      setLoadingProfile(true);
+      if (!silent) {
+        setLoadingProfile(true);
+      }
       const { success: userSuccess, user } = await getCurrentUser();
       if (userSuccess && user) {
         const { success: profileSuccess, profile } = await getUserProfile(
@@ -520,7 +532,9 @@ export default function DashboardScreen({
     } catch (error) {
       console.error("Error loading user profile:", error);
     } finally {
-      setLoadingProfile(false);
+      if (!silent) {
+        setLoadingProfile(false);
+      }
     }
   };
 
@@ -1461,6 +1475,8 @@ export default function DashboardScreen({
                 handleSectionChange("courseDetail", { courseId: entityId });
               } else if (screenId === "agenda") {
                 handleSectionChange("agenda");
+              } else if (screenId === "recordatoriosServicio") {
+                handleSectionChange("recordatoriosServicio");
               } else if (screenId === "directChat" && entityId?.otherUserId) {
                 openDirectChat({
                   otherUserId: entityId.otherUserId,
@@ -1634,6 +1650,18 @@ export default function DashboardScreen({
             navigation={{ navigate: handleSectionChange }}
             onNavigateToSection={handleSectionChange}
           />
+        );
+
+      // Recordatorios del servicio: la vista del residente sobre el tablón
+      // compartido de losresis-panel. Solo residentes.
+      case "recordatoriosServicio":
+        return userProfile?.is_resident ? (
+          <ServiceRemindersScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+          />
+        ) : (
+          <PlaceholderScreen title="Recordatorios del servicio" />
         );
 
       // Secciones del menú (placeholder)

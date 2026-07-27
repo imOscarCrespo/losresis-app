@@ -234,6 +234,12 @@ export default function NotificationsScreen({
         return;
       }
 
+      // Recordatorio del servicio asignado: abrir el tablón del residente.
+      if (data.destination_section === "recordatoriosServicio") {
+        onNavigateToEntity("recordatoriosServicio", {});
+        return;
+      }
+
       if (entityType && entityId) {
         if (entityType === "review") {
           onNavigateToEntity("reviewDetail", {
