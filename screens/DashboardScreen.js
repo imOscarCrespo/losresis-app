@@ -462,6 +462,12 @@ export default function DashboardScreen({
         return;
       }
 
+      // Eventos del servicio y recordatorios de agenda: abrir la Agenda.
+      if (data?.destination_section === "agenda") {
+        handleSectionChange("agenda");
+        return;
+      }
+
       if (data?.entity_type === "review" && data?.entity_id) {
         handleSectionChange("reviewDetail", {
           reviewId: data.entity_id,
@@ -1453,6 +1459,8 @@ export default function DashboardScreen({
                 });
               } else if (screenId === "courseDetail") {
                 handleSectionChange("courseDetail", { courseId: entityId });
+              } else if (screenId === "agenda") {
+                handleSectionChange("agenda");
               } else if (screenId === "directChat" && entityId?.otherUserId) {
                 openDirectChat({
                   otherUserId: entityId.otherUserId,

@@ -6,11 +6,16 @@ Usuario de la app que está cursando la residencia médica. Tiene hospital, espe
 
 ## Agenda
 
-Calendario unificado del **Residente**, implementado en `screens/AgendaScreen.js`. Reúne en una sola vista: (1) sus propios **Eventos de agenda**, (2) las **Guardias de equipo** de sus compañeros, y (3) los **Eventos compartidos** que sus **Conexiones** comparten con él. Lo propio es editable; lo ajeno (guardias de equipo y eventos compartidos) se muestra en solo-lectura, etiquetado con el nombre de la otra persona para distinguirlo.
+Calendario unificado del **Residente**, implementado en `screens/AgendaScreen.js`. Reúne en una sola vista: (1) sus propios **Eventos de agenda**, (2) las **Guardias de equipo** de sus compañeros, (3) los **Eventos compartidos** que sus **Conexiones** comparten con él, y (4) los **Eventos del servicio** que su servicio le convoca desde el panel del hospital. Lo propio es editable; lo ajeno (guardias de equipo, eventos compartidos y eventos del servicio) se muestra en solo-lectura, etiquetado con su origen para distinguirlo.
 
 ## Evento de agenda
 
-Unidad mínima de la **Agenda**. Tiene fecha, tipo y metadatos opcionales según el tipo. Los tipos existentes son: `shift` (Guardia), `course`, `research`, `study`, `conference`, `day_off`, `reminder`. Persiste en la tabla `agenda_events`.
+Unidad mínima de la **Agenda**. Tiene fecha, tipo y metadatos opcionales según el tipo. Los tipos existentes son: `shift` (Guardia), `course`, `research`, `study`, `conference`, `day_off`, `reminder`, `service` (**Evento del servicio**). Persiste en la tabla `agenda_events`.
+
+## Evento del servicio
+
+Evento de agenda de tipo `service`: la copia que el responsable de la especialidad proyecta en la agenda del **Residente** al convocarle a un acto (sesión clínica, curso, reunión) desde el panel del hospital. Vive en `agenda_events` con el `user_id` del residente, pero es de **solo lectura**: no se crea, edita ni borra desde la app — el selector de "Añadir a la agenda" no lo ofrece y al tocarlo se abre el detalle, etiquetado "‹Especialidad› · Servicio". Crearlo, cambiarlo o cancelarlo avisa por push. La entidad madre (`evento_servicio`) vive en el panel; ver el glosario de `losresis-panel`.
+_Evitar_: convocatoria (aquí es la edición del examen MIR), evento compartido (eso es de Conexiones).
 
 ## Guardia
 

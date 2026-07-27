@@ -228,6 +228,12 @@ export default function NotificationsScreen({
         return;
       }
 
+      // Eventos del servicio y recordatorios de agenda: abrir la Agenda.
+      if (data.destination_section === "agenda") {
+        onNavigateToEntity("agenda", {});
+        return;
+      }
+
       if (entityType && entityId) {
         if (entityType === "review") {
           onNavigateToEntity("reviewDetail", {

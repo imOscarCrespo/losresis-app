@@ -135,7 +135,26 @@ const EVENT_TYPE_OPTIONS = [
     color: "#0F766E",
     lightColor: "#CCFBF1",
   },
+  {
+    id: "service",
+    label: "Evento del servicio",
+    description: "Convocado por tu servicio",
+    icon: "business-outline",
+    color: "#0F5F8F",
+    lightColor: "#E0F2FE",
+  },
 ];
+
+// Los Eventos del servicio los convoca el responsable desde el panel del
+// hospital: el residente no los crea, solo los ve. Este es el catálogo del
+// selector de "Añadir a la agenda".
+const CREATABLE_EVENT_TYPE_OPTIONS = EVENT_TYPE_OPTIONS.filter(
+  (option) => option.id !== "service"
+);
+
+// Copia proyectada desde el panel: se abre en detalle de solo lectura, nunca
+// en el editor.
+const isServiceEvent = (event) => event?.event_type === "service";
 
 const RESEARCH_STATUS_OPTIONS = ["En curso", "Publicado"];
 const RESEARCH_ROLE_OPTIONS = [
@@ -224,12 +243,24 @@ const buildSharedEventDetailRows = (event) => {
   const rows = [];
   const metadata = event.metadata || {};
 
-  rows.push({
-    key: "owner",
-    icon: "person-circle-outline",
-    label: "Compartido por",
-    value: event.owner_name || "Conexión",
-  });
+  if (isServiceEvent(event)) {
+    // Copia proyectada desde el panel: lo convoca el servicio, no una Conexión.
+    rows.push({
+      key: "owner",
+      icon: "business-outline",
+      label: "Convocado por",
+      value: metadata.service_name
+        ? `${metadata.service_name} · Servicio`
+        : "Tu servicio",
+    });
+  } else {
+    rows.push({
+      key: "owner",
+      icon: "person-circle-outline",
+      label: "Compartido por",
+      value: event.owner_name || "Conexión",
+    });
+  }
 
   if (event.event_date) {
     const dateValue = event.end_date && event.end_date !== event.event_date
@@ -1053,7 +1084,10 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                       key: `own-${event.id}`,
                       color: typeMeta.color,
                       label: event.title || agendaEventTypeLabels[event.event_type],
-                      onPress: () => openEditFlow(event),
+                      onPress: () =>
+                        isServiceEvent(event)
+                          ? openSharedDetail(event)
+                          : openEditFlow(event),
                     };
                   }
                 );
@@ -1183,7 +1217,11 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                     key={event.id}
                     style={styles.eventRow}
                     activeOpacity={0.88}
-                    onPress={() => openEditFlow(event)}
+                    onPress={() =>
+                      isServiceEvent(event)
+                        ? openSharedDetail(event)
+                        : openEditFlow(event)
+                    }
                   >
                     <View
                       style={[
@@ -1309,7 +1347,11 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                     key={event.id}
                     style={styles.upcomingCard}
                     activeOpacity={0.9}
-                    onPress={() => openEditFlow(event)}
+                    onPress={() =>
+                      isServiceEvent(event)
+                        ? openSharedDetail(event)
+                        : openEditFlow(event)
+                    }
                   >
                     <View
                       style={[
@@ -1362,7 +1404,11 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                 <TouchableOpacity
                   key={event.id}
                   style={styles.unscheduledCard}
-                  onPress={() => openEditFlow(event)}
+                  onPress={() =>
+                    isServiceEvent(event)
+                      ? openSharedDetail(event)
+                      : openEditFlow(event)
+                  }
                   activeOpacity={0.9}
                 >
                   <Text style={styles.unscheduledTitle}>{event.title}</Text>
@@ -1432,7 +1478,7 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
               </TouchableOpacity>
             </View>
 
-            {EVENT_TYPE_OPTIONS.map((option) => (
+            {CREATABLE_EVENT_TYPE_OPTIONS.map((option) => (
               <TouchableOpacity
                 key={option.id}
                 style={styles.typeRow}
@@ -1518,7 +1564,9 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                           color={COLORS.GRAY}
                         />
                         <Text style={styles.detailReadonlyText}>
-                          Solo lectura · únicamente quien lo creó puede editarlo
+                          {isServiceEvent(detailEvent)
+                            ? "Solo lectura · lo gestiona el responsable de tu servicio"
+                            : "Solo lectura · únicamente quien lo creó puede editarlo"}
                         </Text>
                       </View>
 

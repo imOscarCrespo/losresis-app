@@ -383,4 +383,7 @@ export const agendaEventTypeLabels = {
   conference: "Congreso",
   day_off: "Día libre",
   reminder: "Recordatorio",
+  // Convocado por el responsable desde el panel del hospital; el residente lo
+  // ve en solo lectura.
+  service: "Evento del servicio",
 };
