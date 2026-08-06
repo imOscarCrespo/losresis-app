@@ -28,13 +28,25 @@ import {
   getLibroCategorySuggestions,
 } from "../data/libroOnboardingTemplates";
 import { getSpecialtyById } from "../services/hospitalService";
+import { getLibroBooksForUser } from "../services/libroService";
+import {
+  getLibroTemplateOutline,
+  getLibroTemplateTree,
+  getPublishedLibroTemplateForUser,
+  switchLibroYearToTemplate,
+} from "../services/libroTemplateService";
+import {
+  DEFAULT_LIBRO_SECTION,
+  getLibroSectionIcon,
+  getLibroSectionLabel,
+  sortLibroSectionCodes,
+} from "../data/libroSections";
 import posthogLogger from "../services/posthogService";
 import {
   isResidentLockedMissingCorporateEmail,
   shouldBypassResidentReviewGate,
 } from "../utils/residentAccess";
 
-const SECTION = "clinical_practice";
 const ONBOARDING_STEPS = ["intro", "categories", "activities", "preview"];
 const TODAY = new Date().toISOString().slice(0, 10);
 const COLLAPSED_CATEGORIES_STORAGE_KEY = "@losresis:libro_collapsed_categories";
@@ -68,17 +80,6 @@ const getProgress = (count, goal) => {
   if (!goal) return 0;
   return Math.min((count / goal) * 100, 100);
 };
-
-const getBookTitle = (book) => {
-  if (!book?.residency_year) {
-    return "Actual";
-  }
-
-  return `R${book.residency_year}`;
-};
-
-const getBookStatusLabel = (book) =>
-  book?.status === "archived" ? "Archivado" : "Activo";
 
 const SectionBadge = ({ icon, label, active = false, onPress }) => (
   <TouchableOpacity
@@ -187,6 +188,9 @@ const ProcedureRow = ({ node, onIncrement, onDecrement, onOpenActions }) => {
 const CategoryCard = ({
   node,
   collapsed = false,
+  // La estructura la define el tutor: se registra dentro, pero no se añaden,
+  // editan ni borran rotaciones ni procedimientos.
+  structureLocked = false,
   onToggleCollapse,
   onAddChild,
   onEditParent,
@@ -227,23 +231,25 @@ const CategoryCard = ({
               color="#64748B"
             />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.iconActionButton}
-            onPress={() =>
-              Alert.alert(node.name, "Gestiona esta rotación", [
-                { text: "Añadir procedimiento", onPress: () => onAddChild(node) },
-                { text: "Editar rotación", onPress: () => onEditParent(node) },
-                {
-                  text: "Eliminar rotación",
-                  style: "destructive",
-                  onPress: () => onDeleteParent(node),
-                },
-                { text: "Cancelar", style: "cancel" },
-              ])
-            }
-          >
-            <Icon name="ellipsis-horizontal" size={18} color="#64748B" />
-          </TouchableOpacity>
+          {!structureLocked ? (
+            <TouchableOpacity
+              style={styles.iconActionButton}
+              onPress={() =>
+                Alert.alert(node.name, "Gestiona esta rotación", [
+                  { text: "Añadir procedimiento", onPress: () => onAddChild(node) },
+                  { text: "Editar rotación", onPress: () => onEditParent(node) },
+                  {
+                    text: "Eliminar rotación",
+                    style: "destructive",
+                    onPress: () => onDeleteParent(node),
+                  },
+                  { text: "Cancelar", style: "cancel" },
+                ])
+              }
+            >
+              <Icon name="ellipsis-horizontal" size={18} color="#64748B" />
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 
@@ -268,10 +274,12 @@ const CategoryCard = ({
             <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: color }]} />
           </View>
 
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => onAddChild(node)}>
-            <Icon name="add-circle-outline" size={16} color="#670CF5" />
-            <Text style={styles.secondaryButtonText}>Añadir procedimiento</Text>
-          </TouchableOpacity>
+          {!structureLocked ? (
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => onAddChild(node)}>
+              <Icon name="add-circle-outline" size={16} color="#670CF5" />
+              <Text style={styles.secondaryButtonText}>Añadir procedimiento</Text>
+            </TouchableOpacity>
+          ) : null}
 
           <View style={styles.procedureList}>
             {children.length ? (
@@ -288,7 +296,9 @@ const CategoryCard = ({
               <View style={styles.emptyCategoryState}>
                 <Icon name="sparkles-outline" size={18} color="#64748B" />
                 <Text style={styles.emptyCategoryText}>
-                  Añade el primer procedimiento dentro de esta rotación.
+                  {structureLocked
+                    ? "Tu tutor todavía no ha puesto contenido en este apartado."
+                    : "Añade el primer procedimiento dentro de esta rotación."}
                 </Text>
               </View>
             )}
@@ -328,7 +338,6 @@ export default function ResidenceLibraryScreen({
   const [activityGoal, setActivityGoal] = useState("");
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [collapsedCategoriesLoaded, setCollapsedCategoriesLoaded] = useState(false);
-  const [heroDetailsCollapsed, setHeroDetailsCollapsed] = useState(true);
   const [exportingPdf, setExportingPdf] = useState(false);
   const onboardingScrollRef = useRef(null);
   const rotationsInputRef = useRef(null);
@@ -342,12 +351,138 @@ export default function ResidenceLibraryScreen({
   const shouldShowCorporateEmailLock =
     isResidentLockedMissingCorporateEmail(userProfile);
 
+  // Qué bloques tiene el libro de este residente.
+  //
+  // La pantalla asumía que solo existía la práctica clínica, así que cualquier
+  // otro bloque que el tutor escogiera en el panel (cursos, guardias,
+  // competencias…) quedaba invisible: se consultaba una sección que el residente
+  // no tenía y la respuesta venía vacía.
+  const [allBooks, setAllBooks] = useState([]);
+  const [templateOutline, setTemplateOutline] = useState([]);
+  const [templateId, setTemplateId] = useState(null);
+  const [section, setSection] = useState(null);
+  const [selectedYear, setSelectedYear] = useState(null);
+  const [sectionsResolved, setSectionsResolved] = useState(false);
+  const [templateTree, setTemplateTree] = useState([]);
+  const [libroReloadKey, setLibroReloadKey] = useState(0);
+  const [switchingToTemplate, setSwitchingToTemplate] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const resolveLibro = async () => {
+      if (!userId) {
+        if (isMounted) {
+          setAllBooks([]);
+          setTemplateOutline([]);
+          setTemplateId(null);
+          setSection(DEFAULT_LIBRO_SECTION);
+          setSectionsResolved(true);
+        }
+        return;
+      }
+
+      try {
+        // Sus libros (año en curso e histórico) y el plan de su tutor: el rail de
+        // años es la unión de los dos.
+        const [booksData, template] = await Promise.all([
+          getLibroBooksForUser(userId),
+          getPublishedLibroTemplateForUser(userId),
+        ]);
+        if (!isMounted) return;
+
+        const outline = template?.id
+          ? await getLibroTemplateOutline(template.id)
+          : [];
+        if (!isMounted) return;
+
+        setAllBooks(booksData || []);
+        setTemplateId(template?.id || null);
+        setTemplateOutline(outline);
+      } catch (error) {
+        console.error("Error resolving libro:", error);
+        if (isMounted) {
+          setAllBooks([]);
+          setTemplateOutline([]);
+          setTemplateId(null);
+        }
+      } finally {
+        if (isMounted) {
+          setSectionsResolved(true);
+        }
+      }
+    };
+
+    setSectionsResolved(false);
+    resolveLibro();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userId, libroReloadKey]);
+
+  // Los años que el residente puede consultar: los de sus libros más los que su
+  // tutor ha definido en la plantilla.
+  const availableYears = useMemo(() => {
+    const years = new Set([
+      ...allBooks.map((book) => book.residency_year),
+      ...templateOutline.map((block) => block.residency_year),
+    ]);
+    return [...years].filter(Boolean).sort((a, b) => a - b);
+  }, [allBooks, templateOutline]);
+
+  // Se abre el año en curso del residente. Si su año no está cubierto, el último
+  // que sí lo esté.
+  useEffect(() => {
+    if (selectedYear !== null || !availableYears.length) return;
+
+    setSelectedYear(
+      userResidencyYear && availableYears.includes(userResidencyYear)
+        ? userResidencyYear
+        : availableYears[availableYears.length - 1]
+    );
+  }, [availableYears, selectedYear, userResidencyYear]);
+
+  // Los bloques disponibles en el año elegido: los de sus libros de ese año y los
+  // que la plantilla define para ese año.
+  const availableSections = useMemo(() => {
+    if (!selectedYear) return [];
+
+    return sortLibroSectionCodes([
+      ...new Set([
+        ...allBooks
+          .filter((book) => book.residency_year === selectedYear)
+          .map((book) => book.section),
+        ...templateOutline
+          .filter((block) => block.residency_year === selectedYear)
+          .map((block) => block.section),
+      ]),
+    ]);
+  }, [allBooks, templateOutline, selectedYear]);
+
+  // La sección abierta tiene que existir en el año elegido: al cambiar de año se
+  // conserva el mismo bloque si lo hay, y si no se cae al primero disponible.
+  useEffect(() => {
+    if (!sectionsResolved) return;
+
+    if (!availableSections.length) {
+      setSection(DEFAULT_LIBRO_SECTION);
+      return;
+    }
+
+    if (!section || !availableSections.includes(section)) {
+      setSection(
+        availableSections.includes(DEFAULT_LIBRO_SECTION)
+          ? DEFAULT_LIBRO_SECTION
+          : availableSections[0]
+      );
+    }
+  }, [availableSections, section, sectionsResolved]);
+
   const {
     books,
     selectedBook,
-    activeBook,
     selectBook,
-    archiveAndStartNewYear,
     isSelectedBookArchived,
     nodeTree,
     entries,
@@ -363,7 +498,7 @@ export default function ResidenceLibraryScreen({
     addEntry,
     updateLibroSettings,
     createStructure,
-  } = useLibroSection(userId, SECTION);
+  } = useLibroSection(userId, section);
 
   const suggestedCategories = useMemo(
     () => getLibroCategorySuggestions(specialtyName),
@@ -378,34 +513,185 @@ export default function ResidenceLibraryScreen({
     [draftCategories, selectedDraftCategoryId]
   );
 
-  const procedureNodes = useMemo(
-    () => nodeTree.flatMap((category) => category.children || []),
-    [nodeTree]
-  );
-
   const quickActivityIds = settings?.quick_activity_ids || [];
   const currentBookResidencyYear =
     selectedBook?.residency_year || userResidencyYear || 1;
-  const canStartNextYearBook =
-    !!activeBook &&
-    !!userResidencyYear &&
-    userResidencyYear > activeBook.residency_year;
-  const isViewingActiveBook = selectedBook?.id === activeBook?.id;
-  const profileNeedsUpdateMessage = activeBook
-    ? `Actualiza primero tu año de residencia en Perfil. Tu libro activo está en R${activeBook.residency_year} y tu perfil debe pasar a un año superior antes de archivarlo.`
-    : "Actualiza primero tu año de residencia en Perfil antes de iniciar el siguiente libro.";
 
-  const overview = useMemo(() => {
-    const totalGoal = procedureNodes.reduce((sum, node) => sum + (node.goal || 0), 0);
-    const totalCount = procedureNodes.reduce(
-      (sum, node) => sum + (node.total_count || 0),
-      0
+  // El libro del residente para el año y el bloque abiertos, si lo tiene.
+  const bookForSelection = useMemo(
+    () =>
+      allBooks.find(
+        (book) => book.section === section && book.residency_year === selectedYear
+      ) || null,
+    [allBooks, section, selectedYear]
+  );
+
+  // Sin libro propio para esa combinación, lo que se muestra es el plan del tutor:
+  // la estructura de la plantilla, que no es un libro y por tanto no se toca.
+  const isTemplateMode = !!selectedYear && !bookForSelection;
+
+  // El residente solo escribe en el libro de su año en curso. Los años que ya
+  // cerró y los que su tutor tiene definidos por delante se consultan.
+  //
+  // Sin año resuelto o sin año en el perfil no se bloquea nada: es el residente
+  // que todavía tiene que montar su libro en el onboarding.
+  const isOwnYear =
+    !selectedYear || !userResidencyYear || selectedYear === userResidencyYear;
+  const isSelectedBookReadOnly =
+    isTemplateMode || isSelectedBookArchived || !isOwnYear;
+
+  // Un libro sembrado de la plantilla lo define el tutor: el residente registra
+  // actividad dentro, pero no añade, edita ni borra su estructura. Es distinto de
+  // isSelectedBookReadOnly, que sí impide registrar.
+  const isStructureLocked =
+    isSelectedBookReadOnly || !!bookForSelection?.template_id;
+
+  // useLibroSection elige por su cuenta el libro activo del bloque; aquí se le
+  // dice cuál toca según el año elegido en el rail.
+  useEffect(() => {
+    if (!bookForSelection || bookForSelection.id === selectedBook?.id) return;
+    selectBook(bookForSelection.id);
+  }, [bookForSelection, selectedBook?.id, selectBook]);
+
+  // La estructura del plan del tutor para el año y bloque abiertos.
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!isTemplateMode || !templateId || !section || !selectedYear) {
+      setTemplateTree((prev) => (prev.length ? [] : prev));
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    getLibroTemplateTree(templateId, section, selectedYear)
+      .then((tree) => {
+        if (isMounted) setTemplateTree(tree);
+      })
+      .catch(() => {
+        if (isMounted) setTemplateTree([]);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isTemplateMode, templateId, section, selectedYear]);
+
+  // Lo que se pinta: su libro, o el plan del tutor si ese año todavía no es suyo.
+  const displayTree = isTemplateMode ? templateTree : nodeTree;
+
+  // Bloques que su tutor ha definido para SU año y que su libro no tiene. Pasa
+  // cuando el residente montó el libro por su cuenta en el onboarding, o cuando
+  // se le sembró antes de que el tutor terminara la plantilla.
+  const missingOwnYearSections = useMemo(() => {
+    if (!isOwnYear || !selectedYear || !templateId) return [];
+
+    const mine = new Set(
+      allBooks
+        .filter((book) => book.residency_year === selectedYear)
+        .map((book) => book.section)
     );
 
-    return {
-      progress: totalGoal ? Math.min(Math.round((totalCount / totalGoal) * 100), 100) : 0,
-    };
-  }, [procedureNodes]);
+    return sortLibroSectionCodes(
+      templateOutline
+        .filter(
+          (block) =>
+            block.residency_year === selectedYear && !mine.has(block.section)
+        )
+        .map((block) => block.section)
+    );
+  }, [allBooks, templateOutline, templateId, selectedYear, isOwnYear]);
+
+  const canSwitchToTemplate = missingOwnYearSections.length > 0;
+
+  // Cambio de año de residencia: en cuanto el perfil dice R2, el libro de R2 se
+  // crea solo desde la plantilla y los años anteriores quedan archivados. No hay
+  // botón de "archivar y empezar nuevo año": lo dispara el año del perfil.
+  //
+  // Solo cuando no hay nada que perder: si el residente ya tiene libro de ese año
+  // se le pregunta antes (canSwitchToTemplate), porque sustituirlo borra lo
+  // registrado.
+  const autoSeededYearRef = useRef(null);
+
+  useEffect(() => {
+    if (!sectionsResolved || !userId || !templateId || !selectedYear) return;
+    if (!isOwnYear || switchingToTemplate) return;
+    if (allBooks.some((book) => book.residency_year === selectedYear)) return;
+    if (!templateOutline.some((block) => block.residency_year === selectedYear)) return;
+
+    // Un solo intento por año: si falla, no se reintenta en bucle.
+    const attempt = `${userId}:${selectedYear}`;
+    if (autoSeededYearRef.current === attempt) return;
+    autoSeededYearRef.current = attempt;
+
+    setSwitchingToTemplate(true);
+    switchLibroYearToTemplate({ userId, templateId, residencyYear: selectedYear })
+      .then(() => {
+        posthogLogger.capture("resident_book_year_seeded_from_template", {
+          residency_year: selectedYear,
+        });
+        setLibroReloadKey((prev) => prev + 1);
+      })
+      .catch((error) => {
+        console.error("Error seeding libro year from template:", error);
+      })
+      .finally(() => setSwitchingToTemplate(false));
+  }, [
+    sectionsResolved,
+    userId,
+    templateId,
+    selectedYear,
+    isOwnYear,
+    switchingToTemplate,
+    allBooks,
+    templateOutline,
+  ]);
+
+  // Cambiar el año en curso al libro que ha definido el tutor. Se lleva por
+  // delante lo registrado, así que se confirma dos veces: una para entrar y otra
+  // para asumir la pérdida.
+  const handleSwitchToTemplate = () => {
+    const recorded = allBooks.filter(
+      (book) => book.residency_year === selectedYear
+    ).length;
+
+    Alert.alert(
+      `Cambiar al libro de tu tutor`,
+      recorded > 0
+        ? `Tu tutor ha definido el libro oficial de R${selectedYear}. Si cambias, tu libro actual de R${selectedYear} se sustituye por el suyo y PERDERÁS todo lo que has registrado en él. No se puede deshacer.`
+        : `Tu tutor ha definido el libro oficial de R${selectedYear}. Se creará con su estructura para que puedas empezar a registrar.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: recorded > 0 ? "Cambiar y perder lo registrado" : "Cambiar",
+          style: recorded > 0 ? "destructive" : "default",
+          onPress: async () => {
+            setSwitchingToTemplate(true);
+            try {
+              await switchLibroYearToTemplate({
+                userId,
+                templateId,
+                residencyYear: selectedYear,
+              });
+              posthogLogger.capture("resident_book_switched_to_template", {
+                residency_year: selectedYear,
+                sections_added: missingOwnYearSections.length,
+              });
+              setLibroReloadKey((prev) => prev + 1);
+            } catch (error) {
+              console.error("Error switching libro to template:", error);
+              Alert.alert(
+                "No se pudo cambiar",
+                "Inténtalo de nuevo en un momento."
+              );
+            } finally {
+              setSwitchingToTemplate(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const hasCompletedOnboarding =
     !!settings?.onboarding_completed_at || books.length > 0 || nodeTree.length > 0;
@@ -418,7 +704,7 @@ export default function ResidenceLibraryScreen({
     let isMounted = true;
 
     const loadCollapsedCategories = async () => {
-      if (!userId) {
+      if (!userId || !section) {
         if (isMounted) {
           setCollapsedCategories({});
           setCollapsedCategoriesLoaded(true);
@@ -428,7 +714,7 @@ export default function ResidenceLibraryScreen({
 
       try {
         const storedValue = await AsyncStorage.getItem(
-          `${COLLAPSED_CATEGORIES_STORAGE_KEY}:${userId}:${SECTION}`
+          `${COLLAPSED_CATEGORIES_STORAGE_KEY}:${userId}:${section}`
         );
         if (!isMounted) return;
 
@@ -450,16 +736,17 @@ export default function ResidenceLibraryScreen({
     return () => {
       isMounted = false;
     };
-  }, [userId]);
+    // Cada sección recuerda sus propias categorías plegadas.
+  }, [userId, section]);
 
   useEffect(() => {
-    if (!userId || !collapsedCategoriesLoaded) return;
+    if (!userId || !section || !collapsedCategoriesLoaded) return;
 
     AsyncStorage.setItem(
-      `${COLLAPSED_CATEGORIES_STORAGE_KEY}:${userId}:${SECTION}`,
+      `${COLLAPSED_CATEGORIES_STORAGE_KEY}:${userId}:${section}`,
       JSON.stringify(collapsedCategories)
     ).catch(() => {});
-  }, [collapsedCategories, collapsedCategoriesLoaded, userId]);
+  }, [collapsedCategories, collapsedCategoriesLoaded, userId, section]);
 
   useEffect(() => {
     let isMounted = true;
@@ -764,64 +1051,31 @@ export default function ResidenceLibraryScreen({
       return;
     }
 
-    if (requiresEditable && isSelectedBookArchived) {
-      Alert.alert(
-        "Libro archivado",
-        "Este libro es de solo lectura. Vuelve al libro activo para hacer cambios."
-      );
+    if (requiresEditable && isSelectedBookReadOnly) {
+      if (isSelectedBookArchived) {
+        Alert.alert(
+          "Libro archivado",
+          "Este libro es de solo lectura. Vuelve al libro de tu año para hacer cambios."
+        );
+      } else if (canSwitchToTemplate) {
+        // Es su año: lo que le falta no es permiso, es cambiarse al libro que ha
+        // definido su tutor. Se le ofrece ahí mismo.
+        handleSwitchToTemplate();
+      } else {
+        Alert.alert(
+          `Estás viendo R${selectedYear}`,
+          `Es el plan que ha definido tu tutor. Solo puedes registrar en el libro de tu año en curso${userResidencyYear ? ` (R${userResidencyYear})` : ""}.`
+        );
+      }
       return;
     }
 
     callback();
   };
 
-  const handleSelectBook = async (bookId) => {
-    if (!bookId || bookId === selectedBook?.id) return;
-    await selectBook(bookId);
-  };
-
-  const handleStartNextYearBook = () => {
-    if (!activeBook) {
-      Alert.alert("Sin libro activo", "No se encontró un libro activo para archivar.");
-      return;
-    }
-
-    if (!canStartNextYearBook) {
-      Alert.alert("Actualiza tu perfil", profileNeedsUpdateMessage);
-      return;
-    }
-
-    Alert.alert(
-      "Archivar libro actual",
-      `Vas a archivar tu ${getBookTitle(activeBook)} y crear un libro nuevo vacío para R${userResidencyYear}. Esta acción no se puede deshacer desde la app.`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Archivar y continuar",
-          style: "destructive",
-          onPress: async () => {
-            const result = await archiveAndStartNewYear(userResidencyYear);
-
-            if (!result.success) {
-              Alert.alert(
-                "Error",
-                "No se pudo archivar el libro actual y abrir el nuevo año."
-              );
-              return;
-            }
-
-            Alert.alert(
-              "Nuevo libro creado",
-              `Tu ${getBookTitle(activeBook)} ha quedado archivado y ya puedes empezar tu libro R${userResidencyYear}.`
-            );
-          },
-        },
-      ]
-    );
-  };
-
   const openChildActions = (node) => {
-    Alert.alert(node.name, "Gestiona este procedimiento", [
+    // Registrar siempre; editar y borrar solo si la estructura es suya.
+    const actions = [
       {
         text: TRACKING_MODE_ACTION[node.tracking_mode] || "Registrar",
         onPress: () =>
@@ -829,24 +1083,32 @@ export default function ResidenceLibraryScreen({
             requiresEditable: true,
           }),
       },
-      {
-        text: "Editar procedimiento, objetivo y tipo",
-        onPress: () =>
-          handleProtectedAction(() => {
-            setEditingNode(node);
-            setShowNodeModal(true);
-          }, { requiresEditable: true }),
-      },
-      {
-        text: "Eliminar procedimiento",
-        style: "destructive",
-        onPress: () =>
-          handleProtectedAction(() => setShowDeleteConfirm(node), {
-            requiresEditable: true,
-          }),
-      },
-      { text: "Cancelar", style: "cancel" },
-    ]);
+    ];
+
+    if (!isStructureLocked) {
+      actions.push(
+        {
+          text: "Editar procedimiento, objetivo y tipo",
+          onPress: () =>
+            handleProtectedAction(() => {
+              setEditingNode(node);
+              setShowNodeModal(true);
+            }, { requiresEditable: true }),
+        },
+        {
+          text: "Eliminar procedimiento",
+          style: "destructive",
+          onPress: () =>
+            handleProtectedAction(() => setShowDeleteConfirm(node), {
+              requiresEditable: true,
+            }),
+        }
+      );
+    }
+
+    actions.push({ text: "Cancelar", style: "cancel" });
+
+    Alert.alert(node.name, "Gestiona este procedimiento", actions);
   };
 
   const toggleCategoryCollapse = (categoryId) => {
@@ -874,7 +1136,7 @@ export default function ResidenceLibraryScreen({
       });
 
       posthogLogger.capture("resident_book_pdf_exported", {
-        section: SECTION,
+        section,
         categories_count: nodeTree.length,
         entries_count: entries.length,
         events_count: events.length,
@@ -892,6 +1154,19 @@ export default function ResidenceLibraryScreen({
       onboardingScrollRef.current?.scrollTo({ y: 720, animated: true });
     });
   };
+
+  // Sin saber qué bloques tiene el residente no se puede decidir si ve su libro o
+  // el onboarding, y acertar después sería un parpadeo.
+  if (!sectionsResolved) {
+    return (
+      <View style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#670CF5" />
+          <Text style={styles.loadingText}>Preparando tu libro de residente...</Text>
+        </View>
+      </View>
+    );
+  }
 
   if (
     (loading || settingsLoading || !specialtyResolved) &&
@@ -928,7 +1203,7 @@ export default function ResidenceLibraryScreen({
     const colorOptions = getColorTokenOptions();
 
     return (
-      <HeroScreenLayout title="Libro de residente" onBack={onBack}>
+      <HeroScreenLayout title="Libro" onBack={onBack}>
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -1354,7 +1629,7 @@ export default function ResidenceLibraryScreen({
 
   const renderDashboard = () => (
     <HeroScreenLayout
-      title="Libro de residente"
+      title="Libro"
       onBack={onBack}
       rightSlot={
         <View style={styles.headerActions}>
@@ -1369,181 +1644,138 @@ export default function ResidenceLibraryScreen({
               color="#670CF5"
             />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.headerIcon,
-              isSelectedBookArchived && styles.headerIconDisabled,
-            ]}
-            onPress={() =>
-              handleProtectedAction(() => {
-                setSelectedParentForChild(null);
-                setShowNodeFormScreen(true);
-              }, { requiresEditable: true })
-            }
-            disabled={isSelectedBookArchived}
-          >
-            <Icon name="add" size={18} color="#670CF5" />
-          </TouchableOpacity>
+          {/* Añadir rotación solo tiene sentido en un libro cuya estructura es
+              del residente: si la define el tutor, el botón no aparece. */}
+          {!isStructureLocked ? (
+            <TouchableOpacity
+              style={styles.headerIcon}
+              onPress={() =>
+                handleProtectedAction(() => {
+                  setSelectedParentForChild(null);
+                  setShowNodeFormScreen(true);
+                }, { requiresEditable: true })
+              }
+            >
+              <Icon name="add" size={18} color="#670CF5" />
+            </TouchableOpacity>
+          ) : null}
         </View>
       }
     >
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           <View style={styles.contentInner}>
-            <View style={styles.heroCard}>
-              <View style={styles.bookStatusRow}>
-                <View>
-                  <Text style={styles.bookEyebrow}>
-                    {selectedBook ? getBookTitle(selectedBook) : "Libro de residente"}
-                  </Text>
-                  <Text style={styles.bookStatusText}>
-                    {selectedBook
-                      ? `${getBookStatusLabel(selectedBook)}${selectedBook.archived_at ? ` · archivado el ${new Date(selectedBook.archived_at).toLocaleDateString("es-ES")}` : ""}`
-                      : "Sin libro seleccionado"}
-                  </Text>
-                </View>
-                {selectedBook ? (
-                  <View
-                    style={[
-                      styles.bookStatusBadge,
-                      selectedBook.status === "archived"
-                        ? styles.bookStatusBadgeArchived
-                        : styles.bookStatusBadgeActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.bookStatusBadgeText,
-                        selectedBook.status === "archived"
-                          ? styles.bookStatusBadgeTextArchived
-                          : styles.bookStatusBadgeTextActive,
-                      ]}
+            {/* Los años del libro, justo debajo de la cabecera. Se abre el del año
+                en curso del residente; los demás se consultan en solo lectura. */}
+            {availableYears.length > 1 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.yearRail}
+              >
+                {availableYears.map((year) => {
+                  const isSelected = year === selectedYear;
+                  return (
+                    <TouchableOpacity
+                      key={year}
+                      style={[styles.yearTab, isSelected && styles.yearTabActive]}
+                      onPress={() => setSelectedYear(year)}
+                      activeOpacity={0.85}
                     >
-                      {getBookStatusLabel(selectedBook)}
+                      <Text
+                        style={[
+                          styles.yearTabText,
+                          isSelected && styles.yearTabTextActive,
+                        ]}
+                      >
+                        {`R${year}`}
+                      </Text>
+                      {year !== userResidencyYear ? (
+                        <Icon name="lock-closed-outline" size={12} color="#94A3B8" />
+                      ) : null}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            ) : null}
+
+            {/* Los bloques que el tutor puso en el libro. Con uno solo no hay nada
+                que elegir, así que el rail no aparece. */}
+            {availableSections.length > 1 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.sectionRail}
+              >
+                {availableSections.map((code) => (
+                  <SectionBadge
+                    key={code}
+                    icon={getLibroSectionIcon(code)}
+                    label={getLibroSectionLabel(code)}
+                    active={code === section}
+                    onPress={() => setSection(code)}
+                  />
+                ))}
+              </ScrollView>
+            ) : null}
+
+            {/* Su tutor ha definido el libro oficial de su año y el suyo no lo
+                refleja: se le ofrece cambiar, avisando de lo que pierde. */}
+            {canSwitchToTemplate ? (
+              <View style={styles.switchTemplateCard}>
+                <View style={styles.switchTemplateCopy}>
+                  <Icon name="sparkles-outline" size={18} color="#1B0977" />
+                  <View style={styles.switchTemplateTextBlock}>
+                    <Text style={styles.switchTemplateTitle}>
+                      {`Tu tutor ha definido el libro de R${selectedYear}`}
+                    </Text>
+                    <Text style={styles.switchTemplateText}>
+                      {`Incluye ${missingOwnYearSections
+                        .map((code) => getLibroSectionLabel(code))
+                        .join(", ")}. Cámbiate para registrar sobre su estructura.`}
                     </Text>
                   </View>
-                ) : null}
-              </View>
-
-              <View style={styles.dashboardProgressTopRow}>
-                <View style={styles.dashboardProgressCopy}>
-                  <Text style={styles.dashboardProgressTitle}>Tu progreso</Text>
-                  <Text style={styles.dashboardProgressText}>
-                    {isSelectedBookArchived
-                      ? "Estás consultando un libro histórico en modo solo lectura."
-                      : "Sigue registrando procedimientos para avanzar en tu libro."}
-                  </Text>
                 </View>
-                <Text style={styles.dashboardProgressValue}>{overview.progress}%</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.switchTemplateButton,
+                    switchingToTemplate && styles.switchTemplateButtonDisabled,
+                  ]}
+                  onPress={handleSwitchToTemplate}
+                  disabled={switchingToTemplate}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.switchTemplateButtonText}>
+                    {switchingToTemplate ? "Cambiando..." : "Cambiar al libro de mi tutor"}
+                  </Text>
+                </TouchableOpacity>
               </View>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${overview.progress}%` }]} />
-              </View>
-              <TouchableOpacity
-                style={styles.heroDetailsToggle}
-                onPress={() => setHeroDetailsCollapsed((prev) => !prev)}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.heroDetailsToggleText}>
-                  {heroDetailsCollapsed ? "Ver acciones y libros" : "Ocultar acciones y libros"}
+            ) : null}
+
+            {isSelectedBookReadOnly && !canSwitchToTemplate ? (
+              <View style={styles.readOnlyNotice}>
+                <Icon name="lock-closed-outline" size={16} color="#92400E" />
+                <Text style={styles.readOnlyNoticeText}>
+                  {isSelectedBookArchived
+                    ? "Este libro está archivado. Puedes consultarlo y exportarlo, pero no editarlo."
+                    : `Estás viendo R${selectedYear}: es el plan de tu tutor. Solo registras en el libro de tu año en curso.`}
                 </Text>
-                <Icon
-                  name={heroDetailsCollapsed ? "chevron-down" : "chevron-up"}
-                  size={16}
-                  color="#64748B"
-                />
-              </TouchableOpacity>
+              </View>
+            ) : null}
 
-              {!heroDetailsCollapsed ? (
-                <>
-                  {books.length > 1 ? (
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.bookTabsRow}
-                    >
-                      {books.map((book) => {
-                        const isSelected = book.id === selectedBook?.id;
-                        return (
-                          <TouchableOpacity
-                            key={book.id}
-                            style={[styles.bookTab, isSelected && styles.bookTabActive]}
-                            onPress={() => handleSelectBook(book.id)}
-                          >
-                            <Text
-                              style={[
-                                styles.bookTabTitle,
-                                isSelected && styles.bookTabTitleActive,
-                              ]}
-                            >
-                              {getBookTitle(book)}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.bookTabSubtitle,
-                                isSelected && styles.bookTabSubtitleActive,
-                              ]}
-                            >
-                              {getBookStatusLabel(book)}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-                  ) : null}
-
-                  {isViewingActiveBook ? (
-                    <TouchableOpacity
-                      style={styles.nextYearButton}
-                      onPress={handleStartNextYearBook}
-                    >
-                      <Icon
-                        name="archive-outline"
-                        size={16}
-                        color="#1B0977"
-                      />
-                      <Text style={styles.nextYearButtonText}>
-                        Archivar libro actual y empezar nuevo año
-                      </Text>
-                    </TouchableOpacity>
-                  ) : null}
-
-                  {isSelectedBookArchived ? (
-                    <View style={styles.readOnlyNotice}>
-                      <Icon name="lock-closed-outline" size={16} color="#92400E" />
-                      <Text style={styles.readOnlyNoticeText}>
-                        Este libro está archivado. Puedes consultarlo y exportarlo, pero no editarlo.
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  <TouchableOpacity
-                    style={[styles.exportButton, exportingPdf && styles.exportButtonDisabled]}
-                    onPress={() => handleProtectedAction(handleExportPdf)}
-                    disabled={exportingPdf}
-                  >
-                    <Icon
-                      name={exportingPdf ? "hourglass-outline" : "download-outline"}
-                      size={16}
-                      color="#670CF5"
-                    />
-                    <Text style={styles.exportButtonText}>
-                      {exportingPdf ? "Generando PDF..." : "Descargar PDF"}
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              ) : null}
-            </View>
-
-            {!nodeTree.length ? (
+            {!displayTree.length ? (
               <View style={styles.emptyBookCard}>
                 <Icon name="book-outline" size={22} color="#670CF5" />
-                <Text style={styles.emptyBookTitle}>Este libro está vacío</Text>
+                <Text style={styles.emptyBookTitle}>
+                  {isTemplateMode ? `R${selectedYear} sin contenido` : "Este libro está vacío"}
+                </Text>
                 <Text style={styles.emptyBookText}>
                   {isSelectedBookArchived
                     ? "No hay rotaciones guardadas en este libro archivado."
-                    : "Añade tu primera rotación para empezar el libro de este año."}
+                    : isStructureLocked
+                      ? `Tu tutor todavía no ha definido contenido para R${selectedYear}.`
+                      : "Añade tu primera rotación para empezar el libro de este año."}
                 </Text>
-                {!isSelectedBookArchived ? (
+                {!isStructureLocked ? (
                   <TouchableOpacity
                     style={styles.primaryAction}
                     onPress={() =>
@@ -1559,9 +1791,10 @@ export default function ResidenceLibraryScreen({
                 ) : null}
               </View>
             ) : (
-              nodeTree.map((parentNode) => (
+              displayTree.map((parentNode) => (
                 <CategoryCard
                   key={parentNode.id}
+                  structureLocked={isStructureLocked}
                   node={parentNode}
                   collapsed={
                     collapsedCategories[parentNode.id] == null
@@ -1742,126 +1975,50 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E8EAF3",
   },
-  bookStatusRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 14,
-  },
-  bookEyebrow: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#670CF5",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  bookStatusText: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 18,
-    color: "#64748B",
-  },
-  bookStatusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  bookStatusBadgeActive: {
-    backgroundColor: "#DCFCE7",
-  },
-  bookStatusBadgeArchived: {
-    backgroundColor: "#FEF3C7",
-  },
-  bookStatusBadgeText: {
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  bookStatusBadgeTextActive: {
-    color: "#166534",
-  },
-  bookStatusBadgeTextArchived: {
-    color: "#92400E",
-  },
-  bookTabsRow: {
-    gap: 10,
-    paddingVertical: 14,
-  },
-  heroDetailsToggle: {
-    marginTop: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#F8FAFC",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  heroDetailsToggleText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#334155",
-  },
-  bookTab: {
-    minWidth: 120,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  switchTemplateCard: {
+    marginBottom: 16,
+    padding: 14,
     borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
-  },
-  bookTabActive: {
-    borderColor: "#670CF5",
     backgroundColor: "#F5F3FF",
+    borderWidth: 1,
+    borderColor: "#D8B4FE",
+    gap: 12,
   },
-  bookTabTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0F172A",
+  switchTemplateCopy: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
   },
-  bookTabTitleActive: {
+  switchTemplateTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  switchTemplateTitle: {
+    fontSize: 15,
+    fontWeight: "800",
     color: "#1B0977",
   },
-  bookTabSubtitle: {
+  switchTemplateText: {
     marginTop: 4,
-    fontSize: 11,
-    color: "#64748B",
-  },
-  bookTabSubtitleActive: {
+    fontSize: 13,
+    lineHeight: 19,
     color: "#5B21B6",
   },
-  nextYearButton: {
-    marginTop: 4,
-    flexDirection: "row",
+  switchTemplateButton: {
+    minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 16,
-    backgroundColor: "#E0E7FF",
-    borderWidth: 1,
-    borderColor: "#C7D2FE",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    backgroundColor: "#670CF5",
   },
-  nextYearButtonDisabled: {
-    backgroundColor: "#F8FAFC",
-    borderColor: "#E2E8F0",
+  switchTemplateButtonDisabled: {
+    opacity: 0.6,
   },
-  nextYearButtonText: {
-    fontSize: 13,
+  switchTemplateButtonText: {
+    fontSize: 14,
     fontWeight: "700",
-    color: "#1B0977",
-  },
-  nextYearButtonTextDisabled: {
-    color: "#94A3B8",
-  },
-  nextYearHint: {
-    marginTop: 10,
-    fontSize: 12,
-    lineHeight: 18,
-    color: "#64748B",
+    color: "#FFFFFF",
   },
   readOnlyNotice: {
     marginTop: 12,
@@ -1928,61 +2085,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 8,
   },
-  dashboardProgressHeader: {
-    marginTop: 0,
-  },
-  dashboardProgressTopRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 16,
-    marginBottom: 12,
-  },
-  dashboardProgressCopy: {
-    flex: 1,
-    minWidth: 0,
-    paddingRight: 4,
-  },
-  dashboardProgressTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#1B0977",
-  },
-  dashboardProgressText: {
-    marginTop: 4,
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#64748B",
-  },
-  dashboardProgressValue: {
-    flexShrink: 1,
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#670CF5",
-    textAlign: "right",
-  },
-  exportButton: {
-    marginTop: 16,
-    minHeight: 44,
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: "#F5F3FF",
-    borderWidth: 1,
-    borderColor: "#DDD6FE",
-  },
-  exportButtonDisabled: {
-    opacity: 0.7,
-  },
-  exportButtonText: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#670CF5",
-  },
   progressHeaderLabel: {
     fontSize: 13,
     fontWeight: "700",
@@ -2017,6 +2119,41 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+  },
+  yearRail: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingBottom: 12,
+  },
+  yearTab: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  yearTabActive: {
+    backgroundColor: "#F5F3FF",
+    borderColor: "#D8B4FE",
+  },
+  yearTabText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  yearTabTextActive: {
+    color: "#670CF5",
+  },
+  sectionRail: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingBottom: 12,
   },
   stepBadge: {
     flexDirection: "row",

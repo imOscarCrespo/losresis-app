@@ -1119,7 +1119,23 @@ export default function HomeDashboardScreen({
               </View>
               <Text style={styles.quickActionLabel}>Nota proyectada</Text>
             </TouchableOpacity>
-            <View style={styles.quickActionBtnPlaceholder} pointerEvents="none" />
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => {
+                posthogLogger.capture("mir_question_bank_entry_clicked", {
+                  source: "quick_action",
+                });
+                onSectionChange?.("mir-questions");
+              }}
+            >
+              <View style={styles.quickActionNewBadge}>
+                <Text style={styles.quickActionNewBadgeText}>NUEVO</Text>
+              </View>
+              <View style={[styles.quickActionIcon, { backgroundColor: `${PRIMARY}20` }]}>
+                <Icon name="school-outline" size={22} color={PRIMARY} />
+              </View>
+              <Text style={styles.quickActionLabel}>Preguntas MIR</Text>
+            </TouchableOpacity>
           </View>
 
           {!loadingDashboardAds && carouselHasAds && (
@@ -1369,6 +1385,38 @@ export default function HomeDashboardScreen({
             </View>
 
             <View style={styles.specialityQuizArrow}>
+              <Icon name="arrow-forward" size={18} color="#FFFFFF" />
+            </View>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {userProfile?.is_student && (
+        <TouchableOpacity
+          style={styles.mirQuestionsBanner}
+          onPress={() => {
+            posthogLogger.capture("mir_question_bank_entry_clicked", {
+              source: "home_banner",
+            });
+            onSectionChange?.("mir-questions");
+          }}
+          activeOpacity={0.9}
+        >
+          <View style={styles.mirQuestionsBannerGlow} />
+          <View style={styles.mirQuestionsBannerContent}>
+            <View style={styles.mirQuestionsTextWrap}>
+              <View style={styles.mirQuestionsBadge}>
+                <Text style={styles.mirQuestionsBadgeText}>PREGUNTAS MIR</Text>
+              </View>
+              <Text style={styles.mirQuestionsTitle}>
+                Practica con preguntas MIR reales
+              </Text>
+              <Text style={styles.mirQuestionsText}>
+                Responde preguntas de convocatorias oficiales, marca las importantes
+                y repasa tus falladas con notas propias.
+              </Text>
+            </View>
+            <View style={styles.mirQuestionsArrow}>
               <Icon name="arrow-forward" size={18} color="#FFFFFF" />
             </View>
           </View>
@@ -1758,13 +1806,9 @@ const styles = StyleSheet.create({
   quickActions: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    rowGap: 12,
     justifyContent: "space-between",
     marginBottom: 24,
-  },
-  quickActionBtnPlaceholder: {
-    width: "31%",
-    opacity: 0,
   },
   quickActionBtn: {
     width: "31%",
@@ -1793,6 +1837,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: ACCENT,
     textAlign: "center",
+  },
+  quickActionNewBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "#670CF5",
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    zIndex: 1,
+  },
+  quickActionNewBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 0.6,
   },
   residentTopStack: {
     gap: 14,
@@ -2151,6 +2211,69 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#0F766E",
+    alignSelf: "center",
+  },
+  mirQuestionsBanner: {
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: 24,
+    backgroundColor: "#F5F0FF",
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.14)",
+  },
+  mirQuestionsBannerGlow: {
+    position: "absolute",
+    top: -40,
+    right: -20,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: "rgba(103,12,245,0.10)",
+  },
+  mirQuestionsBannerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  mirQuestionsTextWrap: {
+    flex: 1,
+  },
+  mirQuestionsBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "#670CF5",
+    marginBottom: 10,
+  },
+  mirQuestionsBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+  },
+  mirQuestionsTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#2E1065",
+    lineHeight: 24,
+    marginBottom: 6,
+  },
+  mirQuestionsText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "rgba(46,16,101,0.84)",
+  },
+  mirQuestionsArrow: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#670CF5",
     alignSelf: "center",
   },
   section: {

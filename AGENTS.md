@@ -9,6 +9,12 @@
 - Tratar `losresis-app` como consumidor de ese repo compartido, no como fuente de verdad para cambios de base de datos.
 - Después de añadir o modificar una migración en `losresis-db`, el siguiente paso en `losresis-app` es actualizar el puntero del submódulo o reflejar el cambio consumido, no recrear la migración localmente.
 
+## Database Naming Convention
+
+- A partir de ahora, todo lo que se cree en base de datos lleva **siempre el nombre en inglés**: tablas, columnas, funciones, triggers, índices, políticas RLS, enums y sus valores.
+- Los objetos existentes con nombre en español no se renombran; conviven con la convención nueva.
+- Los textos destinados al usuario final (títulos/cuerpos de notificaciones, mensajes de error visibles) siguen en español; la convención aplica solo a los identificadores.
+
 ## Static Catalogs And Cached Egress
 
 - `data/staticCatalog/*.json` son artefactos generados para reducir `Cached Egress` de Supabase; no son la source of truth.

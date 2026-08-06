@@ -48,6 +48,7 @@ import NotificationsScreen from "../src/screens/notifications/NotificationsScree
 import { setNotificationNavigationHandler } from "../src/services/push/notificationRouter";
 import { openDirectChat } from "../services/directChatsService";
 import SpecialityQuizScreen from "./SpecialityQuizScreen";
+import MirQuestionBankScreen from "./MirQuestionBankScreen";
 import GroupsScreen from "./GroupsScreen";
 import GroupChatScreen from "./GroupChatScreen";
 import RoommateScreen from "./RoommateScreen";
@@ -1398,6 +1399,14 @@ export default function DashboardScreen({
             userProfile={userProfile}
             onBack={handleBackFromGenericSection}
             onSectionChange={handleSectionChange}
+          />
+        );
+
+      case "mir-questions":
+        return (
+          <MirQuestionBankScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
           />
         );
 

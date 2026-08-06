@@ -92,6 +92,41 @@ const getLibroEventContext = async (eventId) => {
   return data;
 };
 
+/**
+ * Todos los libros del residente, de cualquier sección.
+ *
+ * Es la única forma de saber qué bloques le ha dado su tutor: getLibroBooks exige
+ * una sección, así que solo sirve cuando ya sabes cuál mirar.
+ *
+ * @param {string} userId - ID del residente
+ * @returns {Promise<Array>} Libros del residente, activos antes que archivados
+ */
+export const getLibroBooksForUser = async (userId) => {
+  try {
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+
+    const { data, error } = await supabase
+      .from("libro_book")
+      .select("*")
+      .eq("user_id", userId)
+      .order("status", { ascending: true })
+      .order("residency_year", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching libro books for user:", error);
+      throw error;
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error("Exception in getLibroBooksForUser:", error);
+    throw error;
+  }
+};
+
 export const getLibroBooks = async (userId, section) => {
   try {
     if (!userId || !section) {
@@ -965,6 +1000,7 @@ export const archiveLibroBookAndStartNewYear = async ({
 export default {
   getAllLibroData,
   getLibroBooks,
+  getLibroBooksForUser,
   ensureActiveLibroBook,
   createNode,
   updateNode,
