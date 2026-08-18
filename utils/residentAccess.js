@@ -261,6 +261,65 @@ export const canResidentCreateExternalRotation = (
   return false;
 };
 
+// Publicar una OFERTA de vivienda (kind = "offer") está reservado a residentes
+// con el email corporativo validado. Los caseros y usuarios externos publican
+// pagando en el portal de propietarios (vivienda.losresis.com), así que la app
+// ya no es una vía gratuita para ellos. Los anuncios "busco piso"
+// (kind = "seek") siguen abiertos a cualquier usuario de la app.
+export const canPublishHousingOffer = (
+  profile,
+  { emailReviewRequest = null, now = new Date() } = {}
+) => {
+  if (!profile) return false;
+  if (profile.is_super_admin) return true;
+  if (!profile.is_resident) return false;
+
+  const validationState = getResidentEmailValidationState(
+    profile,
+    emailReviewRequest
+  );
+  if (validationState !== RESIDENT_EMAIL_VALIDATION_STATE.VALIDATED) {
+    return false;
+  }
+
+  return getResidentState(profile, now) === RESIDENT_STATE.ACTIVE;
+};
+
+export const HOUSING_OFFER_BLOCK_REASON = {
+  NOT_RESIDENT: "not_resident",
+  EMAIL_REVIEW_PENDING: "email_review_pending",
+  EMAIL_REVIEW_REJECTED: "email_review_rejected",
+  MISSING_CORPORATE_EMAIL: "missing_corporate_email",
+};
+
+// Motivo por el que no se puede publicar oferta, para elegir el copy correcto.
+// Devuelve null cuando sí se puede.
+export const getHousingOfferBlockReason = (
+  profile,
+  { emailReviewRequest = null, now = new Date() } = {}
+) => {
+  if (canPublishHousingOffer(profile, { emailReviewRequest, now })) {
+    return null;
+  }
+
+  if (!profile?.is_resident) {
+    return HOUSING_OFFER_BLOCK_REASON.NOT_RESIDENT;
+  }
+
+  const validationState = getResidentEmailValidationState(
+    profile,
+    emailReviewRequest
+  );
+  if (validationState === RESIDENT_EMAIL_VALIDATION_STATE.REVIEW_PENDING) {
+    return HOUSING_OFFER_BLOCK_REASON.EMAIL_REVIEW_PENDING;
+  }
+  if (validationState === RESIDENT_EMAIL_VALIDATION_STATE.REVIEW_REJECTED) {
+    return HOUSING_OFFER_BLOCK_REASON.EMAIL_REVIEW_REJECTED;
+  }
+
+  return HOUSING_OFFER_BLOCK_REASON.MISSING_CORPORATE_EMAIL;
+};
+
 export const needsResidentCorporateEmail = (profile, now = new Date()) => {
   if (!profile?.is_resident) {
     return false;

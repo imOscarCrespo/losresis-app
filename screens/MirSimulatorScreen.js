@@ -17,7 +17,11 @@ import { SelectFilter } from "../components/SelectFilter";
 import { useHospitals } from "../hooks/useHospitals";
 import { calculateMIRProbabilities } from "../services/mirSimulatorService";
 import posthogLogger from "../services/posthogService";
-import { getAdvertisementsByPlacement } from "../services/dashboardAdvertisementService";
+import {
+  getAdvertisementsByPlacement,
+  isAdvertisementActionable,
+  openAdvertisement,
+} from "../services/dashboardAdvertisementService";
 
 const PRIMARY = "#670CF5";
 const INDIGO = "#1B0977";
@@ -363,26 +367,38 @@ export default function MirSimulatorScreen({ onBack, userProfile, initialScore }
   };
 
   const renderMirAdCard = (ad) => {
-    return (
-      <View style={styles.inlineAdCard}>
-        {ad?.image_url ? (
-          <ImageBackground
-            source={{ uri: ad.image_url }}
-            style={styles.inlineAdImage}
-            imageStyle={styles.inlineAdImageAsset}
-          >
-            <View style={styles.inlineAdBadge}>
-              <Text style={styles.inlineAdBadgeText}>Ad</Text>
-            </View>
-          </ImageBackground>
-        ) : (
-          <View style={[styles.inlineAdImage, styles.inlineAdPlaceholder]}>
-            <View style={styles.inlineAdBadge}>
-              <Text style={styles.inlineAdBadgeText}>Ad</Text>
-            </View>
-          </View>
-        )}
+    const actionable = isAdvertisementActionable(ad);
+
+    const content = ad?.image_url ? (
+      <ImageBackground
+        source={{ uri: ad.image_url }}
+        style={styles.inlineAdImage}
+        imageStyle={styles.inlineAdImageAsset}
+      >
+        <View style={styles.inlineAdBadge}>
+          <Text style={styles.inlineAdBadgeText}>Ad</Text>
+        </View>
+      </ImageBackground>
+    ) : (
+      <View style={[styles.inlineAdImage, styles.inlineAdPlaceholder]}>
+        <View style={styles.inlineAdBadge}>
+          <Text style={styles.inlineAdBadgeText}>Ad</Text>
+        </View>
       </View>
+    );
+
+    if (!actionable) {
+      return <View style={styles.inlineAdCard}>{content}</View>;
+    }
+
+    return (
+      <TouchableOpacity
+        style={styles.inlineAdCard}
+        activeOpacity={0.9}
+        onPress={() => openAdvertisement(ad)}
+      >
+        {content}
+      </TouchableOpacity>
     );
   };
 

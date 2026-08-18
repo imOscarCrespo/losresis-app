@@ -16,6 +16,20 @@ const MIME_TYPES_BY_EXTENSION = {
   heif: "image/heif",
 };
 
+// El backend restringe kind = "offer" a residentes con el email corporativo
+// validado (trigger housing_ad_offer_eligibility + RLS por dueño). Ambos
+// fallan con 42501, así que traducimos el error a algo legible en vez de
+// enseñar el mensaje crudo de Postgres.
+const NOT_ALLOWED_TO_PUBLISH_MESSAGE =
+  "Para ofrecer vivienda tienes que ser residente con el email corporativo validado. Publica tu piso en vivienda.losresis.com.";
+
+const describeHousingWriteError = (error) => {
+  if (error?.code === "42501") {
+    return NOT_ALLOWED_TO_PUBLISH_MESSAGE;
+  }
+  return error?.message;
+};
+
 const getImageUploadMetadata = (image, index) => {
   const fileNameFromAsset = image?.fileName?.trim();
   const fileNameFromUri = image?.uri?.split("/").pop()?.split("?")[0];
@@ -109,12 +123,19 @@ export const getHousingAds = async (
     const from = page * limit;
     const to = from + limit - 1;
 
+    // Los anuncios del portal de propietarios caducan a los 30 días. La tarea
+    // expire_housing_ads los desactiva cada hora, pero filtramos también por
+    // fecha para no enseñar uno caducado en el hueco entre medias.
+    // published_until nulo = anuncio de la app (residentes), no caduca.
+    const notExpired = `published_until.is.null,published_until.gt.${new Date().toISOString()}`;
+
     // Primero obtener el total
     let countQuery = supabase
       .from("housing_ad")
       .select("*", { count: "exact", head: true })
       .eq("is_active", true)
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      .or(notExpired);
 
     // Aplicar filtros al conteo
     if (filters.city && filters.city.trim()) {
@@ -151,6 +172,9 @@ export const getHousingAds = async (
       )
       .eq("is_active", true)
       .is("deleted_at", null)
+      .or(notExpired)
+      // Los destacados van primero; dentro de cada grupo, lo más reciente.
+      .order("is_premium", { ascending: false })
       .order("created_at", { ascending: false });
 
     // Aplicar filtros
@@ -348,7 +372,7 @@ export const createHousingAd = async (adData) => {
       return {
         success: false,
         ad: null,
-        error: adError.message,
+        error: describeHousingWriteError(adError),
       };
     }
 
@@ -522,7 +546,7 @@ export const updateHousingAd = async (adId, adData) => {
       return {
         success: false,
         ad: null,
-        error: error.message,
+        error: describeHousingWriteError(error),
       };
     }
 

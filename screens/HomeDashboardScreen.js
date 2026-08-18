@@ -11,6 +11,7 @@ import {
   ImageBackground,
   useWindowDimensions,
   Alert,
+  Linking,
 } from "react-native";
 import { Icon } from "../components/Icon";
 import { useFeed } from "../hooks/useFeed";
@@ -42,6 +43,8 @@ import { getLastQuizSessionForUser } from "../services/specialityQuizService";
 import {
   getDashboardAdvertisements,
   getDashboardAudience,
+  isAdvertisementActionable,
+  openAdvertisement,
 } from "../services/dashboardAdvertisementService";
 import {
   formatPayoutPeriodLabel,
@@ -52,6 +55,10 @@ import {
 import { getAgendaEvents } from "../services/agendaService";
 import { countMonthShiftsByCategory } from "../services/shiftPayrollService";
 import posthogLogger from "../services/posthogService";
+import {
+  LANDLORD_PORTAL_URL,
+  LANDLORD_PORTAL_LABEL,
+} from "../constants/housing";
 import {
   formatResidentTransitionDeadline,
   hasResidentFeatureAccess,
@@ -429,6 +436,19 @@ export default function HomeDashboardScreen({
     return sourceName.split(/\s+/)[0] || "Usuario";
   }, [displayName, userProfile?.name]);
   const { request: emailReviewRequest } = useEmailReviewStatus(userProfile?.id);
+  // Los caseros ya no publican gratis desde la app: su alta va por el portal
+  // de propietarios, donde pagan la publicación.
+  const openLandlordPortal = useCallback(() => {
+    posthogLogger.capture("housing_landlord_portal_opened", {
+      from: "host_home",
+    });
+    Linking.openURL(LANDLORD_PORTAL_URL).catch(() => {
+      Alert.alert(
+        "No se pudo abrir el portal",
+        `Entra en ${LANDLORD_PORTAL_LABEL} desde tu navegador para publicar tu vivienda.`
+      );
+    });
+  }, []);
   const isEmailReviewPending = emailReviewRequest?.status === "PENDING";
   const isEmailReviewRejected = emailReviewRequest?.status === "REJECTED";
   const residentInSeasonalGrace = isSeasonalResidentPending(userProfile);
@@ -703,12 +723,11 @@ export default function HomeDashboardScreen({
   };
 
   const handleAdPress = (ad) => {
-    if (!ad?.target_section) return;
-    onSectionChange?.(ad.target_section);
+    openAdvertisement(ad, { onSectionChange });
   };
 
   const renderAdvertisementCard = (ad) => {
-    const actionable = Boolean(ad?.target_section);
+    const actionable = isAdvertisementActionable(ad);
     const cardStyle = [styles.adCard, { width: carouselCardWidth }];
     const cardProps = actionable
       ? {
@@ -769,12 +788,12 @@ export default function HomeDashboardScreen({
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={styles.quickActionBtn}
-            onPress={() => onSectionChange?.("createHousingAd")}
+            onPress={openLandlordPortal}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: `${ACCENT}20` }]}>
-              <Icon name="add-circle-outline" size={22} color={ACCENT} />
+              <Icon name="open-outline" size={22} color={ACCENT} />
             </View>
-            <Text style={styles.quickActionLabel}>Publicar anuncio</Text>
+            <Text style={styles.quickActionLabel}>Publicar en el portal</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.quickActionBtn}
@@ -1136,6 +1155,25 @@ export default function HomeDashboardScreen({
               </View>
               <Text style={styles.quickActionLabel}>Preguntas MIR</Text>
             </TouchableOpacity>
+            {userProfile?.can_use_photo_study && (
+              <TouchableOpacity
+                style={styles.quickActionBtn}
+                onPress={() => {
+                  posthogLogger.capture("study_photo_entry_clicked", {
+                    source: "quick_action",
+                  });
+                  onSectionChange?.("study-photo");
+                }}
+              >
+                <View style={styles.quickActionNewBadge}>
+                  <Text style={styles.quickActionNewBadgeText}>NUEVO</Text>
+                </View>
+                <View style={[styles.quickActionIcon, { backgroundColor: `${ACCENT}20` }]}>
+                  <Icon name="camera-outline" size={22} color={ACCENT} />
+                </View>
+                <Text style={styles.quickActionLabel}>Explícamelo fácil</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {!loadingDashboardAds && carouselHasAds && (

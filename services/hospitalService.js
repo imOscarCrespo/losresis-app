@@ -1004,3 +1004,107 @@ export const getHospitalIdsBySpecialty = async (specialtyId) => {
     error: result.error,
   };
 };
+
+/**
+ * Cargar una jornada de puertas abiertas concreta, con el nombre del hospital.
+ * La usa la pantalla de valoración, a la que se llega desde el push del
+ * hospital y que por tanto solo conoce el id de la jornada.
+ * @param {string} openDayId
+ * @returns {Promise<{success: boolean, openDay: object|null, error: string|null}>}
+ */
+export const getHospitalOpenDayById = async (openDayId) => {
+  try {
+    if (!openDayId) {
+      return { success: false, openDay: null, error: "Open day ID is required" };
+    }
+
+    const { data, error } = await supabase
+      .from("hospital_open_day")
+      .select("*, hospitals(id, name)")
+      .eq("id", openDayId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!data) {
+      return { success: false, openDay: null, error: "La jornada ya no existe" };
+    }
+
+    const hospital = Array.isArray(data.hospitals)
+      ? data.hospitals[0]
+      : data.hospitals;
+
+    return {
+      success: true,
+      openDay: { ...data, hospital_name: hospital?.name || null },
+      error: null,
+    };
+  } catch (error) {
+    console.error("❌ Error fetching hospital open day:", error);
+    return { success: false, openDay: null, error: error.message };
+  }
+};
+
+/**
+ * La valoración que este usuario ya dejó de la jornada, si dejó alguna.
+ * @param {string} openDayId
+ * @param {string} userId
+ * @returns {Promise<{success: boolean, feedback: object|null, error: string|null}>}
+ */
+export const getMyHospitalOpenDayFeedback = async (openDayId, userId) => {
+  try {
+    if (!openDayId || !userId) {
+      return { success: true, feedback: null, error: null };
+    }
+
+    const { data, error } = await supabase
+      .from("hospital_open_day_feedback")
+      .select("id, rating, comment, created_at")
+      .eq("open_day_id", openDayId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return { success: true, feedback: data || null, error: null };
+  } catch (error) {
+    console.error("❌ Error fetching open day feedback:", error);
+    return { success: false, feedback: null, error: error.message };
+  }
+};
+
+/**
+ * Valorar la jornada. Pasa por el RPC porque es quien comprueba que quien
+ * valora se inscribió y que la jornada ya se ha celebrado; volver a enviarla
+ * corrige la valoración anterior en vez de duplicarla.
+ * @param {string} openDayId
+ * @param {number} rating 1-5
+ * @param {string} comment
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export const submitHospitalOpenDayFeedback = async (
+  openDayId,
+  rating,
+  comment
+) => {
+  try {
+    const { error } = await supabase.rpc("submit_hospital_open_day_feedback", {
+      p_open_day_id: openDayId,
+      p_rating: rating,
+      p_comment: comment || null,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return { success: true, error: null };
+  } catch (error) {
+    console.error("❌ Error submitting open day feedback:", error);
+    return { success: false, error: error.message };
+  }
+};

@@ -18,7 +18,7 @@ export const LIBRO_SECTIONS = [
   },
   {
     code: "clinical_practice",
-    label: "Práctica clínica",
+    label: "Actividad asistencial",
     icon_name: "medkit-outline",
     color_token: "blue",
     childLabel: "procedimiento",
@@ -87,6 +87,13 @@ export const LIBRO_SECTIONS = [
     childLabel: "apartado",
   },
 ];
+
+// Niveles del registro por participación, en orden de implicación creciente.
+// Espejo de LIBRO_PARTICIPATION_LEVELS en
+// losresis-panel/src/lib/libroTemplateOptions.ts: el tutor activa el desglose
+// desde el panel y el residente elige aquí, así que las etiquetas tienen que ser
+// las mismas. Se guardan en libro_entry.payload.participation_level.
+export const LIBRO_PARTICIPATION_LEVELS = ["Observó", "Ayudó", "Realizó"];
 
 export const LIBRO_SECTION_BY_CODE = LIBRO_SECTIONS.reduce((acc, section) => {
   acc[section.code] = section;

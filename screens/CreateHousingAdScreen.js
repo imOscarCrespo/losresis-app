@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Linking,
 } from "react-native";
 import { Icon } from "../components/Icon";
 import * as ImagePicker from "expo-image-picker";
@@ -27,6 +28,13 @@ import {
 } from "../services/housingService";
 import { getCachedUserId } from "../services/authService";
 import posthogLogger from "../services/posthogService";
+import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
+import {
+  canPublishHousingOffer,
+  getHousingOfferBlockReason,
+  HOUSING_OFFER_BLOCK_REASON,
+} from "../utils/residentAccess";
+import { LANDLORD_PORTAL_URL, LANDLORD_PORTAL_LABEL } from "../constants/housing";
 
 // ============================================================================
 // COLORS
@@ -85,6 +93,8 @@ export default function CreateHousingAdScreen({
   });
 
   const scrollRef = useRef(null);
+  // kind con el que el anuncio ya estaba guardado (solo en modo edición).
+  const [loadedKind, setLoadedKind] = useState(null);
   const [selectedImages, setSelectedImages] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -92,6 +102,36 @@ export default function CreateHousingAdScreen({
   const [error, setError] = useState(null);
 
   const { hospitals, uniqueCities } = useHospitals();
+
+  // Ofertar vivienda (kind = "offer") solo lo pueden hacer los residentes con
+  // el email corporativo validado; el resto publica pagando en el portal de
+  // propietarios. "Busco piso" (kind = "seek") sigue abierto a todos.
+  const { request: emailReviewRequest, loading: emailReviewLoading } =
+    useEmailReviewStatus(userProfile?.id);
+  const eligibilityResolved = !userProfile?.id || !emailReviewLoading;
+  const canOfferHousing = canPublishHousingOffer(userProfile, {
+    emailReviewRequest,
+  });
+  // Un anuncio de oferta que ya existe se sigue pudiendo editar aunque su
+  // dueño hoy no podría crearlo: los anuncios vivos no se tocan.
+  const canUseOfferKind =
+    canOfferHousing || (isEditMode && loadedKind === "offer");
+  const offerBlockReason = getHousingOfferBlockReason(userProfile, {
+    emailReviewRequest,
+  });
+
+  const openLandlordPortal = useCallback(() => {
+    posthogLogger.capture("housing_landlord_portal_opened", {
+      from: isEditMode ? "edit_housing_ad" : "create_housing_ad",
+      reason: offerBlockReason,
+    });
+    Linking.openURL(LANDLORD_PORTAL_URL).catch(() => {
+      Alert.alert(
+        "No se pudo abrir el portal",
+        `Entra en ${LANDLORD_PORTAL_LABEL} desde tu navegador para publicar tu vivienda.`
+      );
+    });
+  }, [isEditMode, offerBlockReason]);
 
   const hospitalOptions = useMemo(
     () => prepareHospitalOptions(hospitals),
@@ -130,6 +170,7 @@ export default function CreateHousingAdScreen({
               contact_phone: ad.contact_phone || "",
               preferred_contact: ad.preferred_contact || "email",
             });
+            setLoadedKind(ad.kind || "offer");
             if (ad.images && ad.images.length > 0) {
               setExistingImages(ad.images);
             }
@@ -145,6 +186,15 @@ export default function CreateHousingAdScreen({
       loadAd();
     }
   }, [isEditMode, adId]);
+
+  // En cuanto sabemos que el usuario no puede ofertar, el formulario cae a
+  // "busco piso" para que no rellene un anuncio que el backend va a rechazar.
+  useEffect(() => {
+    if (!eligibilityResolved || canUseOfferKind) return;
+    setFormData((prev) =>
+      prev.kind === "offer" ? { ...prev, kind: "seek" } : prev
+    );
+  }, [eligibilityResolved, canUseOfferKind]);
 
   useEffect(() => {
     (async () => {
@@ -199,6 +249,12 @@ export default function CreateHousingAdScreen({
   }, []);
 
   const validateForm = () => {
+    if (formData.kind === "offer" && !canUseOfferKind) {
+      setError(
+        `Para ofrecer vivienda tienes que ser residente con el email corporativo validado. Publica tu piso en ${LANDLORD_PORTAL_LABEL}.`
+      );
+      return false;
+    }
     if (!formData.city.trim()) {
       setError("La ciudad es obligatoria");
       return false;
@@ -311,6 +367,56 @@ export default function CreateHousingAdScreen({
   const totalImageCount = existingImages.length + selectedImages.length;
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 
+  // Un host solo publica ofertas: si no puede, aquí no le queda nada que hacer
+  // y lo mandamos directo al portal de propietarios.
+  const showLandlordPortalOnly =
+    isHostUser && eligibilityResolved && !canUseOfferKind;
+
+  const offerBlockCopy = {
+    [HOUSING_OFFER_BLOCK_REASON.EMAIL_REVIEW_PENDING]:
+      "Estamos revisando tu email corporativo. En cuanto lo validemos podrás ofrecer vivienda desde la app.",
+    [HOUSING_OFFER_BLOCK_REASON.EMAIL_REVIEW_REJECTED]:
+      "No hemos podido validar tu email corporativo. Actualízalo en tu perfil para poder ofrecer vivienda desde la app.",
+    [HOUSING_OFFER_BLOCK_REASON.MISSING_CORPORATE_EMAIL]:
+      "Necesitas tener validado tu email corporativo del hospital para ofrecer vivienda desde la app.",
+    [HOUSING_OFFER_BLOCK_REASON.NOT_RESIDENT]:
+      "Ofrecer vivienda en la app está reservado a residentes con el email corporativo validado.",
+  }[offerBlockReason];
+
+  if (showLandlordPortalOnly) {
+    return (
+      <HeroScreenLayout title="Publicar vivienda" onBack={onBack} keyboardAvoiding>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.portalCard}>
+            <View style={styles.portalIconWrap}>
+              <Icon name="business-outline" size={22} color={PRIMARY} />
+            </View>
+            <Text style={styles.portalTitle}>
+              Publica tu vivienda en el portal
+            </Text>
+            <Text style={styles.portalText}>
+              Los anuncios de vivienda se publican ahora desde{" "}
+              {LANDLORD_PORTAL_LABEL}, donde puedes gestionar tus pisos,
+              destacarlos y renovarlos.
+            </Text>
+            <TouchableOpacity
+              style={styles.portalBtn}
+              onPress={openLandlordPortal}
+              activeOpacity={0.85}
+            >
+              <Icon name="open-outline" size={16} color={WHITE} />
+              <Text style={styles.portalBtnText}>Ir al portal</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </HeroScreenLayout>
+    );
+  }
+
   return (
     <HeroScreenLayout
       title={isEditMode ? "Editar anuncio" : "Crear anuncio"}
@@ -347,19 +453,28 @@ export default function CreateHousingAdScreen({
                   style={[
                     styles.segmentBtn,
                     formData.kind === "offer" && styles.segmentBtnActive,
+                    !canUseOfferKind && styles.segmentBtnDisabled,
                   ]}
                   onPress={() => updateFormData("kind", "offer")}
+                  disabled={!canUseOfferKind}
                   activeOpacity={0.8}
                 >
                   <Icon
-                    name="home-outline"
+                    name={canUseOfferKind ? "home-outline" : "lock-closed-outline"}
                     size={16}
-                    color={formData.kind === "offer" ? PRIMARY : TEXT_MEDIUM}
+                    color={
+                      !canUseOfferKind
+                        ? TEXT_LIGHT
+                        : formData.kind === "offer"
+                        ? PRIMARY
+                        : TEXT_MEDIUM
+                    }
                   />
                   <Text
                     style={[
                       styles.segmentBtnText,
                       formData.kind === "offer" && styles.segmentBtnTextActive,
+                      !canUseOfferKind && styles.segmentBtnTextDisabled,
                     ]}
                   >
                     Ofrezco habitación
@@ -390,6 +505,32 @@ export default function CreateHousingAdScreen({
                   </TouchableOpacity>
                 )}
               </View>
+
+              {!canUseOfferKind && eligibilityResolved && (
+                <View style={styles.offerLockedCard}>
+                  <View style={styles.offerLockedHeader}>
+                    <Icon name="lock-closed-outline" size={16} color={PRIMARY} />
+                    <Text style={styles.offerLockedTitle}>
+                      Ofrecer vivienda está reservado a residentes verificados
+                    </Text>
+                  </View>
+                  <Text style={styles.offerLockedText}>{offerBlockCopy}</Text>
+                  <Text style={styles.offerLockedText}>
+                    Si quieres alquilar tu piso, publícalo en{" "}
+                    {LANDLORD_PORTAL_LABEL}.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.offerLockedBtn}
+                    onPress={openLandlordPortal}
+                    activeOpacity={0.85}
+                  >
+                    <Icon name="open-outline" size={15} color={PRIMARY} />
+                    <Text style={styles.offerLockedBtnText}>
+                      Publicar en el portal
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             {/* ── Location ── */}
@@ -763,6 +904,97 @@ const styles = StyleSheet.create({
   segmentBtnTextActive: {
     color: PRIMARY,
     fontWeight: "700",
+  },
+  segmentBtnDisabled: {
+    opacity: 0.6,
+  },
+  segmentBtnTextDisabled: {
+    color: TEXT_LIGHT,
+  },
+
+  // ── Oferta bloqueada / portal de propietarios ──
+  offerLockedCard: {
+    marginTop: 12,
+    backgroundColor: BG_LIGHT,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 14,
+    gap: 8,
+  },
+  offerLockedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  offerLockedTitle: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+    color: TEXT_DARK,
+  },
+  offerLockedText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: TEXT_MEDIUM,
+  },
+  offerLockedBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  offerLockedBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: PRIMARY,
+  },
+  portalCard: {
+    backgroundColor: WHITE,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 20,
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  portalIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: BG_LIGHT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  portalTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: TEXT_DARK,
+  },
+  portalText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: TEXT_MEDIUM,
+  },
+  portalBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    alignSelf: "stretch",
+    paddingVertical: 13,
+    borderRadius: 12,
+    backgroundColor: PRIMARY,
+  },
+  portalBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: WHITE,
   },
 
   // ── Inputs ──

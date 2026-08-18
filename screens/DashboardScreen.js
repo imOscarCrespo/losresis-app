@@ -36,6 +36,7 @@ import ReviewComposerScreen from "./ReviewComposerScreen";
 import ContactScreen from "./ContactScreen";
 import AgendaScreen from "./AgendaScreen";
 import ServiceRemindersScreen from "./ServiceRemindersScreen";
+import OpenDayFeedbackScreen from "./OpenDayFeedbackScreen";
 import { ExternalRotationsScreen } from "./ExternalRotationsScreen";
 import { LecturesScreen } from "./LecturesScreen";
 import LeisureScreen from "./LeisureScreen";
@@ -49,6 +50,7 @@ import { setNotificationNavigationHandler } from "../src/services/push/notificat
 import { openDirectChat } from "../services/directChatsService";
 import SpecialityQuizScreen from "./SpecialityQuizScreen";
 import MirQuestionBankScreen from "./MirQuestionBankScreen";
+import StudyPhotoScreen from "./StudyPhotoScreen";
 import GroupsScreen from "./GroupsScreen";
 import GroupChatScreen from "./GroupChatScreen";
 import RoommateScreen from "./RoommateScreen";
@@ -60,7 +62,10 @@ import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
 import { DEV_USER_TYPE } from "../config/devConfig";
-import { getClinicalAssistantAccess } from "../services/featureAccessService";
+import {
+  getClinicalAssistantAccess,
+  getPhotoStudyAccess,
+} from "../services/featureAccessService";
 import {
   isQualifiedResidentSection,
   registerQualifiedResidentAction,
@@ -110,6 +115,7 @@ const GENERIC_BACK_SECTIONS = new Set([
   "ocio",
   "notifications",
   "clinicalAssistant",
+  "study-photo",
   "specialityQuiz",
   "rotaciones-externas",
   "cursos",
@@ -117,6 +123,7 @@ const GENERIC_BACK_SECTIONS = new Set([
   "residentPayoutDetail",
   "residentPayoutEntry",
   "mentalHealth",
+  "valoracionJornada",
 ]);
 
 const DASHBOARD_NAVIGATION_STATE_VERSION = 1;
@@ -171,6 +178,8 @@ export default function DashboardScreen({
   const [showHospitalInfoScreen, setShowHospitalInfoScreen] = useState(false);
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState(null);
   const [selectedReviewId, setSelectedReviewId] = useState(null);
+  // Jornada que se está valorando; llega en el push del hospital.
+  const [selectedOpenDayId, setSelectedOpenDayId] = useState(null);
   const [selectedArticleId, setSelectedArticleId] = useState(null);
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [selectedHousingAdId, setSelectedHousingAdId] = useState(null);
@@ -479,6 +488,17 @@ export default function DashboardScreen({
         return;
       }
 
+      // El hospital pide valoración de su jornada de puertas abiertas.
+      if (
+        data?.destination_section === "valoracionJornada" &&
+        data?.open_day_id
+      ) {
+        handleSectionChange("valoracionJornada", {
+          openDayId: data.open_day_id,
+        });
+        return;
+      }
+
       if (data?.entity_type === "review" && data?.entity_id) {
         handleSectionChange("reviewDetail", {
           reviewId: data.entity_id,
@@ -520,12 +540,18 @@ export default function DashboardScreen({
           { forceRefresh }
         );
         if (profileSuccess && profile) {
-          const { enabled: canUseClinicalAssistant } =
-            await getClinicalAssistantAccess(user.id);
+          const [
+            { enabled: canUseClinicalAssistant },
+            { enabled: canUsePhotoStudy },
+          ] = await Promise.all([
+            getClinicalAssistantAccess(user.id),
+            getPhotoStudyAccess(user.id),
+          ]);
           setUserProfile(
             applyDevUserType({
               ...profile,
               can_use_clinical_assistant: canUseClinicalAssistant,
+              can_use_photo_study: canUsePhotoStudy,
             })
           );
         }
@@ -609,6 +635,28 @@ export default function DashboardScreen({
     userProfile,
   ]);
 
+  // Mismo guard de montaje que el asistente clínico: si la navegación
+  // restaurada apunta a "study-photo" sin acceso, se redirige al inicio.
+  useEffect(() => {
+    if (
+      loadingProfile ||
+      !isNavigationReady ||
+      currentSection !== "study-photo" ||
+      !userProfile ||
+      userProfile.can_use_photo_study
+    ) {
+      return;
+    }
+
+    showClinicalAssistantAccessAlert();
+    setCurrentSection(getDefaultSection());
+  }, [
+    currentSection,
+    isNavigationReady,
+    loadingProfile,
+    userProfile,
+  ]);
+
   const showResidentGateAlert = () => {
     Alert.alert(
       "Ayuda a los que vienen detrás",
@@ -643,6 +691,12 @@ export default function DashboardScreen({
     }
 
     if (sectionId === "clinicalAssistant" && !userProfile?.can_use_clinical_assistant) {
+      showClinicalAssistantAccessAlert();
+      setCurrentSection(getDefaultSection());
+      return;
+    }
+
+    if (sectionId === "study-photo" && !userProfile?.can_use_photo_study) {
       showClinicalAssistantAccessAlert();
       setCurrentSection(getDefaultSection());
       return;
@@ -711,7 +765,12 @@ export default function DashboardScreen({
       setMyReviewAutoOpenCreate(false);
       setMyReviewAutoFocusQuestions(false);
       setSelectedQuestionId(null);
+      setSelectedOpenDayId(null);
       setPreviousSection(null); // Limpiar la sección anterior al cambiar de sección
+    }
+    // Valorar una jornada de puertas abiertas: la pantalla solo necesita el id.
+    if (sectionId === "valoracionJornada" && params.openDayId) {
+      setSelectedOpenDayId(params.openDayId);
     }
     if (sectionId === "myReview") {
       setMyReviewAutoOpenCreate(Boolean(params.autoOpenCreateReview));
@@ -1410,6 +1469,14 @@ export default function DashboardScreen({
           />
         );
 
+      case "study-photo":
+        return (
+          <StudyPhotoScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+          />
+        );
+
       case "profile":
       case "usuario":
         return (
@@ -1486,6 +1553,13 @@ export default function DashboardScreen({
                 handleSectionChange("agenda");
               } else if (screenId === "recordatoriosServicio") {
                 handleSectionChange("recordatoriosServicio");
+              } else if (
+                screenId === "valoracionJornada" &&
+                entityId?.openDayId
+              ) {
+                handleSectionChange("valoracionJornada", {
+                  openDayId: entityId.openDayId,
+                });
               } else if (screenId === "directChat" && entityId?.otherUserId) {
                 openDirectChat({
                   otherUserId: entityId.otherUserId,
@@ -1671,6 +1745,16 @@ export default function DashboardScreen({
           />
         ) : (
           <PlaceholderScreen title="Recordatorios del servicio" />
+        );
+
+      // Valoración de una jornada de puertas abiertas ya celebrada.
+      case "valoracionJornada":
+        return (
+          <OpenDayFeedbackScreen
+            openDayId={selectedOpenDayId}
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+          />
         );
 
       // Secciones del menú (placeholder)

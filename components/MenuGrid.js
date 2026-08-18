@@ -139,6 +139,13 @@ export const MenuGrid = ({
         return false;
       }
 
+      if (
+        item.requiredFeatureKey === "photo_study_analysis" &&
+        !userProfile?.can_use_photo_study
+      ) {
+        return false;
+      }
+
       // Filtrar según el tipo de usuario
       if (!userProfile) {
         // Si no hay perfil, mostrar solo items sin restricciones

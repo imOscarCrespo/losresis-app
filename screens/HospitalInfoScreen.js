@@ -272,6 +272,14 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
         <View style={styles.openDayGlowLarge} />
         <View style={styles.openDayGlowSmall} />
         <View style={styles.openDayContent}>
+          {openDay.image_public_url ? (
+            <Image
+              source={{ uri: openDay.image_public_url }}
+              style={styles.openDayImage}
+              resizeMode="cover"
+            />
+          ) : null}
+
           <View style={styles.openDayBadge}>
             <Icon name="calendar-outline" size={14} color={WHITE} />
             <Text style={styles.openDayBadgeText}>Próximo evento</Text>
@@ -673,6 +681,14 @@ const styles = StyleSheet.create({
     right: 24,
   },
   openDayContent: { gap: 16 },
+  // La imagen que sube el hospital desde el panel. Va dentro del hero, encima
+  // del badge: es lo primero que se ve de la jornada.
+  openDayImage: {
+    width: "100%",
+    height: 150,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
   openDayBadge: {
     alignSelf: "flex-start",
     flexDirection: "row",

@@ -24,6 +24,14 @@ Este documento lista los eventos que la app envia a PostHog para que Producto pu
 | `clinical_assistant_response_received` | Cuando el asistente clinico responde correctamente. | Sin propiedades especificas |
 | `clinical_assistant_response_failed` | Cuando falla la respuesta del asistente clinico. | `error` |
 | `clinical_assistant_mode_changed` | Cuando el usuario cambia el modo del asistente clinico. | `mode` |
+| `study_photo_entry_clicked` | Cuando un estudiante entra a "Explícamelo fácil" desde un acceso del inicio. | `source` |
+| `study_photo_opened` | Al abrir la pantalla de análisis de fotos de estudio. | Sin propiedades especificas |
+| `study_photo_analysis_started` | Cuando el estudiante pulsa "Analizar" sobre una foto. | `source` (`camera` / `gallery`) |
+| `study_photo_analysis_completed` | Cuando el análisis de la foto termina correctamente. | Sin propiedades especificas |
+| `study_photo_analysis_failed` | Cuando falla la subida o el análisis de la foto. | `stage` (`upload` / `analysis`) |
+| `study_photo_card_saved` | Cuando el estudiante guarda la explicación como tarjeta de repaso. | `has_speciality`, `topics_count` |
+| `study_photo_card_updated` | Cuando el estudiante edita la especialidad o los temas de una tarjeta guardada. | `has_speciality`, `topics_count` |
+| `study_photo_card_deleted` | Cuando el estudiante elimina una tarjeta guardada. | Sin propiedades especificas |
 | `resident_book_pdf_exported` | Cuando un residente exporta su libro del residente a PDF. | `section`, `categories_count`, `entries_count`, `events_count` |
 | `resident_review_gate_prompt_clicked` | Cuando el usuario pulsa el CTA para escribir su resena desde el bloqueo/recordatorio. | `source`, `status` |
 | `resident_review_gate_blocked_navigation` | Cuando un residente bloqueado intenta navegar a una seccion no permitida. | `section`, `current_section` |
@@ -32,6 +40,7 @@ Este documento lista los eventos que la app envia a PostHog para que Producto pu
 | `resident_review_gate_hard_locked` | Cuando el residente pasa a estado de bloqueo duro por no haber dejado resena. | `budget_count`, `sessions_count` |
 | `resident_review_gate_unlocked_by_review` | Cuando el gate se desbloquea porque el residente ha creado una resena. | `user_id` |
 | `resident_review_gate_reset_after_review_deleted` | Cuando se resetea el gate tras eliminar una resena. | `user_id`, `status` |
+| `housing_landlord_portal_opened` | Cuando un usuario que no puede ofertar vivienda en la app abre el portal de propietarios (vivienda.losresis.com). | `from` (`host_home` / `create_housing_ad` / `edit_housing_ad`), `reason` |
 
 ## Pantallas
 
@@ -43,6 +52,7 @@ Estas entradas son nombres de pantalla enviados con `logScreen`. En PostHog conv
 | `DashboardScreen` | `timestamp` |
 | `DashboardScreen_<section>` | `section`, `timestamp` |
 | `ClinicalAssistantScreen` | `timestamp` |
+| `StudyPhotoScreen` | `timestamp` |
 | `ResidenceLibraryScreen` | `timestamp` |
 | `ThreadDetailScreen` | `threadId`, `timestamp` |
 | `LecturesScreen` | `timestamp` |

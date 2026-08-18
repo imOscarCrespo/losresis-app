@@ -43,3 +43,8 @@ export const getUserFeatureAccess = async (userId, featureKey) => {
 
 export const getClinicalAssistantAccess = async (userId) =>
   getUserFeatureAccess(userId, CLINICAL_ASSISTANT_FEATURE_KEY);
+
+export const PHOTO_STUDY_FEATURE_KEY = "photo_study_analysis";
+
+export const getPhotoStudyAccess = async (userId) =>
+  getUserFeatureAccess(userId, PHOTO_STUDY_FEATURE_KEY);

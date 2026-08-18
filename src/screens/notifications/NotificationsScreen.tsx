@@ -43,6 +43,7 @@ export type NotificationDataPayload = {
   focus?: string;
   other_user_id?: string;
   requester_id?: string;
+  open_day_id?: string;
 };
 
 export type NotificationNavigationPayload =
@@ -53,6 +54,7 @@ export type NotificationNavigationPayload =
       groupId?: string;
       groupName?: string;
       focusQuestions?: boolean;
+      openDayId?: string;
       initialTab?: string;
       matchId?: string;
       courseId?: string;
@@ -237,6 +239,17 @@ export default function NotificationsScreen({
       // Recordatorio del servicio asignado: abrir el tablón del residente.
       if (data.destination_section === "recordatoriosServicio") {
         onNavigateToEntity("recordatoriosServicio", {});
+        return;
+      }
+
+      // El hospital pide valoración de su jornada de puertas abiertas.
+      if (
+        data.destination_section === "valoracionJornada" &&
+        data.open_day_id
+      ) {
+        onNavigateToEntity("valoracionJornada", {
+          openDayId: data.open_day_id,
+        });
         return;
       }
 

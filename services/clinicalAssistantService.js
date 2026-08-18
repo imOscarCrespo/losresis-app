@@ -16,7 +16,7 @@ const normalizeRole = (role) => {
 const normalizeContent = (content) =>
   typeof content === "string" ? content.trim() : "";
 
-const getFunctionUrl = () => {
+export const getFunctionUrl = () => {
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || supabase?.supabaseUrl;
   if (!supabaseUrl) {
     throw new Error("No se encontró la URL de Supabase.");
@@ -90,7 +90,7 @@ const parseSseLine = (line) => {
   }
 };
 
-const readStreamingResponse = async (response, onChunk) => {
+export const readStreamingResponse = async (response, onChunk) => {
   const reader = response.body?.getReader?.();
   if (!reader || typeof TextDecoder === "undefined") {
     return null;
@@ -143,7 +143,7 @@ const readStreamingResponse = async (response, onChunk) => {
   return { content, reasoning };
 };
 
-const readFallbackResponse = async (response) => {
+export const readFallbackResponse = async (response) => {
   const text = await response.text();
 
   if (text.includes("data:")) {

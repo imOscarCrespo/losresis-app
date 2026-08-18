@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { encode as encodeBase64 } from "https://deno.land/std@0.177.0/encoding/base64.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -17,6 +18,33 @@ const corsHeaders = {
 
 const DEFAULT_ASSISTANT_MODE = "guardia";
 const CLINICAL_ASSISTANT_FEATURE_KEY = "clinical_assistant_chat";
+const PHOTO_STUDY_FEATURE_KEY = "photo_study_analysis";
+const STUDY_PHOTO_BUCKET = "study-photo-uploads";
+
+const STUDY_SYSTEM_PROMPT = `Eres un tutor para estudiantes de medicina que preparan el examen MIR en España. El estudiante te envía la foto de una pregunta de examen (o de un apunte) que no entiende. Tu trabajo es explicárselo de forma tan sencilla que no le quede ninguna duda.
+
+## FORMATO DE RESPUESTA OBLIGATORIO
+
+### 🏷️ Resumen
+[Una sola frase con el tipo de contenido y el tema, p. ej. "Pregunta tipo test sobre farmacología de los betabloqueantes" o "Apunte sobre el ciclo de Krebs". Sin transcribir la pregunta.]
+
+### 🧒 Explicación sencilla
+[Explica el concepto como si el estudiante tuviera 12 años: usa analogías cotidianas y cero jerga sin explicar. Primero la intuición, después el matiz técnico.]
+
+### ✅ Respuesta razonada
+[Si es una pregunta tipo test: cuál es la opción correcta y por qué, y por qué las demás opciones son incorrectas. Si no es tipo test: los 2-3 puntos clave del tema.]
+
+### 🧠 Para que no se te olvide
+[Una regla mnemotécnica, perla o truco para fijar el concepto de cara al MIR.]
+
+## REGLAS
+1. Escribe siempre en español.
+2. Sencillez radical primero, precisión después. No sacrifiques la corrección clínica por simplificar.
+3. Si la imagen no se lee bien o está incompleta, dilo claramente y explica solo lo que sí puedas leer.
+4. Si la imagen no contiene material de estudio, responde únicamente: "No veo una pregunta o apunte en esta imagen. Sube una foto de la pregunta que quieras entender."
+5. Nunca inventes datos: si no estás seguro de la respuesta correcta, preséntala como tu mejor razonamiento e indica la duda.
+6. Máximo 450 palabras.`;
+
 const CLINICAL_SYSTEM_PROMPTS = {
   guardia: `Eres un asistente clínico de apoyo para médicos residentes en España durante guardias hospitalarias. Tu función es dar respuestas rápidas, estructuradas y seguras. El residente tiene poco tiempo y alta presión. Nunca puedes omitir información crítica de seguridad.
 
@@ -107,7 +135,7 @@ type ChatMessage = {
   reasoning_content?: string;
 };
 
-type AssistantMode = keyof typeof CLINICAL_SYSTEM_PROMPTS;
+type AssistantMode = keyof typeof CLINICAL_SYSTEM_PROMPTS | "estudio";
 
 const jsonResponse = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -180,7 +208,72 @@ const normalizeMessages = (value: unknown): ChatMessage[] => {
 };
 
 const normalizeAssistantMode = (value: unknown): AssistantMode =>
-  value === "consulta" ? "consulta" : DEFAULT_ASSISTANT_MODE;
+  value === "consulta" || value === "estudio"
+    ? value
+    : DEFAULT_ASSISTANT_MODE;
+
+// Construye los mensajes multimodales del modo "estudio": descarga la foto del
+// bucket con service role (validando que pertenece al usuario) y la envía a
+// Kimi como data URI base64 junto al pre-prompt de estudio.
+const buildStudyMessages = async (
+  userId: string,
+  imagePathValue: unknown
+): Promise<{
+  messages: Array<Record<string, unknown>> | null;
+  error: string | null;
+  status: number;
+}> => {
+  const imagePath =
+    typeof imagePathValue === "string" ? imagePathValue.trim() : "";
+
+  if (
+    !imagePath ||
+    imagePath.includes("..") ||
+    !imagePath.startsWith(`${userId}/`)
+  ) {
+    return { messages: null, error: "Imagen requerida.", status: 400 };
+  }
+
+  const { data: file, error: downloadError } = await supabaseAdmin.storage
+    .from(STUDY_PHOTO_BUCKET)
+    .download(imagePath);
+
+  if (downloadError || !file) {
+    console.error("Study photo download error:", downloadError);
+    return {
+      messages: null,
+      error: "No se pudo leer la imagen. Vuelve a subirla.",
+      status: 400,
+    };
+  }
+
+  const mimeType =
+    typeof file.type === "string" && file.type.startsWith("image/")
+      ? file.type
+      : "image/jpeg";
+  const base64 = encodeBase64(await file.arrayBuffer());
+
+  return {
+    error: null,
+    status: 200,
+    messages: [
+      { role: "system", content: STUDY_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: { url: `data:${mimeType};base64,${base64}` },
+          },
+          {
+            type: "text",
+            text: "Explícame como a un niño la pregunta o el tema que aparece en esta imagen, siguiendo el formato obligatorio.",
+          },
+        ],
+      },
+    ],
+  };
+};
 
 const createAssistantStream = (kimiBody: ReadableStream<Uint8Array>) => {
   const encoder = new TextEncoder();
@@ -332,16 +425,25 @@ serve(async (req) => {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
+    const payload = await req.json().catch(() => null);
+    const assistantMode = normalizeAssistantMode(payload?.mode);
+    const shouldStream = payload?.stream === true;
+
+    const featureKey =
+      assistantMode === "estudio"
+        ? PHOTO_STUDY_FEATURE_KEY
+        : CLINICAL_ASSISTANT_FEATURE_KEY;
+
     const { data: canUseFeature, error: featureAccessError } =
       await supabaseAdmin.rpc("can_use_feature", {
-        p_feature_key: CLINICAL_ASSISTANT_FEATURE_KEY,
+        p_feature_key: featureKey,
         p_user_id: user.id,
       });
 
     if (featureAccessError) {
       console.error("Feature access validation error:", featureAccessError);
       return jsonResponse(
-        { error: "No se pudo validar el acceso al asistente clínico." },
+        { error: "No se pudo validar el acceso a esta funcionalidad." },
         500
       );
     }
@@ -353,13 +455,28 @@ serve(async (req) => {
       );
     }
 
-    const payload = await req.json().catch(() => null);
-    const messages = normalizeMessages(payload?.messages);
-    const assistantMode = normalizeAssistantMode(payload?.mode);
-    const shouldStream = payload?.stream === true;
+    let requestMessages: Array<Record<string, unknown>>;
 
-    if (!messages.length || messages[messages.length - 1]?.role !== "user") {
-      return jsonResponse({ error: "Mensaje clínico requerido." }, 400);
+    if (assistantMode === "estudio") {
+      const study = await buildStudyMessages(user.id, payload?.imagePath);
+      if (!study.messages) {
+        return jsonResponse(
+          { error: study.error || "Imagen requerida." },
+          study.status
+        );
+      }
+      requestMessages = study.messages;
+    } else {
+      const messages = normalizeMessages(payload?.messages);
+
+      if (!messages.length || messages[messages.length - 1]?.role !== "user") {
+        return jsonResponse({ error: "Mensaje clínico requerido." }, 400);
+      }
+
+      requestMessages = [
+        { role: "system", content: CLINICAL_SYSTEM_PROMPTS[assistantMode] },
+        ...messages,
+      ];
     }
 
     const kimiResponse = await fetch(`${MOONSHOT_BASE_URL}/chat/completions`, {
@@ -370,10 +487,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: MOONSHOT_MODEL,
-        messages: [
-          { role: "system", content: CLINICAL_SYSTEM_PROMPTS[assistantMode] },
-          ...messages,
-        ],
+        messages: requestMessages,
         thinking: { type: "enabled" },
         max_tokens: 16000,
         temperature: 1.0,

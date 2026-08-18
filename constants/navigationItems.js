@@ -62,6 +62,17 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#EDE4FF",
   },
   {
+    id: "study-photo",
+    name: "Explícamelo fácil",
+    icon: "camera",
+    description:
+      "Sube la foto de una pregunta que no entiendas y recibe una explicación sencilla",
+    studentOnly: true,
+    requiredFeatureKey: "photo_study_analysis",
+    color: "#EC4899", // Pink
+    lightColor: "#FCE7F3",
+  },
+  {
     id: "specialityQuiz",
     name: "Test de especialidad",
     icon: "help-buoy",
@@ -258,6 +269,7 @@ export const IMPLEMENTED_SECTIONS = [
   "mentalHealth",
   "notifications",
   "clinicalAssistant",
+  "study-photo",
 ];
 
 /**

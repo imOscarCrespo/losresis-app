@@ -13,11 +13,17 @@ import {
 } from "react-native";
 import { Icon } from "./Icon";
 import { SelectFilter } from "./SelectFilter";
+import { LIBRO_PARTICIPATION_LEVELS } from "../data/libroSections";
 
 const TRACKING_MODE_COPY = {
   counter: {
     title: "Contador",
     cta: "Guardar procedimiento",
+    notesPlaceholder: "Notas breves o contexto clínico",
+  },
+  participation: {
+    title: "Por nivel de participación",
+    cta: "Guardar registro",
     notesPlaceholder: "Notas breves o contexto clínico",
   },
   note: {
@@ -47,6 +53,7 @@ export const LibroQuickRegisterModal = ({
     new Date().toISOString().slice(0, 10)
   );
   const [notes, setNotes] = useState("");
+  const [participationLevel, setParticipationLevel] = useState("");
 
   useEffect(() => {
     if (!visible) return;
@@ -62,6 +69,7 @@ export const LibroQuickRegisterModal = ({
     setCount("1");
     setPerformedAt(new Date().toISOString().slice(0, 10));
     setNotes("");
+    setParticipationLevel("");
   }, [visible, initialNode, categories]);
 
   const categoryOptions = useMemo(
@@ -93,11 +101,35 @@ export const LibroQuickRegisterModal = ({
   const trackingMode = selectedNode?.tracking_mode || "counter";
   const trackingCopy = TRACKING_MODE_COPY[trackingMode] || TRACKING_MODE_COPY.counter;
   const requiresCount = trackingMode === "counter";
+  // El desglose por nivel lo activa el tutor desde el panel.
+  const byParticipation = trackingMode === "participation";
+  // comments_mode puede no venir (nodo anterior al rediseño, o libro montado por
+  // el residente): entonces el comentario sigue siendo opcional, como siempre.
+  const commentsRequired = selectedNode?.comments_mode === "required";
+  const missingParticipation = byParticipation && !participationLevel;
+  const missingComment = commentsRequired && !notes.trim();
+  const canSubmit =
+    Boolean(selectedNode) && !missingParticipation && !missingComment;
 
   const handleSubmit = () => {
-    if (!selectedNode) return;
+    if (!selectedNode || !canSubmit) return;
 
-    const parsedCount = requiresCount ? Math.max(parseInt(count || "1", 10), 1) : 1;
+    // Un registro por participación es un acto con su nivel, no una cantidad:
+    // cuenta uno, igual que antes.
+    const parsedCount = requiresCount
+      ? Math.max(parseInt(count || "1", 10), 1)
+      : 1;
+
+    const payload = {};
+    if (trackingMode === "checklist") {
+      payload.completed = true;
+    }
+    if (trackingMode === "note") {
+      payload.mode = "note";
+    }
+    if (byParticipation && participationLevel) {
+      payload.participation_level = participationLevel;
+    }
 
     onSubmit({
       nodeId: selectedNode.id,
@@ -105,12 +137,7 @@ export const LibroQuickRegisterModal = ({
       performed_at: performedAt,
       notes: notes.trim() || null,
       kind: "counter",
-      payload:
-        trackingMode === "checklist"
-          ? { completed: true }
-          : trackingMode === "note"
-            ? { mode: "note" }
-            : {},
+      payload,
     });
   };
 
@@ -190,6 +217,36 @@ export const LibroQuickRegisterModal = ({
               </View>
             ) : null}
 
+            {byParticipation ? (
+              <View style={styles.field}>
+                <Text style={styles.label}>¿Cuál fue tu participación?</Text>
+                <View style={styles.levelRow}>
+                  {LIBRO_PARTICIPATION_LEVELS.map((level) => {
+                    const active = participationLevel === level;
+                    return (
+                      <TouchableOpacity
+                        key={level}
+                        style={[styles.levelChip, active && styles.levelChipActive]}
+                        onPress={() => setParticipationLevel(level)}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                      >
+                        <Text
+                          style={[
+                            styles.levelChipText,
+                            active && styles.levelChipTextActive,
+                          ]}
+                        >
+                          {level}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+
             <View style={styles.field}>
               <Text style={styles.label}>Fecha</Text>
               <TextInput
@@ -202,7 +259,9 @@ export const LibroQuickRegisterModal = ({
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Notas</Text>
+              <Text style={styles.label}>
+                {commentsRequired ? "Comentario (obligatorio)" : "Notas"}
+              </Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={notes}
@@ -212,14 +271,19 @@ export const LibroQuickRegisterModal = ({
                 numberOfLines={4}
                 textAlignVertical="top"
               />
+              {missingComment ? (
+                <Text style={styles.fieldHint}>
+                  Tu tutor pide un comentario en cada registro de esta actividad.
+                </Text>
+              ) : null}
             </View>
           </ScrollView>
 
           <View style={styles.footer}>
             <TouchableOpacity
-              style={[styles.primaryButton, (!selectedNode || loading) && styles.buttonDisabled]}
+              style={[styles.primaryButton, (!canSubmit || loading) && styles.buttonDisabled]}
               onPress={handleSubmit}
-              disabled={!selectedNode || loading}
+              disabled={!canSubmit || loading}
               activeOpacity={0.85}
             >
               {loading ? (
@@ -324,6 +388,36 @@ const styles = StyleSheet.create({
   },
   textArea: {
     minHeight: 110,
+  },
+  fieldHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#B45309",
+  },
+  levelRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  levelChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  levelChipActive: {
+    backgroundColor: "#F4EFFE",
+    borderColor: "#680CF5",
+  },
+  levelChipText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  levelChipTextActive: {
+    color: "#680CF5",
   },
   footer: {
     paddingHorizontal: 20,

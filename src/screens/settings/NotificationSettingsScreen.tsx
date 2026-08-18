@@ -79,6 +79,12 @@ const NOTIFICATION_OPTIONS: Array<{
     description:
       "Cuando se publique un nuevo curso de tu especialidad.",
   },
+  {
+    notification_type: "hospital_open_day_notice",
+    title: "Avisos de jornadas",
+    description:
+      "Cuando el hospital avise de algo sobre una jornada de puertas abiertas en la que te has inscrito.",
+  },
 ];
 
 export default function NotificationSettingsScreen({

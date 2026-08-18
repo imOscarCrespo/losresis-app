@@ -102,3 +102,13 @@ _Evitar_: test de burnout, diagnóstico, cuestionario clínico.
 
 Contacto externo de apoyo profesional que la **Sección de salud mental** ofrece al **Residente** (PAIME por comunidad autónoma, líneas de crisis como el 024). Siempre accesible, nunca condicionado a una puntuación.
 _Evitar_: alerta, derivación.
+
+## Análisis de foto de estudio
+
+Funcionalidad para estudiantes ("Explícamelo fácil"): el estudiante fotografía una pregunta de examen o apunte que no entiende, la sube desde su galería y el asistente (Kimi, modo `estudio` del edge function `losresis-llm`) se la explica con lenguaje sencillo siguiendo un formato fijo. Acceso controlado por usuario con la feature key `photo_study_analysis`.
+_Evitar_: OCR, escáner, chat de estudio.
+
+## Tarjeta de estudio
+
+Explicación generada por un **Análisis de foto de estudio** que el estudiante guarda para repasarla después, junto con la foto original. Vive en `study_photo_cards` y se consulta en la pestaña "Mis tarjetas".
+_Evitar_: flashcard, apunte, nota.

@@ -256,6 +256,13 @@ const HousingAdCard = memo(({ ad, currentUserId, onPress, onDelete, onEdit }) =>
   const kindColor = kindIsOffer ? SECONDARY : COLORS.SUCCESS;
   const kindLabel = kindIsOffer ? "Oferta" : "Búsqueda";
 
+  // Anuncio destacado (de pago, publicado desde el portal de propietarios).
+  // La tarea horaria baja el flag al caducar, pero comprobamos la fecha por si
+  // el anuncio se pinta dentro de esa hora.
+  const isPremium =
+    !!ad.is_premium &&
+    (!ad.premium_until || new Date(ad.premium_until).getTime() > Date.now());
+
   const locationText = useMemo(() => {
     const parts = [];
     if (ad.city) parts.push(ad.city);
@@ -300,6 +307,15 @@ const HousingAdCard = memo(({ ad, currentUserId, onPress, onDelete, onEdit }) =>
       ) : null}
 
       <View style={styles.cardContent}>
+        {isPremium && (
+          <View style={styles.premiumRow}>
+            <View style={styles.premiumBadge}>
+              <Icon name="star" size={11} color="#B45309" />
+              <Text style={styles.premiumBadgeText}>Destacado</Text>
+            </View>
+          </View>
+        )}
+
         {!kindIsOffer && (
           <View style={styles.badgeRow}>
             <View style={[styles.kindBadgeInline, { backgroundColor: kindColor }]}>
@@ -987,6 +1003,26 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     padding: 14,
+  },
+  premiumRow: {
+    flexDirection: "row",
+    marginBottom: 8,
+  },
+  premiumBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEF3C7",
+    borderWidth: 1,
+    borderColor: "#FBBF24",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  premiumBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#B45309",
   },
   badgeRow: {
     flexDirection: "row",
