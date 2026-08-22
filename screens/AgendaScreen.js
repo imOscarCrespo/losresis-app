@@ -20,6 +20,7 @@ import { FloatingActionButton } from "../components/FloatingActionButton";
 import { ConfirmationModal } from "../components/ConfirmationModal";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { ShareConnectionsPicker } from "../components/ShareConnectionsPicker";
+import { TimePickerInput } from "../components/TimePickerInput";
 import { useAgendaEvents } from "../hooks/useAgendaEvents";
 import { useSharedAgendaEvents } from "../hooks/useSharedAgendaEvents";
 import { useTeamShifts } from "../hooks/useTeamShifts";
@@ -77,6 +78,9 @@ LocaleConfig.defaultLocale = "es";
 const AGENDA_ACCENT = "#670CF5";
 const AGENDA_ACCENT_ALT = "#A100C2";
 const TEAM_SHIFT_COLOR = "#F97316";
+
+// Tipos que NO crea el residente: los proyecta el panel del hospital.
+const PANEL_EVENT_TYPES = new Set(["service", "tutoring"]);
 
 const EVENT_TYPE_OPTIONS = [
   {
@@ -143,18 +147,39 @@ const EVENT_TYPE_OPTIONS = [
     color: "#0F5F8F",
     lightColor: "#E0F2FE",
   },
+  {
+    id: "tutoring",
+    label: "Tutoría",
+    description: "Programada por tu tutor",
+    icon: "people-outline",
+    color: "#6D28D9",
+    lightColor: "#EDE9FE",
+  },
 ];
 
 // Los Eventos del servicio los convoca el responsable desde el panel del
 // hospital: el residente no los crea, solo los ve. Este es el catálogo del
 // selector de "Añadir a la agenda".
 const CREATABLE_EVENT_TYPE_OPTIONS = EVENT_TYPE_OPTIONS.filter(
-  (option) => option.id !== "service"
+  (option) => !PANEL_EVENT_TYPES.has(option.id)
 );
 
 // Copia proyectada desde el panel: se abre en detalle de solo lectura, nunca
 // en el editor.
 const isServiceEvent = (event) => event?.event_type === "service";
+
+// La tutoría la programa el tutor y se proyecta aquí igual que el Evento del
+// servicio (ADR 0021 del panel), enlazada por hospital_tutoring.agenda_event_id.
+const isTutoringEvent = (event) => event?.event_type === "tutoring";
+
+/**
+ * Lo que proyecta el panel: se consulta, no se toca.
+ *
+ * Sin esto la tutoría llegaba a la agenda como un evento PROPIO y editable, así que
+ * el residente podía borrar la tutoría que le había puesto su tutor y dejar
+ * hospital_tutoring.agenda_event_id apuntando a nada.
+ */
+const isPanelEvent = (event) => PANEL_EVENT_TYPES.has(event?.event_type);
 
 const RESEARCH_STATUS_OPTIONS = ["En curso", "Publicado"];
 const RESEARCH_ROLE_OPTIONS = [
@@ -176,6 +201,18 @@ const DATE_TOGGLE_TYPES = new Set(["course", "conference"]);
 const DIRECT_DATE_TYPES = new Set(["study", "research"]);
 const FIXED_DATE_TYPES = new Set(["shift", "day_off", "reminder"]);
 const TITLE_FIELD_TYPES = new Set([
+  "course",
+  "conference",
+  "study",
+  "research",
+  "reminder",
+]);
+
+// Tipos que ofrecen Horario del evento (hora de inicio y fin, siempre opcionales
+// y solo informativas). La Guardia queda fuera porque declara su duración con
+// shift_duration, y el Día libre porque no es una cita. Los tipos que proyecta
+// el panel (service, tutoring) traen el horario puesto y no se editan aquí.
+const TIME_RANGE_TYPES = new Set([
   "course",
   "conference",
   "study",
@@ -235,6 +272,51 @@ const formatTimeLabel = (value) => {
   return value.slice(0, 5);
 };
 
+const formatShortDate = (value) => {
+  if (!value) return "";
+  return new Date(`${value}T00:00:00`).toLocaleDateString("es-ES", {
+    day: "numeric",
+    month: "short",
+  });
+};
+
+/**
+ * Pinta el Horario del evento para la fila "Hora" del detalle.
+ *
+ * En un evento de varios días el horario es un TRAMO CONTINUO (ADR 0011): la
+ * hora de inicio es del primer día y la de fin del último. Por eso ahí cada
+ * hora va anclada a su fecha — "09:00 – 18:00" a secas se leería igual de bien
+ * como "de 9 a 18 cada día", que es justo el significado que no tiene.
+ *
+ * El caso de un solo día se sigue pintando como siempre, para no cambiar cómo
+ * se ven los eventos que proyecta el panel.
+ */
+const formatEventTimeRange = (event) => {
+  if (!event?.start_time && !event?.end_time) return null;
+
+  const spansDays = Boolean(
+    event.end_date && event.event_date && event.end_date !== event.event_date
+  );
+
+  if (!spansDays) {
+    return event.end_time
+      ? `${formatTimeLabel(event.start_time)} – ${formatTimeLabel(event.end_time)}`
+      : formatTimeLabel(event.start_time);
+  }
+
+  const start = `${formatShortDate(event.event_date)}, ${formatTimeLabel(
+    event.start_time
+  )}`;
+
+  if (!event.end_time) {
+    return start;
+  }
+
+  return `${start} – ${formatShortDate(event.end_date)}, ${formatTimeLabel(
+    event.end_time
+  )}`;
+};
+
 // Construye las filas de información que se muestran en el detalle de solo
 // lectura de un evento compartido por una Conexión.
 const buildSharedEventDetailRows = (event) => {
@@ -243,7 +325,15 @@ const buildSharedEventDetailRows = (event) => {
   const rows = [];
   const metadata = event.metadata || {};
 
-  if (isServiceEvent(event)) {
+  if (isTutoringEvent(event)) {
+    // La tutoría la programa el tutor, no una Conexión ni el servicio.
+    rows.push({
+      key: "owner",
+      icon: "people-outline",
+      label: "Programada por",
+      value: metadata.tutor_name || "Tu tutor",
+    });
+  } else if (isServiceEvent(event)) {
     // Copia proyectada desde el panel: lo convoca el servicio, no una Conexión.
     rows.push({
       key: "owner",
@@ -269,11 +359,11 @@ const buildSharedEventDetailRows = (event) => {
     rows.push({ key: "date", icon: "calendar-outline", label: "Fecha", value: dateValue });
   }
 
-  if (!event.all_day && (event.start_time || event.end_time)) {
-    const timeValue = event.end_time
-      ? `${formatTimeLabel(event.start_time)} – ${formatTimeLabel(event.end_time)}`
-      : formatTimeLabel(event.start_time);
-    rows.push({ key: "time", icon: "time-outline", label: "Hora", value: timeValue });
+  if (!event.all_day) {
+    const timeValue = formatEventTimeRange(event);
+    if (timeValue) {
+      rows.push({ key: "time", icon: "time-outline", label: "Hora", value: timeValue });
+    }
   }
 
   if (metadata.shift_duration) {
@@ -394,6 +484,8 @@ const emptyFormForType = (type, defaultDate = "") => ({
   event_date: defaultDate || "",
   end_date: "",
   duration_days: 2,
+  start_time: "",
+  end_time: "",
   notes: "",
   metadata: {
     study_minutes: "",
@@ -428,6 +520,8 @@ const formFromEvent = (event) => ({
           2
         )
       : 2,
+  start_time: event.start_time || "",
+  end_time: event.end_time || "",
   notes: event.notes || "",
   metadata: {
     study_minutes: event.metadata?.study_minutes ? String(event.metadata.study_minutes) : "",
@@ -477,8 +571,29 @@ const buildPayloadFromForm = (form, existingEvent = null, selectedDate = "") => 
       ? addDaysToDateString(eventDate, Math.max((form.duration_days || 2) - 1, 1))
       : null
     : existingEvent?.end_date || null;
-  const preservedStartTime = eventDate ? existingEvent?.start_time || null : null;
-  const preservedEndTime = eventDate ? existingEvent?.end_time || null : null;
+  // Horario del evento: solo lo escriben los tipos que lo ofrecen. Los demás
+  // (Guardia, Día libre) conservan lo que ya hubiera, y los del panel no pasan
+  // por aquí porque no se editan.
+  const editsTimeRange = TIME_RANGE_TYPES.has(form.event_type);
+  // La hora de fin no existe sin hora de inicio: sola no dice nada y se pintaría
+  // como si fuera la de inicio.
+  const formStartTime = editsTimeRange ? form.start_time || null : null;
+  const formEndTime = formStartTime ? form.end_time || null : null;
+
+  const startTime = editsTimeRange
+    ? eventDate
+      ? formStartTime
+      : null
+    : eventDate
+      ? existingEvent?.start_time || null
+      : null;
+  const endTime = editsTimeRange
+    ? eventDate
+      ? formEndTime
+      : null
+    : eventDate
+      ? existingEvent?.end_time || null
+      : null;
 
   metadata.reminder_offset_days = eventDate
     ? form.metadata.reminder_offset_days ?? null
@@ -489,9 +604,15 @@ const buildPayloadFromForm = (form, existingEvent = null, selectedDate = "") => 
     title: form.title.trim(),
     event_date: eventDate,
     end_date: computedEndDate,
-    start_time: preservedStartTime,
-    end_time: preservedEndTime,
-    all_day: preservedStartTime || preservedEndTime ? existingEvent?.all_day ?? false : true,
+    start_time: startTime,
+    end_time: endTime,
+    // Sin hora de inicio el evento es de todo el día. El detalle solo pinta la
+    // fila "Hora" cuando all_day es false, así que esto no es decorativo.
+    all_day: editsTimeRange
+      ? !startTime
+      : startTime || endTime
+        ? existingEvent?.all_day ?? false
+        : true,
     notes: form.notes.trim(),
     metadata,
   };
@@ -828,6 +949,16 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
     }));
   };
 
+  // Al vaciar la hora de inicio se va también la de fin: una hora de fin suelta
+  // se pinta como si fuera la de inicio.
+  const handleStartTimeChange = (value) => {
+    setForm((current) => ({
+      ...current,
+      start_time: value,
+      end_time: value ? current.end_time : "",
+    }));
+  };
+
   const handleDateToggle = (value) => {
     patchForm("hasDate", value);
 
@@ -1085,7 +1216,7 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                       color: typeMeta.color,
                       label: event.title || agendaEventTypeLabels[event.event_type],
                       onPress: () =>
-                        isServiceEvent(event)
+                        isPanelEvent(event)
                           ? openSharedDetail(event)
                           : openEditFlow(event),
                     };
@@ -1218,7 +1349,7 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                     style={styles.eventRow}
                     activeOpacity={0.88}
                     onPress={() =>
-                      isServiceEvent(event)
+                      isPanelEvent(event)
                         ? openSharedDetail(event)
                         : openEditFlow(event)
                     }
@@ -1348,7 +1479,7 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                     style={styles.upcomingCard}
                     activeOpacity={0.9}
                     onPress={() =>
-                      isServiceEvent(event)
+                      isPanelEvent(event)
                         ? openSharedDetail(event)
                         : openEditFlow(event)
                     }
@@ -1405,7 +1536,7 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                   key={event.id}
                   style={styles.unscheduledCard}
                   onPress={() =>
-                    isServiceEvent(event)
+                    isPanelEvent(event)
                       ? openSharedDetail(event)
                       : openEditFlow(event)
                   }
@@ -1564,9 +1695,11 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                           color={COLORS.GRAY}
                         />
                         <Text style={styles.detailReadonlyText}>
-                          {isServiceEvent(detailEvent)
-                            ? "Solo lectura · lo gestiona el responsable de tu servicio"
-                            : "Solo lectura · únicamente quien lo creó puede editarlo"}
+                          {isTutoringEvent(detailEvent)
+                            ? "Solo lectura · la programa tu tutor"
+                            : isServiceEvent(detailEvent)
+                              ? "Solo lectura · lo gestiona el responsable de tu servicio"
+                              : "Solo lectura · únicamente quien lo creó puede editarlo"}
                         </Text>
                       </View>
 
@@ -1855,6 +1988,33 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                   </View>
                 ) : null}
               </>
+            ) : null}
+
+            {TIME_RANGE_TYPES.has(form.event_type) ? (
+              <View style={styles.editorSection}>
+                <View style={styles.timeRangeRow}>
+                  <TimePickerInput
+                    label="Empieza"
+                    value={form.start_time}
+                    onChange={handleStartTimeChange}
+                    accentColor={selectedTypeMeta.color}
+                    style={styles.timeRangeField}
+                  />
+                  <TimePickerInput
+                    label="Termina"
+                    value={form.end_time}
+                    onChange={(value) => patchForm("end_time", value)}
+                    disabled={!form.start_time}
+                    accentColor={selectedTypeMeta.color}
+                    style={styles.timeRangeField}
+                  />
+                </View>
+                <Text style={styles.fieldHint}>
+                  {form.hasDate && DATE_TOGGLE_TYPES.has(form.event_type)
+                    ? "Opcional. Empieza a esa hora el primer día y termina a esa hora el último."
+                    : "Opcional y solo informativo."}
+                </Text>
+              </View>
             ) : null}
 
             <View style={styles.editorSection}>
@@ -2550,6 +2710,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
+  },
+  timeRangeRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  timeRangeField: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  fieldHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#94A3B8",
+    lineHeight: 16,
   },
   choiceChip: {
     borderWidth: 1,

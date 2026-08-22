@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  FlatList,
   TouchableOpacity,
   ActivityIndicator,
   ImageBackground,
@@ -14,12 +13,11 @@ import {
   Linking,
 } from "react-native";
 import { Icon } from "../components/Icon";
-import { useFeed } from "../hooks/useFeed";
-import { deleteFeedPost } from "../services/feedService";
-import FeedItemCard from "../components/feed/FeedItemCard";
-import FeedComposer from "../components/feed/FeedComposer";
-import FeedSkeleton from "../components/feed/FeedSkeleton";
-import { QuickActionsPager } from "../components/QuickActionsPager";
+import ResidentPendingList from "../components/home/ResidentPendingList";
+import ResidentWeekStrip from "../components/home/ResidentWeekStrip";
+import ResidentYearSummary from "../components/home/ResidentYearSummary";
+import { useResidentHomeSummary } from "../hooks/useResidentHomeSummary";
+import { QuickActionsMenu } from "../components/QuickActionsMenu";
 import {
   Book,
   Money,
@@ -31,6 +29,8 @@ import {
   GraduationCap,
   Star,
   Stethoscope,
+  ChalkboardTeacher,
+  NotePencil,
 } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHospitals } from "../hooks/useHospitals";
@@ -39,6 +39,10 @@ import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
 import { agendaEventTypeLabels } from "../services/agendaService";
 import { getHospitalRatings } from "../services/reviewsService";
 import { getMirSimulatorStats } from "../services/mirSimulatorService";
+import {
+  getResidentTeachingModules,
+  teachingModuleBadge,
+} from "../services/docenciaService";
 import { getLastQuizSessionForUser } from "../services/specialityQuizService";
 import {
   getDashboardAdvertisements,
@@ -168,7 +172,14 @@ function formatAgendaHeaderTime(event) {
     return event?.all_day === false ? "Hora por concretar" : "Todo el día";
   }
 
-  if (event?.start_time && event?.end_time) {
+  // En un evento de varios días el horario es un tramo continuo (ADR 0011): la
+  // hora de fin es del último día, no de este. Aquí solo se pinta event_date,
+  // así que enseñar "09:00 - 18:00" diría que acaba hoy a las 18:00.
+  const spansDays = Boolean(
+    event?.end_date && event?.event_date && event.end_date !== event.event_date
+  );
+
+  if (event?.start_time && event?.end_time && !spansDays) {
     return `${event.start_time.slice(0, 5)} - ${event.end_time.slice(0, 5)}`;
   }
 
@@ -244,68 +255,6 @@ export default function HomeDashboardScreen({
   const { events: agendaEvents, loading: loadingAgendaEvents } = useAgendaEvents(
     userProfile?.id
   );
-  const {
-    items: feedItems,
-    hydrated: feedHydrated,
-    loadingMore: loadingMoreFeed,
-    hasMore: feedHasMore,
-    refresh: refreshFeed,
-    loadMore: loadMoreFeed,
-    toggleChapo: toggleFeedChapo,
-    removeItem: removeFeedItem,
-  } = useFeed(userProfile?.is_resident ? userProfile?.id : null);
-
-  // Memoizado para no recrear la callback en cada render: si cambia, FlatList
-  // re-renderiza todas las FeedItemCard (rompe React.memo). refreshFeed y
-  // removeFeedItem son estables (useCallback en useFeed).
-  const handleDeleteFeedPost = useCallback(
-    (item) => {
-      Alert.alert(
-        "Borrar publicación",
-        "¿Seguro que quieres borrar esta publicación? Se perderán sus Chapós.",
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Borrar",
-            style: "destructive",
-            onPress: async () => {
-              removeFeedItem(item.type, item.id);
-              const res = await deleteFeedPost(item.id);
-              if (!res.success) {
-                Alert.alert(
-                  "No se pudo borrar",
-                  res.error || "Inténtalo de nuevo."
-                );
-                refreshFeed();
-              }
-            },
-          },
-        ]
-      );
-    },
-    [removeFeedItem, refreshFeed]
-  );
-
-  // Lista virtualizada del feed: sólo los residentes con ítems tienen data.
-  // El resto de la pantalla (cabecera, secciones de estudiante, esqueleto/empty
-  // del feed) va en ListHeaderComponent / ListFooterComponent.
-  const feedListData =
-    userProfile?.is_resident && feedHydrated && feedItems.length > 0
-      ? feedItems
-      : [];
-  const feedKeyExtractor = useCallback((item) => `${item.type}:${item.id}`, []);
-  const renderFeedItem = useCallback(
-    ({ item }) => (
-      <FeedItemCard
-        item={item}
-        isOwn={item.authorId === userProfile?.id}
-        onToggleChapo={toggleFeedChapo}
-        onDelete={handleDeleteFeedPost}
-      />
-    ),
-    [userProfile?.id, toggleFeedChapo, handleDeleteFeedPost]
-  );
-
   useEffect(() => {
     getHospitalRatings().then(({ success, ratings }) => {
       if (success) setHospitalRatings(ratings);
@@ -485,6 +434,63 @@ export default function HomeDashboardScreen({
     !shouldBypassResidentReviewGate(userProfile, residentTransitionConfig) &&
     !isEmailReviewPending &&
     !isEmailReviewRejected;
+  // Qué módulos de Docencia tiene activos este residente. "Activo" se deriva del
+  // dato: el acceso aparece cuando TIENE al menos una tutoría, evaluación o
+  // autoevaluación. No hay interruptor en el panel que consultar, y derivarlo así
+  // evita además llevarle a una pantalla vacía.
+  const [teachingModules, setTeachingModules] = useState({
+    tutoring: { count: 0, pending: 0, nextAt: null },
+    evaluations: { count: 0 },
+    selfAssessments: { count: 0, pending: 0 },
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!userProfile?.id || !userProfile?.is_resident) {
+      setTeachingModules({
+        tutoring: { count: 0, pending: 0, nextAt: null },
+        evaluations: { count: 0 },
+        selfAssessments: { count: 0, pending: 0 },
+      });
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    getResidentTeachingModules(userProfile.id).then((modules) => {
+      if (isMounted) setTeachingModules(modules);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userProfile?.id, userProfile?.is_resident]);
+
+  // El cuerpo del inicio del residente: lo que tiene pendiente y los tres
+  // números de su año. Reaprovecha `teachingModules` (ya cargado para los badges)
+  // y los eventos de agenda en lugar de volver a pedirlos.
+  const {
+    pending: residentPending,
+    year: residentYearSummary,
+    loading: loadingResidentSummary,
+  } = useResidentHomeSummary({
+    userProfile,
+    agendaEvents,
+    teachingModules,
+    payoutBannerVisible: showPayoutReminder,
+  });
+
+  const handlePendingPress = useCallback(
+    (item) => {
+      posthogLogger.capture("resident_home_pending_clicked", {
+        item: item.key,
+      });
+      onSectionChange?.(item.section, item.params);
+    },
+    [onSectionChange]
+  );
+
   const residentQuickActions = useMemo(
     () =>
       [
@@ -559,12 +565,39 @@ export default function HomeDashboardScreen({
           color: "#15803D",
           badge: "NUEVO",
         },
+        {
+          label: "Tutorías",
+          icon: ChalkboardTeacher,
+          section: "tutorias",
+          tint: "#EDE9FE",
+          color: "#6D28D9",
+          requiresModule: "tutoring",
+          badge: teachingModuleBadge("tutoring", teachingModules.tutoring),
+        },
+        {
+          label: "Autoevaluación",
+          icon: NotePencil,
+          section: "autoevaluacion",
+          tint: "#FEF3C7",
+          color: "#B45309",
+          requiresModule: "selfAssessments",
+          badge: teachingModuleBadge(
+            "selfAssessments",
+            teachingModules.selfAssessments
+          ),
+        },
       ].filter(
         (action) =>
           action.section !== "clinicalAssistant" ||
           userProfile?.can_use_clinical_assistant
+      ).filter(
+        // Sin filas no hay acceso: un icono que abre una pantalla vacía es peor que
+        // no tener el icono.
+        (action) =>
+          !action.requiresModule ||
+          (teachingModules[action.requiresModule]?.count || 0) > 0
       ),
-    [userProfile?.can_use_clinical_assistant]
+    [userProfile?.can_use_clinical_assistant, teachingModules]
   );
   const residentHeroEvent = useMemo(() => {
     const today = new Date();
@@ -818,20 +851,15 @@ export default function HomeDashboardScreen({
     );
   }
 
+  // Antes era un FlatList porque el cuerpo del inicio del residente era el feed
+  // social (lista larga y virtualizada). El inicio ya no tiene lista larga: son
+  // secciones de altura acotada, así que un ScrollView basta.
   return (
-    <FlatList
+    <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
       showsVerticalScrollIndicator={false}
-      data={feedListData}
-      keyExtractor={feedKeyExtractor}
-      renderItem={renderFeedItem}
-      initialNumToRender={6}
-      maxToRenderPerBatch={8}
-      windowSize={11}
-      removeClippedSubviews={false}
-      ListHeaderComponent={
-        <View>
+    >
       {/* Header púrpura */}
       <View style={[styles.header, { paddingTop: 16 }]}>
         <View style={styles.headerBlur} />
@@ -1284,63 +1312,43 @@ export default function HomeDashboardScreen({
           ) : null}
 
           <View style={styles.residentActionsRow}>
-            <QuickActionsPager
+            <QuickActionsMenu
               actions={residentQuickActions}
               onPress={(section) => onSectionChange?.(section)}
             />
           </View>
 
-          {/* Feed social: cuerpo principal del inicio del residente.
-              Ver docs/adr/0004-feed-actividad-de-guardia-por-conexion.md */}
-          <View style={styles.feedSection}>
-            <View style={styles.feedHeaderRow}>
-              <View style={styles.sectionBarPurple} />
-              <Text style={styles.feedHeaderTitle}>Tu feed</Text>
-            </View>
-            <FeedComposer userId={userProfile?.id} onPosted={refreshFeed} />
+          {/* Cuerpo del inicio del residente: los tres números de su año, cómo
+              viene la semana y lo que tiene que hacer.
 
-            {!feedHydrated && feedItems.length === 0 ? (
-              <FeedSkeleton />
-            ) : feedItems.length === 0 ? (
-              <View style={styles.feedEmpty}>
-                <Icon name="people-outline" size={28} color="#A78BFA" />
-                <Text style={styles.feedEmptyTitle}>Tu feed está tranquilo</Text>
-                <Text style={styles.feedEmptyText}>
-                  Conecta con otros residentes para ver sus guardias y
-                  publicaciones, y darles un Chapó.
-                </Text>
-                <TouchableOpacity
-                  style={styles.feedEmptyBtn}
-                  onPress={() => onSectionChange?.("residentsDirectory")}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.feedEmptyBtnText}>Buscar residentes</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-          </View>
-        </View>
-      )}
-        </View>
-      }
-      ListFooterComponent={
-        <View>
-      {userProfile?.is_resident && (
-        <View style={styles.residentTopStack}>
-          {feedItems.length > 0 && feedHasMore && (
-            <TouchableOpacity
-              style={styles.feedLoadMore}
-              onPress={loadMoreFeed}
-              disabled={loadingMoreFeed}
-              activeOpacity={0.8}
-            >
-              {loadingMoreFeed ? (
-                <ActivityIndicator size="small" color={PRIMARY} />
-              ) : (
-                <Text style={styles.feedLoadMoreText}>Cargar más</Text>
-              )}
-            </TouchableOpacity>
-          )}
+              El año abre el bloque porque es lo que sitúa al residente —dónde va
+              de progreso, de guardias y de dinero— antes de entrar en el detalle
+              de la semana y de los deberes sueltos. "Te toca a ti" cierra: es una
+              lista que la mayoría de los días está vacía, y arriba gastaba el
+              sitio más valioso del inicio para decir "todo al día".
+
+              Aquí estaba el Feed social (ADR 0004). Se saca porque el inicio del
+              residente pasa a ser su información personal, no la actividad de sus
+              conexiones. El Feed no se ha reubicado todavía: `hooks/useFeed` y
+              `components/feed/*` siguen en el repo intactos, y hasta que se le dé
+              pantalla propia (Comunidad es el candidato) los Chapós a las
+              Actividades de guardia de las conexiones no son alcanzables. */}
+          <ResidentYearSummary
+            year={residentYearSummary}
+            userId={userProfile?.id}
+            onPressSection={(section) => onSectionChange?.(section)}
+          />
+
+          <ResidentWeekStrip
+            events={agendaEvents}
+            onPress={() => onSectionChange?.("agenda")}
+          />
+
+          <ResidentPendingList
+            items={residentPending}
+            loading={loadingResidentSummary}
+            onPress={handlePendingPress}
+          />
 
           {!loadingDashboardAds && carouselHasAds && (
             <View style={styles.section}>
@@ -1590,9 +1598,7 @@ export default function HomeDashboardScreen({
           </View>
         </>
       )}
-        </View>
-      }
-    />
+    </ScrollView>
   );
 }
 
@@ -2032,62 +2038,6 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 2,
     backgroundColor: "#670CF5",
-  },
-  feedSection: {
-    marginTop: 4,
-  },
-  feedHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  feedHeaderTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#1B0977",
-  },
-  feedEmpty: {
-    backgroundColor: "#FFF",
-    borderRadius: 18,
-    padding: 24,
-    alignItems: "center",
-    gap: 8,
-  },
-  feedEmptyTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#1B0977",
-    marginTop: 4,
-  },
-  feedEmptyText: {
-    fontSize: 13.5,
-    lineHeight: 19,
-    color: "#6B7280",
-    textAlign: "center",
-  },
-  feedEmptyBtn: {
-    marginTop: 10,
-    backgroundColor: "#670CF5",
-    paddingVertical: 10,
-    paddingHorizontal: 22,
-    borderRadius: 999,
-  },
-  feedEmptyBtnText: {
-    color: "#FFF",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  feedLoadMore: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    marginBottom: 8,
-  },
-  feedLoadMoreText: {
-    color: "#670CF5",
-    fontWeight: "700",
-    fontSize: 14,
   },
   residentMetricsRow: {
     flexDirection: "row",

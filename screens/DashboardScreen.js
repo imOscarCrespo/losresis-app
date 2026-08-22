@@ -21,6 +21,9 @@ import ComunityScreen from "./ComunityScreen";
 import ResidentsDirectoryScreen from "./ResidentsDirectoryScreen";
 import MyReviewScreen from "./MyReviewScreen";
 import ResidenceLibraryScreen from "./ResidenceLibraryScreen";
+import TutoringScreen from "./TutoringScreen";
+import EvaluationsScreen from "./EvaluationsScreen";
+import SelfAssessmentsScreen from "./SelfAssessmentsScreen";
 import ReviewsScreen from "./ReviewsScreen";
 import ReviewDetailScreen from "./ReviewDetailScreen";
 import ArticlesScreen from "./ArticlesScreen";
@@ -485,6 +488,23 @@ export default function DashboardScreen({
       // Recordatorio del servicio asignado: abrir el tablón del residente.
       if (data?.destination_section === "recordatoriosServicio") {
         handleSectionChange("recordatoriosServicio");
+        return;
+      }
+
+      // Módulos de Docencia. Cada aviso abre su pantalla: una tutoría programada o
+      // compartida, una evaluación cerrada, una autoevaluación pedida o recordada.
+      if (
+        data?.destination_section === "tutorias" ||
+        data?.destination_section === "evaluaciones" ||
+        data?.destination_section === "autoevaluacion"
+      ) {
+        handleSectionChange(data.destination_section);
+        return;
+      }
+
+      // El tutor ha publicado o actualizado la plantilla del libro.
+      if (data?.destination_section === "residenceLibrary") {
+        handleSectionChange("residenceLibrary");
         return;
       }
 
@@ -1551,6 +1571,13 @@ export default function DashboardScreen({
                 handleSectionChange("courseDetail", { courseId: entityId });
               } else if (screenId === "agenda") {
                 handleSectionChange("agenda");
+              } else if (
+                screenId === "tutorias" ||
+                screenId === "evaluaciones" ||
+                screenId === "autoevaluacion" ||
+                screenId === "residenceLibrary"
+              ) {
+                handleSectionChange(screenId);
               } else if (screenId === "recordatoriosServicio") {
                 handleSectionChange("recordatoriosServicio");
               } else if (
@@ -1745,6 +1772,38 @@ export default function DashboardScreen({
           />
         ) : (
           <PlaceholderScreen title="Recordatorios del servicio" />
+        );
+
+      // Los tres módulos de Docencia. NO son apartados del Libro del Residente:
+      // salieron de la plantilla (ADR 0025 del panel) y tienen su propio acceso.
+      case "tutorias":
+        return userProfile?.is_resident ? (
+          <TutoringScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+          />
+        ) : (
+          <PlaceholderScreen title="Tutorías" />
+        );
+
+      case "evaluaciones":
+        return userProfile?.is_resident ? (
+          <EvaluationsScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+          />
+        ) : (
+          <PlaceholderScreen title="Evaluaciones" />
+        );
+
+      case "autoevaluacion":
+        return userProfile?.is_resident ? (
+          <SelfAssessmentsScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+          />
+        ) : (
+          <PlaceholderScreen title="Autoevaluación" />
         );
 
       // Valoración de una jornada de puertas abiertas ya celebrada.

@@ -1,4 +1,7 @@
-# Glosario de dominio — LosResis
+# Glosario de dominio — LosResis APP (React Native / Expo)
+
+> Fuente: losresis-app/CONTEXT.md. Usa SIEMPRE estos términos exactos al redactar tareas.
+
 
 ## Residente
 
@@ -10,14 +13,7 @@ Calendario unificado del **Residente**, implementado en `screens/AgendaScreen.js
 
 ## Evento de agenda
 
-Unidad mínima de la **Agenda**. Tiene fecha, tipo, un **Horario del evento** opcional y metadatos opcionales según el tipo. Los tipos existentes son: `shift` (Guardia), `course`, `research`, `study`, `conference`, `day_off`, `reminder`, `service` (**Evento del servicio**) y `tutoring` (**Tutoría**). Persiste en la tabla `agenda_events`.
-
-## Horario del evento
-
-Hora de inicio y hora de fin opcionales de un **Evento de agenda**, ambas informativas: no programan nada, no disparan el recordatorio (que se encola por día) y no condicionan que el evento se pueda guardar. La de fin solo existe si existe la de inicio. Sin horario, el evento es de todo el día.
-
-En un evento de varios días el horario es un **tramo continuo** —empieza a esa hora el primer día y termina a esa hora el último—, nunca un horario que se repita cada día (ver ADR 0011). Lo declaran los cinco tipos que el **Residente** crea con cita concreta: Curso, Congreso, Estudio, Investigación y Recordatorio. La **Guardia** no lo usa (declara su duración aparte) ni el Día libre. Los eventos que proyecta el panel (**Evento del servicio**, **Tutoría**) lo traen ya puesto y en solo-lectura.
-_Evitar_: hora (en singular sugiere un instante, y es la etiqueta de la fila del detalle), franja horaria (arrastra connotación de turno, que es lo que la Guardia sí es).
+Unidad mínima de la **Agenda**. Tiene fecha, tipo y metadatos opcionales según el tipo. Los tipos existentes son: `shift` (Guardia), `course`, `research`, `study`, `conference`, `day_off`, `reminder`, `service` (**Evento del servicio**). Persiste en la tabla `agenda_events`.
 
 ## Evento del servicio
 
@@ -177,10 +173,8 @@ _Evitar_: evaluación del residente (la escribe el tutor), autoevaluación (es o
 
 ## Autoevaluación anual
 
-El cuestionario que la Unidad Docente **diseña y le manda** al **Residente**, y que **rellena y envía él**. Es lo único de Docencia que el residente completa. La app **nunca la crea**: solo responde lo que le han enviado.
-
-Cada una llega con sus preguntas **congeladas** en el momento del envío, con su tipo (respuesta corta o larga, selección única o múltiple, escala numérica, escala Likert, sí/no) y con su fecha límite. Si el panel saca luego una versión nueva de la plantilla, la que ya te mandó no cambia. Se guarda sola mientras la respondes; al enviarla queda bloqueada, y solo tu tutor puede **devolverla** para que la corrijas, diciéndote por qué.
-_Evitar_: reflexión anual (era el apartado del Libro, retirado), evaluación, encuesta.
+El cuestionario que el tutor le solicita al **Residente** y que **rellena y envía él**: preguntas congeladas en el momento de la solicitud, respuestas suyas, y un envío que la deja disponible para el tutor. Es lo único de Docencia que el residente completa. Sus preguntas nacieron de la Reflexión anual del Libro, pero una vez solicitada no cambia aunque el tutor edite la plantilla.
+_Evitar_: reflexión anual (era el apartado del Libro, retirado), evaluación.
 
 ## Comunicado
 

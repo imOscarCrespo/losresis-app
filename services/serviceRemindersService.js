@@ -43,6 +43,29 @@ export const ensureServicio = async (hospitalId, specialityId) => {
   return data;
 };
 
+// El servicio del residente, SIN crearlo si no existe. Lo usa el inicio, que
+// solo lee: `ensureServicio` siembra las cuatro carpetas al crear el servicio, y
+// eso no puede pasar por abrir la app. Sin servicio tampoco hay recordatorios
+// (`recordatorio.servicio_id` es NOT NULL), así que null es una respuesta buena.
+export const findServicio = async (hospitalId, specialityId) => {
+  if (!hospitalId || !specialityId) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("servicio")
+    .select("id")
+    .eq("hospital_id", hospitalId)
+    .eq("speciality_id", specialityId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data?.id || null;
+};
+
 // La vista del residente: lo asignado a mí + lo sin asignar del servicio.
 // Lo asignado a OTRA persona no aparece (es ruido de otro), y lo vencido hace
 // más de una semana se considera archivado. Devuelve, además de las listas

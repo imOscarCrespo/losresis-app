@@ -242,6 +242,19 @@ export default function NotificationsScreen({
         return;
       }
 
+      // Módulos de Docencia y cambios en la plantilla del Libro. La lista de
+      // destinos es blanca a propósito, así que un tipo nuevo que no esté aquí
+      // se queda sin navegación: al tocar la notificación no pasaría nada.
+      if (
+        data.destination_section === "tutorias" ||
+        data.destination_section === "evaluaciones" ||
+        data.destination_section === "autoevaluacion" ||
+        data.destination_section === "residenceLibrary"
+      ) {
+        onNavigateToEntity(data.destination_section, {});
+        return;
+      }
+
       // El hospital pide valoración de su jornada de puertas abiertas.
       if (
         data.destination_section === "valoracionJornada" &&

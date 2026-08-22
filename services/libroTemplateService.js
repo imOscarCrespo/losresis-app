@@ -12,8 +12,15 @@ import { supabase } from "../config/supabase";
  * La plantilla publicada que le corresponde al residente, por hospital y
  * especialidad.
  *
+ * updated_at viaja porque es la señal de "el tutor ha tocado esto": el trigger
+ * trigger_update_libro_template_updated_at lo bumpea en cada UPDATE de la fila, y
+ * el panel hace upsert de la plantilla en cada guardado. La app lo usa para volver
+ * a ofrecer Migrar a la plantilla cuando hay algo nuevo, sin insistir mientras no
+ * lo haya.
+ *
  * @param {string} userId
- * @returns {Promise<{id: string}|null>} null si su hospital no ha publicado una
+ * @returns {Promise<{id: string, updated_at: string}|null>} null si su hospital no
+ *   ha publicado una
  */
 export const getPublishedLibroTemplateForUser = async (userId) => {
   try {
@@ -39,7 +46,7 @@ export const getPublishedLibroTemplateForUser = async (userId) => {
 
     const { data, error } = await supabase
       .from("libro_template")
-      .select("id")
+      .select("id, updated_at")
       .eq("hospital_id", user.hospital_id)
       .eq("speciality_id", user.speciality_id)
       .eq("is_published", true)
@@ -151,176 +158,70 @@ export const getLibroTemplateTree = async (templateId, section, residencyYear) =
   }
 };
 
-// Los ids se generan en cliente para poder insertar padres e hijos en dos lotes
-// en vez de una petición por categoría. El proyecto no trae dependencia de uuid y
-// crypto.randomUUID no está garantizado en Hermes, así que se compone a mano.
-const newUuid = () => {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
+/**
+ * Migrar a la plantilla: sustituye el Libro propio de un año por el Libro oficial.
+ *
+ * DESTRUCTIVO: borra el libro que el residente tenga de ese año y con él lo
+ * registrado dentro. Quien llama tiene que haberlo confirmado antes, y la app le
+ * ofrece descargarse el libro completo en PDF primero.
+ *
+ * Aquí no se clona nada. Antes esto montaba los nodos a mano desde el cliente, y
+ * era la tercera copia de la lógica plantilla→libro: se dejaba comments_mode,
+ * duration_amount, duration_unit, center y description, y no sellaba
+ * template_node_id, lo que dejaba el libro invisible para
+ * sync_libro_template_for_user. Ahora la siembra vive en un solo sitio, en
+ * losresis-db (ver docs/adr/0006).
+ *
+ * Requiere la migración 20260820130000 de losresis-db.
+ *
+ * @param {{userId: string, residencyYear: number}} params
+ * @returns {Promise<number>} cuántos apartados se han creado
+ */
+export const switchLibroYearToTemplate = async ({ userId, residencyYear }) => {
+  if (!userId || !residencyYear) {
+    throw new Error("userId and residencyYear are required");
   }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
-    const random = (Math.random() * 16) | 0;
-    const value = char === "x" ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
+
+  const { data, error } = await supabase.rpc("migrate_libro_year_to_template", {
+    p_user_id: userId,
+    p_residency_year: residencyYear,
   });
+
+  if (error) {
+    console.error("Error migrating libro year to template:", error);
+    throw error;
+  }
+
+  return data || 0;
 };
 
 /**
- * Cambia el libro de un año al que ha definido el tutor.
+ * Reconcilia el libro del residente con la plantilla: altas, cambios y bajas sin
+ * actividad detrás. Idempotente.
  *
- * DESTRUCTIVO: borra el libro que el residente tenga de ese año y con él la
- * actividad que hubiera registrado (libro_node cae por el ON DELETE CASCADE de
- * book_id, y con los nodos caen sus entradas y eventos). Quien llama tiene que
- * haberlo confirmado antes.
+ * Es lo que hace verdad que un cambio del tutor llegue a un libro ya sembrado. Se
+ * llama al abrir el Libro y al tirar para refrescar, no en tiempo real: nadie mira
+ * su libro mientras su tutor lo edita, y resembrar la estructura bajo los dedos de
+ * quien está registrando algo sería peor que esperar.
  *
- * Los años que el residente ya cerró no se tocan: solo se reemplaza el año que
- * se le pasa.
+ * No lanza: que falle la reconciliación no debe impedir abrir el libro.
  *
- * @param {{userId: string, templateId: string, residencyYear: number}} params
- * @returns {Promise<number>} cuántos bloques se han creado
+ * @param {string} userId
+ * @returns {Promise<boolean>} si se pudo reconciliar
  */
-export const switchLibroYearToTemplate = async ({
-  userId,
-  templateId,
-  residencyYear,
-}) => {
-  if (!userId || !templateId || !residencyYear) {
-    throw new Error("userId, templateId and residencyYear are required");
+export const syncLibroTemplateForUser = async (userId) => {
+  if (!userId) return false;
+
+  const { error } = await supabase.rpc("sync_libro_template_for_user", {
+    p_user_id: userId,
+  });
+
+  if (error) {
+    console.error("Error syncing libro template:", error);
+    return false;
   }
 
-  // 1. Los años anteriores que sigan activos pasan a archivados. Es lo que antes
-  //    hacía el botón de "archivar y empezar nuevo año", y además es obligatorio:
-  //    libro_book_one_active_per_user_section_idx no admite dos libros activos de
-  //    la misma sección, así que sin archivar R1 no cabe el R2.
-  const { error: archiveError } = await supabase
-    .from("libro_book")
-    .update({ status: "archived", archived_at: new Date().toISOString() })
-    .eq("user_id", userId)
-    .eq("status", "active")
-    .lt("residency_year", residencyYear);
-
-  if (archiveError) {
-    console.error("Error archiving previous libro years:", archiveError);
-    throw archiveError;
-  }
-
-  // 2. Fuera el libro de ese año.
-  const { error: deleteError } = await supabase
-    .from("libro_book")
-    .delete()
-    .eq("user_id", userId)
-    .eq("residency_year", residencyYear);
-
-  if (deleteError) {
-    console.error("Error deleting libro books before switch:", deleteError);
-    throw deleteError;
-  }
-
-  // 2. Los bloques que la plantilla define en ese año.
-  const { data: blocks, error: blocksError } = await supabase
-    .from("libro_template_block")
-    .select("section, position")
-    .eq("template_id", templateId)
-    .eq("residency_year", residencyYear)
-    .order("position", { ascending: true });
-
-  if (blocksError) {
-    console.error("Error fetching template blocks for switch:", blocksError);
-    throw blocksError;
-  }
-
-  // 3. Un libro por bloque, con la estructura de la plantilla clonada dentro.
-  let created = 0;
-
-  for (const block of blocks || []) {
-    const { data: book, error: bookError } = await supabase
-      .from("libro_book")
-      .insert({
-        user_id: userId,
-        section: block.section,
-        residency_year: residencyYear,
-        status: "active",
-      })
-      .select("id")
-      .single();
-
-    if (bookError) {
-      console.error("Error creating libro book on switch:", bookError);
-      throw bookError;
-    }
-
-    const tree = await getLibroTemplateTree(templateId, block.section, residencyYear);
-    const parentRows = [];
-    const childRows = [];
-
-    for (const [categoryIndex, category] of tree.entries()) {
-      const categoryId = newUuid();
-
-      parentRows.push({
-        id: categoryId,
-        user_id: userId,
-        book_id: book.id,
-        section: block.section,
-        parent_node_id: null,
-        name: category.name,
-        goal: category.goal ?? null,
-        icon_name: category.icon_name,
-        color_token: category.color_token,
-        tracking_mode: category.tracking_mode || "counter",
-        position: category.position ?? categoryIndex,
-      });
-
-      for (const [childIndex, child] of (category.children || []).entries()) {
-        childRows.push({
-          id: newUuid(),
-          user_id: userId,
-          book_id: book.id,
-          section: block.section,
-          parent_node_id: categoryId,
-          name: child.name,
-          goal: child.goal ?? null,
-          icon_name: child.icon_name,
-          color_token: child.color_token,
-          tracking_mode: child.tracking_mode || "counter",
-          position: child.position ?? childIndex,
-        });
-      }
-    }
-
-    // Los padres antes que los hijos: parent_node_id tiene FK.
-    if (parentRows.length) {
-      const { error } = await supabase.from("libro_node").insert(parentRows);
-      if (error) {
-        console.error("Error cloning template categories:", error);
-        throw error;
-      }
-    }
-
-    if (childRows.length) {
-      const { error } = await supabase.from("libro_node").insert(childRows);
-      if (error) {
-        console.error("Error cloning template activities:", error);
-        throw error;
-      }
-    }
-
-    // El sello va DESPUÉS de clonar, no antes: trigger_libro_node_structure_locked
-    // rechaza escribir nodos en un libro que ya tenga template_id, así que
-    // sellarlo primero abortaría su propia siembra.
-    const { error: stampError } = await supabase
-      .from("libro_book")
-      .update({ template_id: templateId })
-      .eq("id", book.id);
-
-    if (stampError) {
-      console.error("Error stamping libro book with template:", stampError);
-      throw stampError;
-    }
-
-    created += 1;
-  }
-
-  return created;
+  return true;
 };
 
 export default {
@@ -328,4 +229,5 @@ export default {
   getLibroTemplateOutline,
   getLibroTemplateTree,
   switchLibroYearToTemplate,
+  syncLibroTemplateForUser,
 };

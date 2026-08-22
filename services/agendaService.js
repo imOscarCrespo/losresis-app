@@ -273,6 +273,49 @@ export const updateAgendaEvent = async (eventId, eventData, shareUserIds) => {
   return updatedEvent;
 };
 
+/**
+ * Solo la observación de un evento, sin tocar nada más.
+ *
+ * Existe porque updateAgendaEvent reconstruye el payload COMPLETO con
+ * buildAgendaPayload: llamarlo con un objeto parcial borraría la fecha, la hora y los
+ * metadatos del evento. La usa el apartado Guardias del Libro del Residente, donde lo
+ * único que el residente escribe es su observación.
+ *
+ * Mantiene en sincronía la fila legacy de `shifts`, igual que updateAgendaEvent.
+ */
+export const updateAgendaEventNotes = async (eventId, notes) => {
+  if (!eventId) {
+    throw new Error("Event ID is required");
+  }
+
+  const { data: updatedEvent, error } = await supabase
+    .from("agenda_events")
+    .update({ notes: normalizeText(notes) })
+    .eq("id", eventId)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  if (
+    updatedEvent.event_type === SHIFT_EVENT_TYPE &&
+    updatedEvent.source_shift_id
+  ) {
+    const { error: legacyError } = await supabase
+      .from("shifts")
+      .update({ notes: normalizeText(notes) })
+      .eq("id", updatedEvent.source_shift_id);
+
+    if (legacyError) {
+      throw legacyError;
+    }
+  }
+
+  return updatedEvent;
+};
+
 export const deleteAgendaEvent = async (event) => {
   if (!event?.id) {
     throw new Error("Event is required");
@@ -386,4 +429,8 @@ export const agendaEventTypeLabels = {
   // Convocado por el responsable desde el panel del hospital; el residente lo
   // ve en solo lectura.
   service: "Evento del servicio",
+  // Programada por el tutor desde el panel y proyectada aquí, igual que el Evento
+  // del servicio. También de solo lectura: borrarla dejaría
+  // hospital_tutoring.agenda_event_id apuntando a nada.
+  tutoring: "Tutoría",
 };

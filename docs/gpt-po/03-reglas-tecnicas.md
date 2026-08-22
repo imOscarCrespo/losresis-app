@@ -1,4 +1,7 @@
-# AGENTS
+# Reglas técnicas obligatorias de los repos LosResis
+
+## === Reglas de losresis-app ===
+
 
 ## Database Source Of Truth
 
@@ -55,3 +58,37 @@
 - No reinterpretar, migrar en caliente ni sobrescribir sesiones históricas `v2` con la lógica `v3`.
 - Cualquier cambio futuro en preguntas, scoring, perfiles o RPC del quiz debe ser versionado y compatible con ambas rutas hasta que se retire explícitamente la compatibilidad.
 - Si una tarea toca el dashboard, histórico, persistencia de sesiones o lectura de `top_results` / `raw_scores`, revisar siempre compatibilidad con sesiones `v2` y `v3`.
+
+## === Reglas de losresis-panel ===
+
+
+## Paleta Corporativa
+
+- Colores oficiales de LosResis, obligatorios en todo el panel:
+  - Morado principal `#680CF5` → `brand-500` (`--brand`)
+  - Lavanda secundario `#F4EFFE` → `brand-50` (`--brand-tint`)
+  - Verde `#36E3A0` → `mint-400` (`--brand-green`; sobre fondo claro usa `mint-600/700`)
+  - Azul oscuro terciario `#1E1147` → `navy-900` (`--brand-navy`)
+- La fuente de verdad son las rampas de `tailwind.config.js`; `src/app/globals.css` solo
+  refleja los cuatro valores oficiales como variables CSS para los componentes `app-*`.
+- Usar siempre las escalas `brand-*`, `mint-*`, `navy-*` e `ink-*` (neutros tintados hacia
+  la marca). No escribir hex sueltos ni clases arbitrarias tipo `text-[#680CF5]`.
+- Los nombres de Tailwind `slate/gray/zinc/neutral/stone`, `sky/blue/indigo/violet/purple/fuchsia`
+  y `emerald/green/teal` están reasignados en la config a esas rampas: el código antiguo hereda
+  la marca y no puede colarse un azul o un verde ajenos.
+- `red` y `amber` se mantienen como colores semánticos de error y aviso, no son colores de marca.
+
+## Database Source Of Truth
+
+- La source of truth de la base de datos y de todas las migraciones compartidas es `~/code/losresis-shared/losresis-db`.
+- Todas las migraciones SQL nuevas deben crearse siempre en `~/code/losresis-shared/losresis-db`, nunca en `losresis-panel/supabase/migrations`.
+- Nunca crear, editar ni considerar definitivas migraciones SQL dentro de `losresis-panel` o sus submódulos locales si el cambio no existe también en `~/code/losresis-shared/losresis-db`.
+- Cuando una tarea afecte al esquema, migraciones, funciones SQL, RLS, triggers, seeds o tipos derivados de la base de datos, trabajar primero en `~/code/losresis-shared/losresis-db`.
+- Tratar `losresis-panel` como consumidor de ese repo compartido, no como fuente de verdad para cambios de base de datos.
+- Después de añadir o modificar una migración en `losresis-db`, el siguiente paso en `losresis-panel` es actualizar el puntero del submódulo o reflejar el cambio consumido, no recrear la migración localmente.
+
+## Database Naming Convention
+
+- A partir de ahora, todo lo que se cree en base de datos lleva **siempre el nombre en inglés**: tablas, columnas, funciones, triggers, índices, políticas RLS, enums y sus valores.
+- Los objetos existentes con nombre en español no se renombran; conviven con la convención nueva.
+- Los textos destinados al usuario final (títulos/cuerpos de notificaciones, mensajes de error visibles) siguen en español; la convención aplica solo a los identificadores.

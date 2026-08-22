@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { findUndoTarget } from "../utils/libroUndo";
 
 const DEFAULT_TRACKING_MODE = "counter";
 const DEFAULT_NODE_COLOR = "violet";
@@ -568,6 +569,37 @@ export const deleteNode = async (nodeId, userId) => {
     console.error("Exception in deleteNode:", error);
     throw error;
   }
+};
+
+/**
+ * El registro que anularía el siguiente menos de este nodo.
+ *
+ * El menos inserta un negativo y ese negativo tiene que llevar la fecha del
+ * registro que anula, no la del día en que se pulsa: si no, cualquier suma por
+ * ventana de fechas sale mal (ver docs/adr/0010). Aquí solo se leen los registros;
+ * la decisión de cuál es está en utils/libroUndo.
+ *
+ * Se leen todos los del nodo a propósito: el saldo no se puede calcular sobre una
+ * página. Un nodo acumula los registros de un año, así que son decenas.
+ *
+ * @param {string} nodeId - ID del nodo
+ * @returns {Promise<{entryId: string|null, performedAt: string}|null>} null si no
+ *   hay nada que deshacer
+ */
+export const findEntryToUndo = async (nodeId) => {
+  if (!nodeId) return null;
+
+  const { data, error } = await supabase
+    .from("libro_entry")
+    .select("id, count, performed_at, created_at")
+    .eq("node_id", nodeId);
+
+  if (error) {
+    console.error("Error reading entries to undo:", error);
+    throw error;
+  }
+
+  return findUndoTarget(data || []);
 };
 
 /**

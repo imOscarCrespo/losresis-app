@@ -3,8 +3,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,12 +16,34 @@ import {
 } from "react-native";
 import { Icon } from "../components/Icon";
 import { useLibroSection } from "../hooks/useLibroSection";
-import { exportLibroToPdf } from "../services/libroPdfService";
+import { exportLibroArchiveToPdf } from "../services/libroPdfService";
 import {
-  ConfirmationModal,
-  LibroNodeModal,
-  LibroQuickRegisterModal,
-} from "../components";
+  countLibroEntriesForYear,
+  getLibroArchive,
+} from "../services/libroArchiveService";
+import {
+  deleteLibroFormEntry,
+  getLibroFormConfig,
+  getLibroFormEntries,
+  getLibroItinerary,
+  getLibroShifts,
+  getLibroYearOverview,
+  saveLibroFormEntry,
+  saveLibroNodeProgress,
+} from "../services/libroYearService";
+import { LibroIndexView } from "../components/libro/LibroIndexView";
+import { LibroItineraryView } from "../components/libro/LibroItineraryView";
+import { LibroFormView } from "../components/libro/LibroFormView";
+import { LibroShiftsView } from "../components/libro/LibroShiftsView";
+// Todo lo que se rellena es una PANTALLA, no un modal: el residente sale con la
+// flecha genérica de arriba a la izquierda, igual que de cualquier otra pantalla.
+import { LibroNodeFormScreen } from "../components/libro/LibroNodeFormScreen";
+import { LibroQuickRegisterScreen } from "../components/libro/LibroQuickRegisterScreen";
+import { LibroFormEntryScreen } from "../components/libro/LibroFormEntryScreen";
+import { LibroFichaScreen } from "../components/libro/LibroFichaScreen";
+import { LibroShiftNotesScreen } from "../components/libro/LibroShiftNotesScreen";
+import { toIsoDate } from "../components/libro/LibroDateField";
+import { ConfirmationModal, LibroMigrationModal } from "../components";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
   CATEGORY_ICON_OPTIONS,
@@ -28,17 +52,21 @@ import {
   getLibroCategorySuggestions,
 } from "../data/libroOnboardingTemplates";
 import { getSpecialtyById } from "../services/hospitalService";
-import { getLibroBooksForUser } from "../services/libroService";
+import { updateAgendaEventNotes } from "../services/agendaService";
+import { findEntryToUndo, getLibroBooksForUser } from "../services/libroService";
 import {
   getLibroTemplateOutline,
   getLibroTemplateTree,
   getPublishedLibroTemplateForUser,
   switchLibroYearToTemplate,
+  syncLibroTemplateForUser,
 } from "../services/libroTemplateService";
 import {
   DEFAULT_LIBRO_SECTION,
-  getLibroSectionIcon,
+  getLibroFormFields,
+  getLibroSectionArchetype,
   getLibroSectionLabel,
+  isRetiredLibroSection,
   sortLibroSectionCodes,
 } from "../data/libroSections";
 import posthogLogger from "../services/posthogService";
@@ -48,17 +76,30 @@ import {
 } from "../utils/residentAccess";
 
 const ONBOARDING_STEPS = ["intro", "categories", "activities", "preview"];
-const TODAY = new Date().toISOString().slice(0, 10);
+// El día de hoy en HORA LOCAL y calculado al pulsar, no al importar el módulo:
+// toISOString() da el día en UTC (una guardia registrada a la 01:00 en España
+// quedaba fechada el día anterior) y una constante de módulo se queda en el día en
+// que se abrió la app.
+const today = () => toIsoDate(new Date());
 const COLLAPSED_CATEGORIES_STORAGE_KEY = "@losresis:libro_collapsed_categories";
+const MIGRATION_DISMISSED_STORAGE_KEY = "@losresis:libro_migration_dismissed";
 
+// Espejo de LIBRO_TRACKING_MODES en losresis-panel/src/lib/libroTemplateOptions.ts.
+//
+// `participation` faltaba en los dos mapas desde que el rediseño de agosto 2026 lo
+// añadió al enum, y eso hacía dos cosas a la vez: la tarjeta caía en el `|| "Contador"`
+// y se ETIQUETABA como contador, y a la vez `isCounter` era false y no pintaba los
+// botones. O sea, tarjetas que decían "Contador" y no tenían + ni −.
 const TRACKING_MODE_LABEL = {
   counter: "Contador",
+  participation: "Participación",
   note: "Nota",
   checklist: "Checklist",
 };
 
 const TRACKING_MODE_ACTION = {
   counter: "Registrar",
+  participation: "Registrar",
   note: "Añadir nota",
   checklist: "Completar",
 };
@@ -75,6 +116,13 @@ const buildDraftCategory = (category) => ({
     tracking_mode: activity.tracking_mode || "counter",
   })),
 });
+
+// El año que se abre en el rail: el del perfil si el libro lo cubre, y si no el
+// último que sí lo cubra (el residente que todavía no tiene nada de su año nuevo).
+const pickYearToOpen = (years, profileYear) =>
+  profileYear && years.includes(profileYear)
+    ? profileYear
+    : years[years.length - 1];
 
 const getProgress = (count, goal) => {
   if (!goal) return 0;
@@ -127,7 +175,13 @@ const ActivityDraftRow = ({ activity, onDelete }) => (
   </View>
 );
 
-const ProcedureRow = ({ node, onIncrement, onDecrement, onOpenActions }) => {
+const ProcedureRow = ({
+  node,
+  onIncrement,
+  onDecrement,
+  onRegister,
+  onOpenActions,
+}) => {
   const count = node.total_count || 0;
   const goal = node.goal || 0;
   const progress = getProgress(count, goal);
@@ -178,7 +232,22 @@ const ProcedureRow = ({ node, onIncrement, onDecrement, onOpenActions }) => {
                 <Icon name="add" size={16} color="#1B0977" />
               </TouchableOpacity>
             </>
-          ) : null}
+          ) : (
+            // Los modos que no son contador NO llevan + y −: el registro necesita que
+            // el residente elija algo (el nivel de participación, la nota), y eso lo
+            // pide el modal. Antes aquí no había nada y el único camino era el menú
+            // de los tres puntos, que no se ve.
+            <TouchableOpacity
+              style={styles.registerButton}
+              onPress={() => onRegister?.(node)}
+              activeOpacity={0.85}
+            >
+              <Icon name="add" size={14} color="#670CF5" />
+              <Text style={styles.registerButtonText}>
+                {TRACKING_MODE_ACTION[node.tracking_mode] || "Registrar"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>
@@ -197,6 +266,7 @@ const CategoryCard = ({
   onDeleteParent,
   onIncrement,
   onDecrement,
+  onRegister,
   onOpenChildActions,
 }) => {
   const color = COLOR_TOKEN_MAP[node.color_token] || COLOR_TOKEN_MAP.violet;
@@ -289,6 +359,7 @@ const CategoryCard = ({
                   node={child}
                   onIncrement={onIncrement}
                   onDecrement={onDecrement}
+                  onRegister={onRegister}
                   onOpenActions={onOpenChildActions}
                 />
               ))
@@ -322,10 +393,15 @@ export default function ResidenceLibraryScreen({
 
   const [specialtyName, setSpecialtyName] = useState("");
   const [specialtyResolved, setSpecialtyResolved] = useState(!specialityId);
-  const [showNodeModal, setShowNodeModal] = useState(false);
+  // Las pantallas de registro. Cada una se abre desde su listado y se cierra con la
+  // flecha de la cabecera; mientras una está abierta, es lo único que se pinta.
   const [showNodeFormScreen, setShowNodeFormScreen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showQuickRegister, setShowQuickRegister] = useState(false);
+  // { entry } con la fila abierta del arquetipo `form`, o { entry: null } al crear.
+  const [openFormEntry, setOpenFormEntry] = useState(null);
+  const [openFichaNode, setOpenFichaNode] = useState(null);
+  const [openShift, setOpenShift] = useState(null);
   const [selectedParentForChild, setSelectedParentForChild] = useState(null);
   const [quickRegisterNode, setQuickRegisterNode] = useState(null);
   const [draftCategories, setDraftCategories] = useState([]);
@@ -366,6 +442,24 @@ export default function ResidenceLibraryScreen({
   const [templateTree, setTemplateTree] = useState([]);
   const [libroReloadKey, setLibroReloadKey] = useState(0);
   const [switchingToTemplate, setSwitchingToTemplate] = useState(false);
+  const [showMigrationModal, setShowMigrationModal] = useState(false);
+  const [templateUpdatedAt, setTemplateUpdatedAt] = useState(null);
+  // El sello de plantilla que el residente descartó para el año abierto, si lo hay.
+  const [dismissedStamp, setDismissedStamp] = useState(null);
+  // El apartado abierto desde el índice. null = se está viendo el índice.
+  const [openSection, setOpenSection] = useState(null);
+  const [yearOverview, setYearOverview] = useState({ sections: [], progress: null });
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [itineraryNodes, setItineraryNodes] = useState([]);
+  const [formConfig, setFormConfig] = useState(null);
+  const [formEntries, setFormEntries] = useState([]);
+  const [shifts, setShifts] = useState([]);
+  const [sectionLoading, setSectionLoading] = useState(false);
+  const [savingSection, setSavingSection] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  // Cuántos registros se lleva por delante migrar este año. Se cuenta al ofrecerlo,
+  // no al confirmarlo, para poder decírselo antes de que decida.
+  const [entriesAtRisk, setEntriesAtRisk] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -376,6 +470,7 @@ export default function ResidenceLibraryScreen({
           setAllBooks([]);
           setTemplateOutline([]);
           setTemplateId(null);
+          setTemplateUpdatedAt(null);
           setSection(DEFAULT_LIBRO_SECTION);
           setSectionsResolved(true);
         }
@@ -383,6 +478,11 @@ export default function ResidenceLibraryScreen({
       }
 
       try {
+        // Lo que el tutor haya cambiado en la plantilla se reconcilia ANTES de leer
+        // sus libros, para que lo que se pinte ya esté al día. Es idempotente y no
+        // lanza: que falle no debe impedir abrir el libro.
+        await syncLibroTemplateForUser(userId);
+
         // Sus libros (año en curso e histórico) y el plan de su tutor: el rail de
         // años es la unión de los dos.
         const [booksData, template] = await Promise.all([
@@ -398,6 +498,7 @@ export default function ResidenceLibraryScreen({
 
         setAllBooks(booksData || []);
         setTemplateId(template?.id || null);
+        setTemplateUpdatedAt(template?.updated_at || null);
         setTemplateOutline(outline);
       } catch (error) {
         console.error("Error resolving libro:", error);
@@ -405,6 +506,7 @@ export default function ResidenceLibraryScreen({
           setAllBooks([]);
           setTemplateOutline([]);
           setTemplateId(null);
+          setTemplateUpdatedAt(null);
         }
       } finally {
         if (isMounted) {
@@ -436,12 +538,34 @@ export default function ResidenceLibraryScreen({
   useEffect(() => {
     if (selectedYear !== null || !availableYears.length) return;
 
-    setSelectedYear(
-      userResidencyYear && availableYears.includes(userResidencyYear)
-        ? userResidencyYear
-        : availableYears[availableYears.length - 1]
-    );
+    setSelectedYear(pickYearToOpen(availableYears, userResidencyYear));
   }, [availableYears, selectedYear, userResidencyYear]);
+
+  // El año del perfil puede cambiar con la pantalla montada: el dashboard revalida el
+  // perfil cada vez que la app vuelve a primer plano, y el residente también lo
+  // corrige él mismo desde su perfil.
+  //
+  // Sin esto, selectedYear se quedaba clavado en el año con el que se abrió el libro:
+  // al pasar a R2 seguía enseñando R1, y como R1 ya no es su año en curso su libro
+  // entero pasaba a solo lectura con el aviso de que estaba mirando el plan de su
+  // tutor. Poniéndolo a null vuelve a decidirlo el efecto de arriba, que es el único
+  // sitio donde se elige año.
+  const profileYearRef = useRef(userResidencyYear);
+
+  useEffect(() => {
+    if (profileYearRef.current === userResidencyYear) return;
+    profileYearRef.current = userResidencyYear;
+    if (!userResidencyYear) return;
+    // Todavía no se había elegido año: no hay nada que corregir y el efecto de arriba
+    // ya va a elegir con el perfil nuevo. Releer aquí sería una recarga de más.
+    if (selectedYear === null) return;
+
+    setOpenSection(null);
+    setSelectedYear(null);
+    // Se relee todo: el año nuevo puede necesitar siembra desde la plantilla, y de eso
+    // se encargan resolveLibro y el efecto de siembra automática.
+    setLibroReloadKey((prev) => prev + 1);
+  }, [userResidencyYear, selectedYear]);
 
   // Los bloques disponibles en el año elegido: los de sus libros de ese año y los
   // que la plantilla define para ese año.
@@ -485,8 +609,6 @@ export default function ResidenceLibraryScreen({
     selectBook,
     isSelectedBookArchived,
     nodeTree,
-    entries,
-    events,
     loading,
     settings,
     settingsLoading,
@@ -537,8 +659,40 @@ export default function ResidenceLibraryScreen({
   // que todavía tiene que montar su libro en el onboarding.
   const isOwnYear =
     !selectedYear || !userResidencyYear || selectedYear === userResidencyYear;
+
+  // Los años en los que tiene Libro propio ACTIVO, que es el libro EN USO aunque su
+  // año no sea ya el del perfil.
+  //
+  // El libro propio no rota de año solo: se creó con el año que el residente tenía en
+  // el onboarding, y solo se archiva al Migrar a la plantilla. Sin plantilla publicada
+  // nadie le siembra el año nuevo (ADR 0007: el camino propio no crece), así que al
+  // pasar a R2 su libro de R1 no se convierte en histórico: es lo único que tiene, y
+  // dejarlo en solo lectura le quitaba el libro entero.
+  //
+  // libro_book_one_active_per_user_section_idx solo admite un libro activo por
+  // apartado, así que "libro propio activo" es exactamente "el libro en uso": esto no
+  // reabre ningún año que ya se archivó.
+  const ownActiveBookYears = useMemo(
+    () =>
+      new Set(
+        allBooks
+          .filter((book) => !book.template_id && book.status === "active")
+          .map((book) => book.residency_year)
+      ),
+    [allBooks]
+  );
+
+  const isBookInUse =
+    !!bookForSelection &&
+    !bookForSelection.template_id &&
+    bookForSelection.status === "active";
+
   const isSelectedBookReadOnly =
-    isTemplateMode || isSelectedBookArchived || !isOwnYear;
+    isTemplateMode || isSelectedBookArchived || (!isOwnYear && !isBookInUse);
+
+  // A nivel de AÑO (el índice, el rail): si en ese año se puede registrar algo.
+  const isSelectedYearWritable =
+    isOwnYear || ownActiveBookYears.has(selectedYear);
 
   // Un libro sembrado de la plantilla lo define el tutor: el residente registra
   // actividad dentro, pero no añade, edita ni borra su estructura. Es distinto de
@@ -602,14 +756,380 @@ export default function ResidenceLibraryScreen({
     );
   }, [allBooks, templateOutline, templateId, selectedYear, isOwnYear]);
 
-  const canSwitchToTemplate = missingOwnYearSections.length > 0;
+  // Los apartados que la plantilla define para el año abierto, para poder decirle
+  // qué incluye el libro de su tutor.
+  const templateSectionsForYear = useMemo(() => {
+    if (!selectedYear || !templateId) return [];
+
+    return sortLibroSectionCodes(
+      templateOutline
+        .filter((block) => block.residency_year === selectedYear)
+        .map((block) => block.section)
+    );
+  }, [templateOutline, templateId, selectedYear]);
+
+  // Tiene Libro propio de este año: algún libro sin sellar con template_id, o sea
+  // con estructura montada por él.
+  const hasOwnBookThisYear = useMemo(
+    () =>
+      allBooks.some(
+        (book) => book.residency_year === selectedYear && !book.template_id
+      ),
+    [allBooks, selectedYear]
+  );
+
+  // Se le ofrece Migrar a la plantilla cuando tiene Libro propio de su año y existe
+  // una plantilla publicada que cubre ese año.
+  //
+  // Antes esto era missingOwnYearSections.length > 0, o sea "la plantilla trae
+  // apartados que mi libro no tiene", y dejaba fuera el caso más común: el
+  // residente que montó su libro en el onboarding tiene Actividad asistencial, y si
+  // la plantilla de su hospital también la define, no le faltaba ningún apartado y
+  // no se le ofrecía nada nunca. Se quedaba editando una estructura propia que su
+  // tutor no ve, indefinidamente.
+  const canMigrateToTemplate =
+    isOwnYear &&
+    !!templateId &&
+    hasOwnBookThisYear &&
+    templateSectionsForYear.length > 0;
+
+  // El sello de la plantilla tal como está ahora. Lleva updated_at y no solo el id
+  // porque libro_template es UNA fila por hospital+especialidad: republicar no
+  // cambia el id, así que con el id solo, un descarte sería para siempre.
+  const migrationStamp =
+    templateId && templateUpdatedAt ? `${templateId}:${templateUpdatedAt}` : null;
+
+  // Lo descartó y el tutor no ha vuelto a tocar la plantilla desde entonces.
+  const isMigrationDismissed =
+    !!migrationStamp && dismissedStamp === migrationStamp;
+
+  // La tarjeta se puede quitar de en medio; la oferta no desaparece (queda el acceso
+  // en la cabecera, y sigue apareciendo al intentar registrar en un apartado que
+  // solo existe en la plantilla).
+  const showMigrationCard = canMigrateToTemplate && !isMigrationDismissed;
+
+  // Qué descartó para el año abierto. Se relee al cambiar de año porque el descarte
+  // es por año: decir "no" en R1 no dice nada sobre R2.
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!userId || !selectedYear) {
+      setDismissedStamp(null);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    AsyncStorage.getItem(
+      `${MIGRATION_DISMISSED_STORAGE_KEY}:${userId}:${selectedYear}`
+    )
+      .then((value) => {
+        if (isMounted) setDismissedStamp(value || null);
+      })
+      .catch(() => {
+        if (isMounted) setDismissedStamp(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userId, selectedYear]);
+
+  // ---------------------------------------------------------------------------
+  // El índice: qué apartados tiene el año abierto y cuánto lleva en cada uno.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!userId || !selectedYear || !sectionsResolved) {
+      setYearOverview({ sections: [], progress: null });
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setOverviewLoading(true);
+
+    getLibroYearOverview(userId, selectedYear, userResidencyYear)
+      .then((overview) => {
+        if (!isMounted) return;
+
+        // Un año que su tutor tiene definido por delante todavía no es un libro
+        // suyo: no hay contadores que enseñar, pero sí el plan. Se sintetiza desde
+        // la plantilla para que pueda mirarlo antes de llegar a ese año.
+        if (!overview.sections.length && templateId) {
+          const planned = sortLibroSectionCodes([
+            ...new Set(
+              templateOutline
+                .filter(
+                  (block) =>
+                    block.residency_year === selectedYear &&
+                    !isRetiredLibroSection(block.section)
+                )
+                .map((block) => block.section)
+            ),
+          ]);
+
+          setYearOverview({
+            sections: planned.map((section) => ({
+              section,
+              label: getLibroSectionLabel(section),
+              archetype: getLibroSectionArchetype(section),
+              bookId: null,
+              templateId,
+              isOfficial: true,
+              isArchived: false,
+              count: 0,
+              total: null,
+              isPlanOnly: true,
+            })),
+            progress: null,
+          });
+          return;
+        }
+
+        setYearOverview(overview);
+      })
+      .catch((error) => {
+        console.error("Error loading libro year overview:", error);
+        if (isMounted) setYearOverview({ sections: [], progress: null });
+      })
+      .finally(() => {
+        if (isMounted) setOverviewLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    userId,
+    selectedYear,
+    sectionsResolved,
+    userResidencyYear,
+    templateId,
+    templateOutline,
+    libroReloadKey,
+  ]);
+
+  // Al cambiar de año se vuelve al índice: el apartado abierto era del año anterior.
+  useEffect(() => {
+    setOpenSection(null);
+  }, [selectedYear]);
+
+  // ---------------------------------------------------------------------------
+  // Los datos del apartado abierto, según su arquetipo. El de `tree` lo sigue
+  // cargando useLibroSection, que ya sabe hacerlo.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!openSection || openSection.archetype === "tree") {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setSectionLoading(true);
+
+    const load = async () => {
+      if (openSection.archetype === "itinerary") {
+        const nodes = openSection.bookId
+          ? await getLibroItinerary(openSection.bookId)
+          : [];
+        if (isMounted) setItineraryNodes(nodes);
+        return;
+      }
+
+      if (openSection.archetype === "form") {
+        // La config se lee EN VIVO de la plantilla, no clonada: si el tutor activa
+        // un campo, aparece sin resembrar el libro.
+        const [config, entries] = await Promise.all([
+          openSection.templateId
+            ? getLibroFormConfig(openSection.templateId, openSection.section, selectedYear)
+            : null,
+          openSection.bookId ? getLibroFormEntries(openSection.bookId) : [],
+        ]);
+        if (isMounted) {
+          setFormConfig(config);
+          setFormEntries(entries);
+        }
+        return;
+      }
+
+      if (openSection.archetype === "automatic") {
+        const rows = await getLibroShifts(userId, selectedYear, userResidencyYear);
+        if (isMounted) setShifts(rows);
+      }
+    };
+
+    load()
+      .catch((error) => {
+        console.error("Error loading libro section:", error);
+        if (isMounted) {
+          setItineraryNodes([]);
+          setFormEntries([]);
+          setShifts([]);
+        }
+      })
+      .finally(() => {
+        if (isMounted) setSectionLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [openSection, selectedYear, userId, userResidencyYear, libroReloadKey]);
+
+  // Abrir un apartado desde el índice.
+  //
+  // `section` se mueve SIEMPRE, no solo en los de árbol: de él dependen
+  // bookForSelection y por tanto isSelectedBookReadOnly, así que dejarlo apuntando
+  // al apartado anterior haría que la ficha de Rotaciones se creyera de solo lectura
+  // (o editable) según el libro de Actividad asistencial.
+  const handleOpenSection = (item) => {
+    setSection(item.section);
+    setOpenSection(item);
+    posthogLogger.capture("resident_book_section_opened", {
+      section: item.section,
+      archetype: item.archetype,
+    });
+  };
+
+  const refreshAfterWrite = () => setLibroReloadKey((prev) => prev + 1);
+
+  // Tirar para refrescar. Es la otra mitad de cómo se sincroniza con la plantilla:
+  // al abrir el Libro y aquí. Bumpear libroReloadKey vuelve a pasar por
+  // syncLibroTemplateForUser, así que un cambio del tutor entra sin salir y volver.
+  const handlePullToRefresh = () => {
+    setRefreshing(true);
+    // Se marca aquí y no solo en resolveLibro: si no, el efecto de abajo ve
+    // sectionsResolved todavía en true en el mismo render y apaga el indicador antes
+    // de que la recarga haya empezado.
+    setSectionsResolved(false);
+    setLibroReloadKey((prev) => prev + 1);
+  };
+
+  // El refresco termina cuando los datos ya están, no cuando se suelta el dedo.
+  useEffect(() => {
+    if (!refreshing) return;
+    if (sectionsResolved && !overviewLoading && !sectionLoading) {
+      setRefreshing(false);
+    }
+  }, [refreshing, sectionsResolved, overviewLoading, sectionLoading]);
+
+  // Los campos del apartado `form` abierto. Salen de la plantilla EN VIVO, así que
+  // se derivan de formConfig y no se guardan en ningún sitio.
+  const formFields = useMemo(
+    () =>
+      openSection?.archetype === "form"
+        ? getLibroFormFields(openSection.section, formConfig)
+        : [],
+    [openSection, formConfig]
+  );
+
+  const handleSaveFicha = async (node, { status, payload }) => {
+    setSavingSection(true);
+    try {
+      await saveLibroNodeProgress({
+        nodeId: node.id,
+        userId,
+        section: openSection.section,
+        status,
+        payload,
+      });
+      posthogLogger.capture("resident_book_itinerary_ficha_saved", {
+        section: openSection.section,
+        status,
+      });
+      refreshAfterWrite();
+      return true;
+    } catch (error) {
+      console.error("Error saving itinerary ficha:", error);
+      Alert.alert("No se pudo guardar", "Inténtalo de nuevo en un momento.");
+      return false;
+    } finally {
+      setSavingSection(false);
+    }
+  };
+
+  const handleSaveFormEntry = async (entry, payload) => {
+    setSavingSection(true);
+    try {
+      await saveLibroFormEntry({
+        entryId: entry?.id || null,
+        bookId: openSection.bookId,
+        section: openSection.section,
+        payload,
+        residencyYear: selectedYear,
+      });
+      posthogLogger.capture("resident_book_form_entry_saved", {
+        section: openSection.section,
+        is_new: !entry,
+      });
+      refreshAfterWrite();
+      return true;
+    } catch (error) {
+      console.error("Error saving form entry:", error);
+      Alert.alert("No se pudo guardar", "Inténtalo de nuevo en un momento.");
+      return false;
+    } finally {
+      setSavingSection(false);
+    }
+  };
+
+  // La observación de una guardia vive en agenda_events.notes: es la MISMA que ve en
+  // su Agenda, no una copia en el libro. Por eso se escribe ahí y no en libro_entry.
+  const handleSaveShiftNotes = async (shift, notes) => {
+    setSavingSection(true);
+    try {
+      await updateAgendaEventNotes(shift.id, notes);
+      posthogLogger.capture("resident_book_shift_notes_saved", {});
+      refreshAfterWrite();
+      return true;
+    } catch (error) {
+      console.error("Error saving shift notes:", error);
+      Alert.alert("No se pudo guardar", "Inténtalo de nuevo en un momento.");
+      return false;
+    } finally {
+      setSavingSection(false);
+    }
+  };
+
+  const handleDeleteFormEntry = async (entry) => {
+    setSavingSection(true);
+    try {
+      await deleteLibroFormEntry(entry.id);
+      refreshAfterWrite();
+      return true;
+    } catch (error) {
+      console.error("Error deleting form entry:", error);
+      Alert.alert("No se pudo eliminar", "Inténtalo de nuevo en un momento.");
+      return false;
+    } finally {
+      setSavingSection(false);
+    }
+  };
+
+  const dismissMigrationCard = () => {
+    if (!migrationStamp) return;
+
+    setDismissedStamp(migrationStamp);
+    AsyncStorage.setItem(
+      `${MIGRATION_DISMISSED_STORAGE_KEY}:${userId}:${selectedYear}`,
+      migrationStamp
+    ).catch(() => {});
+
+    posthogLogger.capture("resident_book_migration_dismissed", {
+      residency_year: selectedYear,
+    });
+  };
 
   // Cambio de año de residencia: en cuanto el perfil dice R2, el libro de R2 se
   // crea solo desde la plantilla y los años anteriores quedan archivados. No hay
   // botón de "archivar y empezar nuevo año": lo dispara el año del perfil.
   //
   // Solo cuando no hay nada que perder: si el residente ya tiene libro de ese año
-  // se le pregunta antes (canSwitchToTemplate), porque sustituirlo borra lo
+  // se le pregunta antes (canMigrateToTemplate), porque sustituirlo borra lo
   // registrado.
   const autoSeededYearRef = useRef(null);
 
@@ -625,7 +1145,7 @@ export default function ResidenceLibraryScreen({
     autoSeededYearRef.current = attempt;
 
     setSwitchingToTemplate(true);
-    switchLibroYearToTemplate({ userId, templateId, residencyYear: selectedYear })
+    switchLibroYearToTemplate({ userId, residencyYear: selectedYear })
       .then(() => {
         posthogLogger.capture("resident_book_year_seeded_from_template", {
           residency_year: selectedYear,
@@ -647,54 +1167,95 @@ export default function ResidenceLibraryScreen({
     templateOutline,
   ]);
 
-  // Cambiar el año en curso al libro que ha definido el tutor. Se lleva por
-  // delante lo registrado, así que se confirma dos veces: una para entrar y otra
-  // para asumir la pérdida.
-  const handleSwitchToTemplate = () => {
-    const recorded = allBooks.filter(
-      (book) => book.residency_year === selectedYear
-    ).length;
+  // Migrar a la plantilla: sustituir el Libro propio del año por el Libro oficial.
+  //
+  // Se abre en un modal propio y no en un Alert.alert porque el residente puede
+  // descargarse su libro en PDF antes, y el PDF acaba en el share sheet del
+  // sistema: un Alert no sobrevive a que se abra encima.
+  const openMigrationModal = () => {
+    setShowMigrationModal(true);
 
-    Alert.alert(
-      `Cambiar al libro de tu tutor`,
-      recorded > 0
-        ? `Tu tutor ha definido el libro oficial de R${selectedYear}. Si cambias, tu libro actual de R${selectedYear} se sustituye por el suyo y PERDERÁS todo lo que has registrado en él. No se puede deshacer.`
-        : `Tu tutor ha definido el libro oficial de R${selectedYear}. Se creará con su estructura para que puedas empezar a registrar.`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: recorded > 0 ? "Cambiar y perder lo registrado" : "Cambiar",
-          style: recorded > 0 ? "destructive" : "default",
-          onPress: async () => {
-            setSwitchingToTemplate(true);
-            try {
-              await switchLibroYearToTemplate({
-                userId,
-                templateId,
-                residencyYear: selectedYear,
-              });
-              posthogLogger.capture("resident_book_switched_to_template", {
-                residency_year: selectedYear,
-                sections_added: missingOwnYearSections.length,
-              });
-              setLibroReloadKey((prev) => prev + 1);
-            } catch (error) {
-              console.error("Error switching libro to template:", error);
-              Alert.alert(
-                "No se pudo cambiar",
-                "Inténtalo de nuevo en un momento."
-              );
-            } finally {
-              setSwitchingToTemplate(false);
-            }
-          },
-        },
-      ]
-    );
+    // El número exacto de registros en riesgo. Si la cuenta falla, el modal avisa
+    // igual pero sin cifra: no es motivo para no dejarle migrar.
+    countLibroEntriesForYear(userId, selectedYear)
+      .then((count) => setEntriesAtRisk(count))
+      .catch((error) => {
+        console.error("Error counting libro entries at risk:", error);
+        setEntriesAtRisk(0);
+      });
+
+    posthogLogger.capture("resident_book_migration_offered", {
+      residency_year: selectedYear,
+      sections_incoming: templateSectionsForYear.length,
+    });
   };
 
+  // El archivo completo del libro: todos los años y todos los apartados. Devuelve
+  // false si no se pudo generar, para que el modal no marque la descarga como hecha.
+  const handleExportArchivePdf = async () => {
+    try {
+      const archive = await getLibroArchive(userId, userResidencyYear);
+
+      if (!archive.totalBooks) {
+        Alert.alert(
+          "Sin contenido",
+          "Todavía no hay nada en tu libro para exportar."
+        );
+        return false;
+      }
+
+      await exportLibroArchiveToPdf({
+        archive,
+        specialtyName,
+        residentName: userProfile?.full_name || userProfile?.name || "",
+        currentResidencyYear: userResidencyYear,
+      });
+
+      posthogLogger.capture("resident_book_pdf_exported", {
+        books_count: archive.totalBooks,
+        entries_count: archive.totalEntries,
+        shifts_count: archive.totalShifts,
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Error exporting libro archive PDF:", error);
+      Alert.alert("Error", "No se pudo generar el PDF.");
+      return false;
+    }
+  };
+
+  const handleConfirmMigration = async () => {
+    setSwitchingToTemplate(true);
+    try {
+      await switchLibroYearToTemplate({
+        userId,
+        residencyYear: selectedYear,
+      });
+      posthogLogger.capture("resident_book_switched_to_template", {
+        residency_year: selectedYear,
+        sections_added: missingOwnYearSections.length,
+        entries_lost: entriesAtRisk,
+      });
+      setShowMigrationModal(false);
+      setLibroReloadKey((prev) => prev + 1);
+    } catch (error) {
+      console.error("Error switching libro to template:", error);
+      Alert.alert("No se pudo cambiar", "Inténtalo de nuevo en un momento.");
+    } finally {
+      setSwitchingToTemplate(false);
+    }
+  };
+
+  // Mira TODOS sus libros, no solo los del apartado abierto: un residente con libro
+  // oficial de Rotaciones y Competencias no tiene ninguno de Actividad asistencial,
+  // y `books`/`nodeTree` son de la sección actual. Sin allBooks, ese residente vería
+  // el onboarding de montarse un libro que ya tiene.
   const hasCompletedOnboarding =
-    !!settings?.onboarding_completed_at || books.length > 0 || nodeTree.length > 0;
+    !!settings?.onboarding_completed_at ||
+    allBooks.length > 0 ||
+    books.length > 0 ||
+    nodeTree.length > 0;
 
   useEffect(() => {
     posthogLogger.logScreen("ResidenceLibraryScreen");
@@ -781,8 +1342,7 @@ export default function ResidenceLibraryScreen({
     };
   }, [specialityId]);
 
-  const closeNodeModal = () => {
-    setShowNodeModal(false);
+  const closeNodeFormScreen = () => {
     setShowNodeFormScreen(false);
     setEditingNode(null);
     setSelectedParentForChild(null);
@@ -797,6 +1357,52 @@ export default function ResidenceLibraryScreen({
     setQuickRegisterNode(null);
     setShowQuickRegister(false);
   };
+
+  // Android: cuando los formularios eran modales, el botón físico de atrás los
+  // cerraba solo (onRequestClose). Ahora son pantallas, así que hay que cerrarlas a
+  // mano o el atrás se lleva al residente fuera del libro con el registro a medias.
+  // El orden es el mismo que el de los `return` del render: primero el formulario
+  // abierto, y si no hay ninguno, la vuelta del apartado al índice.
+  useEffect(() => {
+    if (Platform.OS !== "android") return undefined;
+
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (showNodeFormScreen) {
+        closeNodeFormScreen();
+        return true;
+      }
+      if (showQuickRegister) {
+        closeQuickRegister();
+        return true;
+      }
+      if (openFormEntry) {
+        setOpenFormEntry(null);
+        return true;
+      }
+      if (openFichaNode) {
+        setOpenFichaNode(null);
+        return true;
+      }
+      if (openShift) {
+        setOpenShift(null);
+        return true;
+      }
+      if (openSection) {
+        setOpenSection(null);
+        return true;
+      }
+      return false;
+    });
+
+    return () => subscription.remove();
+  }, [
+    showNodeFormScreen,
+    showQuickRegister,
+    openFormEntry,
+    openFichaNode,
+    openShift,
+    openSection,
+  ]);
 
   const handleAddSuggestedCategory = (category) => {
     const existingCategory = draftCategories.find(
@@ -926,7 +1532,7 @@ export default function ResidenceLibraryScreen({
       return;
     }
 
-    closeNodeModal();
+    closeNodeFormScreen();
   };
 
   const handleEditNode = async (formData) => {
@@ -948,7 +1554,7 @@ export default function ResidenceLibraryScreen({
       return;
     }
 
-    closeNodeModal();
+    closeNodeFormScreen();
   };
 
   const handleDeleteNode = async (nodeId) => {
@@ -964,7 +1570,7 @@ export default function ResidenceLibraryScreen({
     const success = await addEntry(node.id, {
       count: 1,
       residency_year: currentBookResidencyYear,
-      performed_at: TODAY,
+      performed_at: today(),
       notes: "",
     });
 
@@ -980,12 +1586,26 @@ export default function ResidenceLibraryScreen({
   };
 
   const handleDecrement = async (node) => {
+    // Atajo barato para no consultar cuando el contador ya está a cero. La guarda
+    // de verdad es findEntryToUndo, porque total_count es un denormalizado.
     if ((node.total_count || 0) <= 0) return;
+
+    // El negativo hereda la fecha del registro que anula, no la del día en que se
+    // pulsa: si no, cualquier suma por ventana de fechas sale mal (docs/adr/0010).
+    let target = null;
+    try {
+      target = await findEntryToUndo(node.id);
+    } catch {
+      Alert.alert("Error", "No se pudo ajustar el contador.");
+      return;
+    }
+
+    if (!target) return;
 
     const success = await addEntry(node.id, {
       count: -1,
       residency_year: currentBookResidencyYear,
-      performed_at: TODAY,
+      performed_at: target.performedAt,
       notes: "",
     });
 
@@ -1057,10 +1677,10 @@ export default function ResidenceLibraryScreen({
           "Libro archivado",
           "Este libro es de solo lectura. Vuelve al libro de tu año para hacer cambios."
         );
-      } else if (canSwitchToTemplate) {
+      } else if (canMigrateToTemplate) {
         // Es su año: lo que le falta no es permiso, es cambiarse al libro que ha
         // definido su tutor. Se le ofrece ahí mismo.
-        handleSwitchToTemplate();
+        openMigrationModal();
       } else {
         Alert.alert(
           `Estás viendo R${selectedYear}`,
@@ -1092,7 +1712,7 @@ export default function ResidenceLibraryScreen({
           onPress: () =>
             handleProtectedAction(() => {
               setEditingNode(node);
-              setShowNodeModal(true);
+              setShowNodeFormScreen(true);
             }, { requiresEditable: true }),
         },
         {
@@ -1118,32 +1738,13 @@ export default function ResidenceLibraryScreen({
     }));
   };
 
+  // Un solo generador de PDF, y exporta el libro COMPLETO: todos los años y todos
+  // los apartados. Antes exportaba solo el apartado abierto, que como recibo de lo
+  // que se pierde al migrar valía poco: migrar borra el año entero.
   const handleExportPdf = async () => {
-    if (!nodeTree.length) {
-      Alert.alert("Sin contenido", "Todavía no hay contenido suficiente para exportar.");
-      return;
-    }
-
     setExportingPdf(true);
-
     try {
-      await exportLibroToPdf({
-        specialtyName,
-        userResidencyYear: selectedBook?.residency_year || userResidencyYear,
-        nodeTree,
-        entries,
-        events,
-      });
-
-      posthogLogger.capture("resident_book_pdf_exported", {
-        section,
-        categories_count: nodeTree.length,
-        entries_count: entries.length,
-        events_count: events.length,
-      });
-    } catch (error) {
-      console.error("Error exporting libro PDF:", error);
-      Alert.alert("Error", "No se pudo generar el PDF.");
+      await handleExportArchivePdf();
     } finally {
       setExportingPdf(false);
     }
@@ -1154,6 +1755,93 @@ export default function ResidenceLibraryScreen({
       onboardingScrollRef.current?.scrollTo({ y: 720, animated: true });
     });
   };
+
+  // ---------------------------------------------------------------------------
+  // Las pantallas de registro.
+  //
+  // Van ANTES de los indicadores de carga a propósito: guardar recarga el libro
+  // (libroReloadKey pasa por resolveLibro, que baja sectionsResolved), y en el orden
+  // contrario el formulario se cambiaría por un spinner con el registro a medias.
+  // ---------------------------------------------------------------------------
+
+  if (showNodeFormScreen) {
+    return (
+      <LibroNodeFormScreen
+        onClose={closeNodeFormScreen}
+        onSubmit={editingNode ? handleEditNode : handleAddNode}
+        existingNode={editingNode}
+        selectedParent={selectedParentForChild}
+        loading={loading}
+      />
+    );
+  }
+
+  if (showQuickRegister) {
+    return (
+      <LibroQuickRegisterScreen
+        onClose={closeQuickRegister}
+        onSubmit={handleQuickRegisterSubmit}
+        categories={nodeTree}
+        initialNode={quickRegisterNode}
+        loading={loading}
+      />
+    );
+  }
+
+  if (openFormEntry) {
+    return (
+      <LibroFormEntryScreen
+        // Lo que se está escribiendo vive en la pantalla, así que la key la remonta
+        // al pasar de una fila a otra o de editar a crear.
+        key={openFormEntry.entry?.id || "new"}
+        section={openSection?.section}
+        fields={formFields}
+        entry={openFormEntry.entry}
+        userId={userId}
+        saving={savingSection}
+        onClose={() => setOpenFormEntry(null)}
+        onSave={async (payload) => {
+          const ok = await handleSaveFormEntry(openFormEntry.entry, payload);
+          if (ok !== false) setOpenFormEntry(null);
+        }}
+        onDelete={async (entry) => {
+          const ok = await handleDeleteFormEntry(entry);
+          if (ok !== false) setOpenFormEntry(null);
+        }}
+      />
+    );
+  }
+
+  if (openFichaNode) {
+    return (
+      <LibroFichaScreen
+        key={openFichaNode.id}
+        node={openFichaNode}
+        section={openSection?.section}
+        saving={savingSection}
+        onClose={() => setOpenFichaNode(null)}
+        onSave={async (ficha) => {
+          const ok = await handleSaveFicha(openFichaNode, ficha);
+          if (ok !== false) setOpenFichaNode(null);
+        }}
+      />
+    );
+  }
+
+  if (openShift) {
+    return (
+      <LibroShiftNotesScreen
+        key={openShift.id}
+        shift={openShift}
+        saving={savingSection}
+        onClose={() => setOpenShift(null)}
+        onSave={async (notes) => {
+          const ok = await handleSaveShiftNotes(openShift, notes);
+          if (ok !== false) setOpenShift(null);
+        }}
+      />
+    );
+  }
 
   // Sin saber qué bloques tiene el residente no se puede decidir si ve su libro o
   // el onboarding, y acertar después sería un parpadeo.
@@ -1180,20 +1868,6 @@ export default function ResidenceLibraryScreen({
           <Text style={styles.loadingText}>Preparando tu libro de residente...</Text>
         </View>
       </View>
-    );
-  }
-
-  if (showNodeFormScreen) {
-    return (
-      <LibroNodeModal
-        visible
-        onClose={closeNodeModal}
-        onSubmit={editingNode ? handleEditNode : handleAddNode}
-        existingNode={editingNode}
-        selectedParent={selectedParentForChild}
-        loading={loading}
-        asScreen
-      />
     );
   }
 
@@ -1629,8 +2303,12 @@ export default function ResidenceLibraryScreen({
 
   const renderDashboard = () => (
     <HeroScreenLayout
-      title="Libro"
-      onBack={onBack}
+      // Dentro de un apartado, el título de la cabecera ES el apartado y la flecha
+      // genérica de arriba a la izquierda vuelve al índice. Antes había además una
+      // tarjeta debajo repitiendo el nombre del apartado y su descripción, con su
+      // propia flecha: dos sitios distintos para volver y el nombre dos veces.
+      title={openSection ? openSection.label : "Libro"}
+      onBack={openSection ? () => setOpenSection(null) : onBack}
       rightSlot={
         <View style={styles.headerActions}>
           <TouchableOpacity
@@ -1644,14 +2322,26 @@ export default function ResidenceLibraryScreen({
               color="#670CF5"
             />
           </TouchableOpacity>
-          {/* Añadir rotación solo tiene sentido en un libro cuya estructura es
-              del residente: si la define el tutor, el botón no aparece. */}
-          {!isStructureLocked ? (
+          {/* Descartó la tarjeta pero su hospital sigue teniendo plantilla: la
+              oferta no desaparece, se queda aquí. */}
+          {canMigrateToTemplate && isMigrationDismissed ? (
+            <TouchableOpacity
+              style={styles.headerIcon}
+              onPress={openMigrationModal}
+            >
+              <Icon name="sparkles-outline" size={18} color="#670CF5" />
+            </TouchableOpacity>
+          ) : null}
+          {/* Añadir solo tiene sentido DENTRO de un apartado de árbol cuya
+              estructura es del residente: en el índice no hay nada que añadir, y si
+              la estructura la define el tutor, el botón no aparece. */}
+          {openSection?.archetype === "tree" && !isStructureLocked ? (
             <TouchableOpacity
               style={styles.headerIcon}
               onPress={() =>
                 handleProtectedAction(() => {
                   setSelectedParentForChild(null);
+                  setEditingNode(null);
                   setShowNodeFormScreen(true);
                 }, { requiresEditable: true })
               }
@@ -1662,7 +2352,17 @@ export default function ResidenceLibraryScreen({
         </View>
       }
     >
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handlePullToRefresh}
+              tintColor="#670CF5"
+            />
+          }
+        >
           <View style={styles.contentInner}>
             {/* Los años del libro, justo debajo de la cabecera. Se abre el del año
                 en curso del residente; los demás se consultan en solo lectura. */}
@@ -1689,7 +2389,8 @@ export default function ResidenceLibraryScreen({
                       >
                         {`R${year}`}
                       </Text>
-                      {year !== userResidencyYear ? (
+                      {year !== userResidencyYear &&
+                      !ownActiveBookYears.has(year) ? (
                         <Icon name="lock-closed-outline" size={12} color="#94A3B8" />
                       ) : null}
                     </TouchableOpacity>
@@ -1698,60 +2399,59 @@ export default function ResidenceLibraryScreen({
               </ScrollView>
             ) : null}
 
-            {/* Los bloques que el tutor puso en el libro. Con uno solo no hay nada
-                que elegir, así que el rail no aparece. */}
-            {availableSections.length > 1 ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.sectionRail}
-              >
-                {availableSections.map((code) => (
-                  <SectionBadge
-                    key={code}
-                    icon={getLibroSectionIcon(code)}
-                    label={getLibroSectionLabel(code)}
-                    active={code === section}
-                    onPress={() => setSection(code)}
-                  />
-                ))}
-              </ScrollView>
-            ) : null}
+            {/* Tiene Libro propio de su año y su hospital ya ha publicado el
+                oficial: se le ofrece migrar, avisando de lo que pierde.
 
-            {/* Su tutor ha definido el libro oficial de su año y el suyo no lo
-                refleja: se le ofrece cambiar, avisando de lo que pierde. */}
-            {canSwitchToTemplate ? (
+                El copy enumera lo que TRAE la plantilla, no lo que le falta: con el
+                disparador actual puede no faltarle ningún apartado y aun así
+                interesarle migrar, porque su estructura es suya y su tutor no la
+                ve. */}
+            {showMigrationCard ? (
               <View style={styles.switchTemplateCard}>
                 <View style={styles.switchTemplateCopy}>
                   <Icon name="sparkles-outline" size={18} color="#1B0977" />
                   <View style={styles.switchTemplateTextBlock}>
                     <Text style={styles.switchTemplateTitle}>
-                      {`Tu tutor ha definido el libro de R${selectedYear}`}
+                      {`Tu tutor ha publicado el libro de R${selectedYear}`}
                     </Text>
                     <Text style={styles.switchTemplateText}>
-                      {`Incluye ${missingOwnYearSections
+                      {`Incluye ${templateSectionsForYear
                         .map((code) => getLibroSectionLabel(code))
                         .join(", ")}. Cámbiate para registrar sobre su estructura.`}
                     </Text>
                   </View>
+                  {/* Sin sello no hay nada que recordar, así que no se ofrece una
+                      X que no haría nada. */}
+                  {migrationStamp ? (
+                    <TouchableOpacity
+                      style={styles.switchTemplateDismiss}
+                      onPress={dismissMigrationCard}
+                      hitSlop={10}
+                    >
+                      <Icon name="close" size={16} color="#64748B" />
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
                 <TouchableOpacity
                   style={[
                     styles.switchTemplateButton,
                     switchingToTemplate && styles.switchTemplateButtonDisabled,
                   ]}
-                  onPress={handleSwitchToTemplate}
+                  onPress={openMigrationModal}
                   disabled={switchingToTemplate}
                   activeOpacity={0.85}
                 >
                   <Text style={styles.switchTemplateButtonText}>
-                    {switchingToTemplate ? "Cambiando..." : "Cambiar al libro de mi tutor"}
+                    {switchingToTemplate ? "Cambiando..." : "Ver el libro de mi tutor"}
                   </Text>
                 </TouchableOpacity>
               </View>
             ) : null}
 
-            {isSelectedBookReadOnly && !canSwitchToTemplate ? (
+            {/* En el índice el aviso mira solo el AÑO: isSelectedBookReadOnly
+                depende del apartado, y en el índice no hay ninguno abierto. */}
+            {(openSection ? isSelectedBookReadOnly : !isSelectedYearWritable) &&
+            !canMigrateToTemplate ? (
               <View style={styles.readOnlyNotice}>
                 <Icon name="lock-closed-outline" size={16} color="#92400E" />
                 <Text style={styles.readOnlyNoticeText}>
@@ -1762,7 +2462,50 @@ export default function ResidenceLibraryScreen({
               </View>
             ) : null}
 
-            {!displayTree.length ? (
+            {/* Sin apartado abierto se ve el ÍNDICE: el Libro ya no es una lista
+                fija de secciones, sino las que su hospital ha configurado para su
+                especialidad y su año. */}
+            {!openSection ? (
+              overviewLoading ? (
+                <View style={styles.sectionLoading}>
+                  <ActivityIndicator size="small" color="#670CF5" />
+                </View>
+              ) : (
+                <LibroIndexView
+                  residencyYear={selectedYear}
+                  progress={yearOverview.progress}
+                  sections={yearOverview.sections}
+                  onOpenSection={handleOpenSection}
+                  isArchived={isSelectedBookArchived}
+                />
+              )
+            ) : openSection.archetype === "itinerary" ? (
+              <LibroItineraryView
+                section={openSection.section}
+                nodes={itineraryNodes}
+                loading={sectionLoading}
+                readOnly={isSelectedBookReadOnly || openSection.isPlanOnly}
+                onOpenNode={setOpenFichaNode}
+              />
+            ) : openSection.archetype === "form" ? (
+              <LibroFormView
+                section={openSection.section}
+                config={formConfig}
+                entries={formEntries}
+                loading={sectionLoading}
+                readOnly={isSelectedBookReadOnly || openSection.isPlanOnly}
+                onCreateEntry={() => setOpenFormEntry({ entry: null })}
+                onOpenEntry={(entry) => setOpenFormEntry({ entry })}
+              />
+            ) : openSection.archetype === "automatic" ? (
+              <LibroShiftsView
+                shifts={shifts}
+                loading={sectionLoading}
+                residencyYear={selectedYear}
+                readOnly={!isOwnYear}
+                onOpenShift={setOpenShift}
+              />
+            ) : !displayTree.length ? (
               <View style={styles.emptyBookCard}>
                 <Icon name="book-outline" size={22} color="#670CF5" />
                 <Text style={styles.emptyBookTitle}>
@@ -1812,7 +2555,7 @@ export default function ResidenceLibraryScreen({
                   onEditParent={(node) =>
                     handleProtectedAction(() => {
                       setEditingNode(node);
-                      setShowNodeModal(true);
+                      setShowNodeFormScreen(true);
                     }, { requiresEditable: true })
                   }
                   onDeleteParent={(node) =>
@@ -1827,6 +2570,11 @@ export default function ResidenceLibraryScreen({
                   }
                   onDecrement={(node) =>
                     handleProtectedAction(() => handleDecrement(node), {
+                      requiresEditable: true,
+                    })
+                  }
+                  onRegister={(node) =>
+                    handleProtectedAction(() => openQuickRegister(node), {
                       requiresEditable: true,
                     })
                   }
@@ -1876,22 +2624,17 @@ export default function ResidenceLibraryScreen({
         </View>
       ) : null}
 
-      <LibroNodeModal
-        visible={showNodeModal}
-        onClose={closeNodeModal}
-        onSubmit={editingNode ? handleEditNode : handleAddNode}
-        existingNode={editingNode}
-        selectedParent={selectedParentForChild}
-        loading={loading}
-      />
-
-      <LibroQuickRegisterModal
-        visible={showQuickRegister}
-        onClose={closeQuickRegister}
-        onSubmit={handleQuickRegisterSubmit}
-        categories={nodeTree}
-        initialNode={quickRegisterNode}
-        loading={loading}
+      <LibroMigrationModal
+        visible={showMigrationModal}
+        onClose={() => setShowMigrationModal(false)}
+        onExportPdf={handleExportArchivePdf}
+        onConfirm={handleConfirmMigration}
+        residencyYear={selectedYear}
+        incomingSections={templateSectionsForYear.map((code) =>
+          getLibroSectionLabel(code)
+        )}
+        recordedEntries={entriesAtRisk}
+        migrating={switchingToTemplate}
       />
 
       <ConfirmationModal
@@ -1975,6 +2718,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E8EAF3",
   },
+  sectionLoading: {
+    paddingVertical: 32,
+    alignItems: "center",
+  },
   switchTemplateCard: {
     marginBottom: 16,
     padding: 14,
@@ -1988,6 +2735,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
+  },
+  switchTemplateDismiss: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   switchTemplateTextBlock: {
     flex: 1,
@@ -2725,6 +3479,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  registerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+    backgroundColor: "#F5F3FF",
+  },
+  registerButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#670CF5",
   },
   counterButton: {
     width: 34,

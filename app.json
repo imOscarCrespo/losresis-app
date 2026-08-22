@@ -2,7 +2,7 @@
   "expo": {
     "name": "LosResis",
     "slug": "losresis-react-app",
-    "version": "1.0.75",
+    "version": "1.0.80",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.losresis.app",
-      "buildNumber": "93",
+      "buildNumber": "98",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -36,7 +36,7 @@
       "googleServicesFile": "./google-services.json",
       "edgeToEdgeEnabled": true,
       "package": "com.losresis.app",
-      "versionCode": 93,
+      "versionCode": 98,
       "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
       "intentFilters": [
         {
@@ -82,8 +82,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Permite a LosResis acceder a tus fotos para subir tu imagen de perfil, las fotos de tus viviendas y las preguntas de estudio que quieras entender.",
-          "cameraPermission": "Permite a LosResis usar la cámara para tomar fotos de tu perfil, tus viviendas y las preguntas de estudio que quieras entender."
+          "photosPermission": "Permite a LosResis acceder a tus fotos para subir tu imagen de perfil, los documentos de tu libro de residente, las fotos de tus viviendas y las preguntas de estudio que quieras entender.",
+          "cameraPermission": "Permite a LosResis usar la cámara para fotografiar los documentos de tu libro de residente, tu perfil, tus viviendas y las preguntas de estudio que quieras entender."
         }
       ]
     ]
