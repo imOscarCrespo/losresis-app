@@ -27,8 +27,8 @@ import { getResidencyYearWindow } from "../utils/residencyYear";
  * guardias del año.
  *
  * Lo de Docencia (tutorías y autoevaluaciones) NO se pide aquí: la home ya lo
- * carga con `getResidentTeachingModules` para los badges de los accesos rápidos,
- * y pedirlo dos veces sería una consulta de más por cada apertura de la app.
+ * carga con `getResidentTeachingModules` para la sección Docencia del final, y
+ * pedirlo dos veces sería una consulta de más por cada apertura de la app.
  */
 
 // Las dos frases del año: el curso de residencia (junio-mayo) manda en formación
@@ -43,19 +43,27 @@ const countResidencyYearShifts = (agendaEvents, residencyYear, now) => {
     (event) => event.event_type === "shift" && event.event_date
   );
 
+  // El número es "las guardias que llevas hechas", no "las que tienes puestas en
+  // la agenda": las de la semana que viene ya están en agenda_events y contarlas
+  // le inflaría el año con trabajo que aún no ha hecho. El corte es el final de
+  // hoy, para que la guardia de esta noche cuente desde que empieza el día.
+  const endOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + 1
+  );
+
   const window = getResidencyYearWindow(residencyYear, residencyYear, now);
-  // Sin resident_year no hay ventana que anclar. Igual que en el Libro
-  // (utils/residencyYear), se cuentan todas: mejor un número de más que
-  // esconderle sus guardias.
-  if (!window) return shifts.length;
 
   return shifts.filter((event) => {
     const date = new Date(`${event.event_date}T00:00:00`);
-    return (
-      !Number.isNaN(date.getTime()) &&
-      date >= window.start &&
-      date < window.end
-    );
+    if (Number.isNaN(date.getTime())) return false;
+    if (date >= endOfToday) return false;
+    // Sin resident_year no hay ventana que anclar. Igual que en el Libro
+    // (utils/residencyYear), se cuentan todas las pasadas: mejor un número de
+    // más que esconderle sus guardias.
+    if (!window) return true;
+    return date >= window.start && date < window.end;
   }).length;
 };
 

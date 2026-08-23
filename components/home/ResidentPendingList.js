@@ -11,7 +11,7 @@ import { Icon } from "../Icon";
  * se descubren entrando una por una. Es deliberadamente **una lista de deberes,
  * no un resumen**: si algo no tiene acción pendiente, no aparece. Las
  * Evaluaciones del tutor, por ejemplo, se leen pero no se completan, así que
- * nunca entran aquí (mismo criterio que `teachingModuleBadge`).
+ * nunca entran aquí (mismo criterio que la sección Docencia del Inicio).
  *
  * Con la lista vacía se pinta el estado "todo al día": es la recompensa de
  * haberlo cerrado todo, y sin él la sección desaparecería sin explicar por qué.

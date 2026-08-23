@@ -13,6 +13,10 @@ import { Icon } from "../components/Icon";
 import * as ImagePicker from "expo-image-picker";
 import { COLORS } from "../constants/colors";
 import { getOnboardingSteps } from "../constants/onboardingSteps";
+import {
+  LANDLORD_PORTAL_LABEL,
+  LANDLORD_PORTAL_URL,
+} from "../constants/housing";
 import { RESIDENT_YEAR_OPTIONS } from "../constants/profileConstants";
 import { OnboardingStepLayout } from "../components/onboarding/OnboardingStepLayout";
 import { OnboardingUserTypeCards } from "../components/onboarding/OnboardingUserTypeCards";
@@ -60,7 +64,6 @@ const INITIAL_ANSWERS = {
 const buildProfilePayload = (answers) => {
   const isStudent = answers.userType === "student";
   const isResident = answers.userType === "resident";
-  const isHost = answers.userType === "host";
 
   const payload = {
     name: answers.name,
@@ -70,7 +73,9 @@ const buildProfilePayload = (answers) => {
     is_student: isStudent,
     is_resident: isResident,
     is_doctor: false,
-    is_host: isHost,
+    // El alta de anunciantes se hace en el portal de propietarios, nunca desde
+    // el onboarding de la app.
+    is_host: false,
     mir_academy:
       isStudent && answers.mir_academy !== MIR_ACADEMY_NONE
         ? answers.mir_academy
@@ -339,6 +344,20 @@ export default function OnboardingScreen({ userId, onComplete }) {
 
   const handleUserTypePick = useCallback(
     (type) => {
+      // Los anunciantes de vivienda ya no se registran en la app: se les manda
+      // al portal de propietarios y el onboarding se queda donde está.
+      if (type === "host") {
+        posthogLogger.capture("housing_landlord_portal_opened", {
+          from: "onboarding_user_type",
+        });
+        Linking.openURL(LANDLORD_PORTAL_URL).catch(() => {
+          Alert.alert(
+            "No se pudo abrir el portal",
+            `Entra en ${LANDLORD_PORTAL_LABEL} desde tu navegador para publicar tu vivienda.`
+          );
+        });
+        return;
+      }
       setAnswers((prev) => ({ ...prev, userType: type }));
       // Auto-advance al siguiente paso una vez elegido el tipo.
       setStepIndex((idx) => idx + 1);

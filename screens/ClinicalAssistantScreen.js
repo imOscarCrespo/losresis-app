@@ -250,7 +250,7 @@ const AssistantMarkdown = ({ content, reasoning, loading }) => {
   );
 };
 
-const MessageBubble = ({ message }) => {
+const MessageBubble = React.memo(({ message }) => {
   const isUser = message.role === "user";
 
   return (
@@ -266,16 +266,31 @@ const MessageBubble = ({ message }) => {
             {message.content}
           </Text>
         ) : (
-          <AssistantMarkdown
-            content={message.content || ""}
-            reasoning={message.reasoning || ""}
-            loading={message.isStreaming}
-          />
+          <>
+            <AssistantMarkdown
+              content={message.content || ""}
+              reasoning={message.reasoning || ""}
+              loading={message.isStreaming}
+            />
+            {/* La respuesta se quedó a medias. Va marcada dentro de la propia
+                burbuja, no solo en el Alert que ya se cerró: quien vuelve al
+                chat cinco minutos después tiene que seguir viendo que ese
+                checklist está incompleto. */}
+            {message.truncated ? (
+              <View style={styles.truncatedNotice}>
+                <Icon name="alert-circle-outline" size={14} color={ERROR} />
+                <Text style={styles.truncatedNoticeText}>
+                  Respuesta incompleta: se cortó antes de terminar. Vuelve a
+                  preguntar.
+                </Text>
+              </View>
+            ) : null}
+          </>
         )}
       </View>
     </View>
   );
-};
+});
 
 export default function ClinicalAssistantScreen({ userProfile, onBack }) {
   const insets = useSafeAreaInsets();
@@ -366,6 +381,15 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
 
   useEffect(() => {
     if (loadingHistory) {
+      return;
+    }
+
+    // El efecto máquina de escribir hace un setMessages cada ~20 ms, así que
+    // persistir en cada cambio serializaba la conversación entera decenas de
+    // veces por segundo. Mientras llega la respuesta no se guarda: al terminar
+    // (o al fallar) el mensaje deja de ser `isStreaming` y este efecto vuelve a
+    // correr una sola vez con el texto definitivo.
+    if (messages.some((message) => message.isStreaming)) {
       return;
     }
 
@@ -600,6 +624,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
                 content: response.content,
                 reasoning: response.reasoning || message.reasoning || "",
                 isStreaming: false,
+                truncated: false,
               }
             : message
         )
@@ -607,15 +632,29 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
       posthogLogger.capture("clinical_assistant_response_received");
     } else {
       setMessages((currentMessages) =>
-        currentMessages.filter(
-          (message) => message.id !== assistantId || message.content
-        ).map((message) =>
-          message.id === assistantId ? { ...message, isStreaming: false } : message
-        )
+        currentMessages
+          .map((message) => {
+            if (message.id !== assistantId) {
+              return message;
+            }
+
+            // Si el stream se cortó, lo que ya había llegado se queda en
+            // pantalla con `truncated`: el residente puede leer lo que hay,
+            // pero sabiendo que falta el final.
+            const content = response.content || message.content || "";
+            return {
+              ...message,
+              content,
+              reasoning: response.reasoning || message.reasoning || "",
+              isStreaming: false,
+              truncated: Boolean(response.truncated && content),
+            };
+          })
+          .filter((message) => message.id !== assistantId || message.content)
       );
       setError(response.error);
       Alert.alert(
-        "No se pudo responder",
+        response.truncated ? "Respuesta incompleta" : "No se pudo responder",
         response.error || "Inténtalo de nuevo en unos segundos."
       );
       posthogLogger.capture("clinical_assistant_response_failed", {
@@ -669,13 +708,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
     );
   };
 
-  const handleSelectMode = useCallback((nextMode) => {
-    const normalizedMode = nextMode === "consulta" ? "consulta" : DEFAULT_ASSISTANT_MODE;
-
-    if (normalizedMode === assistantMode) {
-      return;
-    }
-
+  const applyMode = useCallback((normalizedMode) => {
     setAssistantMode(normalizedMode);
     setMessages([]);
     setError("");
@@ -686,7 +719,43 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
     posthogLogger.capture("clinical_assistant_mode_changed", {
       mode: normalizedMode,
     });
-  }, [assistantMode, storageKey]);
+  }, [storageKey]);
+
+  const handleSelectMode = useCallback((nextMode) => {
+    const normalizedMode = nextMode === "consulta" ? "consulta" : DEFAULT_ASSISTANT_MODE;
+
+    // Cambiar de modo cambia el system prompt, así que la conversación anterior
+    // no se puede arrastrar. Como el precio es perderla, se pide confirmación
+    // igual que en la papelera: antes un toque en el selector la borraba sin
+    // avisar. Mientras se está respondiendo ni siquiera se ofrece (ver el
+    // `disabled` del botón de modo).
+    if (sending || normalizedMode === assistantMode) {
+      return;
+    }
+
+    if (!messages.length) {
+      applyMode(normalizedMode);
+      return;
+    }
+
+    Alert.alert(
+      `Cambiar a modo ${getModeLabel(normalizedMode)}`,
+      "Se borrará la conversación actual de este dispositivo.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Cambiar y borrar",
+          style: "destructive",
+          onPress: () => applyMode(normalizedMode),
+        },
+      ]
+    );
+  }, [applyMode, assistantMode, messages.length, sending]);
+
+  const renderMessage = useCallback(
+    ({ item }) => <MessageBubble message={item} />,
+    []
+  );
 
   const composerBottomInset = keyboardHeight > 0 ? 0 : Math.max(insets.bottom - 8, 8);
   const TAP_SLOP = 8;
@@ -765,8 +834,9 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
 
           <View style={styles.headerActions}>
             <TouchableOpacity
-              style={styles.modeButton}
+              style={[styles.modeButton, sending && styles.disabled]}
               onPress={() => setShowModeSelector(true)}
+              disabled={sending}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Seleccionar modo del asistente"
@@ -824,7 +894,7 @@ export default function ClinicalAssistantScreen({ userProfile, onBack }) {
               ref={listRef}
               data={messages}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => <MessageBubble message={item} />}
+              renderItem={renderMessage}
               style={styles.messagesList}
               contentContainerStyle={[
                 styles.messagesContent,
@@ -1280,6 +1350,24 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: "700",
     color: TEXT_MEDIUM,
+  },
+  truncatedNotice: {
+    marginTop: 4,
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  truncatedNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#991B1B",
+    fontWeight: "600",
   },
   errorBar: {
     marginHorizontal: 14,

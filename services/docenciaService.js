@@ -1,15 +1,15 @@
 import { supabase } from "../config/supabase";
 
 /**
- * Los módulos de Docencia como los ve el residente: Tutorías, Evaluaciones y
- * Autoevaluación anual.
+ * Los módulos de Docencia como los ve el residente: Comunicados, Tutorías,
+ * Evaluaciones y Autoevaluación anual.
  *
  * NO son apartados del Libro del Residente. Salieron de la plantilla (ADR 0025 del
  * panel) porque no son estructura que el tutor configura una vez, sino trabajo que
- * hace de forma continua. En la app viven en su propia pantalla, con acceso desde
- * los iconos de Inicio.
+ * hace de forma continua. En la app viven en sus propias pantallas, con acceso
+ * desde la sección Docencia del Inicio.
  *
- * Tutorías y Evaluaciones se leen por VISTA, no por tabla:
+ * Los cuatro se leen por VISTA, no por tabla:
  * hospital_tutoring_for_resident y hospital_evaluation_for_resident filtran por
  * auth.uid() y anulan el contenido mientras el tutor no lo haya compartido
  * (shared_at). RLS es por filas y no puede esconder columnas, así que la vista es la
@@ -20,6 +20,59 @@ import { supabase } from "../config/supabase";
  * "pendiente de completar" es una programada con la fecha pasada; un estado derivado
  * no puede desincronizarse.
  */
+
+// ---------------------------------------------------------------------------
+// Comunicados
+// ---------------------------------------------------------------------------
+
+/**
+ * Los comunicados de la Unidad Docente que le han llegado a este residente.
+ *
+ * `hospital_announcement_for_resident` ya junta el comunicado con su fila de
+ * destinatario y filtra por auth.uid(), así que aquí no hay join ni filtro: pedirlo
+ * por las dos tablas obligaría a la app a conocer las dos policies.
+ *
+ * El comunicado no tiene detalle que abrir: título y cuerpo son todo lo que hay, y
+ * la lista los enseña enteros.
+ */
+export const getResidentAnnouncements = async (userId) => {
+  if (!userId) return [];
+
+  const { data, error } = await supabase
+    .from("hospital_announcement_for_resident")
+    .select("*")
+    .order("sent_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching resident announcements:", error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+/**
+ * Sella la primera lectura. Va por RPC porque la fila del destinatario es de solo
+ * lectura para el residente (`hospital_announcement_recipient_owner` es FOR SELECT).
+ *
+ * No lanza: marcar como leído es un efecto secundario de abrir la pantalla, y que
+ * falle no debe impedir leer el comunicado que ya está en la mano.
+ */
+export const markAnnouncementRead = async (announcementId) => {
+  if (!announcementId) return false;
+
+  const { data, error } = await supabase.rpc(
+    "mark_hospital_announcement_read",
+    { p_announcement_id: announcementId }
+  );
+
+  if (error) {
+    console.error("Error marking announcement as read:", error);
+    return false;
+  }
+
+  return !!data;
+};
 
 // ---------------------------------------------------------------------------
 // Tutorías
@@ -236,121 +289,93 @@ export const submitSelfAssessment = async (id, answers) => {
 // ---------------------------------------------------------------------------
 
 /**
+ * El estado inicial, y también el de repuesto cuando algo falla.
+ *
+ * `loaded` distingue las dos cosas que antes se confundían en un objeto a ceros:
+ * "todavía no sé nada" y "ya lo sé, y no hay nada". La sección Docencia lo necesita
+ * porque su estado apagado es visible —tarjeta gris, sin abrir nada— y pintarlo
+ * mientras carga, o porque se cayó la red, le diría al residente que su hospital no
+ * tiene Tutorías cuando lo que pasa es que no hemos podido preguntarlo.
+ */
+export const emptyTeachingModules = (loaded = false) => ({
+  loaded,
+  announcements: { available: false, count: 0, unread: 0, lastSentAt: null },
+  tutoring: { available: false, count: 0, pending: 0, nextAt: null },
+  evaluations: { available: false, count: 0 },
+  selfAssessments: { available: false, count: 0, pending: 0, dueAt: null },
+});
+
+/**
  * Qué módulos de Docencia enseñarle en Inicio, y con qué estado.
  *
- * "Configurado" se deriva del dato: el acceso aparece cuando el residente TIENE al
- * menos una fila. No hay interruptor en el panel que consultar, y derivarlo así
- * evita además llevarle a una pantalla vacía.
+ * Devuelve DOS cosas por módulo que no se pueden mezclar:
  *
- * El estado que se devuelve es solo lo ACCIONABLE, porque el sitio donde se pinta es
- * un badge de 17 píxeles: las tutorías que le toca completar, la fecha de la próxima
- * y las autoevaluaciones pendientes. Las evaluaciones no llevan estado a propósito:
- * el residente solo las lee, así que un número permanente encima del icono sería
- * ruido y no una llamada a la acción.
+ *   `available`  Si su hospital usa ese módulo. Es un hecho del HOSPITAL, y por eso
+ *                sale de una RPC y no de una consulta: la RLS del residente le deja
+ *                ver sus filas y ninguna más, así que desde aquí "no tengo tutorías"
+ *                y "en mi hospital nadie tiene tutorías" son la misma respuesta
+ *                vacía. Antes se derivaba de `count > 0`, que apagaba el acceso al
+ *                residente al que su tutor todavía no le ha puesto la primera.
  *
- * No lanza: un fallo aquí no debe tumbar la pantalla de Inicio, solo esconder los
- * accesos.
+ *   el estado    Lo suyo: cuántas tiene, cuántas le tocan y cuándo es la próxima.
+ *                Solo lo ACCIONABLE, que es lo que cabe en un badge.
+ *
+ * Una sola llamada para los cuatro módulos: eran tres consultas por apertura de la
+ * app, y la sección Docencia habría añadido una cuarta.
+ *
+ * No lanza: un fallo aquí no debe tumbar la pantalla de Inicio. Devuelve
+ * `loaded: true` con todo a `available: false` solo cuando la base ha contestado de
+ * verdad; si falla, `loaded` se queda en `false` y la sección no pinta el gris.
  */
 export const getResidentTeachingModules = async (userId) => {
-  const empty = {
-    tutoring: { count: 0, pending: 0, nextAt: null },
-    evaluations: { count: 0 },
-    selfAssessments: { count: 0, pending: 0 },
-  };
-  if (!userId) return empty;
+  if (!userId) return emptyTeachingModules();
 
   try {
-    const [tutoring, evaluations, selfAssessments] = await Promise.all([
-      supabase
-        .from("hospital_tutoring_for_resident")
-        .select("id, scheduled_at, status"),
-      supabase
-        .from("hospital_evaluation_for_resident")
-        .select("id", { count: "exact", head: true }),
-      supabase
-        .from("hospital_self_assessment_for_resident")
-        .select("id, status")
-        .eq("resident_user_id", userId),
-    ]);
+    const { data, error } = await supabase.rpc("resident_teaching_home");
 
     // supabase-js no lanza en los errores de query: devuelve { data, error }. Sin
     // mirar el error, un fallo de permisos se vería como "este residente no tiene
-    // tutorías" y los accesos desaparecerían sin que nadie se enterara.
-    for (const result of [tutoring, evaluations, selfAssessments]) {
-      if (result.error) {
-        console.error("Error resolving teaching modules:", result.error);
-        return empty;
-      }
-    }
-
-    const tutoringRows = tutoring.data || [];
-    const now = new Date();
-
-    // Pendiente de completar: programada, con la fecha ya pasada. Igual que en el
-    // panel, es un estado derivado y no una columna.
-    const pending = tutoringRows.filter(
-      (row) => tutoringStateOf(row, now) === TUTORING_STATE.PENDING
-    ).length;
-
-    const upcoming = tutoringRows
-      .filter((row) => tutoringStateOf(row, now) === TUTORING_STATE.UPCOMING)
-      .map((row) => row.scheduled_at)
-      .filter(Boolean)
-      .sort();
-
-    const selfRows = selfAssessments.data || [];
+    // nada" y la sección entera se pintaría en gris sin que nadie se enterara.
+    if (error) throw error;
+    if (!data) return emptyTeachingModules();
 
     return {
-      tutoring: {
-        count: tutoringRows.length,
-        pending,
-        nextAt: upcoming[0] || null,
+      loaded: true,
+      announcements: {
+        available: !!data.announcements?.available,
+        count: data.announcements?.total || 0,
+        unread: data.announcements?.unread || 0,
+        lastSentAt: data.announcements?.last_sent_at || null,
       },
-      evaluations: { count: evaluations.count || 0 },
+      tutoring: {
+        available: !!data.tutoring?.available,
+        count: data.tutoring?.total || 0,
+        pending: data.tutoring?.pending || 0,
+        nextAt: data.tutoring?.next_at || null,
+      },
+      evaluations: {
+        available: !!data.evaluations?.available,
+        count: data.evaluations?.total || 0,
+      },
       selfAssessments: {
-        count: selfRows.length,
-        pending: selfRows.filter((row) => row.status === "pending").length,
+        available: !!data.self_assessments?.available,
+        count: data.self_assessments?.total || 0,
+        pending: data.self_assessments?.pending || 0,
+        dueAt: data.self_assessments?.due_at || null,
       },
     };
   } catch (error) {
     console.error("Error resolving teaching modules:", error);
-    return empty;
+    return emptyTeachingModules();
   }
-};
-
-/**
- * El badge del acceso: lo accionable primero, y si no hay nada que hacer, cuándo es
- * lo siguiente. Sin nada que decir devuelve null y no se pinta badge.
- */
-export const teachingModuleBadge = (module, state) => {
-  if (module === "tutoring") {
-    if (state?.pending > 0) return String(state.pending);
-    if (state?.nextAt) {
-      const date = new Date(state.nextAt);
-      if (Number.isNaN(date.getTime())) return null;
-      return new Intl.DateTimeFormat("es-ES", {
-        day: "2-digit",
-        month: "short",
-      })
-        .format(date)
-        .replace(".", "")
-        .toUpperCase();
-    }
-    return null;
-  }
-
-  if (module === "selfAssessments") {
-    return state?.pending > 0 ? String(state.pending) : null;
-  }
-
-  // Evaluaciones: se leen, no se completan. Sin badge.
-  return null;
 };
 
 export default {
+  getResidentAnnouncements,
+  markAnnouncementRead,
   getResidentTutoring,
   saveTutoringResidentAnswers,
-  teachingModuleBadge,
+  emptyTeachingModules,
   tutoringStateOf,
   getResidentEvaluations,
   getEvaluationCompetencies,

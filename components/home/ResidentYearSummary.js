@@ -21,6 +21,10 @@ const formatEur = (value) => {
  * eso cada tile lleva su propio pie con el marco temporal en vez de un titular
  * común que sería mentira para alguna de las tres.
  *
+ * Las Guardias son las que ya ha hecho: las que tiene puestas en la agenda para
+ * los próximos días no cuentan (ver `countResidencyYearShifts`), porque este
+ * número se lee como "lo que llevas de año", no como "lo que tienes apuntado".
+ *
  * El Progreso solo mide los objetivos que ha fijado el tutor (ADR 0008); sin
  * plantilla publicada no hay denominador y se muestra "—" en lugar de un 0 %,
  * que se leería como "no has hecho nada".

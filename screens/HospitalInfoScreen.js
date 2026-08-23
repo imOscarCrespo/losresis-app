@@ -90,7 +90,8 @@ const InfoChip = ({ text }) => (
 export default function HospitalInfoScreen({ hospital, onBack }) {
   const [hospitalProfile, setHospitalProfile] = useState(getEmptyHospitalProfile());
   const [profileLoading, setProfileLoading] = useState(true);
-  const [selectedPlanId, setSelectedPlanId] = useState(null);
+  const [expandedPlanId, setExpandedPlanId] = useState(null);
+  const [planSpecialityFilter, setPlanSpecialityFilter] = useState("");
   const [downloadingPlanId, setDownloadingPlanId] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [openDayRegistered, setOpenDayRegistered] = useState(false);
@@ -103,7 +104,8 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
   }, [hospital?.id]);
 
   useEffect(() => {
-    setSelectedPlanId(null);
+    setExpandedPlanId(null);
+    setPlanSpecialityFilter("");
     setOpenDayRegistered(false);
   }, [hospital?.id]);
 
@@ -166,13 +168,28 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
     }
   };
 
-  const selectedPlan = useMemo(
+  const plans = hospitalProfile?.plans || [];
+
+  const visiblePlans = useMemo(
     () =>
-      (hospitalProfile?.plans || []).find(
-        (plan) => plan.speciality_id === selectedPlanId
-      ) || null,
-    [hospitalProfile?.plans, selectedPlanId]
+      planSpecialityFilter
+        ? plans.filter((plan) => plan.speciality_id === planSpecialityFilter)
+        : plans,
+    [plans, planSpecialityFilter]
   );
+
+  // Filtrar por una especialidad es pedir ver ESA especialidad: se abre sola
+  // para que el usuario no tenga que dar un segundo toque.
+  const handleSelectSpecialityFilter = (specialityId) => {
+    setPlanSpecialityFilter(specialityId);
+    setExpandedPlanId(specialityId || null);
+  };
+
+  const togglePlan = (specialityId) => {
+    setExpandedPlanId((current) =>
+      current === specialityId ? null : specialityId
+    );
+  };
 
   const handleOpenPlanPdf = (plan) => {
     if (!plan?.plan_formativo_url) return;
@@ -336,108 +353,108 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
     );
   };
 
-  const renderPlanDetail = () => {
-    if (!selectedPlan) return null;
-
+  const renderPlanAccordionItem = (plan) => {
+    const isExpanded = expandedPlanId === plan.speciality_id;
+    const hasPdf = Boolean(plan.plan_formativo_url);
+    const hasDifferentialPoints = (plan.differential_points || []).length > 0;
+    const isDownloading = downloadingPlanId === plan.speciality_id;
     const fileName = getFilenameFromUrl(
-      selectedPlan.plan_formativo_url,
-      `${selectedPlan.speciality_name}.pdf`
+      plan.plan_formativo_url,
+      `${plan.speciality_name}.pdf`
     );
-    const hasDifferentialPoints =
-      (selectedPlan.differential_points || []).length > 0;
-    const hasPdf = Boolean(selectedPlan.plan_formativo_url);
 
     return (
-      <View style={styles.planDetailStack}>
-        <View style={styles.planDetailHero}>
-          <View style={styles.planDetailHeroGlow} />
-          <View style={styles.planDetailHeroContent}>
-            <View style={styles.planDetailIconWrap}>
-              <Icon name="medkit-outline" size={24} color={PRIMARY} />
-            </View>
-            <View style={styles.planDetailHeader}>
-              <Text style={styles.planDetailTitle}>{selectedPlan.speciality_name}</Text>
-              <Text style={styles.planDetailSubtitle}>Especialidad médica</Text>
-              <Text style={styles.planDetailHospital}>{hospital.name}</Text>
-            </View>
+      <View key={plan.speciality_id} style={styles.planAccordion}>
+        <TouchableOpacity
+          style={styles.planAccordionHeader}
+          activeOpacity={0.75}
+          onPress={() => togglePlan(plan.speciality_id)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isExpanded }}
+          accessibilityLabel={plan.speciality_name}
+        >
+          <View style={styles.planAccordionHeaderCopy}>
+            <Text style={styles.planAccordionTitle}>{plan.speciality_name}</Text>
+            {hasPdf ? (
+              <View style={styles.planAccordionPdfTag}>
+                <Icon name="document-text-outline" size={12} color={ERROR} />
+                <Text style={styles.planAccordionPdfTagText}>PDF</Text>
+              </View>
+            ) : null}
+          </View>
 
-            <Text style={styles.planDetailDescription}>
-              {selectedPlan.description?.trim()
-                ? selectedPlan.description
+          <Icon
+            name={isExpanded ? "chevron-up" : "chevron-down"}
+            size={20}
+            color={PRIMARY}
+          />
+        </TouchableOpacity>
+
+        {isExpanded ? (
+          <View style={styles.planAccordionBody}>
+            <Text style={styles.planAccordionDescription}>
+              {plan.description?.trim()
+                ? plan.description
                 : "El hospital todavía no ha publicado una descripción editorial para esta especialidad."}
             </Text>
 
             {hasDifferentialPoints ? (
-              <View style={styles.planDetailChips}>
-                {selectedPlan.differential_points.map((point) => (
+              <View style={styles.planAccordionChips}>
+                {plan.differential_points.map((point) => (
                   <InfoChip key={point} text={point} />
                 ))}
               </View>
             ) : null}
+
+            {hasPdf ? (
+              <View style={styles.planAccordionPdfCard}>
+                <View style={styles.pdfCardHeader}>
+                  <View style={styles.pdfIconWrap}>
+                    <Icon name="document-text-outline" size={28} color={ERROR} />
+                    <Text style={styles.pdfIconLabel}>PDF</Text>
+                  </View>
+                  <View style={styles.pdfCopy}>
+                    <Text style={styles.pdfTitle}>Documento oficial del hospital</Text>
+                    <Text style={styles.pdfFilename} numberOfLines={1}>
+                      {fileName}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.pdfActions}>
+                  <TouchableOpacity
+                    style={styles.primaryActionButton}
+                    activeOpacity={0.85}
+                    onPress={() => handleOpenPlanPdf(plan)}
+                  >
+                    <Icon name="eye-outline" size={16} color={WHITE} />
+                    <Text style={styles.primaryActionButtonText}>Ver documento</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.secondaryActionButton}
+                    activeOpacity={0.85}
+                    onPress={() => handleDownloadPlanPdf(plan)}
+                    disabled={isDownloading}
+                  >
+                    {isDownloading ? (
+                      <ActivityIndicator size="small" color={PRIMARY} />
+                    ) : (
+                      <Icon name="download-outline" size={16} color={PRIMARY} />
+                    )}
+                    <Text style={styles.secondaryActionButtonText}>
+                      {isDownloading ? "Preparando descarga..." : "Descargar PDF"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <Text style={styles.planAccordionEmptyPdf}>
+                El hospital no ha adjuntado un PDF para esta especialidad.
+              </Text>
+            )}
           </View>
-        </View>
-
-        <View style={styles.infoCard}>
-          <Text style={styles.infoCardTitle}>Plan formativo</Text>
-          {hasPdf ? (
-            <>
-              <View style={styles.pdfCardHeader}>
-                <View style={styles.pdfIconWrap}>
-                  <Icon name="document-text-outline" size={28} color={ERROR} />
-                  <Text style={styles.pdfIconLabel}>PDF</Text>
-                </View>
-                <View style={styles.pdfCopy}>
-                  <Text style={styles.pdfTitle}>Documento oficial del hospital</Text>
-                  <Text style={styles.pdfFilename} numberOfLines={1}>
-                    {fileName}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.pdfActions}>
-                <TouchableOpacity
-                  style={styles.primaryActionButton}
-                  activeOpacity={0.85}
-                  onPress={() => handleOpenPlanPdf(selectedPlan)}
-                >
-                  <Icon name="eye-outline" size={16} color={WHITE} />
-                  <Text style={styles.primaryActionButtonText}>Ver documento</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.secondaryActionButton}
-                  activeOpacity={0.85}
-                  onPress={() => handleDownloadPlanPdf(selectedPlan)}
-                  disabled={downloadingPlanId === selectedPlan.speciality_id}
-                >
-                  {downloadingPlanId === selectedPlan.speciality_id ? (
-                    <ActivityIndicator size="small" color={PRIMARY} />
-                  ) : (
-                    <Icon name="download-outline" size={16} color={PRIMARY} />
-                  )}
-                  <Text style={styles.secondaryActionButtonText}>
-                    {downloadingPlanId === selectedPlan.speciality_id
-                      ? "Preparando descarga..."
-                      : "Descargar PDF"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            <Text style={styles.infoCardBody}>
-              El hospital no ha adjuntado un PDF para esta especialidad.
-            </Text>
-          )}
-        </View>
-
-        <TouchableOpacity
-          style={styles.planBackButton}
-          activeOpacity={0.82}
-          onPress={() => setSelectedPlanId(null)}
-        >
-          <Icon name="chevron-back" size={16} color={PRIMARY} />
-          <Text style={styles.planBackButtonText}>Ver otras especialidades</Text>
-        </TouchableOpacity>
+        ) : null}
       </View>
     );
   };
@@ -451,10 +468,7 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
   }
 
   return (
-    <HeroScreenLayout
-      title={selectedPlan ? selectedPlan.speciality_name : "Información del hospital"}
-      onBack={selectedPlan ? () => setSelectedPlanId(null) : onBack}
-    >
+    <HeroScreenLayout title="Información del hospital" onBack={onBack}>
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}
@@ -466,8 +480,6 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
             <ActivityIndicator size="small" color={PRIMARY} />
             <Text style={styles.loadingText}>Cargando información del hospital...</Text>
           </View>
-        ) : selectedPlan ? (
-          renderPlanDetail()
         ) : (
           <>
             <SectionTitle title="Información del hospital" />
@@ -525,49 +537,74 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
                       Explora las especialidades publicadas por el hospital
                     </Text>
                   </View>
-                  {(hospitalProfile?.plans || []).length > 0 ? (
+                  {plans.length > 0 ? (
                     <View style={styles.infoCardCountBadge}>
                       <Text style={styles.infoCardCount}>
-                        {(hospitalProfile?.plans || []).length}{" "}
-                        {(hospitalProfile?.plans || []).length === 1
-                          ? "PLAN"
-                          : "PLANES"}
+                        {plans.length} {plans.length === 1 ? "PLAN" : "PLANES"}
                       </Text>
                     </View>
                   ) : null}
                 </View>
 
-                {(hospitalProfile?.plans || []).length > 0 ? (
+                {plans.length > 0 ? (
                   <>
-                    <View style={styles.planCardsList}>
-                      {(hospitalProfile?.plans || []).map((plan) => (
-                          <TouchableOpacity
-                            key={plan.speciality_id}
-                            style={styles.planCard}
-                            activeOpacity={0.82}
-                            onPress={() => setSelectedPlanId(plan.speciality_id)}
+                    {plans.length > 1 ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.planFilterRow}
+                        nestedScrollEnabled
+                      >
+                        <TouchableOpacity
+                          style={[
+                            styles.planFilterChip,
+                            !planSpecialityFilter && styles.planFilterChipActive,
+                          ]}
+                          activeOpacity={0.8}
+                          onPress={() => handleSelectSpecialityFilter("")}
+                        >
+                          <Text
+                            style={[
+                              styles.planFilterChipText,
+                              !planSpecialityFilter && styles.planFilterChipTextActive,
+                            ]}
                           >
-                            <View style={styles.planCardCopy}>
-                              <Text style={styles.planCardTitle}>
+                            Todas
+                          </Text>
+                        </TouchableOpacity>
+
+                        {plans.map((plan) => {
+                          const isActive =
+                            planSpecialityFilter === plan.speciality_id;
+                          return (
+                            <TouchableOpacity
+                              key={plan.speciality_id}
+                              style={[
+                                styles.planFilterChip,
+                                isActive && styles.planFilterChipActive,
+                              ]}
+                              activeOpacity={0.8}
+                              onPress={() =>
+                                handleSelectSpecialityFilter(plan.speciality_id)
+                              }
+                            >
+                              <Text
+                                style={[
+                                  styles.planFilterChipText,
+                                  isActive && styles.planFilterChipTextActive,
+                                ]}
+                                numberOfLines={1}
+                              >
                                 {plan.speciality_name}
                               </Text>
-                              <Text style={styles.planCardDescription}>
-                                {plan.description?.trim()
-                                  ? plan.description
-                                  : "Información editorial pendiente de publicación."}
-                              </Text>
-                            </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    ) : null}
 
-                            <View style={styles.planCardFooter}>
-                              <Text style={styles.planCardAction}>Ver detalle</Text>
-                              <Icon
-                                name="chevron-forward"
-                                size={16}
-                                color={PRIMARY}
-                              />
-                            </View>
-                          </TouchableOpacity>
-                        ))}
+                    <View style={styles.planAccordionList}>
+                      {visiblePlans.map(renderPlanAccordionItem)}
                     </View>
                   </>
                 ) : (
@@ -774,29 +811,83 @@ const styles = StyleSheet.create({
     backgroundColor: SURFACE_ALT,
   },
   galleryImage: { width: "100%", height: "100%" },
-  planCardsList: { gap: 12 },
-  planCard: {
-    backgroundColor: WHITE,
-    borderRadius: 16,
-    padding: 16,
+  planFilterRow: { flexDirection: "row", gap: 8, paddingBottom: 14, paddingRight: 4 },
+  planFilterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: BORDER,
+    backgroundColor: SURFACE_ALT,
+    maxWidth: 220,
+  },
+  planFilterChipActive: {
+    backgroundColor: `${PRIMARY}12`,
+    borderColor: `${PRIMARY}44`,
+  },
+  planFilterChipText: { fontSize: 13, fontWeight: "600", color: TEXT_MEDIUM },
+  planFilterChipTextActive: { color: PRIMARY, fontWeight: "700" },
+  planAccordionList: { gap: 12 },
+  planAccordion: {
+    backgroundColor: WHITE,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    overflow: "hidden",
     shadowColor: ACCENT,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 1,
   },
-  planCardCopy: { gap: 8 },
-  planCardTitle: { fontSize: 16, fontWeight: "700", color: ACCENT },
-  planCardDescription: { fontSize: 13, lineHeight: 19, color: TEXT_MEDIUM },
-  planCardFooter: {
+  planAccordionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 14,
+    gap: 12,
+    padding: 16,
   },
-  planCardAction: { fontSize: 13, fontWeight: "700", color: PRIMARY },
+  planAccordionHeaderCopy: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  planAccordionTitle: { fontSize: 16, fontWeight: "700", color: ACCENT, flexShrink: 1 },
+  planAccordionPdfTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: `${ERROR}12`,
+  },
+  planAccordionPdfTagText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: ERROR,
+    letterSpacing: 0.6,
+  },
+  planAccordionBody: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+    paddingTop: 14,
+    gap: 14,
+  },
+  planAccordionDescription: { fontSize: 14, lineHeight: 22, color: TEXT_MEDIUM },
+  planAccordionChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  planAccordionPdfCard: {
+    backgroundColor: SURFACE_ALT,
+    borderRadius: 14,
+    padding: 14,
+  },
+  planAccordionEmptyPdf: { fontSize: 13, lineHeight: 20, color: TEXT_LIGHT },
   emptyInlineState: {
     paddingVertical: 18,
     alignItems: "center",
@@ -815,47 +906,6 @@ const styles = StyleSheet.create({
     backgroundColor: BG_LIGHT,
   },
   errorTitle: { fontSize: 17, fontWeight: "700", color: ACCENT, textAlign: "center" },
-  planDetailStack: { gap: 14 },
-  planDetailHero: {
-    backgroundColor: WHITE,
-    borderRadius: 20,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: BORDER,
-    shadowColor: ACCENT,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-    position: "relative",
-  },
-  planDetailHeroGlow: {
-    position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 999,
-    backgroundColor: `${PRIMARY}08`,
-    top: -70,
-    right: -40,
-  },
-  planDetailHeroContent: { padding: 20 },
-  planDetailIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: `${PRIMARY}10`,
-    borderWidth: 1,
-    borderColor: `${PRIMARY}16`,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  planDetailHeader: { gap: 4, marginBottom: 14 },
-  planDetailTitle: { fontSize: 24, lineHeight: 30, fontWeight: "800", color: ACCENT },
-  planDetailSubtitle: { fontSize: 13, fontWeight: "600", color: TEXT_MEDIUM },
-  planDetailHospital: { fontSize: 13, color: PRIMARY, fontWeight: "600" },
-  planDetailDescription: { fontSize: 14, lineHeight: 22, color: TEXT_MEDIUM },
-  planDetailChips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 16 },
   pdfCardHeader: { flexDirection: "row", alignItems: "flex-start", gap: 14, marginBottom: 18 },
   pdfIconWrap: {
     width: 68,
@@ -896,17 +946,4 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   secondaryActionButtonText: { fontSize: 15, fontWeight: "700", color: PRIMARY },
-  planBackButton: {
-    alignSelf: "center",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: WHITE,
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  planBackButtonText: { fontSize: 13, fontWeight: "700", color: PRIMARY },
 });

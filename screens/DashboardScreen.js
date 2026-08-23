@@ -8,6 +8,7 @@ import { SwipeBackWrapper } from "../components/SwipeBackWrapper";
 import HospitalsScreen from "./HospitalsScreen";
 import HospitalDetailScreen from "./HospitalDetailScreen";
 import HospitalInfoScreen from "./HospitalInfoScreen";
+import FormativePlansScreen from "./FormativePlansScreen";
 import MirSimulatorScreen from "./MirSimulatorScreen";
 import MirOrientationScreen from "./MirOrientationScreen";
 import MirProjectedScoreScreen from "./MirProjectedScoreScreen";
@@ -21,6 +22,7 @@ import ComunityScreen from "./ComunityScreen";
 import ResidentsDirectoryScreen from "./ResidentsDirectoryScreen";
 import MyReviewScreen from "./MyReviewScreen";
 import ResidenceLibraryScreen from "./ResidenceLibraryScreen";
+import ComunicadosScreen from "./ComunicadosScreen";
 import TutoringScreen from "./TutoringScreen";
 import EvaluationsScreen from "./EvaluationsScreen";
 import SelfAssessmentsScreen from "./SelfAssessmentsScreen";
@@ -120,6 +122,7 @@ const GENERIC_BACK_SECTIONS = new Set([
   "clinicalAssistant",
   "study-photo",
   "specialityQuiz",
+  "planes-formativos",
   "rotaciones-externas",
   "cursos",
   "residentPayouts",
@@ -979,9 +982,14 @@ export default function DashboardScreen({
     </View>
   );
 
-  const handleHospitalSelect = (hospital, specialtyId, fromSection = null) => {
+  const handleHospitalSelect = (
+    hospital,
+    specialtyId,
+    fromSection = null,
+    { openInfoScreen = false } = {}
+  ) => {
     setSelectedHospital(hospital);
-    setShowHospitalInfoScreen(false);
+    setShowHospitalInfoScreen(openInfoScreen);
     setSelectedSpecialtyId(specialtyId || null);
     // Guardar la sección de origen para poder volver a ella
     setPreviousSection(fromSection || currentSection);
@@ -1097,14 +1105,20 @@ export default function DashboardScreen({
           {showHospitalInfoScreen ? (
             <HospitalInfoScreen
               hospital={selectedHospital}
-              onBack={() => setShowHospitalInfoScreen(false)}
+              // Desde "Planes formativos" se entra directo aquí: el hospital
+              // nunca se ha abierto en detalle, así que volver tiene que
+              // devolver al listado de planes, no a una pantalla no visitada.
+              onBack={
+                previousSection === "planes-formativos"
+                  ? handleBackFromDetail
+                  : () => setShowHospitalInfoScreen(false)
+              }
             />
           ) : (
             <HospitalDetailScreen
               hospital={selectedHospital}
               selectedSpecialtyId={selectedSpecialtyId}
               onBack={handleBackFromDetail}
-              onOpenHospitalInfo={() => setShowHospitalInfoScreen(true)}
             />
           )}
         </SwipeBackWrapper>
@@ -1435,6 +1449,18 @@ export default function DashboardScreen({
             onSectionChange={handleSectionChange}
             currentSection={currentSection}
             userProfile={userProfile}
+          />
+        );
+
+      case "planes-formativos":
+        return (
+          <FormativePlansScreen
+            onBack={handleBackFromGenericSection}
+            onHospitalSelect={(hospital) =>
+              handleHospitalSelect(hospital, null, "planes-formativos", {
+                openInfoScreen: true,
+              })
+            }
           />
         );
 
@@ -1774,8 +1800,25 @@ export default function DashboardScreen({
           <PlaceholderScreen title="Recordatorios del servicio" />
         );
 
-      // Los tres módulos de Docencia. NO son apartados del Libro del Residente:
-      // salieron de la plantilla (ADR 0025 del panel) y tienen su propio acceso.
+      // Los módulos de Docencia. NO son apartados del Libro del Residente:
+      // salieron de la plantilla (ADR 0025 del panel) y tienen su propio acceso,
+      // hoy agrupado en la sección Docencia del final de Inicio.
+      //
+      // Comunicados es el único que no tenía pantalla: llegaba como notificación y
+      // ahí se quedaba. Su notificación SIGUE abriendo Notificaciones —el trigger
+      // `set_notification_destination` no se ha tocado, para no dejar sin destino
+      // las notificaciones de las versiones ya instaladas—; esta pantalla es el
+      // historial al que se entra desde Inicio.
+      case "comunicados":
+        return userProfile?.is_resident ? (
+          <ComunicadosScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+          />
+        ) : (
+          <PlaceholderScreen title="Comunicados" />
+        );
+
       case "tutorias":
         return userProfile?.is_resident ? (
           <TutoringScreen

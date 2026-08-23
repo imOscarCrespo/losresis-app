@@ -4,6 +4,9 @@ import { supabase } from "../config/supabase";
 const MAX_REMOTE_MESSAGES = 24;
 const FUNCTION_SLUG = "losresis-llm";
 const FALLBACK_ERROR = "No se pudo contactar con el asistente clínico.";
+const TRUNCATED_ERROR =
+  "La respuesta se cortó antes de terminar. Vuelve a preguntar.";
+const EMPTY_RESPONSE_ERROR = "El asistente no devolvió una respuesta válida.";
 const DEFAULT_ASSISTANT_MODE = "guardia";
 
 const normalizeRole = (role) => {
@@ -69,14 +72,35 @@ const getReasoningFromPayload = (payload) => {
   return "";
 };
 
+const getErrorFromPayload = (payload) => {
+  if (typeof payload?.error === "string") {
+    return payload.error;
+  }
+
+  if (typeof payload?.error?.message === "string") {
+    return payload.error.message;
+  }
+
+  return "";
+};
+
+const EMPTY_CHUNK = { content: "", reasoning: "", error: "", done: false };
+
 const parseSseLine = (line) => {
   if (!line.startsWith("data:")) {
-    return { content: "", reasoning: "" };
+    return EMPTY_CHUNK;
   }
 
   const data = line.replace(/^data:\s?/, "");
-  if (!data || data === "[DONE]") {
-    return { content: "", reasoning: "" };
+  if (!data) {
+    return EMPTY_CHUNK;
+  }
+
+  // El "[DONE]" es la única prueba de que la respuesta llegó entera: la función
+  // solo lo emite tras vaciar el stream de Kimi, y en su catch manda un
+  // `event: error` en su lugar. Sin él, lo que hay en pantalla está a medias.
+  if (data === "[DONE]") {
+    return { ...EMPTY_CHUNK, done: true };
   }
 
   try {
@@ -84,9 +108,11 @@ const parseSseLine = (line) => {
     return {
       content: getContentFromPayload(payload),
       reasoning: getReasoningFromPayload(payload),
+      error: getErrorFromPayload(payload),
+      done: false,
     };
   } catch {
-    return { content: data, reasoning: "" };
+    return { ...EMPTY_CHUNK, content: data };
   }
 };
 
@@ -100,6 +126,34 @@ export const readStreamingResponse = async (response, onChunk) => {
   let content = "";
   let reasoning = "";
   let buffer = "";
+  let error = "";
+  let completed = false;
+
+  const consumeLine = (line) => {
+    const chunk = parseSseLine(line.trim());
+
+    if (chunk.error) {
+      // El servidor avisa de que abortó a mitad (`event: error`). Se queda el
+      // primer error: lo que venga después ya no es una respuesta.
+      error = error || chunk.error;
+      return;
+    }
+
+    if (chunk.done) {
+      completed = true;
+      return;
+    }
+
+    if (chunk.reasoning) {
+      reasoning += chunk.reasoning;
+    }
+    if (chunk.content) {
+      content += chunk.content;
+    }
+    if (chunk.content || chunk.reasoning) {
+      onChunk?.(chunk.content, content, reasoning);
+    }
+  };
 
   while (true) {
     const { value, done } = await reader.read();
@@ -111,36 +165,13 @@ export const readStreamingResponse = async (response, onChunk) => {
     const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() || "";
 
-    lines.forEach((line) => {
-      const chunk = parseSseLine(line.trim());
-      if (chunk.reasoning) {
-        reasoning += chunk.reasoning;
-      }
-      if (chunk.content) {
-        content += chunk.content;
-      }
-      if (chunk.content || chunk.reasoning) {
-        onChunk?.(chunk.content, content, reasoning);
-      }
-    });
+    lines.forEach(consumeLine);
   }
 
   buffer += decoder.decode();
-  buffer
-    .split(/\r?\n/)
-    .map((line) => parseSseLine(line.trim()))
-    .filter((chunk) => chunk.content || chunk.reasoning)
-    .forEach((chunk) => {
-      if (chunk.reasoning) {
-        reasoning += chunk.reasoning;
-      }
-      if (chunk.content) {
-        content += chunk.content;
-      }
-      onChunk?.(chunk.content, content, reasoning);
-    });
+  buffer.split(/\r?\n/).forEach(consumeLine);
 
-  return { content, reasoning };
+  return { content, reasoning, error, completed };
 };
 
 export const readFallbackResponse = async (response) => {
@@ -243,22 +274,51 @@ export const askClinicalAssistant = async (messages = [], options = {}) => {
       ? await readStreamingResponse(response, onChunk)
       : null;
 
-    const fallbackResult =
-      streamedResult === null ? await readFallbackResponse(response) : null;
-    const content =
-      streamedResult === null
-        ? fallbackResult.content
-        : normalizeContent(streamedResult.content);
-    const reasoning =
-      streamedResult === null
-        ? fallbackResult.reasoning || ""
-        : normalizeContent(streamedResult.reasoning);
+    if (streamedResult) {
+      const content = normalizeContent(streamedResult.content);
+      const reasoning = normalizeContent(streamedResult.reasoning);
+
+      // Un stream que se corta (error del servidor o cierre sin "[DONE]") deja
+      // media respuesta. En guardia eso es peor que no tener nada si se lee como
+      // completa, así que se devuelve como fallo y marcado `truncated` para que
+      // la pantalla lo enseñe con su aviso en vez de darlo por bueno.
+      if (streamedResult.error || !streamedResult.completed) {
+        return {
+          success: false,
+          content,
+          reasoning,
+          truncated: Boolean(content),
+          error: streamedResult.error || TRUNCATED_ERROR,
+        };
+      }
+
+      if (!content) {
+        return {
+          success: false,
+          content: "",
+          error: EMPTY_RESPONSE_ERROR,
+        };
+      }
+
+      onChunk?.("", content, reasoning);
+
+      return {
+        success: true,
+        content,
+        reasoning,
+        error: null,
+      };
+    }
+
+    const fallbackResult = await readFallbackResponse(response);
+    const content = fallbackResult.content;
+    const reasoning = fallbackResult.reasoning || "";
 
     if (!content) {
       return {
         success: false,
         content: "",
-        error: "El asistente no devolvió una respuesta válida.",
+        error: fallbackResult.error || EMPTY_RESPONSE_ERROR,
       };
     }
 

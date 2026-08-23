@@ -1,6 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "../Icon";
+import { LANDLORD_PORTAL_LABEL } from "../../constants/housing";
 
 const OPTIONS = [
   {
@@ -16,10 +17,13 @@ const OPTIONS = [
     icon: "medkit",
   },
   {
+    // El registro de anunciantes ya no se hace en la app: la tarjeta sigue
+    // visible pero solo redirige al portal de propietarios.
     id: "host",
     title: "Anunciante de vivienda",
-    subtitle: "Publica anuncios para residentes",
+    subtitle: `Publica tus pisos en ${LANDLORD_PORTAL_LABEL}`,
     icon: "home",
+    external: true,
   },
 ];
 
@@ -46,7 +50,11 @@ export const OnboardingUserTypeCards = ({ selectedType, onSelect }) => {
               <Text style={styles.subtitle}>{option.subtitle}</Text>
             </View>
             <View style={styles.chevron}>
-              <Icon name="chevron-forward" size={20} color="#FFFFFF" />
+              <Icon
+                name={option.external ? "open-outline" : "chevron-forward"}
+                size={20}
+                color="#FFFFFF"
+              />
             </View>
           </Pressable>
         );

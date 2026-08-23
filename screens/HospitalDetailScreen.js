@@ -11,7 +11,6 @@ import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
   getDetailedGrades,
-  getHospitalProfileContent,
   getHospitalSpecialties,
   getSpecialtyById,
 } from "../services/hospitalService";
@@ -27,15 +26,6 @@ const TEXT_LIGHT = "#94A3B8";
 const BORDER = "#F1F5F9";
 const ERROR = "#EF4444";
 
-const getEmptyHospitalProfile = () => ({
-  org_id: null,
-  about: null,
-  differential_points: [],
-  images: [],
-  open_day: null,
-  plans: [],
-});
-
 const SectionTitle = ({ title, rightLabel = null }) => (
   <View style={styles.sectionRow}>
     <View style={styles.sectionLabelRow}>
@@ -50,15 +40,12 @@ export default function HospitalDetailScreen({
   hospital,
   selectedSpecialtyId,
   onBack,
-  onOpenHospitalInfo,
 }) {
   const [specialties, setSpecialties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedSpecialty, setExpandedSpecialty] = useState(null);
   const [detailedGrades, setDetailedGrades] = useState({});
   const [loadingDetails, setLoadingDetails] = useState({});
-  const [hospitalProfile, setHospitalProfile] = useState(getEmptyHospitalProfile());
-  const [profileLoading, setProfileLoading] = useState(true);
 
   useEffect(() => {
     posthogLogger.logScreen("HospitalDetailScreen", {
@@ -75,7 +62,6 @@ export default function HospitalDetailScreen({
   useEffect(() => {
     if (!hospital?.id) return;
     fetchSpecialties();
-    fetchHospitalProfile();
   }, [hospital?.id, selectedSpecialtyId]);
 
   const fetchSpecialties = async () => {
@@ -120,37 +106,12 @@ export default function HospitalDetailScreen({
     }
   };
 
-  const fetchHospitalProfile = async () => {
-    setProfileLoading(true);
-    try {
-      const { success, profile, error } = await getHospitalProfileContent(hospital.id);
-      if (success && profile) {
-        setHospitalProfile(profile);
-      } else {
-        console.error("Error loading hospital profile:", error);
-        setHospitalProfile(getEmptyHospitalProfile());
-      }
-    } catch (error) {
-      console.error("Exception fetching hospital profile:", error);
-      setHospitalProfile(getEmptyHospitalProfile());
-    } finally {
-      setProfileLoading(false);
-    }
-  };
-
   const filteredSpecialties = useMemo(() => {
     if (selectedSpecialtyId) {
       return specialties.filter((spec) => spec.id === selectedSpecialtyId);
     }
     return specialties;
   }, [specialties, selectedSpecialtyId]);
-
-  const hospitalInfoHasContent =
-    Boolean(hospitalProfile?.about) ||
-    (hospitalProfile?.differential_points || []).length > 0 ||
-    Boolean(hospitalProfile?.open_day) ||
-    (hospitalProfile?.images || []).length > 0 ||
-    (hospitalProfile?.plans || []).length > 0;
 
   const handleMoreInfo = async (specialty) => {
     if (expandedSpecialty === specialty.id) {
@@ -404,32 +365,6 @@ export default function HospitalDetailScreen({
           </View>
         </View>
 
-        {profileLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={PRIMARY} />
-            <Text style={styles.loadingText}>Cargando información del hospital...</Text>
-          </View>
-        ) : hospitalInfoHasContent ? (
-          <View style={styles.hospitalInfoEntryCard}>
-            <View style={styles.hospitalInfoEntryHeader}>
-              <View style={styles.hospitalInfoEntryIconWrap}>
-                <Icon name="document-text-outline" size={24} color={PRIMARY} />
-              </View>
-              <Text style={styles.hospitalInfoEntryTitle}>
-                Información proporcionada por el hospital
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.hospitalInfoEntryButton}
-              activeOpacity={0.85}
-              onPress={onOpenHospitalInfo}
-            >
-              <Text style={styles.hospitalInfoEntryButtonText}>Ver información</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
         <SectionTitle
           title="Especialidades disponibles"
           rightLabel={
@@ -518,51 +453,6 @@ const styles = StyleSheet.create({
   sectionBar: { width: 4, height: 20, borderRadius: 2, backgroundColor: PRIMARY },
   sectionLabel: { fontSize: 17, fontWeight: "700", color: ACCENT },
   sectionCount: { fontSize: 10, fontWeight: "700", color: PRIMARY, letterSpacing: 0.8 },
-  hospitalInfoEntryCard: {
-    backgroundColor: "#F1F3FB",
-    borderRadius: 28,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: "#D9E2FF",
-    marginBottom: 16,
-  },
-  hospitalInfoEntryHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    marginBottom: 22,
-  },
-  hospitalInfoEntryIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    backgroundColor: WHITE,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: ACCENT,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 1,
-  },
-  hospitalInfoEntryTitle: {
-    flex: 1,
-    fontSize: 17,
-    lineHeight: 24,
-    fontWeight: "700",
-    color: ACCENT,
-  },
-  hospitalInfoEntryButton: {
-    borderRadius: 18,
-    backgroundColor: PRIMARY,
-    paddingVertical: 15,
-    paddingHorizontal: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
-  },
-  hospitalInfoEntryButtonText: { fontSize: 15, fontWeight: "700", color: WHITE },
   loadingContainer: { alignItems: "center", paddingVertical: 36, gap: 12 },
   loadingText: { fontSize: 14, color: TEXT_MEDIUM, textAlign: "center" },
   emptyContainer: { alignItems: "center", paddingVertical: 48, paddingHorizontal: 32 },

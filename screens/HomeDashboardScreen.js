@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { Icon } from "../components/Icon";
 import ResidentPendingList from "../components/home/ResidentPendingList";
+import ResidentTeachingSection from "../components/home/ResidentTeachingSection";
 import ResidentWeekStrip from "../components/home/ResidentWeekStrip";
 import ResidentYearSummary from "../components/home/ResidentYearSummary";
 import { useResidentHomeSummary } from "../hooks/useResidentHomeSummary";
@@ -29,8 +30,11 @@ import {
   GraduationCap,
   Star,
   Stethoscope,
-  ChalkboardTeacher,
-  NotePencil,
+  FileText,
+  Compass,
+  TrendUp,
+  Exam,
+  Camera,
 } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHospitals } from "../hooks/useHospitals";
@@ -40,8 +44,8 @@ import { agendaEventTypeLabels } from "../services/agendaService";
 import { getHospitalRatings } from "../services/reviewsService";
 import { getMirSimulatorStats } from "../services/mirSimulatorService";
 import {
+  emptyTeachingModules,
   getResidentTeachingModules,
-  teachingModuleBadge,
 } from "../services/docenciaService";
 import { getLastQuizSessionForUser } from "../services/specialityQuizService";
 import {
@@ -434,32 +438,33 @@ export default function HomeDashboardScreen({
     !shouldBypassResidentReviewGate(userProfile, residentTransitionConfig) &&
     !isEmailReviewPending &&
     !isEmailReviewRejected;
-  // Qué módulos de Docencia tiene activos este residente. "Activo" se deriva del
-  // dato: el acceso aparece cuando TIENE al menos una tutoría, evaluación o
-  // autoevaluación. No hay interruptor en el panel que consultar, y derivarlo así
-  // evita además llevarle a una pantalla vacía.
-  const [teachingModules, setTeachingModules] = useState({
-    tutoring: { count: 0, pending: 0, nextAt: null },
-    evaluations: { count: 0 },
-    selfAssessments: { count: 0, pending: 0 },
-  });
+  // Qué módulos de Docencia usa el hospital de este residente y cómo tiene los
+  // suyos. Las dos cosas vienen de `resident_teaching_home`, que las separa: la
+  // disponibilidad es un hecho del hospital y no se puede deducir de que él tenga o
+  // no filas (la RLS solo le deja ver las suyas).
+  //
+  // Alimenta la sección Docencia y "Te toca a ti" con una sola llamada.
+  const [teachingModules, setTeachingModules] = useState(() =>
+    emptyTeachingModules()
+  );
+  const [loadingTeachingModules, setLoadingTeachingModules] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
     if (!userProfile?.id || !userProfile?.is_resident) {
-      setTeachingModules({
-        tutoring: { count: 0, pending: 0, nextAt: null },
-        evaluations: { count: 0 },
-        selfAssessments: { count: 0, pending: 0 },
-      });
+      setTeachingModules(emptyTeachingModules());
+      setLoadingTeachingModules(false);
       return () => {
         isMounted = false;
       };
     }
 
+    setLoadingTeachingModules(true);
     getResidentTeachingModules(userProfile.id).then((modules) => {
-      if (isMounted) setTeachingModules(modules);
+      if (!isMounted) return;
+      setTeachingModules(modules);
+      setLoadingTeachingModules(false);
     });
 
     return () => {
@@ -487,6 +492,128 @@ export default function HomeDashboardScreen({
         item: item.key,
       });
       onSectionChange?.(item.section, item.params);
+    },
+    [onSectionChange]
+  );
+
+  // Cada tarjeta de Docencia abre la pantalla que ya existía. La sección no navega a
+  // ningún sitio nuevo: solo es desde dónde se entra.
+  const handleTeachingPress = useCallback(
+    (module) => {
+      posthogLogger.capture("resident_home_teaching_clicked", {
+        module: module.key,
+      });
+      onSectionChange?.(module.section);
+    },
+    [onSectionChange]
+  );
+
+  // Mismo patrón que el residente: cuatro huecos en la fila y el resto dentro
+  // del modal "Ver más opciones". Ojo con los colores: QuickActionsMenu no
+  // puede usar el morado de marca (#670CF5). Ver AGENTS.md.
+  const studentQuickActions = useMemo(
+    () =>
+      [
+        {
+          label: "Viviendas",
+          icon: House,
+          section: "vivienda",
+          tint: "#E5E7EB",
+          color: "#475569",
+        },
+        {
+          label: "Reseñas",
+          icon: Star,
+          section: "reseñas",
+          tint: "#FFEDD5",
+          color: "#F97316",
+        },
+        {
+          label: "Planes formativos",
+          icon: FileText,
+          section: "planes-formativos",
+          tint: "#CCFBF1",
+          color: "#0D9488",
+        },
+        {
+          label: "Mis preferencias",
+          icon: Heart,
+          section: "myPreferences",
+          tint: "#FCE7F3",
+          color: "#DB2777",
+        },
+        {
+          label: "Orientador MIR",
+          icon: Compass,
+          section: "orientador-mir",
+          tint: "#EDE9FE",
+          color: "#6D28D9",
+        },
+        {
+          label: "Nota proyectada",
+          icon: TrendUp,
+          section: "nota-proyectada",
+          tint: "#DBEAFE",
+          color: "#2563EB",
+        },
+        {
+          label: "RoomiesMIR",
+          icon: Users,
+          section: "roomies",
+          tint: "#FEF9C3",
+          color: "#CA8A04",
+        },
+      ],
+    []
+  );
+
+  // Preguntas MIR y Explícamelo fácil salen del menú: son las dos herramientas
+  // de estudio y viven juntas en su propia sección, no escondidas en el modal.
+  const examTools = useMemo(
+    () =>
+      [
+        {
+          key: "mir-questions",
+          label: "Preguntas MIR",
+          description: "Practica con preguntas de convocatorias oficiales",
+          icon: Exam,
+          section: "mir-questions",
+          tint: "#FEF3C7",
+          color: "#B45309",
+        },
+        {
+          key: "study-photo",
+          label: "Explícamelo fácil",
+          description: "Sube la foto de una pregunta y recibe una explicación",
+          icon: Camera,
+          section: "study-photo",
+          tint: "#D1FAE5",
+          color: "#059669",
+          requiresPhotoStudy: true,
+        },
+      ].filter(
+        // Sin acceso al módulo, el icono abre una pantalla que no puede usar.
+        (tool) => !tool.requiresPhotoStudy || userProfile?.can_use_photo_study
+      ),
+    [userProfile?.can_use_photo_study]
+  );
+
+  // Los accesos que ya se medían siguen midiéndose al pasar por el menú.
+  // Las dos herramientas ya se medían al entrar. Siguen midiéndose, con el
+  // origen de su sección propia para no confundirlo con el menú ni el banner.
+  const handleExamToolPress = useCallback(
+    (section) => {
+      if (section === "mir-questions") {
+        posthogLogger.capture("mir_question_bank_entry_clicked", {
+          source: "exam_tools",
+        });
+      }
+      if (section === "study-photo") {
+        posthogLogger.capture("study_photo_entry_clicked", {
+          source: "exam_tools",
+        });
+      }
+      onSectionChange?.(section);
     },
     [onSectionChange]
   );
@@ -565,39 +692,19 @@ export default function HomeDashboardScreen({
           color: "#15803D",
           badge: "NUEVO",
         },
-        {
-          label: "Tutorías",
-          icon: ChalkboardTeacher,
-          section: "tutorias",
-          tint: "#EDE9FE",
-          color: "#6D28D9",
-          requiresModule: "tutoring",
-          badge: teachingModuleBadge("tutoring", teachingModules.tutoring),
-        },
-        {
-          label: "Autoevaluación",
-          icon: NotePencil,
-          section: "autoevaluacion",
-          tint: "#FEF3C7",
-          color: "#B45309",
-          requiresModule: "selfAssessments",
-          badge: teachingModuleBadge(
-            "selfAssessments",
-            teachingModules.selfAssessments
-          ),
-        },
+        // Tutorías y Autoevaluación estaban aquí, cada una con su badge y visible
+        // solo si el residente ya tenía filas. Se han ido a la sección Docencia del
+        // final: repetirlas en los dos sitios daría dos accesos a lo mismo, y el
+        // icono con badge era además el que confundía "tu hospital no lo usa" con
+        // "todavía no te han puesto ninguna" —desaparecía en los dos casos—. Las
+        // secciones "tutorias" y "autoevaluacion" siguen existiendo intactas: las
+        // notificaciones y los enlaces internos que llevan a ellas no cambian.
       ].filter(
         (action) =>
           action.section !== "clinicalAssistant" ||
           userProfile?.can_use_clinical_assistant
-      ).filter(
-        // Sin filas no hay acceso: un icono que abre una pantalla vacía es peor que
-        // no tener el icono.
-        (action) =>
-          !action.requiresModule ||
-          (teachingModules[action.requiresModule]?.count || 0) > 0
       ),
-    [userProfile?.can_use_clinical_assistant, teachingModules]
+    [userProfile?.can_use_clinical_assistant]
   );
   const residentHeroEvent = useMemo(() => {
     const today = new Date();
@@ -1120,88 +1227,11 @@ export default function HomeDashboardScreen({
       {/* Quick actions para estudiantes */}
       {userProfile?.is_student && (
         <>
-          <View style={styles.quickActions}>
-            <TouchableOpacity
-              style={styles.quickActionBtn}
-              onPress={() => onSectionChange?.("vivienda")}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: "#E2E8F0" }]}>
-                <Icon name="business-outline" size={22} color="#475569" />
-              </View>
-              <Text style={styles.quickActionLabel}>Vivienda</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickActionBtn}
-              onPress={() => onSectionChange?.("reseñas")}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: `${SECONDARY}20` }]}>
-                <Icon name="star-outline" size={22} color={SECONDARY} />
-              </View>
-              <Text style={styles.quickActionLabel}>Reseñas</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickActionBtn}
-              onPress={() => onSectionChange?.("myPreferences")}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: `${ACCENT}20` }]}>
-                <Icon name="heart-outline" size={22} color={ACCENT} />
-              </View>
-              <Text style={styles.quickActionLabel}>Preferencias</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickActionBtn}
-              onPress={() => onSectionChange?.("orientador-mir")}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: `${PRIMARY}20` }]}>
-                <Icon name="compass-outline" size={22} color={PRIMARY} />
-              </View>
-              <Text style={styles.quickActionLabel}>Orientador MIR</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickActionBtn}
-              onPress={() => onSectionChange?.("nota-proyectada")}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: `${PRIMARY}20` }]}>
-                <Icon name="trending-up-outline" size={22} color={PRIMARY} />
-              </View>
-              <Text style={styles.quickActionLabel}>Nota proyectada</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickActionBtn}
-              onPress={() => {
-                posthogLogger.capture("mir_question_bank_entry_clicked", {
-                  source: "quick_action",
-                });
-                onSectionChange?.("mir-questions");
-              }}
-            >
-              <View style={styles.quickActionNewBadge}>
-                <Text style={styles.quickActionNewBadgeText}>NUEVO</Text>
-              </View>
-              <View style={[styles.quickActionIcon, { backgroundColor: `${PRIMARY}20` }]}>
-                <Icon name="school-outline" size={22} color={PRIMARY} />
-              </View>
-              <Text style={styles.quickActionLabel}>Preguntas MIR</Text>
-            </TouchableOpacity>
-            {userProfile?.can_use_photo_study && (
-              <TouchableOpacity
-                style={styles.quickActionBtn}
-                onPress={() => {
-                  posthogLogger.capture("study_photo_entry_clicked", {
-                    source: "quick_action",
-                  });
-                  onSectionChange?.("study-photo");
-                }}
-              >
-                <View style={styles.quickActionNewBadge}>
-                  <Text style={styles.quickActionNewBadgeText}>NUEVO</Text>
-                </View>
-                <View style={[styles.quickActionIcon, { backgroundColor: `${ACCENT}20` }]}>
-                  <Icon name="camera-outline" size={22} color={ACCENT} />
-                </View>
-                <Text style={styles.quickActionLabel}>Explícamelo fácil</Text>
-              </TouchableOpacity>
-            )}
+          <View style={styles.studentActionsRow}>
+            <QuickActionsMenu
+              actions={studentQuickActions}
+              onPress={(section) => onSectionChange?.(section)}
+            />
           </View>
 
           {!loadingDashboardAds && carouselHasAds && (
@@ -1380,6 +1410,16 @@ export default function HomeDashboardScreen({
               </View>
             </View>
           )}
+
+          {/* Docencia cierra el inicio. Va al final y no arriba porque no es lo que
+              el residente viene a mirar cada día —para eso está "Te toca a ti", que
+              ya sube lo accionable de Tutorías y Autoevaluación—, sino el sitio
+              donde encontrarlas cuando las busca. */}
+          <ResidentTeachingSection
+            modules={teachingModules}
+            loading={loadingTeachingModules}
+            onPress={handleTeachingPress}
+          />
         </View>
       )}
 
@@ -1402,6 +1442,46 @@ export default function HomeDashboardScreen({
             <Icon name="arrow-forward" size={18} color="#FFFFFF" />
           </View>
         </TouchableOpacity>
+      )}
+
+      {userProfile?.is_student && examTools.length > 0 && (
+        <View style={styles.examToolsCard}>
+          <View style={styles.examToolsHeader}>
+            <Text style={styles.examToolsBrandTitle}>Herramientas Examen</Text>
+            <Text style={styles.examToolsSubtitle}>
+              Lo que necesitas para atacar las preguntas del MIR.
+            </Text>
+          </View>
+
+          <View style={styles.examToolsList}>
+            {examTools.map((tool) => {
+              const ToolIcon = tool.icon;
+              return (
+                <TouchableOpacity
+                  key={tool.key}
+                  style={styles.examToolItem}
+                  activeOpacity={0.85}
+                  onPress={() => handleExamToolPress(tool.section)}
+                  accessibilityRole="button"
+                  accessibilityLabel={tool.label}
+                >
+                  <View
+                    style={[styles.examToolIcon, { backgroundColor: tool.tint }]}
+                  >
+                    <ToolIcon size={24} color={tool.color} weight="duotone" />
+                  </View>
+                  <View style={styles.examToolCopy}>
+                    <Text style={styles.examToolLabel}>{tool.label}</Text>
+                    <Text style={styles.examToolDescription} numberOfLines={2}>
+                      {tool.description}
+                    </Text>
+                  </View>
+                  <Icon name="chevron-forward" size={18} color={PRIMARY} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
       )}
 
       {userProfile?.is_student && (
@@ -1882,22 +1962,6 @@ const styles = StyleSheet.create({
     color: ACCENT,
     textAlign: "center",
   },
-  quickActionNewBadge: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    backgroundColor: "#670CF5",
-    borderRadius: 999,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    zIndex: 1,
-  },
-  quickActionNewBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 8,
-    fontWeight: "900",
-    letterSpacing: 0.6,
-  },
   residentTopStack: {
     gap: 14,
     marginBottom: 24,
@@ -2033,6 +2097,10 @@ const styles = StyleSheet.create({
   residentActionsRow: {
     marginHorizontal: -16,
   },
+  studentActionsRow: {
+    marginHorizontal: -16,
+    marginBottom: 24,
+  },
   sectionBarPurple: {
     width: 4,
     height: 18,
@@ -2126,6 +2194,66 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: PRIMARY,
     alignSelf: "center",
+  },
+  examToolsCard: {
+    borderRadius: 24,
+    backgroundColor: "#F4EEFF",
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.10)",
+  },
+  examToolsHeader: {
+    marginBottom: 14,
+  },
+  examToolsBrandTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: PRIMARY,
+    lineHeight: 22,
+    marginBottom: 4,
+    letterSpacing: 0.2,
+  },
+  examToolsSubtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "rgba(27,9,119,0.75)",
+  },
+  examToolsList: {
+    gap: 10,
+  },
+  examToolItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.08)",
+  },
+  examToolIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  examToolCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  examToolLabel: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: ACCENT,
+  },
+  examToolDescription: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: "rgba(27,9,119,0.65)",
   },
   specialityQuizBanner: {
     position: "relative",

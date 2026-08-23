@@ -121,8 +121,6 @@ const RESIDENT_STEPS = [
   },
 ];
 
-const HOST_STEPS = [];
-
 const AVATAR_STEP = {
   id: "avatar",
   kind: "avatar",
@@ -154,10 +152,11 @@ const INSTAGRAM_STEP = {
   skipLabel: "Quizás más tarde",
 };
 
+// "host" ya no existe como tipo de usuario del onboarding: los anunciantes de
+// vivienda se registran en el portal de propietarios (vivienda.losresis.com).
 const STEPS_BY_TYPE = {
   student: STUDENT_STEPS,
   resident: RESIDENT_STEPS,
-  host: HOST_STEPS,
 };
 
 export const getOnboardingSteps = (userType) => {

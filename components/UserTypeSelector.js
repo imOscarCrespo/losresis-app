@@ -20,11 +20,15 @@ const USER_TYPES = [
     color: COLORS.PRIMARY,
   },
   {
+    // Ya no se puede pasar a anunciante desde la app (el alta se hace en
+    // vivienda.losresis.com); solo se muestra a quien ya lo es para que su
+    // tipo actual siga siendo visible y pueda cambiarse a otro.
     id: "host",
     label: "Anunciante de vivienda",
     subtitle: "Publica anuncios y responde a interesados",
     icon: "home",
     color: "#D97706",
+    legacyOnly: true,
   },
 ];
 
@@ -39,7 +43,9 @@ export const UserTypeSelector = ({ selectedType, onTypeChange }) => {
         Esto adapta tu perfil y las funciones que verás dentro de la app.
       </Text>
       <View style={styles.optionsContainer}>
-        {USER_TYPES.map((type) => {
+        {USER_TYPES.filter(
+          (type) => !type.legacyOnly || selectedType === type.id
+        ).map((type) => {
           const isSelected = selectedType === type.id;
           return (
             <MotionPressable

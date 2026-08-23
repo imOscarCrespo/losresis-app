@@ -24,6 +24,16 @@ export const NAVIGATION_ITEMS = [
     lightColor: "#DBEAFE",
   },
   {
+    id: "planes-formativos",
+    name: "Planes Formativos",
+    icon: "document-text",
+    description:
+      "Consulta los planes formativos publicados por los hospitales por especialidad",
+    studentOnly: true,
+    color: "#0D9488", // Teal
+    lightColor: "#CCFBF1",
+  },
+  {
     id: "preferencias",
     name: "Mis Preferencias",
     icon: "heart",
@@ -245,6 +255,7 @@ export const NAVIGATION_ITEMS = [
  */
 export const IMPLEMENTED_SECTIONS = [
   "hospitales",
+  "planes-formativos",
   "nota-mir",
   "nota-proyectada",
   "specialityQuiz",

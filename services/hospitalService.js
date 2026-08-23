@@ -7,6 +7,7 @@
 
 import { supabase } from "../config/supabase";
 import {
+  getHospitalByIdFromCatalog,
   getHospitalDiscoveryRankingsCatalog,
   getHospitalsCatalog,
   getHospitalSpecialityCatalog,
@@ -725,6 +726,74 @@ export const getHospitalProfileContent = async (hospitalId) => {
       profile: null,
       error: error.message,
     };
+  }
+};
+
+/**
+ * Una unidad docente (UDM) no es un hospital que se navegue: el catálogo las
+ * mezcla con los hospitales reales y hay que sacarlas de cualquier listado.
+ * Mismo criterio que losresis-panel (src/lib/hospitalSignup.ts).
+ * @param {string} hospitalName
+ * @returns {boolean}
+ */
+export const isSubHospitalName = (hospitalName) =>
+  (hospitalName || "").trim().toLowerCase().startsWith("ud");
+
+/**
+ * Obtener los hospitales que han publicado algún plan formativo (PDF) desde
+ * losresis-panel. El listado de hospitales sale del catálogo estático y el
+ * contenido publicado de Supabase.
+ * @returns {Promise<{success: boolean, hospitals: array, error: string|null}>}
+ */
+export const getHospitalsWithFormativePlans = async () => {
+  try {
+    const { data, error } = await supabase
+      .from("employer_org_profile_speciality")
+      .select("org_id, speciality_id, employer_org!inner(hospital_id, org_kind)")
+      .not("plan_formativo_url", "is", null)
+      .eq("employer_org.org_kind", "hospital");
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const planCountByHospitalId = new Map();
+    for (const row of data || []) {
+      const org = Array.isArray(row.employer_org)
+        ? row.employer_org[0]
+        : row.employer_org;
+      const hospitalId = org?.hospital_id;
+      if (!hospitalId) continue;
+
+      planCountByHospitalId.set(
+        hospitalId,
+        (planCountByHospitalId.get(hospitalId) || 0) + 1
+      );
+    }
+
+    const hospitals = [];
+    for (const [hospitalId, planCount] of planCountByHospitalId) {
+      const hospital = getHospitalByIdFromCatalog(hospitalId);
+      // Un hospital que ya no está en el catálogo, o una UDM que haya
+      // publicado plan, no entran en el listado.
+      if (!hospital || isSubHospitalName(hospital.name)) continue;
+
+      hospitals.push({
+        id: hospital.id,
+        name: hospital.name,
+        city: hospital.city,
+        region: hospital.region,
+        coordinates: hospital.coordinates,
+        planCount,
+      });
+    }
+
+    hospitals.sort((a, b) => a.name.localeCompare(b.name, "es"));
+
+    return { success: true, hospitals, error: null };
+  } catch (error) {
+    console.error("❌ Error fetching hospitals with formative plans:", error);
+    return { success: false, hospitals: [], error: error.message };
   }
 };
 
