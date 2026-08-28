@@ -12,7 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { Icon } from "./Icon";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import { PickerSheet } from "./PickerSheet";
 import { Country, City } from "country-state-city";
 import { COLORS } from "../constants/colors";
 import { SelectFilter } from "./SelectFilter";
@@ -312,15 +312,15 @@ export const RotationModal = ({
     onSubmit(rotationData, hasEndDate);
   };
 
-  const handleStartDateChange = (event, selectedDate) => {
-    setShowStartDatePicker(Platform.OS === "ios");
+  const handleStartDateChange = (selectedDate) => {
+    setShowStartDatePicker(false);
     if (selectedDate) {
       setFormData({ ...formData, start_date: selectedDate });
     }
   };
 
-  const handleEndDateChange = (event, selectedDate) => {
-    setShowEndDatePicker(Platform.OS === "ios");
+  const handleEndDateChange = (selectedDate) => {
+    setShowEndDatePicker(false);
     if (selectedDate) {
       setFormData({ ...formData, end_date: selectedDate });
     }
@@ -467,14 +467,14 @@ export const RotationModal = ({
                   color={COLORS.GRAY_DARK}
                 />
               </TouchableOpacity>
-              {showStartDatePicker && (
-                <DateTimePicker
-                  value={formData.start_date}
-                  mode="date"
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  onChange={handleStartDateChange}
-                />
-              )}
+              <PickerSheet
+                visible={showStartDatePicker}
+                value={formData.start_date}
+                mode="date"
+                title="Fecha de inicio"
+                onConfirm={handleStartDateChange}
+                onCancel={() => setShowStartDatePicker(false)}
+              />
             </View>
 
             {/* End Date Checkbox */}
@@ -511,15 +511,15 @@ export const RotationModal = ({
                     color={COLORS.GRAY_DARK}
                   />
                 </TouchableOpacity>
-                {showEndDatePicker && (
-                  <DateTimePicker
-                    value={formData.end_date || new Date()}
-                    mode="date"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={handleEndDateChange}
-                    minimumDate={formData.start_date}
-                  />
-                )}
+                <PickerSheet
+                  visible={showEndDatePicker}
+                  value={formData.end_date || formData.start_date || new Date()}
+                  mode="date"
+                  title="Fecha de fin"
+                  minimumDate={formData.start_date}
+                  onConfirm={handleEndDateChange}
+                  onCancel={() => setShowEndDatePicker(false)}
+                />
               </View>
             )}
 

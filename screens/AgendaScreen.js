@@ -21,6 +21,7 @@ import { ConfirmationModal } from "../components/ConfirmationModal";
 import { BottomMenuHeroHeader } from "../components/BottomMenuHeroHeader";
 import { ShareConnectionsPicker } from "../components/ShareConnectionsPicker";
 import { TimePickerInput } from "../components/TimePickerInput";
+import { DatePickerInput } from "../components/DatePickerInput";
 import { useAgendaEvents } from "../hooks/useAgendaEvents";
 import { useSharedAgendaEvents } from "../hooks/useSharedAgendaEvents";
 import { useTeamShifts } from "../hooks/useTeamShifts";
@@ -970,7 +971,10 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
       return;
     }
 
-    patchForm("event_date", selectedDate);
+    // Apagar el toggle solo deja de ser multi-día: la fecha elegida se respeta.
+    if (!form.event_date) {
+      patchForm("event_date", selectedDate);
+    }
     patchForm("end_date", "");
   };
 
@@ -1943,13 +1947,28 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
               </>
             ) : null}
 
+            {form.event_type !== "shift" ? (
+              <View style={styles.editorSection}>
+                <Text style={styles.inputLabel}>Fecha</Text>
+                <DatePickerInput
+                  value={form.event_date}
+                  onChange={(value) => patchForm("event_date", value)}
+                  placeholder="Selecciona la fecha"
+                  title="Fecha del evento"
+                  clearable={false}
+                  accentColor={selectedTypeMeta.color}
+                  style={styles.dateField}
+                />
+              </View>
+            ) : null}
+
             {DATE_TOGGLE_TYPES.has(form.event_type) ? (
               <>
                 <View style={styles.toggleRow}>
                   <View>
-                    <Text style={styles.toggleTitle}>Asignar fecha</Text>
+                    <Text style={styles.toggleTitle}>Varios días</Text>
                     <Text style={styles.toggleDescription}>
-                      Actívalo si el evento ocupa varios días.
+                      Actívalo si el evento ocupa más de un día.
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -2710,6 +2729,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
+  },
+  dateField: {
+    marginBottom: 0,
   },
   timeRangeRow: {
     flexDirection: "row",

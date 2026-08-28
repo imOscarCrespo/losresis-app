@@ -11,6 +11,7 @@ export { EmailReviewSection } from "./EmailReviewSection";
 export { ProfileStatusCard } from "./ProfileStatusCard";
 export { UserTypeSelector } from "./UserTypeSelector";
 export { FloatingActionButton } from "./FloatingActionButton";
+export { PickerSheet } from "./PickerSheet";
 export { DatePickerInput } from "./DatePickerInput";
 export { TimePickerInput } from "./TimePickerInput";
 export { InfoBanner } from "./InfoBanner";
