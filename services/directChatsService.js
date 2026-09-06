@@ -6,6 +6,22 @@ const getDisplayName = (chat) =>
     .join(" ")
     .trim() || "Usuario";
 
+// ensure_direct_group bloquea a los residentes sin acceso social (gracia MIR
+// expirada sin email corporativo) lanzando un código crudo de Postgres.
+// 'caller_missing_work_email' es el código antiguo, que sigue vivo hasta que se
+// aplique la migración del gate; lo traducimos igual para no enseñar el código.
+const DIRECT_CHAT_ERROR_MESSAGES = {
+  caller_not_social_eligible:
+    "Verifica tu email corporativo del hospital en tu perfil para poder escribir a otros residentes.",
+  caller_missing_work_email:
+    "Verifica tu email corporativo del hospital en tu perfil para poder escribir a otros residentes.",
+};
+
+const describeDirectChatError = (error) => {
+  const rawMessage = error?.message?.trim();
+  return DIRECT_CHAT_ERROR_MESSAGES[rawMessage] || rawMessage;
+};
+
 const normalizeChat = (chat) => ({
   ...chat,
   id: chat.group_id,
@@ -52,7 +68,11 @@ export const ensureDirectChat = async (otherUserId) => {
 
     if (error) {
       console.error("Error ensuring direct chat:", error);
-      return { success: false, chat: null, error: error.message };
+      return {
+        success: false,
+        chat: null,
+        error: describeDirectChatError(error),
+      };
     }
 
     const chat = Array.isArray(data) ? data[0] : data;
