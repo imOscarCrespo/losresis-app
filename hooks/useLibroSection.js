@@ -58,6 +58,9 @@ export const useLibroSection = (userId, section) => {
         nodeMap.set(node.id, {
           ...node,
           children: [],
+          // Se guarda aparte porque la tercera pasada recalcula total_count y
+          // necesita seguir sabiendo lo que se registró en ESTE nodo.
+          direct_count: directCount,
           total_count: directCount, // Empezar con el conteo directo
         });
       });
@@ -75,22 +78,24 @@ export const useLibroSection = (userId, section) => {
         }
       });
 
-      // Tercera pasada: Calcular conteos de entradas de padres como suma de hijos
+      // Tercera pasada: lo registrado en el nodo MÁS lo de sus descendientes.
+      //
+      // Un nodo puede tener las dos cosas a la vez: hay libros donde un
+      // procedimiento se cuenta con + y −, y además se desglosa en hijos por el
+      // papel del residente (Cirurgiana / Ajudant). Antes, tener un solo hijo
+      // hacía que total_count pasara a ser SOLO la suma de los hijos y los
+      // registros propios del nodo se descartaban, así que el procedimiento se
+      // quedaba en "0 registradas" por más veces que se pulsara +, mientras las
+      // entries sí se guardaban. Un nodo hoja no cambia (la suma de hijos es 0) y
+      // una categoría sin registros propios tampoco (su direct_count es 0).
       const calculateParentEntryCounts = (node) => {
-        if (!node.children || node.children.length === 0) {
-          // Nodo hoja - retornar su conteo directo
-          return node.total_count;
-        } else {
-          // Nodo padre - sumar solo los conteos de hijos
-          const childrenSum = node.children.reduce(
-            (sum, child) => sum + calculateParentEntryCounts(child),
-            0
-          );
-          // Para nodos padre, total_count debe ser SOLO la suma de todas las entradas de descendientes
-          // NO incluyendo las entradas directas del padre
-          node.total_count = childrenSum;
-          return childrenSum;
-        }
+        const childrenSum = (node.children || []).reduce(
+          (sum, child) => sum + calculateParentEntryCounts(child),
+          0
+        );
+
+        node.total_count = (node.direct_count || 0) + childrenSum;
+        return node.total_count;
       };
 
       // Calcular conteos de entradas para todos los nodos raíz

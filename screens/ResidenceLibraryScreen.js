@@ -118,6 +118,10 @@ const getProgress = (count, goal) => {
 
 const ProcedureRow = ({
   node,
+  // "inc" | "dec" | null: qué botón está esperando al servidor. Registrar recarga
+  // el apartado entero, así que el número tarda en moverse; sin esto el residente
+  // cree que no ha pasado nada y vuelve a pulsar, y cada pulsación es un registro.
+  busy = null,
   onIncrement,
   onDecrement,
   onRegister,
@@ -128,6 +132,7 @@ const ProcedureRow = ({
   const progress = getProgress(count, goal);
   const isCounter = (node.tracking_mode || "counter") === "counter";
   const color = COLOR_TOKEN_MAP[node.color_token] || COLOR_TOKEN_MAP.violet;
+  const isBusy = !!busy;
 
   return (
     <View style={styles.procedureCard}>
@@ -163,14 +168,33 @@ const ProcedureRow = ({
           {isCounter ? (
             <>
               <TouchableOpacity
-                style={[styles.counterButton, count <= 0 && styles.counterButtonDisabled]}
+                style={[
+                  styles.counterButton,
+                  (count <= 0 || isBusy) && styles.counterButtonDisabled,
+                ]}
                 onPress={() => onDecrement(node)}
-                disabled={count <= 0}
+                disabled={count <= 0 || isBusy}
               >
-                <Icon name="remove" size={16} color={count <= 0 ? "#94A3B8" : "#1B0977"} />
+                {busy === "dec" ? (
+                  <ActivityIndicator size="small" color="#1B0977" />
+                ) : (
+                  <Icon
+                    name="remove"
+                    size={16}
+                    color={count <= 0 || isBusy ? "#94A3B8" : "#1B0977"}
+                  />
+                )}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.counterButton} onPress={() => onIncrement(node)}>
-                <Icon name="add" size={16} color="#1B0977" />
+              <TouchableOpacity
+                style={[styles.counterButton, isBusy && styles.counterButtonDisabled]}
+                onPress={() => onIncrement(node)}
+                disabled={isBusy}
+              >
+                {busy === "inc" ? (
+                  <ActivityIndicator size="small" color="#1B0977" />
+                ) : (
+                  <Icon name="add" size={16} color={isBusy ? "#94A3B8" : "#1B0977"} />
+                )}
               </TouchableOpacity>
             </>
           ) : (
@@ -209,6 +233,8 @@ const CategoryCard = ({
   onDecrement,
   onRegister,
   onOpenChildActions,
+  // { [nodeId]: "inc" | "dec" } de los procedimientos que están registrando.
+  busyCounters = {},
 }) => {
   const color = COLOR_TOKEN_MAP[node.color_token] || COLOR_TOKEN_MAP.violet;
   const children = node.children || [];
@@ -298,6 +324,7 @@ const CategoryCard = ({
                 <ProcedureRow
                   key={child.id}
                   node={child}
+                  busy={busyCounters[child.id] || null}
                   onIncrement={onIncrement}
                   onDecrement={onDecrement}
                   onRegister={onRegister}
@@ -351,6 +378,8 @@ export default function ResidenceLibraryScreen({
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [collapsedCategoriesLoaded, setCollapsedCategoriesLoaded] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  // Qué contadores están esperando al servidor: { [nodeId]: "inc" | "dec" }.
+  const [busyCounters, setBusyCounters] = useState({});
 
   const shouldShowReviewPrompt =
     userProfile?.is_resident &&
@@ -1508,51 +1537,80 @@ export default function ResidenceLibraryScreen({
     setShowDeleteConfirm(null);
   };
 
+  // El spinner se pone antes de la llamada y se quita en el finally, para que
+  // también desaparezca si falla: un botón girando para siempre es peor que el
+  // Alert de error.
+  const markCounterBusy = (nodeId, kind) =>
+    setBusyCounters((prev) => ({ ...prev, [nodeId]: kind }));
+
+  const clearCounterBusy = (nodeId) =>
+    setBusyCounters((prev) => {
+      if (!(nodeId in prev)) return prev;
+      const next = { ...prev };
+      delete next[nodeId];
+      return next;
+    });
+
   const handleIncrement = async (node) => {
-    const success = await addEntry(node.id, {
-      count: 1,
-      residency_year: currentBookResidencyYear,
-      performed_at: today(),
-      notes: "",
-    });
+    // Ya hay un registro en vuelo para este procedimiento: la segunda pulsación
+    // sería un registro de más, que es justo lo que se quiere evitar.
+    if (busyCounters[node.id]) return;
 
-    if (!success) {
-      Alert.alert("Error", "No se pudo registrar el procedimiento.");
-      return;
+    markCounterBusy(node.id, "inc");
+    try {
+      const success = await addEntry(node.id, {
+        count: 1,
+        residency_year: currentBookResidencyYear,
+        performed_at: today(),
+        notes: "",
+      });
+
+      if (!success) {
+        Alert.alert("Error", "No se pudo registrar el procedimiento.");
+        return;
+      }
+
+      await updateLibroSettings({
+        last_used_node_id: node.id,
+        quick_activity_ids: [node.id, ...quickActivityIds.filter((id) => id !== node.id)].slice(0, 6),
+      });
+    } finally {
+      clearCounterBusy(node.id);
     }
-
-    await updateLibroSettings({
-      last_used_node_id: node.id,
-      quick_activity_ids: [node.id, ...quickActivityIds.filter((id) => id !== node.id)].slice(0, 6),
-    });
   };
 
   const handleDecrement = async (node) => {
     // Atajo barato para no consultar cuando el contador ya está a cero. La guarda
     // de verdad es findEntryToUndo, porque total_count es un denormalizado.
     if ((node.total_count || 0) <= 0) return;
+    if (busyCounters[node.id]) return;
 
-    // El negativo hereda la fecha del registro que anula, no la del día en que se
-    // pulsa: si no, cualquier suma por ventana de fechas sale mal (docs/adr/0010).
-    let target = null;
+    markCounterBusy(node.id, "dec");
     try {
-      target = await findEntryToUndo(node.id);
-    } catch {
-      Alert.alert("Error", "No se pudo ajustar el contador.");
-      return;
-    }
+      // El negativo hereda la fecha del registro que anula, no la del día en que se
+      // pulsa: si no, cualquier suma por ventana de fechas sale mal (docs/adr/0010).
+      let target = null;
+      try {
+        target = await findEntryToUndo(node.id);
+      } catch {
+        Alert.alert("Error", "No se pudo ajustar el contador.");
+        return;
+      }
 
-    if (!target) return;
+      if (!target) return;
 
-    const success = await addEntry(node.id, {
-      count: -1,
-      residency_year: currentBookResidencyYear,
-      performed_at: target.performedAt,
-      notes: "",
-    });
+      const success = await addEntry(node.id, {
+        count: -1,
+        residency_year: currentBookResidencyYear,
+        performed_at: target.performedAt,
+        notes: "",
+      });
 
-    if (!success) {
-      Alert.alert("Error", "No se pudo ajustar el contador.");
+      if (!success) {
+        Alert.alert("Error", "No se pudo ajustar el contador.");
+      }
+    } finally {
+      clearCounterBusy(node.id);
     }
   };
 
@@ -2125,6 +2183,7 @@ export default function ResidenceLibraryScreen({
                     })
                   }
                   onOpenChildActions={openChildActions}
+                  busyCounters={busyCounters}
                 />
               ))
             )}
