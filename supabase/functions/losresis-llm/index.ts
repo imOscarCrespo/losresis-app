@@ -21,6 +21,10 @@ const CLINICAL_ASSISTANT_FEATURE_KEY = "clinical_assistant_chat";
 const PHOTO_STUDY_FEATURE_KEY = "photo_study_analysis";
 const STUDY_PHOTO_BUCKET = "study-photo-uploads";
 
+// El tope real vive en la BD (consume_photo_study_quota); aquí solo se usa
+// como respaldo del mensaje si la RPC no devolviera el límite.
+const PHOTO_STUDY_FALLBACK_DAILY_LIMIT = 5;
+
 const STUDY_SYSTEM_PROMPT = `Eres un tutor para estudiantes de medicina que preparan el examen MIR en España. El estudiante te envía la foto de una pregunta de examen (o de un apunte) que no entiende. Tu trabajo es explicárselo de forma tan sencilla que no le quede ninguna duda.
 
 ## FORMATO DE RESPUESTA OBLIGATORIO
@@ -275,6 +279,19 @@ const buildStudyMessages = async (
   };
 };
 
+// Si el modelo falla tras haber consumido cuota, se devuelve: el usuario no
+// llegó a ver ninguna explicación. Un fallo al devolverla no debe tumbar la
+// respuesta de error que ya íbamos a dar.
+const refundStudyQuota = async (consumed: boolean, userId: string) => {
+  if (!consumed) return;
+  const { error } = await supabaseAdmin.rpc("refund_photo_study_quota", {
+    p_user_id: userId,
+  });
+  if (error) {
+    console.error("Photo study quota refund error:", error);
+  }
+};
+
 const createAssistantStream = (kimiBody: ReadableStream<Uint8Array>) => {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
@@ -456,6 +473,9 @@ serve(async (req) => {
     }
 
     let requestMessages: Array<Record<string, unknown>>;
+    // Solo el modo estudio tiene cuota diaria; se marca para poder devolverla
+    // si la llamada al modelo falla y el usuario no recibe nada.
+    let studyQuotaConsumed = false;
 
     if (assistantMode === "estudio") {
       const study = await buildStudyMessages(user.id, payload?.imagePath);
@@ -465,6 +485,41 @@ serve(async (req) => {
           study.status
         );
       }
+
+      // Se consume después de validar la imagen: una foto ilegible no gasta.
+      const { data: quotaRows, error: quotaError } = await supabaseAdmin.rpc(
+        "consume_photo_study_quota",
+        { p_user_id: user.id }
+      );
+
+      if (quotaError) {
+        console.error("Photo study quota error:", quotaError);
+        return jsonResponse(
+          { error: "No se pudo validar tu límite diario de análisis." },
+          500
+        );
+      }
+
+      const quota = Array.isArray(quotaRows) ? quotaRows[0] : quotaRows;
+      const dailyLimit =
+        typeof quota?.daily_limit === "number"
+          ? quota.daily_limit
+          : PHOTO_STUDY_FALLBACK_DAILY_LIMIT;
+
+      if (!quota?.allowed) {
+        return jsonResponse(
+          {
+            error: `Has usado tus ${dailyLimit} análisis de hoy. Vuelve mañana para seguir estudiando.`,
+            limitReached: true,
+            used: quota?.used ?? dailyLimit,
+            remaining: 0,
+            dailyLimit,
+          },
+          429
+        );
+      }
+
+      studyQuotaConsumed = true;
       requestMessages = study.messages;
     } else {
       const messages = normalizeMessages(payload?.messages);
@@ -499,6 +554,7 @@ serve(async (req) => {
     if (!kimiResponse.ok) {
       const kimiPayload = await kimiResponse.json().catch(() => null);
       console.error("Kimi API error:", kimiPayload);
+      await refundStudyQuota(studyQuotaConsumed, user.id);
       return jsonResponse(
         { error: "No se pudo obtener respuesta del asistente clínico." },
         502
@@ -507,6 +563,7 @@ serve(async (req) => {
 
     if (shouldStream) {
       if (!kimiResponse.body) {
+        await refundStudyQuota(studyQuotaConsumed, user.id);
         return jsonResponse(
           { error: "El asistente no devolvió una respuesta válida." },
           502
@@ -522,6 +579,7 @@ serve(async (req) => {
 
     if (typeof content !== "string" || !content.trim()) {
       console.error("Invalid Kimi response:", kimiPayload);
+      await refundStudyQuota(studyQuotaConsumed, user.id);
       return jsonResponse(
         { error: "El asistente no devolvió una respuesta válida." },
         502

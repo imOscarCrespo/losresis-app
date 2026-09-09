@@ -62,6 +62,38 @@ export const removeStudyPhoto = async (imagePath) => {
   }
 };
 
+// Lee la cuota diaria de análisis (5 al día por usuario, reset a medianoche
+// hora de Madrid) para poder avisar antes de que el usuario suba la foto. El
+// tope real lo aplica el servidor: esto es solo información.
+export const getPhotoStudyQuota = async (userId) => {
+  try {
+    const { data, error } = await supabase.rpc("get_photo_study_quota", {
+      p_user_id: userId,
+    });
+
+    if (error) {
+      return { success: false, quota: null, error: error.message };
+    }
+
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) {
+      return { success: false, quota: null, error: null };
+    }
+
+    return {
+      success: true,
+      quota: {
+        used: row.used ?? 0,
+        remaining: row.remaining ?? 0,
+        dailyLimit: row.daily_limit ?? 0,
+      },
+      error: null,
+    };
+  } catch (error) {
+    return { success: false, quota: null, error: error.message };
+  }
+};
+
 // Pide al edge function losresis-llm (modo "estudio") que analice la foto ya
 // subida. El servidor descarga la imagen del bucket y la envía a Kimi, así el
 // cliente solo manda el path. Respuesta en streaming vía onChunk.

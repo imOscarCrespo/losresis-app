@@ -192,6 +192,14 @@ export const LIBRO_ACTIVE_SECTIONS = LIBRO_SECTIONS.filter(
 export const isRetiredLibroSection = (code) =>
   !!LIBRO_SECTION_BY_CODE[code]?.retired;
 
+// Los apartados que trae un Libro propio recién montado, y los que se le completan
+// si le faltan (ADR 0012). Son los mismos ocho que el tutor puede escoger: el libro
+// que se monta el residente ya no es un libro más pobre, es el mismo libro con la
+// estructura puesta por él.
+export const LIBRO_OWN_BOOK_SECTIONS = LIBRO_ACTIVE_SECTIONS.map(
+  (section) => section.code
+);
+
 // El estado de la ficha del arquetipo itinerary (libro_node_progress.status). El
 // vocabulario cambia por apartado, y el de competencias lo escribe el TUTOR al
 // cerrar una evaluación (set_evaluation_competency): el residente lo lee.

@@ -9,20 +9,23 @@ import {
 import { Icon } from "../Icon";
 import {
   getLibroProgressLabel,
+  getLibroSectionChildLabel,
   isLibroProgressDone,
 } from "../../data/libroSections";
 
 /**
- * Arquetipo `itinerary`: el tutor define una LISTA y el residente completa una ficha
- * por elemento. Rotaciones y Competencias.
+ * Arquetipo `itinerary`: una LISTA de elementos y una ficha por elemento.
+ * Rotaciones y Competencias.
  *
- * Dos cosas que no se pueden tocar:
+ * Quién monta la lista depende de quién es el libro (ADR 0012):
  *
- *  - El residente NO crea ni borra elementos. La lista es del tutor.
- *  - En Competencias el NIVEL lo pone el tutor al cerrar una evaluación
- *    (set_evaluation_competency escribe en libro_node_progress). Aquí se ve en solo
+ *  - Libro oficial: la lista es del tutor. El residente NO crea ni borra elementos,
+ *    y en Competencias el NIVEL lo pone el tutor al cerrar una evaluación
+ *    (set_evaluation_competency escribe en libro_node_progress); aquí se ve en solo
  *    lectura y el residente aporta su comentario. Si los dos escribieran la misma
  *    columna, la evaluación del tutor pisaría su autovaloración sin dejar rastro.
+ *  - Libro propio: la lista la monta el residente (`canEditStructure`), porque no
+ *    hay nadie más que se la vaya a montar.
  *
  * La ficha se rellena en una PANTALLA (LibroFichaScreen), no en un modal: aquí solo
  * se lista y se avisa al Libro de qué elemento se ha abierto.
@@ -33,7 +36,10 @@ export const LibroItineraryView = ({
   nodes = [],
   loading = false,
   readOnly = false,
+  canEditStructure = false,
   onOpenNode,
+  onCreateItem,
+  onEditItem,
 }) => {
   const done = useMemo(
     () =>
@@ -42,6 +48,8 @@ export const LibroItineraryView = ({
       ).length,
     [nodes, section]
   );
+
+  const childLabel = getLibroSectionChildLabel(section);
 
   const durationText = (node) => {
     if (!node.duration_amount || !node.duration_unit) return "";
@@ -66,9 +74,20 @@ export const LibroItineraryView = ({
         <Icon name="list-outline" size={22} color="#670CF5" />
         <Text style={styles.emptyTitle}>Sin contenido todavía</Text>
         <Text style={styles.emptyText}>
-          Tu tutor todavía no ha definido nada en este apartado. Cuando lo haga,
-          aparecerá aquí.
+          {canEditStructure
+            ? `Este apartado es tuyo: añade la primera ${childLabel} y la ficha aparecerá aquí.`
+            : "Tu tutor todavía no ha definido nada en este apartado. Cuando lo haga, aparecerá aquí."}
         </Text>
+        {canEditStructure ? (
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => onCreateItem?.()}
+            activeOpacity={0.85}
+          >
+            <Icon name="add" size={16} color="#670CF5" />
+            <Text style={styles.addButtonText}>{`Añadir ${childLabel}`}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     );
   }
@@ -78,6 +97,17 @@ export const LibroItineraryView = ({
       <Text style={styles.progressLine}>
         {`${done} de ${nodes.length} completadas`}
       </Text>
+
+      {canEditStructure ? (
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => onCreateItem?.()}
+          activeOpacity={0.85}
+        >
+          <Icon name="add" size={16} color="#670CF5" />
+          <Text style={styles.addButtonText}>{`Añadir ${childLabel}`}</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {nodes.map((node) => {
         const status = node.progress?.status || "pending";
@@ -111,7 +141,18 @@ export const LibroItineraryView = ({
                 {getLibroProgressLabel(section, status)}
               </Text>
             </View>
-            {!readOnly ? (
+            {/* Editar el ELEMENTO (qué es) y abrir su FICHA (cómo va) son dos
+                cosas distintas, así que son dos toques distintos: el lápiz y el
+                resto de la fila. */}
+            {canEditStructure ? (
+              <TouchableOpacity
+                style={styles.itemEdit}
+                onPress={() => onEditItem?.(node)}
+                hitSlop={10}
+              >
+                <Icon name="create-outline" size={16} color="#670CF5" />
+              </TouchableOpacity>
+            ) : !readOnly ? (
               <Icon name="chevron-forward" size={16} color="#94A3B8" />
             ) : null}
           </TouchableOpacity>
@@ -119,8 +160,9 @@ export const LibroItineraryView = ({
       })}
 
       <Text style={styles.footnote}>
-        Esta lista la define tu tutor: puedes completar cada ficha, pero no añadir ni
-        quitar elementos.
+        {canEditStructure
+          ? "Esta lista es tuya: añade, edita o quita elementos, y completa la ficha de cada uno."
+          : "Esta lista la define tu tutor: puedes completar cada ficha, pero no añadir ni quitar elementos."}
       </Text>
     </View>
   );
@@ -161,6 +203,26 @@ const styles = StyleSheet.create({
   itemMeta: { fontSize: 12, color: "#64748B", lineHeight: 17 },
   itemStatus: { fontSize: 12, fontWeight: "600", color: "#94A3B8" },
   itemStatusDone: { color: "#059669" },
+  itemEdit: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F5F3FF",
+  },
+  addButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    height: 46,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+    backgroundColor: "#F5F3FF",
+  },
+  addButtonText: { fontSize: 14, fontWeight: "700", color: "#670CF5" },
   footnote: {
     fontSize: 12,
     color: "#94A3B8",

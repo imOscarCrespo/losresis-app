@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   getAllLibroData,
   createNode,
-  createLibroStructure,
   getLibroBooks,
   getLibroUserSettings,
   upsertLibroUserSettings,
@@ -482,32 +481,6 @@ export const useLibroSection = (userId, section) => {
     }
   }, [getCurrentUserId, section, fetchAllData]);
 
-  const createStructure = useCallback(
-    async ({ specialityId = null, categories = [], residencyYear = 1 }) => {
-      const currentUserId = await getCurrentUserId();
-      if (!currentUserId || !section) return false;
-
-      setLoading(true);
-      try {
-        await createLibroStructure({
-          userId: currentUserId,
-          section,
-          specialityId,
-          categories,
-          residencyYear,
-        });
-        await Promise.all([fetchAllData(), fetchSettings()]);
-        return true;
-      } catch (error) {
-        console.error("Error creating libro structure:", error);
-        return false;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [fetchAllData, fetchSettings, getCurrentUserId, section]
-  );
-
   const selectBook = useCallback(
     async (bookId) => {
       setSelectedBookId(bookId);
@@ -649,7 +622,6 @@ export const useLibroSection = (userId, section) => {
     fetchAllData,
     fetchSettings,
     createTemplate,
-    createStructure,
     archiveAndStartNewYear,
     markOnboardingComplete,
     updateLibroSettings,

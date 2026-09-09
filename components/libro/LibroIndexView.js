@@ -12,9 +12,13 @@ import { LIBRO_SECTION_BY_CODE } from "../../data/libroSections";
 /**
  * La pantalla principal del Libro del Residente.
  *
- * Lo que se pinta NO es una lista fija de apartados: son los que su hospital ha
- * configurado para su especialidad y su año. Dos residentes del mismo hospital y
- * distinta especialidad ven cosas distintas, y eso es lo normal.
+ * Lo que se pinta NO es una lista fija de apartados: son los que tiene el libro de
+ * ese año. En el Libro oficial los escoge el hospital para su especialidad y su año
+ * —dos residentes del mismo hospital y distinta especialidad ven cosas distintas, y
+ * eso es lo normal—; en el Libro propio están los ocho del catálogo (ADR 0012).
+ *
+ * El índice es EL MISMO en los dos casos, a propósito: lo único que cambia es de
+ * quién son los objetivos, y eso solo se nota en el subtítulo del progreso.
  *
  * El contador de cada tarjeta significa algo distinto según el arquetipo, así que el
  * texto lo dice: "2 de 6" en un itinerario no es lo mismo que "28 registros".
@@ -33,6 +37,7 @@ export const LibroIndexView = ({
   sections = [],
   onOpenSection,
   isArchived = false,
+  isOfficial = false,
 }) => (
   <View style={styles.container}>
     <View style={styles.progressCard}>
@@ -41,10 +46,17 @@ export const LibroIndexView = ({
       </View>
       <View style={styles.progressCopy}>
         <Text style={styles.progressTitle}>Tu progreso general</Text>
+        {/* De quién son los objetivos cambia con el libro: en el oficial los fija
+            el tutor, y en el propio los ha puesto el residente. Decirle "de tu
+            tutor" a quien se ha montado el libro él solo es mentira. */}
         <Text style={styles.progressSubtitle}>
           {progress
-            ? `${progress.done} de ${progress.total} objetivos de tu tutor`
-            : "Tu tutor no ha fijado objetivos para este año"}
+            ? `${progress.done} de ${progress.total} objetivos${
+                isOfficial ? " de tu tutor" : ""
+              }`
+            : isOfficial
+              ? "Tu tutor no ha fijado objetivos para este año"
+              : "Añade rotaciones o competencias para medir tu progreso"}
         </Text>
       </View>
       {progress ? (
@@ -92,7 +104,9 @@ export const LibroIndexView = ({
         <Text style={styles.emptyText}>
           {isArchived
             ? "Este año quedó archivado sin contenido."
-            : "Tu tutor todavía no ha configurado el libro de este año."}
+            : isOfficial
+              ? "Tu tutor todavía no ha configurado el libro de este año."
+              : "Todavía no hay apartados en este año."}
         </Text>
       </View>
     )}

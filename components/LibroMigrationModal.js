@@ -29,7 +29,8 @@ export const LibroMigrationModal = ({
   onConfirm,
   residencyYear,
   incomingSections = [],
-  recordedEntries = 0,
+  // null = no se sabe cuánto hay dentro. No es lo mismo que 0.
+  recordedEntries = null,
   migrating = false,
 }) => {
   const [exporting, setExporting] = useState(false);
@@ -45,7 +46,12 @@ export const LibroMigrationModal = ({
     setConfirming(false);
   }, [visible]);
 
-  const hasSomethingToLose = recordedEntries > 0;
+  const countIsKnown = typeof recordedEntries === "number";
+  // Sabemos que tiene algo dentro. Solo con la cuenta hecha.
+  const hasSomethingToLose = countIsKnown && recordedEntries > 0;
+  // Hay que tratarlo como destructivo: o sabemos que pierde algo, o no sabemos
+  // cuánto. No saberlo no es saber que no pierde nada.
+  const needsCaution = !countIsKnown || hasSomethingToLose;
 
   const handleExport = async () => {
     setExporting(true);
@@ -58,9 +64,10 @@ export const LibroMigrationModal = ({
   };
 
   const handleConfirm = () => {
-    // Con algo que perder se pide un segundo toque. Sin nada que perder, migrar es
-    // inocuo y pedir dos confirmaciones solo enseña a confirmar sin leer.
-    if (hasSomethingToLose && !confirming) {
+    // Con algo que perder —o sin saber si lo hay— se pide un segundo toque. Sabiendo
+    // que no hay nada dentro migrar es inocuo, y pedir dos confirmaciones solo enseña
+    // a confirmar sin leer.
+    if (needsCaution && !confirming) {
       setConfirming(true);
       return;
     }
@@ -110,26 +117,28 @@ export const LibroMigrationModal = ({
               </View>
             ) : null}
 
-            <View style={[styles.block, hasSomethingToLose && styles.blockDanger]}>
+            <View style={[styles.block, needsCaution && styles.blockDanger]}>
               <View style={styles.blockHeader}>
                 <Icon
-                  name={hasSomethingToLose ? "warning-outline" : "information-circle-outline"}
+                  name={needsCaution ? "warning-outline" : "information-circle-outline"}
                   size={16}
-                  color={hasSomethingToLose ? "#B45309" : "#475569"}
+                  color={needsCaution ? "#B45309" : "#475569"}
                 />
                 <Text
                   style={[
                     styles.blockTitle,
-                    hasSomethingToLose && styles.blockTitleDanger,
+                    needsCaution && styles.blockTitleDanger,
                   ]}
                 >
-                  {hasSomethingToLose ? "Lo que vas a perder" : "Qué va a pasar"}
+                  {needsCaution ? "Lo que vas a perder" : "Qué va a pasar"}
                 </Text>
               </View>
               <Text style={styles.blockText}>
-                {hasSomethingToLose
-                  ? `Tu libro de R${residencyYear} se sustituye por el de tu tutor, y con él se borran los ${recordedEntries} registros que tienes dentro. No se puede deshacer.`
-                  : `Tu libro de R${residencyYear} se sustituye por el de tu tutor. No tienes registros dentro, así que no pierdes nada.`}
+                {!countIsKnown
+                  ? `Tu libro de R${residencyYear} se sustituye por el de tu tutor y se borra todo lo que tengas registrado dentro. No se puede deshacer: descárgate el PDF antes de continuar.`
+                  : hasSomethingToLose
+                    ? `Tu libro de R${residencyYear} se sustituye por el de tu tutor, y con él se borran los ${recordedEntries} registros y fichas que tienes dentro. No se puede deshacer.`
+                    : `Tu libro de R${residencyYear} se sustituye por el de tu tutor. No tienes nada registrado dentro, así que no pierdes nada.`}
               </Text>
             </View>
 
@@ -171,7 +180,7 @@ export const LibroMigrationModal = ({
             <TouchableOpacity
               style={[
                 styles.confirmButton,
-                hasSomethingToLose && styles.confirmButtonDanger,
+                needsCaution && styles.confirmButtonDanger,
                 busy && styles.confirmButtonDisabled,
               ]}
               onPress={handleConfirm}
@@ -182,11 +191,13 @@ export const LibroMigrationModal = ({
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <Text style={styles.confirmButtonText}>
-                  {!hasSomethingToLose
+                  {!needsCaution
                     ? "Cambiar al libro de mi tutor"
                     : confirming
-                      ? "Sí, borrar mis registros y cambiar"
-                      : "Cambiar y perder mis registros"}
+                      ? "Sí, borrar y cambiar"
+                      : hasSomethingToLose
+                        ? "Cambiar y perder mis registros"
+                        : "Cambiar y borrar lo que tenga dentro"}
                 </Text>
               )}
             </TouchableOpacity>

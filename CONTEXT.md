@@ -122,7 +122,7 @@ _Evitar_: flashcard, apunte, nota.
 
 ## Libro del Residente
 
-El registro de toda la actividad formativa del **Residente** durante un año de residencia: qué ha rotado, qué ha hecho, qué ha adquirido. Se compone de **Apartados**, y qué apartados tiene no lo decide el residente sino la **Plantilla del Libro** que su hospital publica para su especialidad y su año.
+El registro de toda la actividad formativa del **Residente** durante un año de residencia: qué ha rotado, qué ha hecho, qué ha adquirido. Se compone de **Apartados**. Cuáles tiene depende de quién lo montó: el **Libro oficial** tiene los que la **Plantilla del Libro** de su hospital declara para su especialidad y su año; el **Libro propio** tiene los ocho del catálogo, siempre (ADR 0012).
 _Evitar_: libro de residencia, libro de rotaciones, portfolio.
 
 ## Plantilla del Libro
@@ -147,8 +147,12 @@ _Evitar_: categoría (era el nombre viejo, cuando todos los apartados tenían es
 
 ## Libro propio
 
-**Libro del Residente** cuya estructura montó el propio residente (en el onboarding, antes de que su hospital publicara nada): sin `template_id`. Puede añadir, editar y borrar su estructura, y su tutor no la ve como plan suyo.
-_Evitar_: libro manual, libro sin plantilla.
+**Libro del Residente** cuya estructura es del propio residente, no de una **Plantilla del Libro**: sin `template_id`. Puede añadir, editar y borrar su estructura, y su tutor no la ve como plan suyo.
+
+Se le siembra **solo, la primera vez que abre el Libro**, si su hospital no le ha dado uno: no hay asistente ni configuración previa (ADR 0013). Nace con sus **Áreas de actividad** sugeridas por especialidad ya puestas, para que tenga dónde registrar desde el primer día; todo eso es suyo y lo cambia desde el propio Libro.
+
+Tiene **los ocho Apartados**, los mismos que puede tener un **Libro oficial**, y se pinta con las mismas pantallas: lo único que cambia es quién pone el contenido de dentro (ADR 0012). Los que le falten se le completan solos al abrir el Libro. En sus **Apartados** de arquetipo `itinerary` la lista es suya —añade, edita y borra rotaciones y competencias—, y por lo mismo el nivel de una competencia lo pone él: no hay **Evaluación** de tutor que lo escriba.
+_Evitar_: libro manual, libro sin plantilla, libro reducido.
 
 ## Libro oficial
 
@@ -162,7 +166,9 @@ _Evitar_: cambiar de libro, adoptar la plantilla, sincronizar.
 
 ## Progreso del año
 
-Cuánto ha cubierto el **Residente** de lo que su tutor le ha fijado como objetivo para ese año: fichas de itinerario completadas (rotaciones y competencias) más actividades de **Área de actividad** que tengan meta. Lo que no tiene objetivo —Cursos, Congresos, Sesiones clínicas, Investigación y Guardias— no entra en el cálculo, aunque sus contadores se muestren. Se deriva al leer: no se guarda.
+Cuánto ha cubierto el **Residente** de lo que se le ha fijado como objetivo para ese año: fichas de itinerario completadas (rotaciones y competencias) más actividades de **Área de actividad** que tengan meta. Lo que no tiene objetivo —Cursos, Congresos, Sesiones clínicas, Investigación y Guardias— no entra en el cálculo, aunque sus contadores se muestren. Se deriva al leer: no se guarda.
+
+De quién son esos objetivos depende del libro: en el **Libro oficial** los fija el tutor y la app lo dice ("N de M objetivos de tu tutor"); en el **Libro propio** los ha puesto el residente y no se le atribuyen a nadie.
 _Evitar_: completitud del libro, nota, cumplimiento.
 
 ## Tutoría

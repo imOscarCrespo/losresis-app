@@ -19,6 +19,7 @@ import { getSpecialitiesCatalog } from "../services/staticCatalogService";
 import posthogLogger from "../services/posthogService";
 import {
   analyzeStudyPhoto,
+  getPhotoStudyQuota,
   deleteStudyCard,
   extractCardSummary,
   getStudyCards,
@@ -176,6 +177,7 @@ export default function StudyPhotoScreen({ userProfile, onBack }) {
   const [imageUri, setImageUri] = useState(null);
   const [imagePath, setImagePath] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [quota, setQuota] = useState(null);
   const [content, setContent] = useState("");
   const [analysisDone, setAnalysisDone] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -220,6 +222,18 @@ export default function StudyPhotoScreen({ userProfile, onBack }) {
       }
     };
   }, []);
+
+  // El tope diario lo aplica el servidor; esto solo evita que el usuario suba
+  // una foto para descubrir después que ya no le quedan análisis.
+  const loadQuota = async () => {
+    if (!userId) return;
+    const res = await getPhotoStudyQuota(userId);
+    if (res.success) setQuota(res.quota);
+  };
+
+  useEffect(() => {
+    loadQuota();
+  }, [userId]);
 
   const loadCards = async () => {
     if (!userId) return;
@@ -302,6 +316,14 @@ export default function StudyPhotoScreen({ userProfile, onBack }) {
 
   const handleAnalyze = async () => {
     if (!imageUri || analyzing) return;
+    // El servidor devolvería 429 igualmente; esto ahorra el viaje.
+    if (quota?.remaining === 0) {
+      Alert.alert(
+        "Límite diario alcanzado",
+        `Has usado tus ${quota.dailyLimit} análisis de hoy. Vuelve mañana para seguir estudiando.`
+      );
+      return;
+    }
 
     setAnalyzing(true);
     setContent("");
@@ -351,6 +373,9 @@ export default function StudyPhotoScreen({ userProfile, onBack }) {
       posthogLogger.capture("study_photo_analysis_completed");
     } finally {
       setAnalyzing(false);
+      // Tanto si el análisis salió como si el servidor lo rechazó por cuota,
+      // el contador que ve el usuario tiene que reflejar el estado real.
+      loadQuota();
     }
   };
 
@@ -478,6 +503,8 @@ export default function StudyPhotoScreen({ userProfile, onBack }) {
     </View>
   );
 
+  const quotaExhausted = quota?.remaining === 0;
+
   const renderAnalyzeTab = () => (
     <>
       {!imageUri && (
@@ -524,11 +551,27 @@ export default function StudyPhotoScreen({ userProfile, onBack }) {
         </TouchableOpacity>
       </View>
 
+      {quota && (
+        <Text
+          style={[
+            styles.quotaHint,
+            quota.remaining === 0 && styles.quotaHintExhausted,
+          ]}
+        >
+          {quota.remaining === 0
+            ? `Has usado tus ${quota.dailyLimit} análisis de hoy. Vuelve mañana.`
+            : `Te quedan ${quota.remaining} de ${quota.dailyLimit} análisis hoy.`}
+        </Text>
+      )}
+
       {imageUri && !analysisDone && (
         <TouchableOpacity
-          style={[styles.primaryBtn, analyzing && styles.btnDisabled]}
+          style={[
+            styles.primaryBtn,
+            (analyzing || quotaExhausted) && styles.btnDisabled,
+          ]}
           onPress={handleAnalyze}
-          disabled={analyzing}
+          disabled={analyzing || quotaExhausted}
           activeOpacity={0.8}
         >
           {analyzing ? (
@@ -876,6 +919,17 @@ const styles = StyleSheet.create({
     color: "#64748B",
     textAlign: "center",
     lineHeight: 20,
+  },
+  quotaHint: {
+    fontSize: 13,
+    color: "#64748B",
+    textAlign: "center",
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  quotaHintExhausted: {
+    color: "#B45309",
+    fontWeight: "600",
   },
   imagePreviewWrap: {
     borderRadius: 14,

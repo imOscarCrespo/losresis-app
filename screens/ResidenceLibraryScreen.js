@@ -4,13 +4,11 @@ import {
   ActivityIndicator,
   Alert,
   BackHandler,
-  KeyboardAvoidingView,
   Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -23,12 +21,14 @@ import {
 } from "../services/libroArchiveService";
 import {
   deleteLibroFormEntry,
+  deleteLibroItineraryItem,
   getLibroFormConfig,
   getLibroFormEntries,
   getLibroItinerary,
   getLibroShifts,
   getLibroYearOverview,
   saveLibroFormEntry,
+  saveLibroItineraryItem,
   saveLibroNodeProgress,
 } from "../services/libroYearService";
 import { LibroIndexView } from "../components/libro/LibroIndexView";
@@ -41,19 +41,20 @@ import { LibroNodeFormScreen } from "../components/libro/LibroNodeFormScreen";
 import { LibroQuickRegisterScreen } from "../components/libro/LibroQuickRegisterScreen";
 import { LibroFormEntryScreen } from "../components/libro/LibroFormEntryScreen";
 import { LibroFichaScreen } from "../components/libro/LibroFichaScreen";
+import { LibroItineraryItemScreen } from "../components/libro/LibroItineraryItemScreen";
 import { LibroShiftNotesScreen } from "../components/libro/LibroShiftNotesScreen";
 import { toIsoDate } from "../components/libro/LibroDateField";
 import { ConfirmationModal, LibroMigrationModal } from "../components";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
-import {
-  CATEGORY_ICON_OPTIONS,
-  COLOR_TOKEN_MAP,
-  getColorTokenOptions,
-  getLibroCategorySuggestions,
-} from "../data/libroOnboardingTemplates";
+import { COLOR_TOKEN_MAP } from "../data/libroOnboardingTemplates";
 import { getSpecialtyById } from "../services/hospitalService";
 import { updateAgendaEventNotes } from "../services/agendaService";
-import { findEntryToUndo, getLibroBooksForUser } from "../services/libroService";
+import {
+  ensureLibroForResident,
+  ensureOwnLibroSections,
+  findEntryToUndo,
+  getLibroBooksForUser,
+} from "../services/libroService";
 import {
   getLibroTemplateOutline,
   getLibroTemplateTree,
@@ -75,7 +76,6 @@ import {
   shouldBypassResidentReviewGate,
 } from "../utils/residentAccess";
 
-const ONBOARDING_STEPS = ["intro", "categories", "activities", "preview"];
 // El día de hoy en HORA LOCAL y calculado al pulsar, no al importar el módulo:
 // toISOString() da el día en UTC (una guardia registrada a la 01:00 en España
 // quedaba fechada el día anterior) y una constante de módulo se queda en el día en
@@ -104,19 +104,6 @@ const TRACKING_MODE_ACTION = {
   checklist: "Completar",
 };
 
-const buildDraftCategory = (category) => ({
-  id: `${category.name}-${Date.now()}-${Math.random()}`,
-  name: category.name,
-  icon_name: category.icon_name || "folder-outline",
-  color_token: category.color_token || "violet",
-  activities: (category.activities || []).map((activity) => ({
-    id: `${activity.name}-${Date.now()}-${Math.random()}`,
-    name: activity.name,
-    goal: activity.goal || "",
-    tracking_mode: activity.tracking_mode || "counter",
-  })),
-});
-
 // El año que se abre en el rail: el del perfil si el libro lo cubre, y si no el
 // último que sí lo cubra (el residente que todavía no tiene nada de su año nuevo).
 const pickYearToOpen = (years, profileYear) =>
@@ -128,52 +115,6 @@ const getProgress = (count, goal) => {
   if (!goal) return 0;
   return Math.min((count / goal) * 100, 100);
 };
-
-const SectionBadge = ({ icon, label, active = false, onPress }) => (
-  <TouchableOpacity
-    style={[styles.stepBadge, active && styles.stepBadgeActive]}
-    onPress={onPress}
-    activeOpacity={0.85}
-  >
-    <Icon name={icon} size={14} color={active ? "#670CF5" : "#64748B"} />
-    <Text style={[styles.stepBadgeText, active && styles.stepBadgeTextActive]}>
-      {label}
-    </Text>
-  </TouchableOpacity>
-);
-
-const CategoryPill = ({ category, active = false, onPress }) => {
-  const color = COLOR_TOKEN_MAP[category.color_token] || COLOR_TOKEN_MAP.violet;
-
-  return (
-    <TouchableOpacity
-      style={[
-        styles.categoryPill,
-        active && { borderColor: color, backgroundColor: `${color}12` },
-      ]}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
-      <Icon name={category.icon_name || "folder-outline"} size={16} color={color} />
-      <Text style={[styles.categoryPillText, active && { color }]}>{category.name}</Text>
-    </TouchableOpacity>
-  );
-};
-
-const ActivityDraftRow = ({ activity, onDelete }) => (
-  <View style={styles.activityDraftRow}>
-    <View style={styles.activityDraftMeta}>
-      <Text style={styles.activityDraftTitle}>{activity.name}</Text>
-      <Text style={styles.activityDraftSubtitle}>
-        {TRACKING_MODE_LABEL[activity.tracking_mode] || "Contador"}
-        {activity.goal ? ` · Meta ${activity.goal}` : ""}
-      </Text>
-    </View>
-    <TouchableOpacity onPress={onDelete} style={styles.iconActionButton}>
-      <Icon name="trash-outline" size={18} color="#EF4444" />
-    </TouchableOpacity>
-  </View>
-);
 
 const ProcedureRow = ({
   node,
@@ -401,22 +342,15 @@ export default function ResidenceLibraryScreen({
   // { entry } con la fila abierta del arquetipo `form`, o { entry: null } al crear.
   const [openFormEntry, setOpenFormEntry] = useState(null);
   const [openFichaNode, setOpenFichaNode] = useState(null);
+  // { item } con el elemento de itinerario abierto para editarlo, o { item: null }
+  // al crear uno. Solo en el Libro propio: la lista del oficial es del tutor.
+  const [openItineraryItem, setOpenItineraryItem] = useState(null);
   const [openShift, setOpenShift] = useState(null);
   const [selectedParentForChild, setSelectedParentForChild] = useState(null);
   const [quickRegisterNode, setQuickRegisterNode] = useState(null);
-  const [draftCategories, setDraftCategories] = useState([]);
-  const [onboardingStep, setOnboardingStep] = useState("intro");
-  const [selectedDraftCategoryId, setSelectedDraftCategoryId] = useState("");
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [newCategoryIcon, setNewCategoryIcon] = useState("folder-outline");
-  const [newCategoryColor, setNewCategoryColor] = useState("violet");
-  const [activityName, setActivityName] = useState("");
-  const [activityGoal, setActivityGoal] = useState("");
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [collapsedCategoriesLoaded, setCollapsedCategoriesLoaded] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
-  const onboardingScrollRef = useRef(null);
-  const rotationsInputRef = useRef(null);
 
   const shouldShowReviewPrompt =
     userProfile?.is_resident &&
@@ -439,6 +373,10 @@ export default function ResidenceLibraryScreen({
   const [section, setSection] = useState(null);
   const [selectedYear, setSelectedYear] = useState(null);
   const [sectionsResolved, setSectionsResolved] = useState(false);
+  // Si ya se ha decidido qué hacer con la siembra de la primera visita. Hasta que
+  // no está resuelto no se pinta: los efectos corren DESPUÉS del primer pintado, así
+  // que sin esto el residente nuevo ve un fotograma de "R1 sin apartados".
+  const [libroSeedResolved, setLibroSeedResolved] = useState(false);
   const [templateTree, setTemplateTree] = useState([]);
   const [libroReloadKey, setLibroReloadKey] = useState(0);
   const [switchingToTemplate, setSwitchingToTemplate] = useState(false);
@@ -459,7 +397,9 @@ export default function ResidenceLibraryScreen({
   const [refreshing, setRefreshing] = useState(false);
   // Cuántos registros se lleva por delante migrar este año. Se cuenta al ofrecerlo,
   // no al confirmarlo, para poder decírselo antes de que decida.
-  const [entriesAtRisk, setEntriesAtRisk] = useState(0);
+  // null = todavía no se sabe (o la cuenta falló). Se distingue de 0 a propósito:
+  // ver openMigrationModal.
+  const [entriesAtRisk, setEntriesAtRisk] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -482,6 +422,13 @@ export default function ResidenceLibraryScreen({
         // sus libros, para que lo que se pinte ya esté al día. Es idempotente y no
         // lanza: que falle no debe impedir abrir el libro.
         await syncLibroTemplateForUser(userId);
+
+        // Y al Libro propio se le completan los apartados que le falten (ADR 0012):
+        // el que se montó su libro cuando el onboarding solo daba Actividad
+        // asistencial lo ve completo sin hacer nada. Es idempotente y no lanza,
+        // igual que el sync, y va ANTES de leer sus libros para que los apartados
+        // nuevos entren ya en esta misma lectura.
+        await ensureOwnLibroSections(userId);
 
         // Sus libros (año en curso e histórico) y el plan de su tutor: el rail de
         // años es la unión de los dos.
@@ -522,6 +469,72 @@ export default function ResidenceLibraryScreen({
       isMounted = false;
     };
   }, [userId, libroReloadKey]);
+
+  // La primera visita: el residente que no tiene ningún libro se encuentra el suyo
+  // ya montado, sin pasar por ningún asistente.
+  //
+  // Espera a specialtyResolved porque las Áreas de actividad que se siembran salen de
+  // su especialidad: sembrar antes le daría las genéricas y luego no habría manera de
+  // saber que fue por llegar pronto.
+  //
+  // El ref evita sembrar dos veces si el efecto se reevalúa mientras la primera
+  // siembra sigue en vuelo. No hace falta más: si falla, las dependencias no cambian
+  // solas, así que no se reintenta en bucle — se reintenta al tirar para refrescar
+  // (que baja sectionsResolved) o al volver a abrir el Libro.
+  const seedingRef = useRef(false);
+
+  useEffect(() => {
+    // Sin usuario no hay libro que sembrar, pero tampoco hay nada que esperar.
+    if (!userId) {
+      setLibroSeedResolved(true);
+      return;
+    }
+
+    if (!sectionsResolved || !specialtyResolved) return;
+
+    if (allBooks.length) {
+      setLibroSeedResolved(true);
+      return;
+    }
+
+    if (seedingRef.current) return;
+
+    let isMounted = true;
+    seedingRef.current = true;
+
+    ensureLibroForResident({
+      userId,
+      specialityId,
+      specialtyName,
+      residencyYear: userResidencyYear || 1,
+    })
+      .then((seeded) => {
+        if (!isMounted || !seeded) return;
+        // Releer es lo que hace aparecer los apartados recién sembrados.
+        setLibroReloadKey((prev) => prev + 1);
+      })
+      .catch((error) => {
+        console.error("Error seeding libro for resident:", error);
+      })
+      .finally(() => {
+        seedingRef.current = false;
+        // Resuelto pase lo que pase: si la siembra falla, el residente ve su libro
+        // vacío y puede tirar para refrescar, que es mejor que un spinner eterno.
+        if (isMounted) setLibroSeedResolved(true);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    userId,
+    sectionsResolved,
+    specialtyResolved,
+    allBooks.length,
+    specialityId,
+    specialtyName,
+    userResidencyYear,
+  ]);
 
   // Los años que el residente puede consultar: los de sus libros más los que su
   // tutor ha definido en la plantilla.
@@ -604,14 +617,12 @@ export default function ResidenceLibraryScreen({
   }, [availableSections, section, sectionsResolved]);
 
   const {
-    books,
     selectedBook,
     selectBook,
     isSelectedBookArchived,
     nodeTree,
     loading,
     settings,
-    settingsLoading,
     editingNode,
     setEditingNode,
     addNode,
@@ -619,21 +630,7 @@ export default function ResidenceLibraryScreen({
     deleteNode,
     addEntry,
     updateLibroSettings,
-    createStructure,
   } = useLibroSection(userId, section);
-
-  const suggestedCategories = useMemo(
-    () => getLibroCategorySuggestions(specialtyName),
-    [specialtyName]
-  );
-
-  const selectedDraftCategory = useMemo(
-    () =>
-      draftCategories.find((category) => category.id === selectedDraftCategoryId) ||
-      draftCategories[0] ||
-      null,
-    [draftCategories, selectedDraftCategoryId]
-  );
 
   const quickActivityIds = settings?.quick_activity_ids || [];
   const currentBookResidencyYear =
@@ -767,6 +764,21 @@ export default function ResidenceLibraryScreen({
         .map((block) => block.section)
     );
   }, [templateOutline, templateId, selectedYear]);
+
+  // Si el libro del año abierto es del tutor. Es lo que decide si los objetivos del
+  // progreso se le atribuyen a él ("N de M objetivos de tu tutor") o no.
+  //
+  // Sale de lo que se está PINTANDO y no de `section`, que en el índice no apunta a
+  // nada en concreto: derivarlo de bookForSelection daba un fotograma diciendo "de
+  // tu tutor" antes de que se resolviera el apartado por defecto.
+  const isSelectedYearOfficial = useMemo(() => {
+    if (yearOverview.sections.length) {
+      return yearOverview.sections.some((item) => item.isOfficial);
+    }
+
+    // Un año sin libros solo puede estar enseñando el plan del tutor.
+    return !!templateId && templateSectionsForYear.length > 0;
+  }, [yearOverview.sections, templateId, templateSectionsForYear]);
 
   // Tiene Libro propio de este año: algún libro sin sellar con template_id, o sea
   // con estructura montada por él.
@@ -1036,6 +1048,10 @@ export default function ResidenceLibraryScreen({
         section: openSection.section,
         status,
         payload,
+        // En el libro oficial el nivel de una competencia es del tutor y desde aquí
+        // no se toca; en el propio no hay tutor que lo ponga, así que es del
+        // residente (ADR 0012).
+        isOfficial: !!openSection.templateId,
       });
       posthogLogger.capture("resident_book_itinerary_ficha_saved", {
         section: openSection.section,
@@ -1046,6 +1062,51 @@ export default function ResidenceLibraryScreen({
     } catch (error) {
       console.error("Error saving itinerary ficha:", error);
       Alert.alert("No se pudo guardar", "Inténtalo de nuevo en un momento.");
+      return false;
+    } finally {
+      setSavingSection(false);
+    }
+  };
+
+  // Los elementos de un apartado `itinerary` del LIBRO PROPIO: la lista que en un
+  // libro oficial monta el tutor desde el panel.
+  const handleSaveItineraryItem = async (item, values) => {
+    setSavingSection(true);
+    try {
+      await saveLibroItineraryItem({
+        itemId: item?.id || null,
+        bookId: openSection.bookId,
+        userId,
+        section: openSection.section,
+        ...values,
+      });
+      posthogLogger.capture("resident_book_itinerary_item_saved", {
+        section: openSection.section,
+        is_new: !item,
+      });
+      refreshAfterWrite();
+      return true;
+    } catch (error) {
+      console.error("Error saving itinerary item:", error);
+      Alert.alert("No se pudo guardar", "Inténtalo de nuevo en un momento.");
+      return false;
+    } finally {
+      setSavingSection(false);
+    }
+  };
+
+  const handleDeleteItineraryItem = async (item) => {
+    setSavingSection(true);
+    try {
+      await deleteLibroItineraryItem(item.id, userId);
+      posthogLogger.capture("resident_book_itinerary_item_deleted", {
+        section: openSection.section,
+      });
+      refreshAfterWrite();
+      return true;
+    } catch (error) {
+      console.error("Error deleting itinerary item:", error);
+      Alert.alert("No se pudo eliminar", "Inténtalo de nuevo en un momento.");
       return false;
     } finally {
       setSavingSection(false);
@@ -1175,13 +1236,19 @@ export default function ResidenceLibraryScreen({
   const openMigrationModal = () => {
     setShowMigrationModal(true);
 
-    // El número exacto de registros en riesgo. Si la cuenta falla, el modal avisa
-    // igual pero sin cifra: no es motivo para no dejarle migrar.
+    // Se empieza sin cifra en cada apertura. Si no, el modal enseña la cuenta del
+    // año anterior mientras llega la de este, y es la cifra con la que el residente
+    // decide borrar su libro.
+    setEntriesAtRisk(null);
+
+    // Cuánto tiene dentro este año. Si la cuenta falla se queda en null y el modal
+    // lo dice: no es motivo para no dejarle migrar, pero decirle "0" cuando no lo
+    // sabemos es decirle "no pierdes nada" antes de un borrado irreversible.
     countLibroEntriesForYear(userId, selectedYear)
       .then((count) => setEntriesAtRisk(count))
       .catch((error) => {
         console.error("Error counting libro entries at risk:", error);
-        setEntriesAtRisk(0);
+        setEntriesAtRisk(null);
       });
 
     posthogLogger.capture("resident_book_migration_offered", {
@@ -1235,7 +1302,7 @@ export default function ResidenceLibraryScreen({
       posthogLogger.capture("resident_book_switched_to_template", {
         residency_year: selectedYear,
         sections_added: missingOwnYearSections.length,
-        entries_lost: entriesAtRisk,
+        entries_lost: entriesAtRisk ?? null,
       });
       setShowMigrationModal(false);
       setLibroReloadKey((prev) => prev + 1);
@@ -1246,16 +1313,6 @@ export default function ResidenceLibraryScreen({
       setSwitchingToTemplate(false);
     }
   };
-
-  // Mira TODOS sus libros, no solo los del apartado abierto: un residente con libro
-  // oficial de Rotaciones y Competencias no tiene ninguno de Actividad asistencial,
-  // y `books`/`nodeTree` son de la sección actual. Sin allBooks, ese residente vería
-  // el onboarding de montarse un libro que ya tiene.
-  const hasCompletedOnboarding =
-    !!settings?.onboarding_completed_at ||
-    allBooks.length > 0 ||
-    books.length > 0 ||
-    nodeTree.length > 0;
 
   useEffect(() => {
     posthogLogger.logScreen("ResidenceLibraryScreen");
@@ -1403,121 +1460,6 @@ export default function ResidenceLibraryScreen({
     openShift,
     openSection,
   ]);
-
-  const handleAddSuggestedCategory = (category) => {
-    const existingCategory = draftCategories.find(
-      (item) => item.name.toLowerCase() === category.name.toLowerCase()
-    );
-    if (existingCategory) {
-      setSelectedDraftCategoryId(existingCategory.id);
-      return;
-    }
-
-    const nextCategory = buildDraftCategory(category);
-    setDraftCategories((prev) => [...prev, nextCategory]);
-    setSelectedDraftCategoryId(nextCategory.id);
-  };
-
-  const handleCreateCategoryDraft = () => {
-    if (!newCategoryName.trim()) return;
-
-    const nextCategory = buildDraftCategory({
-      name: newCategoryName.trim(),
-      icon_name: newCategoryIcon,
-      color_token: newCategoryColor,
-      activities: [],
-    });
-
-    setDraftCategories((prev) => [...prev, nextCategory]);
-    setSelectedDraftCategoryId(nextCategory.id);
-    setNewCategoryName("");
-  };
-
-  const handleDeleteCategoryDraft = (categoryId) => {
-    setDraftCategories((prev) => prev.filter((category) => category.id !== categoryId));
-    if (selectedDraftCategoryId === categoryId) {
-      const nextCategory = draftCategories.find((category) => category.id !== categoryId);
-      setSelectedDraftCategoryId(nextCategory?.id || "");
-    }
-  };
-
-  const handleAddActivityDraft = () => {
-    if (!selectedDraftCategory || !activityName.trim()) return;
-
-    const normalizedGoal = activityGoal.trim();
-
-    setDraftCategories((prev) =>
-      prev.map((category) =>
-        category.id === selectedDraftCategory.id
-          ? {
-              ...category,
-              activities: [
-                ...category.activities,
-                {
-                  id: `${activityName}-${Date.now()}-${Math.random()}`,
-                  name: activityName.trim(),
-                  goal: normalizedGoal,
-                  tracking_mode: "counter",
-                },
-              ],
-            }
-          : category
-      )
-    );
-
-    setActivityName("");
-    setActivityGoal("");
-  };
-
-  const handleDeleteActivityDraft = (activityId) => {
-    if (!selectedDraftCategory) return;
-
-    setDraftCategories((prev) =>
-      prev.map((category) =>
-        category.id === selectedDraftCategory.id
-          ? {
-              ...category,
-              activities: category.activities.filter((activity) => activity.id !== activityId),
-            }
-          : category
-      )
-    );
-  };
-
-  const handleCompleteOnboarding = async () => {
-    const normalizedCategories = draftCategories
-      .filter((category) => category.name.trim())
-      .map((category) => ({
-        name: category.name.trim(),
-        icon_name: category.icon_name,
-        color_token: category.color_token,
-        activities: category.activities
-          .filter((activity) => activity.name.trim())
-          .map((activity) => ({
-            name: activity.name.trim(),
-            goal: activity.goal ? parseInt(activity.goal, 10) : null,
-            tracking_mode: activity.tracking_mode || "counter",
-          })),
-      }));
-
-    if (!normalizedCategories.length) {
-      Alert.alert("Falta estructura", "Añade al menos una rotación para continuar.");
-      return;
-    }
-
-    const success = await createStructure({
-      specialityId,
-      categories: normalizedCategories,
-      residencyYear: userResidencyYear || 1,
-    });
-
-    if (!success) {
-      Alert.alert("Error", "No se pudo crear tu libro de residente.");
-      return;
-    }
-
-    setOnboardingStep("intro");
-  };
 
   const handleAddNode = async (formData) => {
     const success = await addNode({
@@ -1750,12 +1692,6 @@ export default function ResidenceLibraryScreen({
     }
   };
 
-  const scrollToRotationsInput = () => {
-    requestAnimationFrame(() => {
-      onboardingScrollRef.current?.scrollTo({ y: 720, animated: true });
-    });
-  };
-
   // ---------------------------------------------------------------------------
   // Las pantallas de registro.
   //
@@ -1818,12 +1754,51 @@ export default function ResidenceLibraryScreen({
         key={openFichaNode.id}
         node={openFichaNode}
         section={openSection?.section}
+        isOfficial={!!openSection?.templateId}
         saving={savingSection}
         onClose={() => setOpenFichaNode(null)}
         onSave={async (ficha) => {
           const ok = await handleSaveFicha(openFichaNode, ficha);
           if (ok !== false) setOpenFichaNode(null);
         }}
+      />
+    );
+  }
+
+  if (openItineraryItem) {
+    return (
+      <LibroItineraryItemScreen
+        // Lo que se está escribiendo vive en la pantalla, así que la key la remonta
+        // al pasar de un elemento a otro o de editar a crear.
+        key={openItineraryItem.item?.id || "new"}
+        section={openSection?.section}
+        item={openItineraryItem.item}
+        saving={savingSection}
+        onClose={() => setOpenItineraryItem(null)}
+        onSave={async (values) => {
+          const ok = await handleSaveItineraryItem(openItineraryItem.item, values);
+          if (ok !== false) setOpenItineraryItem(null);
+        }}
+        onDelete={(item) =>
+          // Borrar el elemento se lleva por delante su ficha (cae por el CASCADE de
+          // node_id), así que se pregunta antes. El ConfirmationModal del índice no
+          // sirve aquí: esta pantalla sustituye al índice entero.
+          Alert.alert(
+            "Eliminar elemento",
+            `Vas a eliminar "${item.name}" y lo que hayas anotado en su ficha.`,
+            [
+              { text: "Cancelar", style: "cancel" },
+              {
+                text: "Eliminar",
+                style: "destructive",
+                onPress: async () => {
+                  const ok = await handleDeleteItineraryItem(item);
+                  if (ok !== false) setOpenItineraryItem(null);
+                },
+              },
+            ]
+          )
+        }
       />
     );
   }
@@ -1843,9 +1818,10 @@ export default function ResidenceLibraryScreen({
     );
   }
 
-  // Sin saber qué bloques tiene el residente no se puede decidir si ve su libro o
-  // el onboarding, y acertar después sería un parpadeo.
-  if (!sectionsResolved) {
+  // Nada que pintar hasta saber qué apartados tiene: cuáles son (sectionsResolved) y,
+  // si es su primera visita, hasta que se le hayan sembrado (libroSeedResolved).
+  // Acertar después sería un parpadeo.
+  if (!sectionsResolved || !libroSeedResolved) {
     return (
       <View style={styles.safeArea}>
         <View style={styles.loadingContainer}>
@@ -1855,451 +1831,6 @@ export default function ResidenceLibraryScreen({
       </View>
     );
   }
-
-  if (
-    (loading || settingsLoading || !specialtyResolved) &&
-    !hasCompletedOnboarding &&
-    !draftCategories.length
-  ) {
-    return (
-      <View style={styles.safeArea}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#670CF5" />
-          <Text style={styles.loadingText}>Preparando tu libro de residente...</Text>
-        </View>
-      </View>
-    );
-  }
-
-  const renderOnboarding = () => {
-    const stepIndex = ONBOARDING_STEPS.indexOf(onboardingStep);
-    const progress = stepIndex <= 0 ? 0 : Math.round((stepIndex / (ONBOARDING_STEPS.length - 1)) * 100);
-    const colorOptions = getColorTokenOptions();
-
-    return (
-      <HeroScreenLayout title="Libro" onBack={onBack}>
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <ScrollView
-            ref={onboardingScrollRef}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.contentInner}>
-              <View style={styles.heroCard}>
-                <Text style={styles.heroEyebrow}>
-                  {specialtyName ? `${specialtyName} · configuración inicial` : "Configuración inicial"}
-                </Text>
-                <Text style={styles.heroTitle}>
-                  Crea tu libro de residencia en menos de 3 minutos
-                </Text>
-                <Text style={styles.heroText}>
-                  Define qué quieres registrar y empieza a construir tu libro desde hoy
-                </Text>
-
-                <View style={styles.progressHeader}>
-                  <Text style={styles.progressHeaderLabel}>Progreso</Text>
-                  <Text style={styles.progressHeaderValue}>{progress}%</Text>
-                </View>
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${progress}%` }]} />
-                </View>
-              </View>
-
-              <View style={styles.stepBadgeRow}>
-                <SectionBadge
-                  icon="sparkles-outline"
-                  label="Intro"
-                  active={onboardingStep === "intro"}
-                  onPress={() => setOnboardingStep("intro")}
-                />
-                <SectionBadge
-                  icon="folder-open-outline"
-                  label="Rotaciones"
-                  active={onboardingStep === "categories"}
-                  onPress={() => setOnboardingStep("categories")}
-                />
-                <SectionBadge
-                  icon="list-outline"
-                  label="Procedimientos"
-                  active={onboardingStep === "activities"}
-                  onPress={() => setOnboardingStep("activities")}
-                />
-                <SectionBadge
-                  icon="eye-outline"
-                  label="Vista previa"
-                  active={onboardingStep === "preview"}
-                  onPress={() => setOnboardingStep("preview")}
-                />
-              </View>
-
-              {onboardingStep === "intro" ? (
-                <View style={styles.card}>
-                  <Text style={styles.sectionTitle}>Qué vas a tener al final</Text>
-                  <View style={styles.featureList}>
-                    <View style={styles.featureRow}>
-                      <Icon name="checkmark-circle-outline" size={18} color="#670CF5" />
-                      <Text style={styles.featureText}>
-                        Registro claro de todos tus procedimientos
-                      </Text>
-                    </View>
-                    <View style={styles.featureRow}>
-                      <Icon name="checkmark-circle-outline" size={18} color="#670CF5" />
-                      <Text style={styles.featureText}>
-                        Crea tus propios objetivos de cada procedimiento
-                      </Text>
-                    </View>
-                    <View style={styles.featureRow}>
-                      <Icon name="checkmark-circle-outline" size={18} color="#670CF5" />
-                      <Text style={styles.featureText}>
-                        Exporta tu progreso en PDF cuando quieras
-                      </Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.primaryAction}
-                    onPress={() => setOnboardingStep("categories")}
-                  >
-                    <Text style={styles.primaryActionText}>Crear mi libro de residencia</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.microcopyText}>Puedes modificarlo después</Text>
-                </View>
-              ) : null}
-
-              {onboardingStep === "categories" ? (
-                <>
-                  <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>Añadir rotaciones</Text>
-                    <Text style={styles.sectionText}>
-                      Primero añade rotaciones desde sugerencias o creando las tuyas. Después revisa el resultado final.
-                    </Text>
-                    <View style={styles.flowStep}>
-                      <View style={styles.flowStepHeader}>
-                        <View style={styles.flowStepBadge}>
-                          <Text style={styles.flowStepBadgeText}>1</Text>
-                        </View>
-                        <View style={styles.flowStepCopy}>
-                          <Text style={styles.flowStepTitle}>
-                            Selecciona sugerencias para tu residencia
-                          </Text>
-                          <Text style={styles.flowStepText}>
-                            Tócalas para añadirlas directamente a “Tus rotaciones”.
-                          </Text>
-                        </View>
-                      </View>
-                    <View style={styles.chipWrap}>
-                        {suggestedCategories.map((category) => {
-                          const isSelected = draftCategories.some(
-                            (item) => item.name.toLowerCase() === category.name.toLowerCase()
-                          );
-
-                          return (
-                            <TouchableOpacity
-                              key={category.name}
-                              style={[
-                                styles.suggestionChip,
-                                isSelected && styles.suggestionChipSelected,
-                              ]}
-                              onPress={() => handleAddSuggestedCategory(category)}
-                            >
-                              <Icon
-                                name={
-                                  isSelected
-                                    ? "checkmark-circle"
-                                    : category.icon_name || "folder-outline"
-                                }
-                                size={14}
-                                color={isSelected ? "#FFFFFF" : "#670CF5"}
-                              />
-                              <Text
-                                style={[
-                                  styles.suggestionChipText,
-                                  isSelected && styles.suggestionChipTextSelected,
-                                ]}
-                              >
-                                {category.name}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.flowStep}>
-                      <View style={styles.flowStepHeader}>
-                        <View style={styles.flowStepBadge}>
-                          <Text style={styles.flowStepBadgeText}>2</Text>
-                        </View>
-                        <View style={styles.flowStepCopy}>
-                          <Text style={styles.flowStepTitle}>Añade tus propias rotaciones</Text>
-                        </View>
-                      </View>
-
-                      <TextInput
-                        ref={rotationsInputRef}
-                        style={styles.formInput}
-                        value={newCategoryName}
-                        onChangeText={setNewCategoryName}
-                        placeholder="Ej: rotación de mama, endoscopia…"
-                        onFocus={scrollToRotationsInput}
-                      />
-
-                      <Text style={styles.fieldLabel}>Icono</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.iconSelectorRow}>
-                        {CATEGORY_ICON_OPTIONS.map((option) => {
-                          const isActive = newCategoryIcon === option.id;
-                          return (
-                            <TouchableOpacity
-                              key={option.id}
-                              style={[styles.iconOption, isActive && styles.iconOptionActive]}
-                              onPress={() => setNewCategoryIcon(option.id)}
-                            >
-                              <Icon
-                                name={option.id}
-                                size={18}
-                                color={isActive ? "#670CF5" : "#64748B"}
-                              />
-                              <Text style={[styles.iconOptionText, isActive && styles.iconOptionTextActive]}>
-                                {option.label}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </ScrollView>
-
-                      <Text style={styles.fieldLabel}>Color</Text>
-                      <View style={styles.colorRow}>
-                        {colorOptions.map((option) => {
-                          const isActive = newCategoryColor === option.id;
-                          return (
-                            <TouchableOpacity
-                              key={option.id}
-                              style={[
-                                styles.colorSwatchWrap,
-                                isActive && styles.colorSwatchWrapActive,
-                              ]}
-                              onPress={() => setNewCategoryColor(option.id)}
-                            >
-                              <View style={[styles.colorSwatch, { backgroundColor: option.hex }]} />
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-
-                      <TouchableOpacity style={styles.primaryAction} onPress={handleCreateCategoryDraft}>
-                        <Text style={styles.primaryActionText}>Añadir rotación</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>Tus rotaciones</Text>
-                    <Text style={styles.sectionText}>
-                      Añade al menos una rotación para continuar
-                    </Text>
-                    <View style={styles.categoryDraftList}>
-                      {draftCategories.length ? (
-                        draftCategories.map((category) => (
-                          <View key={category.id} style={styles.categoryDraftRow}>
-                            <CategoryPill
-                              category={category}
-                              active={selectedDraftCategoryId === category.id}
-                              onPress={() => setSelectedDraftCategoryId(category.id)}
-                            />
-                            <TouchableOpacity
-                              onPress={() => handleDeleteCategoryDraft(category.id)}
-                              style={styles.iconActionButton}
-                            >
-                              <Icon name="close" size={16} color="#64748B" />
-                            </TouchableOpacity>
-                          </View>
-                        ))
-                      ) : null}
-                    </View>
-                    <TouchableOpacity
-                      style={[
-                        styles.secondaryOutlineAction,
-                        !draftCategories.length && styles.secondaryOutlineActionDisabled,
-                      ]}
-                      onPress={() => setOnboardingStep("activities")}
-                      disabled={!draftCategories.length}
-                    >
-                      <Text style={styles.secondaryOutlineActionText}>Continuar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              ) : null}
-
-              {onboardingStep === "activities" ? (
-                <>
-                  <View style={styles.card}>
-                    <View style={styles.flowStepHeader}>
-                      <View style={styles.flowStepBadge}>
-                        <Text style={styles.flowStepBadgeText}>1</Text>
-                      </View>
-                      <View style={styles.flowStepCopy}>
-                        <Text style={styles.sectionTitle}>Selecciona una rotación</Text>
-                      </View>
-                    </View>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScrollContent}>
-                      {draftCategories.map((category) => (
-                        <CategoryPill
-                          key={category.id}
-                          category={category}
-                          active={selectedDraftCategory?.id === category.id}
-                          onPress={() => setSelectedDraftCategoryId(category.id)}
-                        />
-                      ))}
-                    </ScrollView>
-                  </View>
-
-                  <View style={styles.card}>
-                    <View style={styles.flowStepHeader}>
-                      <View style={styles.flowStepBadge}>
-                        <Text style={styles.flowStepBadgeText}>2</Text>
-                      </View>
-                      <View style={styles.flowStepCopy}>
-                        <Text style={styles.sectionTitle}>Registra tus procedimientos</Text>
-                        <Text style={styles.sectionText}>
-                          Añade lo que quieras registrar dentro de esta rotación
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={styles.sectionText}>
-                      {selectedDraftCategory?.name
-                        ? `Rotación seleccionada: ${selectedDraftCategory.name}`
-                        : "Selecciona una rotación en el paso 1"}
-                    </Text>
-
-                    <TextInput
-                      style={styles.formInput}
-                      value={activityName}
-                      onChangeText={setActivityName}
-                      placeholder="Ej: Apendicectomía, cesárea, colonoscopia…"
-                    />
-
-                    <TextInput
-                      style={styles.formInput}
-                      value={activityGoal}
-                      onChangeText={(value) => setActivityGoal(value.replace(/[^0-9]/g, ""))}
-                      placeholder="Meta opcional. Ej: 20"
-                      keyboardType="number-pad"
-                    />
-
-                    <Text style={styles.helperText}>
-                      Tipo por defecto: contador. Puedes dejar la meta vacía si no la necesitas.
-                    </Text>
-
-                    <TouchableOpacity style={styles.primaryAction} onPress={handleAddActivityDraft}>
-                      <Text style={styles.primaryActionText}>Añadir procedimiento</Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.categoryDraftList}>
-                      <Text style={styles.fieldLabel}>Procedimientos añadidos</Text>
-                      {(selectedDraftCategory?.activities || []).length ? (
-                        selectedDraftCategory.activities.map((activity) => (
-                          <ActivityDraftRow
-                            key={activity.id}
-                            activity={activity}
-                            onDelete={() => handleDeleteActivityDraft(activity.id)}
-                          />
-                        ))
-                      ) : (
-                        <Text style={styles.sectionText}>
-                          Esta rotación todavía no tiene procedimientos.
-                        </Text>
-                      )}
-                      {draftCategories.length > 1 ? (
-                        <Text style={styles.helperText}>
-                          Puedes volver arriba y tocar otra rotación en cualquier momento.
-                        </Text>
-                      ) : null}
-                    </View>
-                  </View>
-
-                  <View style={styles.card}>
-                    <View style={styles.flowStepHeader}>
-                      <View style={styles.flowStepBadge}>
-                        <Text style={styles.flowStepBadgeText}>3</Text>
-                      </View>
-                      <View style={styles.flowStepCopy}>
-                        <Text style={styles.sectionTitle}>
-                          Cambia de rotación para añadir más procedimientos
-                        </Text>
-                        <Text style={styles.sectionText}>
-                          Selecciona otra rotación del paso 1 para añadir sus procedimientos correspondientes
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>Siguiente paso</Text>
-                    <Text style={styles.sectionText}>
-                      Cuando termines de añadir procedimientos, revisa el resultado completo antes de crear tu libro.
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.secondaryOutlineAction}
-                      onPress={() => setOnboardingStep("preview")}
-                    >
-                      <Text style={styles.secondaryOutlineActionText}>Ir a vista previa</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              ) : null}
-
-              {onboardingStep === "preview" ? (
-                <>
-                  <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>Vista previa del libro</Text>
-                    <Text style={styles.sectionText}>
-                      Revisa la estructura final antes de crearla.
-                    </Text>
-                  </View>
-
-                  {draftCategories.map((category) => (
-                    <View key={category.id} style={styles.categoryPreviewCard}>
-                      <View style={styles.categoryPreviewHeader}>
-                        <CategoryPill category={category} active />
-                        <Text style={styles.categoryPreviewCount}>
-                          {category.activities.length} procedimientos
-                        </Text>
-                      </View>
-                      {(category.activities || []).length ? (
-                        category.activities.map((activity) => (
-                          <View key={activity.id} style={styles.previewActivityRow}>
-                            <View>
-                              <Text style={styles.previewActivityTitle}>{activity.name}</Text>
-                              <Text style={styles.previewActivitySubtitle}>
-                                {TRACKING_MODE_LABEL[activity.tracking_mode] || "Contador"}
-                                {activity.goal ? ` · Meta ${activity.goal}` : ""}
-                              </Text>
-                            </View>
-                          </View>
-                        ))
-                      ) : (
-                        <Text style={styles.sectionText}>
-                          Esta rotación se guardará sin procedimientos hasta que añadas alguno.
-                        </Text>
-                      )}
-                    </View>
-                  ))}
-
-                  <TouchableOpacity style={styles.primaryAction} onPress={handleCompleteOnboarding}>
-                    <Text style={styles.primaryActionText}>Crear mi libro de residencia</Text>
-                  </TouchableOpacity>
-                </>
-              ) : null}
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </HeroScreenLayout>
-    );
-  };
 
   const renderDashboard = () => (
     <HeroScreenLayout
@@ -2472,11 +2003,12 @@ export default function ResidenceLibraryScreen({
                 </View>
               ) : (
                 <LibroIndexView
-                  residencyYear={selectedYear}
+                  residencyYear={selectedYear || userResidencyYear || 1}
                   progress={yearOverview.progress}
                   sections={yearOverview.sections}
                   onOpenSection={handleOpenSection}
                   isArchived={isSelectedBookArchived}
+                  isOfficial={isSelectedYearOfficial}
                 />
               )
             ) : openSection.archetype === "itinerary" ? (
@@ -2485,7 +2017,21 @@ export default function ResidenceLibraryScreen({
                 nodes={itineraryNodes}
                 loading={sectionLoading}
                 readOnly={isSelectedBookReadOnly || openSection.isPlanOnly}
+                // La lista solo la monta el residente cuando el apartado es suyo:
+                // isStructureLocked ya cubre el libro oficial, el archivado y el
+                // año que no es el suyo.
+                canEditStructure={!isStructureLocked && !openSection.isPlanOnly}
                 onOpenNode={setOpenFichaNode}
+                onCreateItem={() =>
+                  handleProtectedAction(() => setOpenItineraryItem({ item: null }), {
+                    requiresEditable: true,
+                  })
+                }
+                onEditItem={(item) =>
+                  handleProtectedAction(() => setOpenItineraryItem({ item }), {
+                    requiresEditable: true,
+                  })
+                }
               />
             ) : openSection.archetype === "form" ? (
               <LibroFormView
@@ -2650,22 +2196,13 @@ export default function ResidenceLibraryScreen({
     </HeroScreenLayout>
   );
 
-  return hasCompletedOnboarding ? renderDashboard() : renderOnboarding();
+  return renderDashboard();
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
   safeArea: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-  },
-  microcopyText: {
-    marginTop: 12,
-    textAlign: "center",
-    fontSize: 13,
-    color: "#64748B",
   },
   headerIcon: {
     width: 36,
@@ -2684,10 +2221,6 @@ const styles = StyleSheet.create({
   },
   headerIconDisabled: {
     opacity: 0.6,
-  },
-  contentSurface: {
-    flex: 1,
-    backgroundColor: "#F8F9FE",
   },
   scrollView: {
     flex: 1,
@@ -2710,13 +2243,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#64748B",
     fontWeight: "600",
-  },
-  heroCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: "#E8EAF3",
   },
   sectionLoading: {
     paddingVertical: 32,
@@ -2813,42 +2339,6 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: "#64748B",
   },
-  heroEyebrow: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#670CF5",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 8,
-  },
-  heroTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#1B0977",
-    marginBottom: 8,
-  },
-  heroText: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: "#64748B",
-  },
-  progressHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  progressHeaderLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#64748B",
-  },
-  progressHeaderValue: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#670CF5",
-  },
   progressTrack: {
     height: 8,
     borderRadius: 999,
@@ -2859,20 +2349,6 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 999,
     backgroundColor: "#670CF5",
-  },
-  heroFooter: {
-    marginTop: 6,
-  },
-  heroSupportText: {
-    marginTop: 10,
-    fontSize: 13,
-    color: "#64748B",
-    fontWeight: "600",
-  },
-  stepBadgeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
   },
   yearRail: {
     flexDirection: "row",
@@ -2903,68 +2379,6 @@ const styles = StyleSheet.create({
   yearTabTextActive: {
     color: "#670CF5",
   },
-  sectionRail: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingBottom: 12,
-  },
-  stepBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  stepBadgeActive: {
-    borderColor: "#D8B4FE",
-    backgroundColor: "#F5F3FF",
-  },
-  stepBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#64748B",
-  },
-  stepBadgeTextActive: {
-    color: "#670CF5",
-  },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: "#E8EAF3",
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#1B0977",
-  },
-  sectionText: {
-    marginTop: 6,
-    fontSize: 14,
-    lineHeight: 21,
-    color: "#64748B",
-  },
-  featureList: {
-    marginTop: 14,
-    gap: 12,
-  },
-  featureRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  featureText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#0F172A",
-    fontWeight: "600",
-  },
   primaryAction: {
     marginTop: 16,
     minHeight: 52,
@@ -2979,235 +2393,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
   },
-  secondaryOutlineAction: {
-    marginTop: 12,
-    minHeight: 52,
-    borderRadius: 18,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#D8B4FE",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 18,
-  },
-  secondaryOutlineActionText: {
-    color: "#670CF5",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  secondaryOutlineActionDisabled: {
-    opacity: 0.45,
-  },
-  chipWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 14,
-  },
-  flowStep: {
-    marginTop: 18,
-  },
-  flowStepHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  flowStepBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#F5F3FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  flowStepBadgeText: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#670CF5",
-  },
-  flowStepCopy: {
-    flex: 1,
-  },
-  flowStepTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
-  flowStepText: {
-    marginTop: 4,
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#64748B",
-  },
-  suggestionChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: "#F5F3FF",
-    borderWidth: 1,
-    borderColor: "#DDD6FE",
-  },
-  suggestionChipSelected: {
-    backgroundColor: "#670CF5",
-    borderColor: "#670CF5",
-  },
-  suggestionChipText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#670CF5",
-  },
-  suggestionChipTextSelected: {
-    color: "#FFFFFF",
-  },
-  categoryDraftList: {
-    marginTop: 14,
-    gap: 12,
-  },
-  helperText: {
-    marginTop: 10,
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#64748B",
-  },
-  categoryDraftRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  categoryPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
-  },
-  categoryPillText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#1E293B",
-  },
-  formInput: {
-    minHeight: 52,
-    borderRadius: 16,
-    backgroundColor: "#F8FAFC",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: "#0F172A",
-    marginTop: 14,
-  },
-  fieldLabel: {
-    marginTop: 14,
-    marginBottom: 8,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#1B0977",
-  },
-  iconSelectorRow: {
-    gap: 10,
-  },
-  iconOption: {
-    minWidth: 90,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 16,
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
-    gap: 8,
-  },
-  iconOptionActive: {
-    backgroundColor: "#F5F3FF",
-    borderWidth: 1,
-    borderColor: "#D8B4FE",
-  },
-  iconOptionText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#64748B",
-  },
-  iconOptionTextActive: {
-    color: "#670CF5",
-  },
-  colorRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  colorSwatchWrap: {
-    padding: 4,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  colorSwatchWrapActive: {
-    borderColor: "#1B0977",
-  },
-  colorSwatch: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-  },
-  chipScrollContent: {
-    gap: 10,
-    paddingTop: 14,
-  },
-  modeSelectorRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 14,
-  },
-  modeSelectorButton: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 14,
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 8,
-  },
-  modeSelectorButtonActive: {
-    backgroundColor: "#F5F3FF",
-    borderWidth: 1,
-    borderColor: "#D8B4FE",
-  },
-  modeSelectorText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#64748B",
-  },
-  modeSelectorTextActive: {
-    color: "#670CF5",
-  },
-  activityDraftRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EEF2F7",
-  },
-  activityDraftMeta: {
-    flex: 1,
-  },
-  activityDraftTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#0F172A",
-  },
-  activityDraftSubtitle: {
-    marginTop: 4,
-    fontSize: 13,
-    color: "#64748B",
-  },
   iconActionButton: {
     width: 32,
     height: 32,
@@ -3215,73 +2400,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F8FAFC",
-  },
-  categoryPreviewCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: "#E8EAF3",
-  },
-  categoryPreviewHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  categoryPreviewCount: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#64748B",
-  },
-  previewActivityRow: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#EEF2F7",
-  },
-  previewActivityTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#0F172A",
-  },
-  previewActivitySubtitle: {
-    marginTop: 4,
-    fontSize: 13,
-    color: "#64748B",
-  },
-  overviewRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 16,
-  },
-  overviewStat: {
-    flex: 1,
-    borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    backgroundColor: "#F3E8FF",
-  },
-  overviewStatValue: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#1B0977",
-  },
-  overviewStatLabel: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#670CF5",
-  },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  sectionHeaderCopy: {
-    flex: 1,
-    minWidth: 0,
   },
   secondaryButton: {
     marginTop: 16,
@@ -3297,45 +2415,6 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#670CF5",
-  },
-  quickGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 14,
-  },
-  quickCard: {
-    width: "48%",
-    borderRadius: 18,
-    backgroundColor: "#F8FAFC",
-    padding: 14,
-  },
-  quickCardTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
-  quickCardMeta: {
-    marginTop: 6,
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#670CF5",
-  },
-  addCategoryChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    flexShrink: 1,
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: "#F5F3FF",
-  },
-  addCategoryChipText: {
-    fontSize: 12,
-    fontWeight: "800",
     color: "#670CF5",
   },
   categoryCard: {

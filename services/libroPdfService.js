@@ -232,7 +232,17 @@ const renderItinerary = (book) => {
           <th>Lo que ha añadido el residente</th>
         </tr>
       </thead>
-      <tbody>${rows || emptyRow(5, "Tu tutor todavía no ha definido contenido.")}</tbody>
+      <tbody>${
+        rows ||
+        emptyRow(
+          5,
+          // Un apartado vacío de un Libro propio no es que el tutor no haya
+          // definido nada: es que el residente todavía no lo ha montado.
+          book.template_id
+            ? "Tu tutor todavía no ha definido contenido."
+            : "Todavía no has añadido nada en este apartado."
+        )
+      }</tbody>
     </table>
   `;
 };

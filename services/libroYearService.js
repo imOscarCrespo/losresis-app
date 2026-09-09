@@ -182,10 +182,12 @@ export const getLibroYearOverview = async (
 };
 
 /**
- * Un apartado del arquetipo `itinerary`: la lista que definió el tutor, cada
- * elemento con su ficha.
+ * Un apartado del arquetipo `itinerary`: la lista de elementos, cada uno con su
+ * ficha.
  *
- * El residente NO crea ni borra elementos. Completa una ficha por elemento.
+ * Quién monta la lista depende de quién es el libro (ADR 0012): en el Libro oficial
+ * la define el tutor y el residente solo completa fichas; en el Libro propio la monta
+ * el residente con saveLibroItineraryItem.
  */
 export const getLibroItinerary = async (bookId) => {
   if (!bookId) return [];
@@ -228,12 +230,205 @@ export const getLibroItinerary = async (bookId) => {
 };
 
 /**
+ * Que el libro sea suyo y esté en uso, antes de tocarle la estructura.
+ *
+ * El candado de la base de datos (`libro_node_block_structure_changes`) solo mira
+ * `template_id`, así que un libro propio ARCHIVADO no lo para nadie: un año que el
+ * residente ya cerró se dejaría editar si la pantalla se equivocara. Es la misma
+ * comprobación que hacen createNode y updateNode con `ensureEditableBook`.
+ */
+const ensureOwnEditableBook = async (bookId, userId) => {
+  const { data, error } = await supabase
+    .from("libro_book")
+    .select("id, status, template_id")
+    .eq("id", bookId)
+    .eq("user_id", userId)
+    .single();
+
+  if (error) {
+    console.error("Error checking libro book before writing structure:", error);
+    throw error;
+  }
+
+  if (data.status !== "active") {
+    throw new Error("El libro archivado es de solo lectura");
+  }
+
+  if (data.template_id) {
+    throw new Error("Este libro lo define tu tutor: su estructura no se toca");
+  }
+
+  return data;
+};
+
+/**
+ * Crea o edita un elemento del arquetipo `itinerary` en el LIBRO PROPIO del
+ * residente: una rotación o una competencia suya.
+ *
+ * Solo tiene sentido en el Libro propio. En el Libro oficial la lista es del tutor y
+ * el candado de estructura de la base de datos
+ * (`libro_node_block_structure_changes`) rechaza la escritura, así que quien llama
+ * tiene que haber comprobado antes que el libro no está sellado con `template_id`.
+ *
+ * Los elementos son nodos RAÍZ planos: el arquetipo `itinerary` no tiene nivel de
+ * agrupación (ese solo existe en `tree`).
+ *
+ * No pasa por createNode/updateNode a propósito: aquellas son las de `tree` y solo
+ * saben de nombre, icono, color, meta y modo de registro. Aquí se escribe lo que
+ * DECLARA el elemento (centro y duración previstos, descripción), que es lo que el
+ * tutor pone desde el panel. Lo que el residente anota después va en su ficha
+ * (`libro_node_progress`, por saveLibroNodeProgress) y no se toca desde aquí.
+ */
+export const saveLibroItineraryItem = async ({
+  itemId = null,
+  bookId,
+  userId,
+  section,
+  name,
+  description = null,
+  center = null,
+  durationAmount = null,
+  durationUnit = null,
+}) => {
+  if (!userId || !section) {
+    throw new Error("userId and section are required");
+  }
+  if (!itemId && !bookId) {
+    throw new Error("bookId is required to create an itinerary item");
+  }
+  if (!name?.trim()) {
+    throw new Error("El nombre es obligatorio");
+  }
+
+  const row = {
+    name: name.trim(),
+    description: description?.trim() || null,
+    center: center?.trim() || null,
+    // La duración es un par: sin cantidad no hay unidad que enseñar.
+    duration_amount: durationAmount || null,
+    duration_unit: durationAmount ? durationUnit || "months" : null,
+  };
+
+  if (itemId) {
+    // Al editar, el libro es el del elemento: quien llama solo tiene el id.
+    const { data: current, error: currentError } = await supabase
+      .from("libro_node")
+      .select("book_id")
+      .eq("id", itemId)
+      .eq("user_id", userId)
+      .single();
+
+    if (currentError) {
+      console.error("Error fetching libro itinerary item:", currentError);
+      throw currentError;
+    }
+
+    await ensureOwnEditableBook(current.book_id, userId);
+
+    const { data, error } = await supabase
+      .from("libro_node")
+      .update(row)
+      .eq("id", itemId)
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Error updating libro itinerary item:", error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  await ensureOwnEditableBook(bookId, userId);
+
+  // Al final de la lista. `position` se calcula aquí y no en la base de datos
+  // porque la lista es del residente y su orden es el que él ve.
+  const { data: last, error: lastError } = await supabase
+    .from("libro_node")
+    .select("position")
+    .eq("book_id", bookId)
+    .is("parent_node_id", null)
+    .not("position", "is", null)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (lastError) {
+    console.error("Error reading last itinerary position:", lastError);
+  }
+
+  const { data, error } = await supabase
+    .from("libro_node")
+    .insert({
+      ...row,
+      user_id: userId,
+      book_id: bookId,
+      section,
+      parent_node_id: null,
+      position: (last?.position ?? -1) + 1,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("Error creating libro itinerary item:", error);
+    throw error;
+  }
+
+  return data;
+};
+
+/**
+ * Borra un elemento de itinerario del Libro propio.
+ *
+ * Su ficha (`libro_node_progress`) cae con él por el ON DELETE CASCADE de
+ * `node_id`: borrar la rotación borra lo que el residente había anotado en ella, y
+ * por eso quien llama lo confirma antes.
+ */
+export const deleteLibroItineraryItem = async (itemId, userId) => {
+  if (!itemId || !userId) {
+    throw new Error("itemId and userId are required");
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from("libro_node")
+    .select("book_id")
+    .eq("id", itemId)
+    .eq("user_id", userId)
+    .single();
+
+  if (currentError) {
+    console.error("Error fetching libro itinerary item:", currentError);
+    throw currentError;
+  }
+
+  await ensureOwnEditableBook(current.book_id, userId);
+
+  const { error } = await supabase
+    .from("libro_node")
+    .delete()
+    .eq("id", itemId)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("Error deleting libro itinerary item:", error);
+    throw error;
+  }
+};
+
+/**
  * Guarda la ficha de un elemento de itinerario.
  *
  * En Rotaciones el estado lo mueve el residente (es su itinerario). En Competencias
  * el nivel lo pone el TUTOR al cerrar una evaluación (set_evaluation_competency),
  * así que desde aquí solo se escribe el payload: pasar status en competencias
  * pisaría lo que ha valorado el tutor.
+ *
+ * Salvo que la competencia sea de su LIBRO PROPIO, donde no hay evaluación de tutor
+ * que pisar: ahí el nivel es suyo, y sin esto se quedaría en "Pendiente" para
+ * siempre y el Progreso del año nunca se movería (ADR 0012).
  */
 export const saveLibroNodeProgress = async ({
   nodeId,
@@ -241,12 +436,13 @@ export const saveLibroNodeProgress = async ({
   section,
   status,
   payload,
+  isOfficial = true,
 }) => {
   if (!nodeId || !userId) {
     throw new Error("nodeId and userId are required");
   }
 
-  const isTutorOwned = section === "competencies";
+  const isTutorOwned = section === "competencies" && isOfficial;
 
   const row = {
     node_id: nodeId,
@@ -412,6 +608,8 @@ export const getLibroShifts = async (
 export default {
   getLibroYearOverview,
   getLibroItinerary,
+  saveLibroItineraryItem,
+  deleteLibroItineraryItem,
   saveLibroNodeProgress,
   getLibroFormConfig,
   getLibroFormEntries,

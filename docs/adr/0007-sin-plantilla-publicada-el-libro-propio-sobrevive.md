@@ -12,8 +12,10 @@ configuración». Leído en crudo, eso mata el onboarding en el que el **Residen
 se monta su propio libro.
 
 Se decide **conservarlo** como camino de respaldo: sin **Plantilla del Libro**
-publicada para su hospital, especialidad y año, el residente sigue montando su
-**Libro propio** y registrando en él. En cuanto su hospital publique, se le ofrece
+publicada para su hospital, especialidad y año, el residente sigue teniendo su
+**Libro propio** y registrando en él. (El "montándoselo él en un asistente" de
+entonces lo retira el [ADR 0013](0013-el-libro-propio-se-siembra-solo-sin-asistente.md):
+ahora se le siembra solo. Lo que sigue en pie es que el camino propio existe.) En cuanto su hospital publique, se le ofrece
 **Migrar a la plantilla**, nunca se le impone, y antes de consumarlo puede
 descargarse su libro completo en PDF.
 
@@ -30,5 +32,9 @@ personas para satisfacer a 0.
   **Libro oficial**.
 - El arquetipo `tree` sirve a los dos: la pantalla es la misma y lo único que
   cambia es si la estructura se puede tocar.
-- **El camino propio no crece.** Cubre lo que ya cubría (Actividad asistencial con
-  sugerencias por especialidad); los apartados nuevos llegan por plantilla.
+- ~~**El camino propio no crece.** Cubre lo que ya cubría (Actividad asistencial con
+  sugerencias por especialidad); los apartados nuevos llegan por plantilla.~~
+  **Revisado por el [ADR 0012](0012-el-libro-propio-tiene-los-mismos-apartados.md):**
+  el Libro propio tiene los ocho apartados, los mismos que el oficial. Lo que sigue
+  siendo cierto es lo de arriba: los dos caminos viven, y el discriminador es
+  `libro_book.template_id`.

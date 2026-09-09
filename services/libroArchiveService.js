@@ -192,11 +192,24 @@ export const getLibroArchive = async (userId, currentResidencyYear = null) => {
 
 
 /**
- * Cuántos registros tiene el residente en un año concreto.
+ * Cuánto tiene registrado el residente en un año concreto: registros (libro_entry) y
+ * fichas rellenadas (libro_node_progress).
  *
  * Se usa para decirle exactamente qué pierde al Migrar a la plantilla, antes de
  * generar el PDF. Va por las dos vías porque libro_entry no tiene user_id: los
  * registros del arquetipo form cuelgan del libro y los demás de su nodo.
+ *
+ * Las FICHAS cuentan desde el ADR 0012. Antes daba igual: un Libro propio solo tenía
+ * Actividad asistencial, que es de arquetipo `tree` y no tiene fichas, así que
+ * contar solo libro_entry no dejaba nada fuera. Ahora el Libro propio tiene
+ * Rotaciones y Competencias, y un residente puede haber rellenado doce fichas sin un
+ * solo registro: el modal le decía "no pierdes nada" y la migración se las borraba
+ * (caen por el CASCADE de book_id → libro_node → libro_node_progress).
+ *
+ * Una ficha solo cuenta si tiene algo dentro. `saveLibroNodeProgress` hace upsert al
+ * guardar, así que una fila en `pending` y con el payload vacío es una ficha que se
+ * abrió y se cerró sin escribir nada: inflar el número con esas le haría creer que
+ * pierde más de lo que pierde.
  */
 export const countLibroEntriesForYear = async (userId, residencyYear) => {
   if (!userId || !residencyYear) return 0;
@@ -227,7 +240,7 @@ export const countLibroEntriesForYear = async (userId, residencyYear) => {
 
   const nodeIds = (nodes || []).map((node) => node.id);
 
-  const [byBook, byNode] = await Promise.all([
+  const [byBook, byNode, fichas] = await Promise.all([
     supabase
       .from("libro_entry")
       .select("id", { count: "exact", head: true })
@@ -238,16 +251,28 @@ export const countLibroEntriesForYear = async (userId, residencyYear) => {
           .select("id", { count: "exact", head: true })
           .in("node_id", nodeIds)
       : Promise.resolve({ count: 0, error: null }),
+    nodeIds.length
+      ? supabase
+          .from("libro_node_progress")
+          .select("node_id, status, payload")
+          .in("node_id", nodeIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
-  for (const result of [byBook, byNode]) {
+  for (const result of [byBook, byNode, fichas]) {
     if (result.error) {
       console.error("Error counting libro entries:", result.error);
       throw result.error;
     }
   }
 
-  return (byBook.count || 0) + (byNode.count || 0);
+  const filledFichas = (fichas.data || []).filter(
+    (row) =>
+      (row.status && row.status !== "pending") ||
+      Object.keys(row.payload || {}).length > 0
+  ).length;
+
+  return (byBook.count || 0) + (byNode.count || 0) + filledFichas;
 };
 
 export default {

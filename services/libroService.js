@@ -1,5 +1,10 @@
 import { supabase } from "../config/supabase";
 import { findUndoTarget } from "../utils/libroUndo";
+import { getLibroCategorySuggestions } from "../data/libroOnboardingTemplates";
+import {
+  DEFAULT_LIBRO_SECTION,
+  LIBRO_OWN_BOOK_SECTIONS,
+} from "../data/libroSections";
 
 const DEFAULT_TRACKING_MODE = "counter";
 const DEFAULT_NODE_COLOR = "violet";
@@ -931,6 +936,103 @@ export const upsertLibroUserSettings = async (userId, settings = {}) => {
   }
 };
 
+/**
+ * Completa el Libro propio del residente con los apartados que le falten.
+ *
+ * El Libro propio nacía con UN apartado (Actividad asistencial, el único que sembraba
+ * el alta del residente) mientras que el Libro oficial nace con todos los que el tutor
+ * escoge. Eso hacía que el mismo producto se viera muy distinto según el hospital, y
+ * es lo que corrige el ADR 0012: los dos caminos tienen los mismos ocho apartados y
+ * lo único que cambia es quién pone la estructura de dentro.
+ *
+ * Aquí solo se crean LIBROS (libro_book), no contenido: Guardias sale de la Agenda,
+ * los apartados `form` piden campos por defecto sin plantilla, y Rotaciones,
+ * Competencias y Actividad asistencial los rellena el residente.
+ *
+ * Es IDEMPOTENTE y se llama al abrir el Libro: quien ya lo tenga completo no paga
+ * ninguna escritura, y quien montó el suyo hace meses lo ve completo sin hacer nada.
+ * No lanza: que falle no debe impedir abrir el libro.
+ *
+ * Qué NO toca:
+ *
+ *  - Los años cuyo libro es del tutor (algún libro con template_id): los apartados
+ *    los escoge él, y añadirle uno que no ha puesto sería inventarle plan.
+ *  - Los residentes sin ningún libro: de esos se encarga ensureLibroForResident, que
+ *    siembra el Libro propio entero la primera vez que abren el Libro (ADR 0013).
+ *  - Un apartado que ya tenga libro ACTIVO de otro año. El índice
+ *    libro_book_one_active_per_user_section_idx solo admite uno activo por apartado,
+ *    así que crear el de este año chocaría con el que está en uso.
+ *
+ * @param {string} userId
+ * @returns {Promise<number>} cuántos apartados se han creado
+ */
+export const ensureOwnLibroSections = async (userId) => {
+  try {
+    if (!userId) return 0;
+
+    const { data, error } = await supabase
+      .from("libro_book")
+      .select("section, residency_year, status, template_id")
+      .eq("user_id", userId);
+
+    if (error) throw error;
+
+    const books = data || [];
+    if (!books.length) return 0;
+
+    // El libro EN USO, que no tiene por qué ser el del año del perfil: el Libro
+    // propio no rota de año solo (ADR 0009), así que un R2 puede seguir registrando
+    // en el libro que montó siendo R1. Completar otro año le crearía apartados
+    // vacíos donde no está escribiendo.
+    const ownActive = books.filter(
+      (book) => !book.template_id && book.status === "active"
+    );
+    if (!ownActive.length) return 0;
+
+    const targetYear = Math.max(...ownActive.map((book) => book.residency_year));
+
+    // Ese año es del tutor: los apartados los escoge él.
+    if (
+      books.some(
+        (book) => book.residency_year === targetYear && book.template_id
+      )
+    ) {
+      return 0;
+    }
+
+    const takenByActive = new Set(
+      books.filter((book) => book.status === "active").map((book) => book.section)
+    );
+    const takenInYear = new Set(
+      books
+        .filter((book) => book.residency_year === targetYear)
+        .map((book) => book.section)
+    );
+
+    const missing = LIBRO_OWN_BOOK_SECTIONS.filter(
+      (section) => !takenByActive.has(section) && !takenInYear.has(section)
+    );
+
+    if (!missing.length) return 0;
+
+    const { error: insertError } = await supabase.from("libro_book").insert(
+      missing.map((section) => ({
+        user_id: userId,
+        section,
+        residency_year: targetYear,
+        status: "active",
+      }))
+    );
+
+    if (insertError) throw insertError;
+
+    return missing.length;
+  } catch (error) {
+    console.error("Exception in ensureOwnLibroSections:", error);
+    return 0;
+  }
+};
+
 export const createLibroStructure = async ({
   userId,
   section,
@@ -984,6 +1086,12 @@ export const createLibroStructure = async ({
       }
     }
 
+    // Aquí solo se monta Actividad asistencial, pero el libro que sale de aquí tiene
+    // los mismos ocho apartados que el del tutor (ADR 0012). Los otros siete nacen
+    // vacíos: Guardias se llena desde la Agenda, los `form` piden ya sus campos por
+    // defecto, y Rotaciones y Competencias las escribe el residente.
+    await ensureOwnLibroSections(userId);
+
     await upsertLibroUserSettings(userId, {
       speciality_id: specialityId,
       onboarding_completed_at: new Date().toISOString(),
@@ -996,6 +1104,60 @@ export const createLibroStructure = async ({
     console.error("Exception in createLibroStructure:", error);
     throw error;
   }
+};
+
+/**
+ * El libro que se encuentra un residente la primera vez que abre el Libro.
+ *
+ * Antes esto era un asistente de cuatro pasos: el residente tenía que inventarse
+ * sus Áreas de actividad antes de poder ver nada. Pedirle que diseñe la estructura
+ * de su libro el día que estrena la app es pedirle una decisión que todavía no sabe
+ * tomar, y el que abre el Libro con un tutor detrás no pasa por ahí: se encuentra
+ * el libro montado. Ahora se encuentra lo mismo el que no lo tiene.
+ *
+ * Se le siembra el Libro propio completo —los ocho apartados (ADR 0012)— con las
+ * Áreas de actividad sugeridas para su especialidad ya puestas. Todo es suyo: puede
+ * renombrarlas, borrarlas y añadir las que quiera desde el propio Libro, que es
+ * donde tiene sentido hacerlo y no en un formulario previo.
+ *
+ * NO hace nada si ya tiene algún libro. Eso cubre a la vez al residente que ya
+ * montó el suyo, al que se lo sembró su hospital al darse de alta
+ * (`apply_libro_template_for_user`) y a la segunda llamada de una carrera entre dos
+ * dispositivos.
+ *
+ * @param {{userId: string, specialityId?: string|null, specialtyName?: string, residencyYear?: number}} params
+ * @returns {Promise<boolean>} si ha sembrado algo
+ */
+export const ensureLibroForResident = async ({
+  userId,
+  specialityId = null,
+  specialtyName = "",
+  residencyYear = 1,
+}) => {
+  if (!userId) return false;
+
+  const { data, error } = await supabase
+    .from("libro_book")
+    .select("id")
+    .eq("user_id", userId)
+    .limit(1);
+
+  if (error) {
+    console.error("Error checking libro books before seeding:", error);
+    throw error;
+  }
+
+  if (data?.length) return false;
+
+  await createLibroStructure({
+    userId,
+    section: DEFAULT_LIBRO_SECTION,
+    specialityId,
+    categories: getLibroCategorySuggestions(specialtyName),
+    residencyYear: residencyYear || 1,
+  });
+
+  return true;
 };
 
 export const archiveLibroBookAndStartNewYear = async ({
@@ -1045,5 +1207,7 @@ export default {
   getLibroUserSettings,
   upsertLibroUserSettings,
   createLibroStructure,
+  ensureLibroForResident,
+  ensureOwnLibroSections,
   archiveLibroBookAndStartNewYear,
 };

@@ -9,15 +9,17 @@ import {
 
 /**
  * La pantalla de la ficha de un elemento del arquetipo `itinerary`: una rotación o
- * una competencia.
- *
- * El residente NO crea ni borra elementos: la lista es de su tutor. Aquí solo
- * completa la ficha del elemento que abrió.
+ * una competencia. Aquí se anota CÓMO le ha ido; QUÉ es el elemento se declara en
+ * LibroItineraryItemScreen, y solo en el Libro propio.
  *
  * En Competencias el NIVEL lo pone el tutor al cerrar una Evaluación
  * (`set_evaluation_competency` escribe en `libro_node_progress`). Se muestra en solo
  * lectura y el residente aporta su comentario: si los dos escribieran la misma
  * columna, la evaluación del tutor pisaría su autovaloración sin dejar rastro.
+ *
+ * Eso vale para el Libro oficial. En el Libro propio no hay tutor que evalúe, así
+ * que el nivel es del residente: si no, se quedaría en "Pendiente" para siempre y su
+ * Progreso del año no se movería nunca (ADR 0012).
  */
 
 // Los campos de la ficha, por apartado. Van en libro_node_progress.payload.
@@ -60,6 +62,7 @@ const statusOptions = (section) =>
 export const LibroFichaScreen = ({
   node,
   section,
+  isOfficial = true,
   saving = false,
   onClose,
   onSave,
@@ -70,8 +73,9 @@ export const LibroFichaScreen = ({
   if (!node) return null;
 
   const fields = FICHA_FIELDS[section] || [];
-  // El nivel de una competencia es del tutor: aquí no se ofrece cambiarlo.
-  const statusIsEditable = section !== "competencies";
+  // El nivel de una competencia es del tutor, y solo lo es si hay tutor detrás: en
+  // el Libro propio lo pone el residente.
+  const statusIsEditable = section !== "competencies" || !isOfficial;
 
   return (
     <LibroEditorScreen
