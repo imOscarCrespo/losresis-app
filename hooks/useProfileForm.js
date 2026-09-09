@@ -6,7 +6,6 @@ import { getResidentTransitionConfig } from "../services/residentTransitionConfi
 import {
   validateProfileForm,
   shouldShowEmailReview,
-  shouldDiscardInvalidWorkEmailDuringGrace,
 } from "../utils/profileValidation";
 import {
   getProfileDraftType,
@@ -234,18 +233,12 @@ export const useProfileForm = () => {
           );
 
           if (!emailValidation.isValid) {
-            if (
-              shouldDiscardInvalidWorkEmailDuringGrace(
-                normalizedFormData,
-                emailValidation,
-                residentTransitionConfig
-              )
-            ) {
-              normalizedFormData = {
-                ...normalizedFormData,
-                work_email: "",
-              };
-            } else if (shouldShowEmailReview(normalizedFormData, emailValidation)) {
+            // Nunca descartamos en silencio un email que el usuario ha escrito
+            // —tampoco a un R1 dentro de la gracia MIR—: perderlo tras un
+            // mensaje de "perfil guardado" es indistinguible de un bug. Durante
+            // la gracia el email sigue siendo opcional, así que el residente
+            // puede vaciar el campo y guardar sin él.
+            if (shouldShowEmailReview(normalizedFormData, emailValidation)) {
               setShowEmailReviewSection(true);
               setMessage({
                 type: "error",

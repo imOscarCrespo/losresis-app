@@ -1177,3 +1177,95 @@ export const submitHospitalOpenDayFeedback = async (
     return { success: false, error: error.message };
   }
 };
+
+/**
+ * Normaliza el valor `email_domain` de un hospital a un array de dominios en
+ * minúsculas. Acepta array, JSON serializado (`"[\"chv.cat\"]"`) o string suelto.
+ * @param {any} value
+ * @returns {string[]}
+ */
+export const normalizeHospitalEmailDomains = (value) => {
+  const asArray = (() => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === "string" && value.trim()) {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [value];
+      } catch {
+        return [value];
+      }
+    }
+    return [];
+  })();
+
+  return asArray
+    .filter(Boolean)
+    .map((domain) => String(domain).toLowerCase().trim())
+    .filter(Boolean);
+};
+
+/**
+ * Obtiene los dominios de email autorizados de un hospital consultando SIEMPRE
+ * Supabase primero.
+ *
+ * El catálogo estático se regenera a mano (`scripts/export_static_catalog.mjs`),
+ * así que un dominio corregido en BD no llega a la app hasta el siguiente
+ * export + release. Como esta validación decide si el residente puede guardar
+ * su email corporativo, no puede depender del bundle: leemos de BD y sólo
+ * caemos al catálogo si la consulta falla (offline o error de red).
+ *
+ * @param {string} hospitalId
+ * @returns {Promise<{found: boolean, domains: string[], source: "db"|"catalog"}>}
+ */
+export const getHospitalEmailDomains = async (hospitalId) => {
+  if (!hospitalId) {
+    return { found: false, domains: [], source: "db" };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("hospitals")
+      .select("id, name, email_domain")
+      .eq("id", hospitalId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (data) {
+      return {
+        found: true,
+        domains: normalizeHospitalEmailDomains(data.email_domain),
+        source: "db",
+      };
+    }
+  } catch (error) {
+    console.warn(
+      "⚠️ No se pudieron leer los dominios del hospital desde Supabase, usando catálogo local:",
+      error?.message || error
+    );
+
+    const cached = getHospitalByIdFromCatalog(hospitalId);
+    if (cached) {
+      return {
+        found: true,
+        domains: normalizeHospitalEmailDomains(cached.email_domain),
+        source: "catalog",
+      };
+    }
+
+    return { found: false, domains: [], source: "catalog" };
+  }
+
+  // Sin error pero sin fila: el hospital no existe en BD. Aun así puede venir
+  // del catálogo empaquetado (fila borrada en BD tras el export).
+  const cached = getHospitalByIdFromCatalog(hospitalId);
+  if (cached) {
+    return {
+      found: true,
+      domains: normalizeHospitalEmailDomains(cached.email_domain),
+      source: "catalog",
+    };
+  }
+
+  return { found: false, domains: [], source: "db" };
+};

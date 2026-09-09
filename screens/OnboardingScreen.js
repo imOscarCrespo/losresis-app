@@ -34,7 +34,6 @@ import {
   RESIDENT_STATE,
 } from "../utils/residentAccess";
 import {
-  shouldDiscardInvalidWorkEmailDuringGrace,
   shouldShowEmailReview,
 } from "../utils/profileValidation";
 import posthogLogger from "../services/posthogService";
@@ -249,24 +248,10 @@ export default function OnboardingScreen({ userId, onComplete }) {
         work_email: email,
       };
 
-      if (
-        shouldDiscardInvalidWorkEmailDuringGrace(
-          formLike,
-          emailValidation,
-          transitionConfig
-        )
-      ) {
-        setAnswers((prev) => ({
-          ...prev,
-          work_email: "",
-          resident_state: RESIDENT_STATE.PENDING_CORPORATE_EMAIL_SEASONAL,
-          resident_transition_expires_at:
-            transitionConfig?.ends_at || null,
-        }));
-        advance();
-        return;
-      }
-
+      // Nunca descartamos en silencio un email que el residente ha escrito,
+      // tampoco a un R1 dentro de la gracia MIR: durante la gracia el email
+      // sigue siendo opcional (puede seguir dejando el campo vacío), pero si lo
+      // ha escrito o lo validamos o le ofrecemos revisión manual.
       if (shouldShowEmailReview(formLike, emailValidation)) {
         setShowEmailReviewSection(true);
         setSubmitError(null);

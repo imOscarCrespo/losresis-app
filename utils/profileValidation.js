@@ -77,32 +77,3 @@ export const shouldShowEmailReview = (formData, emailValidation) => {
     formData.hospital_id
   );
 };
-
-/**
- * Determina si un residente R1 en periodo de gracia puede continuar aunque
- * el email corporativo no coincida con el hospital, descartando ese email.
- * @param {object} formData - Datos del formulario
- * @param {object} emailValidation - Resultado de la validación de email
- * @param {object|null} residentTransitionConfig - Configuración de transición MIR
- * @returns {boolean}
- */
-export const shouldDiscardInvalidWorkEmailDuringGrace = (
-  formData,
-  emailValidation,
-  residentTransitionConfig = null
-) => {
-  // Durante la gracia MIR R1 el correo corporativo es opcional: si el
-  // residente no lo tiene aún (típico de R1 recién hecho), aceptamos que
-  // continúe sin email. Por eso, cuando estamos en gracia, descartamos
-  // SILENCIOSAMENTE cualquier email inválido — incluidos los dominios
-  // personales (gmail/hotmail/...) — y guardamos work_email = null. El
-  // chequeo de dominio personal solo bloquea fuera de la gracia.
-  return Boolean(
-    formData?.is_resident &&
-      formData?.work_email?.trim() &&
-      formData?.hospital_id &&
-      emailValidation &&
-      emailValidation.isValid === false &&
-      canResidentUseSeasonalGrace(formData, residentTransitionConfig)
-  );
-};

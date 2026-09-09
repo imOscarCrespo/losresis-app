@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { getHospitalByIdFromCatalog } from "../services/staticCatalogService";
+import { getHospitalEmailDomains } from "../services/hospitalService";
 
 // Dominios personales/gratuitos que NUNCA pueden ser un correo corporativo
 // de hospital. Se rechazan en cliente antes de cualquier otra validación
@@ -71,10 +71,13 @@ export const useEmailDomainValidation = () => {
 
     setLoading(true);
     try {
-      // Obtener datos del hospital incluyendo email_domain desde catálogo local
-      const hospitalData = getHospitalByIdFromCatalog(hospitalId);
+      // Los dominios se leen de Supabase en cada validación: el catálogo
+      // estático se regenera a mano y un dominio arreglado en BD no llegaría
+      // a la app hasta el siguiente release.
+      const { found, domains: normalizedAllowed } =
+        await getHospitalEmailDomains(hospitalId);
 
-      if (!hospitalData) {
+      if (!found) {
         return {
           isValid: false,
           error: "Hospital no encontrado",
@@ -82,40 +85,12 @@ export const useEmailDomainValidation = () => {
       }
 
       // Si el hospital no tiene email_domain configurado, permitir cualquier email
-      if (
-        !hospitalData.email_domain ||
-        hospitalData.email_domain.length === 0
-      ) {
+      if (normalizedAllowed.length === 0) {
         console.log(
-          `Hospital ${hospitalData.name} doesn't have email domain configured, allowing any email`
+          `Hospital ${hospitalId} doesn't have email domain configured, allowing any email`
         );
         return { isValid: true };
       }
-
-      // Normalizar array de dominios y verificar inclusión
-      const allowedDomains = (() => {
-        if (Array.isArray(hospitalData.email_domain)) {
-          return hospitalData.email_domain;
-        }
-        if (
-          typeof hospitalData.email_domain === "string" &&
-          hospitalData.email_domain
-        ) {
-          try {
-            // Intentar parsear como JSON primero (para casos como "[\"chv.cat\"]")
-            const parsed = JSON.parse(hospitalData.email_domain);
-            return Array.isArray(parsed) ? parsed : [hospitalData.email_domain];
-          } catch {
-            // Si falla el parseo, tratar como dominio único
-            return [hospitalData.email_domain];
-          }
-        }
-        return [];
-      })();
-
-      const normalizedAllowed = allowedDomains
-        .filter(Boolean)
-        .map((d) => d.toLowerCase().trim());
 
       const isValid = normalizedAllowed.includes(emailDomain);
 
