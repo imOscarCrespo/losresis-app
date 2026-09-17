@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { Icon } from "./Icon";
 import { PickerSheet } from "./PickerSheet";
-import { Country, City } from "country-state-city";
+import { Country, City } from "../services/geoCatalog";
 import { COLORS } from "../constants/colors";
 import { SelectFilter } from "./SelectFilter";
 

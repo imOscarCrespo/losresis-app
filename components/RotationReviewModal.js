@@ -12,7 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { Icon } from "./Icon";
-import { Country, City } from "country-state-city";
+import { Country, City } from "../services/geoCatalog";
 import { COLORS } from "../constants/colors";
 import { StarRating } from "./StarRating";
 import { SelectFilter } from "./SelectFilter";

@@ -73,10 +73,7 @@ export async function registerPushToken(userId: string): Promise<void> {
     console.log("[Push] Token generated:", token);
 
     const platform = Platform.OS as "ios" | "android";
-    const appVersion =
-      Application.nativeApplicationVersion ||
-      Application.applicationVersion ||
-      null;
+    const appVersion = Application.nativeApplicationVersion || null;
 
     const { error } = await supabase.rpc("register_push_token", {
       p_token: token,

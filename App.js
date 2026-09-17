@@ -5,6 +5,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { ForceUpdateScreen } from "./components/ForceUpdateScreen";
+import { AppLoadingScreen } from "./components/AppLoadingScreen";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { withTimeout } from "./utils/withTimeout";
 import { useVersionCheck } from "./hooks/useVersionCheck";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import DashboardScreen from "./screens/DashboardScreen";
@@ -42,12 +45,27 @@ import {
 import { addNotificationResponseListener } from "./src/services/push/notificationListener";
 import { useRegisterPushToken } from "./src/hooks/useRegisterPushToken";
 
+// Techo de espera para las puertas de acceso. Ninguna llamada de Supabase trae
+// timeout propio, así que sin esto una petición colgada deja el arranque
+// bloqueado indefinidamente. Al agotarse caemos al estado "sin sesión", que es
+// el mismo camino que ya seguía el catch de checkAuth.
+const AUTH_GATE_TIMEOUT_MS = 12000;
+
+// Instantánea equivalente a "no hemos podido resolver nada".
+const UNRESOLVED_SNAPSHOT = {
+  userResult: { success: false, user: null },
+  profileResult: { success: false, profile: null },
+  transitionConfigResult: { success: false, config: null },
+  emailReviewResult: { success: false, request: null },
+  reviewResult: { success: false, hasReview: false },
+};
+
 // Calcula si hay que saltarse el gate de reseñas para este perfil.
 // Fail-open: si no podemos cargar la ventana MIR (`resident_transition_config`),
 // concedemos bypass a cualquier R1 — preferimos no bloquear por un error de
 // infra al usuario que está empezando residencia.
-const resolveBypassReviewRequirement = async (profile) => {
-  const { success, config } = await getResidentTransitionConfig();
+const resolveBypassFromConfig = (profile, configResult) => {
+  const { success, config } = configResult || {};
   if (!success) {
     const residentYear = Number(profile?.resident_year || 0);
     return Boolean(profile?.is_resident && residentYear === 1);
@@ -55,7 +73,39 @@ const resolveBypassReviewRequirement = async (profile) => {
   return shouldBypassResidentReviewGate(profile, config);
 };
 
-export default function App() {
+const resolveBypassReviewRequirement = async (profile) =>
+  resolveBypassFromConfig(profile, await getResidentTransitionConfig());
+
+// Trae de una sola tanda todo lo que necesitan las puertas de acceso.
+// Antes se encadenaban 6 llamadas secuenciales (versión → usuario → perfil →
+// config MIR → revisión de email → review); ninguna depende del resultado de
+// las otras, solo del userId, que ya viene en la sesión persistida. En red fría
+// eso eran ~6 round-trips antes de pintar el primer píxel.
+const fetchSignedInSnapshot = async (userId, { forceProfileRefresh }) => {
+  const [
+    userResult,
+    profileResult,
+    transitionConfigResult,
+    emailReviewResult,
+    reviewResult,
+  ] = await Promise.all([
+    getCurrentUser(),
+    getUserProfile(userId, { forceRefresh: forceProfileRefresh }),
+    getResidentTransitionConfig(),
+    getEmailReviewRequest(userId),
+    checkResidentReview(userId),
+  ]);
+
+  return {
+    userResult,
+    profileResult,
+    transitionConfigResult,
+    emailReviewResult,
+    reviewResult,
+  };
+};
+
+function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
@@ -206,7 +256,6 @@ export default function App() {
       const appVersion =
         Constants.expoConfig?.version ||
         Application.nativeApplicationVersion ||
-        Application.applicationVersion ||
         "unknown";
       const os = Platform.OS;
       const deviceType = Platform.isPad ? "tablet" : "phone";
@@ -244,139 +293,145 @@ export default function App() {
     }
   };
 
+  const applySignedOutState = () => {
+    setIsAuthenticated(false);
+    setNeedsOnboarding(false);
+    setResidentHasReview(true);
+    setResidentReviewGateState(null);
+    setResidentEmailRejected(false);
+    setResidentSeasonalLocked(false);
+    setCurrentUserId(null);
+  };
+
+  // Vuelca una instantánea ya resuelta sobre los estados de las puertas de
+  // acceso. La comparten checkAuth y handleAuthSuccess: antes cada uno llevaba
+  // su propia copia de esta lógica y ya se habían desincronizado.
+  // Devuelve false si no se pudo identificar al usuario, para que cada llamante
+  // decida a dónde mandarlo.
+  const applySignedInSnapshot = async (snapshot, { countSession }) => {
+    const {
+      userResult,
+      profileResult,
+      transitionConfigResult,
+      emailReviewResult,
+      reviewResult,
+    } = snapshot;
+
+    const user = userResult?.success ? userResult.user : null;
+    if (!user) return false;
+
+    const profile = profileResult?.success ? profileResult.profile : null;
+
+    if (!profile) {
+      // Usuario autenticado pero sin perfil en la base de datos
+      setIsAuthenticated(true);
+      setNeedsOnboarding(true);
+      setResidentHasReview(true); // No aplicar restricción si no hay perfil
+      setResidentReviewGateState(null);
+      setResidentEmailRejected(false);
+      setResidentSeasonalLocked(false);
+      setCurrentUserId(user.id);
+      // Identificar usuario en PostHog sin perfil completo
+      posthogLogger.identify(user.id, { email: user.email });
+      return true;
+    }
+
+    const bypassReviewRequirement = resolveBypassFromConfig(
+      profile,
+      transitionConfigResult
+    );
+
+    // El rechazo del email aplica a cualquier usuario que solicitó revisión
+    // manual, no solo a residentes (puede haber usuarios legacy degradados a
+    // no-residentes por el código antiguo).
+    setResidentEmailRejected(
+      shouldRedirectForEmailReviewRejection(profile, emailReviewResult?.request)
+    );
+
+    if (profile.is_resident && !profile.is_super_admin) {
+      // En caso de error, asumir que no tiene review para ser restrictivo
+      const reviewCheckSuccess = Boolean(reviewResult?.success);
+      const hasReview = reviewCheckSuccess && Boolean(reviewResult?.hasReview);
+
+      setResidentHasReview(hasReview);
+      console.log(
+        `🔍 Residente verificado: ${hasReview ? "tiene" : "NO tiene"} review`
+      );
+
+      setResidentSeasonalLocked(isResidentLockedMissingCorporateEmail(profile));
+
+      await syncResidentReviewGate({
+        userId: user.id,
+        hasReview,
+        isResident: profile.is_resident,
+        isSuperAdmin: profile.is_super_admin,
+        bypassReviewRequirement,
+        countSession,
+      });
+    } else {
+      // Si no es residente, no aplica el lock seasonal MIR.
+      setResidentSeasonalLocked(false);
+      setResidentHasReview(true);
+      await syncResidentReviewGate({
+        userId: user.id,
+        hasReview: true,
+        isResident: profile.is_resident,
+        isSuperAdmin: profile.is_super_admin,
+      });
+    }
+
+    setIsAuthenticated(true);
+    setNeedsOnboarding(profile.onboarding_completed !== true);
+    setCurrentUserId(user.id);
+    // Identificar usuario en PostHog
+    posthogLogger.identify(user.id, {
+      email: user.email,
+      is_resident: profile.is_resident,
+      is_student: profile.is_student,
+      is_super_admin: profile.is_super_admin,
+    });
+    return true;
+  };
+
+  // Resuelve las puertas de acceso de una sesión ya persistida.
+  // El userId sale de la sesión local, así que las cinco consultas se lanzan a
+  // la vez en lugar de encadenarse.
+  const loadSignedInSnapshot = async (userId, { forceProfileRefresh }) =>
+    withTimeout(
+      fetchSignedInSnapshot(userId, { forceProfileRefresh }),
+      AUTH_GATE_TIMEOUT_MS,
+      UNRESOLVED_SNAPSHOT
+    );
+
   const checkAuth = async ({ forceProfileRefresh = true } = {}) => {
     try {
       // Primero verificar si hay sesión activa
       const { success, session } = await getSession();
-      const hasSession = Boolean(success && session);
+      const userId = success && session ? session.user?.id : null;
 
       // NO intentar restaurar automáticamente con biometría al iniciar
       // Esto causa problemas en Expo Go y pide código de acceso
       // La restauración con Face ID solo ocurre cuando el usuario presiona el botón explícitamente
 
-      if (hasSession) {
-        // Forzar refresh al restaurar una sesión persistida para que el badge
-        // no dependa de un nuevo login.
-        try {
-          await refreshVersionCheck({
-            force: true,
-            reason: "session_restore",
-          });
-        } catch (error) {
-          console.warn("Error verificando versión al iniciar:", error);
-        }
-
-        // Verificar si el usuario tiene perfil completo
-        const { success: userSuccess, user } = await getCurrentUser();
-        if (userSuccess && user) {
-          const { success: profileSuccess, profile } = await getUserProfile(
-            user.id,
-            { forceRefresh: forceProfileRefresh }
-          );
-
-          if (profileSuccess && profile) {
-            const bypassReviewRequirement =
-              await resolveBypassReviewRequirement(profile);
-
-            // El rechazo del email aplica a cualquier usuario que solicitó
-            // revisión manual, no solo a residentes (puede haber usuarios
-            // legacy degradados a no-residentes por el código antiguo).
-            const { request: emailReviewRequest } =
-              await getEmailReviewRequest(user.id);
-            setResidentEmailRejected(
-              shouldRedirectForEmailReviewRejection(profile, emailReviewRequest)
-            );
-
-            if (profile.is_resident && !profile.is_super_admin) {
-              const { success: reviewCheckSuccess, hasReview } =
-                await checkResidentReview(user.id);
-              if (reviewCheckSuccess) {
-                setResidentHasReview(hasReview);
-                console.log(
-                  `🔍 Residente verificado: ${
-                    hasReview ? "tiene" : "NO tiene"
-                  } review`
-                );
-              } else {
-                // En caso de error, asumir que no tiene review para ser restrictivo
-                setResidentHasReview(false);
-              }
-
-              setResidentSeasonalLocked(
-                isResidentLockedMissingCorporateEmail(profile)
-              );
-
-              await syncResidentReviewGate({
-                userId: user.id,
-                hasReview: reviewCheckSuccess ? hasReview : false,
-                isResident: profile.is_resident,
-                isSuperAdmin: profile.is_super_admin,
-                bypassReviewRequirement,
-                countSession: true,
-              });
-            } else {
-              // Si no es residente, no aplica el lock seasonal MIR.
-              setResidentSeasonalLocked(false);
-              setResidentHasReview(true);
-              await syncResidentReviewGate({
-                userId: user.id,
-                hasReview: true,
-                isResident: profile.is_resident,
-                isSuperAdmin: profile.is_super_admin,
-              });
-            }
-
-            setIsAuthenticated(true);
-            setNeedsOnboarding(profile.onboarding_completed !== true);
-            setCurrentUserId(user.id);
-            // Identificar usuario en PostHog
-            posthogLogger.identify(user.id, {
-              email: user.email,
-              is_resident: profile.is_resident,
-              is_student: profile.is_student,
-              is_super_admin: profile.is_super_admin,
-            });
-          } else {
-            // Usuario autenticado pero sin perfil en la base de datos
-            setIsAuthenticated(true);
-            setNeedsOnboarding(true);
-            setResidentHasReview(true); // No aplicar restricción si no hay perfil
-            setResidentReviewGateState(null);
-            setResidentEmailRejected(false);
-            setResidentSeasonalLocked(false);
-            setCurrentUserId(user.id);
-            // Identificar usuario en PostHog sin perfil completo
-            posthogLogger.identify(user.id, {
-              email: user.email,
-            });
-          }
-        } else {
-          setIsAuthenticated(false);
-          setNeedsOnboarding(false);
-          setResidentHasReview(true);
-          setResidentReviewGateState(null);
-          setResidentEmailRejected(false);
-          setResidentSeasonalLocked(false);
-          setCurrentUserId(null);
-        }
-      } else {
-        setIsAuthenticated(false);
-        setNeedsOnboarding(false);
-        setResidentHasReview(true);
-        setResidentReviewGateState(null);
-        setResidentEmailRejected(false);
-        setResidentSeasonalLocked(false);
-        setCurrentUserId(null);
+      if (!userId) {
+        applySignedOutState();
+        return;
       }
+
+      // La verificación de versión ya la dispara useVersionCheck en su propio
+      // efecto de arranque, en paralelo con esto. Repetirla aquí añadía un
+      // round-trip que además serializaba todo lo que viene detrás.
+      const snapshot = await loadSignedInSnapshot(userId, {
+        forceProfileRefresh,
+      });
+
+      const resolved = await applySignedInSnapshot(snapshot, {
+        countSession: true,
+      });
+      if (!resolved) applySignedOutState();
     } catch (error) {
       console.error("Error checking auth:", error);
-      setIsAuthenticated(false);
-      setNeedsOnboarding(false);
-      setResidentHasReview(true);
-      setResidentReviewGateState(null);
-      setResidentEmailRejected(false);
-      setResidentSeasonalLocked(false);
-      setCurrentUserId(null);
+      applySignedOutState();
     } finally {
       setIsLoading(false);
     }
@@ -394,88 +449,23 @@ export default function App() {
     }
 
     // Después del login, verificar si necesita onboarding
-    const { success: userSuccess, user } = await getCurrentUser();
-    if (userSuccess && user) {
-      const { success: profileSuccess, profile } = await getUserProfile(
-        user.id,
-        { forceRefresh: true }
-      );
+    let resolved = false;
+    try {
+      const { success, session } = await getSession();
+      const userId = success && session ? session.user?.id : null;
 
-      if (profileSuccess && profile) {
-        const bypassReviewRequirement =
-          await resolveBypassReviewRequirement(profile);
+      const snapshot = userId
+        ? await loadSignedInSnapshot(userId, { forceProfileRefresh: true })
+        : UNRESOLVED_SNAPSHOT;
 
-        // Misma política que en checkAuth: el rechazo del email se evalúa
-        // para cualquier usuario, no solo residentes.
-        const { request: emailReviewRequest } = await getEmailReviewRequest(
-          user.id
-        );
-        setResidentEmailRejected(
-          shouldRedirectForEmailReviewRejection(profile, emailReviewRequest)
-        );
+      resolved = await applySignedInSnapshot(snapshot, { countSession: true });
+    } catch (error) {
+      console.error("Error resolviendo la sesión tras el login:", error);
+    }
 
-        if (profile.is_resident && !profile.is_super_admin) {
-          const { success: reviewCheckSuccess, hasReview } =
-            await checkResidentReview(user.id);
-          if (reviewCheckSuccess) {
-            setResidentHasReview(hasReview);
-            console.log(
-              `🔍 Residente verificado: ${
-                hasReview ? "tiene" : "NO tiene"
-              } review`
-            );
-          } else {
-            setResidentHasReview(false);
-          }
-
-          setResidentSeasonalLocked(
-            isResidentLockedMissingCorporateEmail(profile)
-          );
-
-          await syncResidentReviewGate({
-            userId: user.id,
-            hasReview: reviewCheckSuccess ? hasReview : false,
-            isResident: profile.is_resident,
-            isSuperAdmin: profile.is_super_admin,
-            bypassReviewRequirement,
-            countSession: true,
-          });
-        } else {
-          setResidentSeasonalLocked(false);
-          setResidentHasReview(true);
-          await syncResidentReviewGate({
-            userId: user.id,
-            hasReview: true,
-            isResident: profile.is_resident,
-            isSuperAdmin: profile.is_super_admin,
-          });
-        }
-
-        setIsAuthenticated(true);
-        setNeedsOnboarding(profile.onboarding_completed !== true);
-        setCurrentUserId(user.id);
-        // Identificar usuario en PostHog después del login
-        posthogLogger.identify(user.id, {
-          email: user.email,
-          is_resident: profile.is_resident,
-          is_student: profile.is_student,
-          is_super_admin: profile.is_super_admin,
-        });
-      } else {
-        // Usuario sin perfil
-        setIsAuthenticated(true);
-        setNeedsOnboarding(true);
-        setResidentHasReview(true);
-        setResidentReviewGateState(null);
-        setResidentEmailRejected(false);
-        setResidentSeasonalLocked(false);
-        setCurrentUserId(user.id);
-        // Identificar usuario en PostHog sin perfil completo
-        posthogLogger.identify(user.id, {
-          email: user.email,
-        });
-      }
-    } else {
+    if (!resolved) {
+      // Acaba de autenticarse pero no hemos podido resolver el usuario: se le
+      // manda a onboarding, no al login, igual que hacía la versión anterior.
       setIsAuthenticated(true);
       setNeedsOnboarding(true);
       setResidentHasReview(true);
@@ -558,6 +548,8 @@ export default function App() {
             } review`
           );
           if (!hasReview) {
+            const bypassReviewRequirement =
+              await resolveBypassReviewRequirement(profile);
             const nextState = await syncResidentReviewGate({
               userId: user.id,
               hasReview: false,
@@ -588,13 +580,17 @@ export default function App() {
     await checkAuth();
   };
 
+  // Nunca devolvemos null durante el arranque: en red fría eso dejaba una
+  // pantalla en blanco de varios segundos y la app parecía haberse colgado.
   if (isLoading) {
-    return null;
+    return <AppLoadingScreen />;
   }
 
   return (
-    <SafeAreaProvider>
-      {isVersionCheckLoading ? null : needsUpdate && isForceUpdate ? (
+    <>
+      {isVersionCheckLoading ? (
+        <AppLoadingScreen />
+      ) : needsUpdate && isForceUpdate ? (
         <ForceUpdateScreen
           updateUrl={updateUrl}
           currentVersion={currentVersion}
@@ -634,6 +630,20 @@ export default function App() {
       ) : (
         <WelcomeScreen onAuthSuccess={handleAuthSuccess} />
       )}
+    </>
+  );
+}
+
+// El SafeAreaProvider y la frontera de error van POR ENCIMA de AppContent. Si la
+// frontera viviera dentro del return de AppContent, un throw del propio
+// AppContent (por ejemplo al resolver las puertas de acceso) la arrastraría con
+// él y seguiríamos teniendo un crash fatal.
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppErrorBoundary>
+        <AppContent />
+      </AppErrorBoundary>
     </SafeAreaProvider>
   );
 }

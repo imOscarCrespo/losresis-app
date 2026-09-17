@@ -94,7 +94,6 @@ const getCurrentAppVersion = () => {
     
     // Prioridad 2: Fallback a Application si expo-constants no está disponible
     const nativeVersion = Application.nativeApplicationVersion;
-    const appVersion = Application.applicationVersion;
     
     // Prioridad 3: Leer directamente de app.json como último recurso
     let appJsonVersion = null;
@@ -106,13 +105,12 @@ const getCurrentAppVersion = () => {
     }
 
     // Usar la versión de expo-constants primero (es la más confiable)
-    const version = expoConfigVersion || appJsonVersion || nativeVersion || appVersion || null;
+    const version = expoConfigVersion || appJsonVersion || nativeVersion || null;
 
     console.log('📱 [getCurrentAppVersion] Versiones detectadas:', {
       expoConfigVersion: expoConfigVersion, // Esta es la que queremos usar
       appJsonVersion: appJsonVersion,
       nativeApplicationVersion: nativeVersion, // Puede ser versión del SDK
-      applicationVersion: appVersion,
       resolvedVersion: version,
     });
 

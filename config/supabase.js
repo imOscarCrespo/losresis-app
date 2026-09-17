@@ -88,9 +88,7 @@ const quickVersionCheck = async () => {
 
     // Comparar versiones (lógica simplificada)
     const minVersion = versionData.min_required_version;
-    const currentVersion =
-      require("expo-application").nativeApplicationVersion ||
-      require("expo-application").applicationVersion;
+    const currentVersion = require("expo-application").nativeApplicationVersion;
 
     if (!currentVersion || !minVersion) {
       return { needsUpdate: false, skip: true };

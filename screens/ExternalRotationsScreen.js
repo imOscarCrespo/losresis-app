@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Icon } from "../components/Icon";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Country, City } from "country-state-city";
+import { Country, City } from "../services/geoCatalog";
 import { COLORS } from "../constants/colors";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { SwipeBackWrapper } from "../components/SwipeBackWrapper";

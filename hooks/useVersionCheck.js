@@ -1,8 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Platform } from "react-native";
 import { checkVersionUpdate, clearVersionCache } from "../services/versionService";
+import { withTimeout } from "../utils/withTimeout";
 import Constants from "expo-constants";
 import * as Application from "expo-application";
+
+// La comprobación de versión bloquea el primer render, así que no puede tardar
+// más que el resto del arranque.
+const VERSION_CHECK_TIMEOUT_MS = 8000;
 
 /**
  * Hook para verificar si la app necesita actualización desde Supabase
@@ -34,15 +39,13 @@ export const useVersionCheck = () => {
         // Obtener versión actual de la app desde app.json (no del SDK)
         const expoConfigVersion = Constants.expoConfig?.version;
         const nativeVersion = Application.nativeApplicationVersion;
-        const appVersion = Application.applicationVersion;
 
         // Usar expo-constants primero (lee de app.json), luego fallbacks
-        const version = expoConfigVersion || nativeVersion || appVersion || null;
+        const version = expoConfigVersion || nativeVersion || null;
 
         console.log("🔍 [useVersionCheck] Versión detectada:", {
           expoConfigVersion, // Versión real de app.json
           nativeApplicationVersion: nativeVersion, // Puede ser SDK version
-          applicationVersion: appVersion,
           resolvedVersion: version,
           platform: Platform.OS,
           force,
@@ -74,7 +77,14 @@ export const useVersionCheck = () => {
 
         // Verificar versión desde Supabase. Los eventos lifecycle (`startup`,
         // `resume`, `auth`) fuerzan refresh para no depender de una sesión nueva.
-        const result = await checkVersionUpdate(shouldForceRefresh);
+        // Con timeout: esta comprobación bloquea el render inicial, así que una
+        // petición colgada dejaría la app en la pantalla de carga para siempre.
+        // Al agotarse seguimos como si fallara: sin banner y sin bloquear.
+        const result = await withTimeout(
+          checkVersionUpdate(shouldForceRefresh),
+          VERSION_CHECK_TIMEOUT_MS,
+          { error: "timeout", needsUpdate: false }
+        );
 
         console.log("📱 [useVersionCheck] Resultado de verificación:", {
           needsUpdate: result.needsUpdate,
