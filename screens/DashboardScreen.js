@@ -511,6 +511,15 @@ export default function DashboardScreen({
         return;
       }
 
+      // Avisos que se arreglan desde el perfil: rechazo del email corporativo
+      // (hay que corregirlo y volver a pedir revisión) y fin de la ventana de
+      // gracia MIR. Ambos ya enviaban destination_section "usuario", pero no
+      // había rama que lo enrutase y el push abría la app sin ir a ningún sitio.
+      if (data?.destination_section === "usuario") {
+        handleSectionChange("usuario");
+        return;
+      }
+
       // El hospital pide valoración de su jornada de puertas abiertas.
       if (
         data?.destination_section === "valoracionJornada" &&
