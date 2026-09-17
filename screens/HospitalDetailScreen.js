@@ -11,9 +11,11 @@ import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
   getDetailedGrades,
+  getHospitalNextOpenDay,
   getHospitalSpecialties,
   getSpecialtyById,
 } from "../services/hospitalService";
+import { formatDateOnly } from "../utils/dateUtils";
 import posthogLogger from "../services/posthogService";
 
 const PRIMARY = "#670CF5";
@@ -40,12 +42,14 @@ export default function HospitalDetailScreen({
   hospital,
   selectedSpecialtyId,
   onBack,
+  onOpenDaysPress,
 }) {
   const [specialties, setSpecialties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedSpecialty, setExpandedSpecialty] = useState(null);
   const [detailedGrades, setDetailedGrades] = useState({});
   const [loadingDetails, setLoadingDetails] = useState({});
+  const [nextOpenDay, setNextOpenDay] = useState(null);
 
   useEffect(() => {
     posthogLogger.logScreen("HospitalDetailScreen", {
@@ -63,6 +67,38 @@ export default function HospitalDetailScreen({
     if (!hospital?.id) return;
     fetchSpecialties();
   }, [hospital?.id, selectedSpecialtyId]);
+
+  // Una sola query: solo hace falta saber si hay jornada pendiente para decidir
+  // si se pinta el acceso, no el perfil entero del hospital.
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchNextOpenDay = async () => {
+      if (!hospital?.id) {
+        setNextOpenDay(null);
+        return;
+      }
+
+      const { openDay } = await getHospitalNextOpenDay(hospital.id);
+      if (!cancelled) {
+        setNextOpenDay(openDay || null);
+      }
+    };
+
+    fetchNextOpenDay();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hospital?.id]);
+
+  const handleOpenDaysPress = () => {
+    posthogLogger.capture("hospital_open_day_entry_clicked", {
+      hospital_id: hospital?.id,
+      source: "hospital_detail",
+    });
+    onOpenDaysPress?.(hospital);
+  };
 
   const fetchSpecialties = async () => {
     setLoading(true);
@@ -365,6 +401,29 @@ export default function HospitalDetailScreen({
           </View>
         </View>
 
+        {nextOpenDay ? (
+          <TouchableOpacity
+            style={styles.openDayBanner}
+            activeOpacity={0.88}
+            onPress={handleOpenDaysPress}
+            accessibilityRole="button"
+            accessibilityLabel="Ver la jornada de puertas abiertas de este hospital"
+          >
+            <View style={styles.openDayBannerIcon}>
+              <Icon name="calendar-outline" size={20} color={WHITE} />
+            </View>
+            <View style={styles.openDayBannerText}>
+              <Text style={styles.openDayBannerTitle}>
+                Jornada de puertas abiertas
+              </Text>
+              <Text style={styles.openDayBannerDate}>
+                {formatDateOnly(nextOpenDay.event_date)}
+              </Text>
+            </View>
+            <Icon name="arrow-forward" size={20} color={WHITE} />
+          </TouchableOpacity>
+        ) : null}
+
         <SectionTitle
           title="Especialidades disponibles"
           rightLabel={
@@ -405,6 +464,44 @@ export default function HospitalDetailScreen({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG_LIGHT },
   scrollContent: { padding: 16, paddingTop: 14, paddingBottom: 32 },
+  // El acceso a la jornada va antes de las especialidades y en morado sólido:
+  // es la única cosa de esta pantalla con fecha, y entre tarjetas blancas una
+  // más pasaría desapercibida.
+  openDayBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: PRIMARY,
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    marginBottom: 16,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  openDayBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  openDayBannerText: { flex: 1, gap: 2 },
+  openDayBannerTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: WHITE,
+    lineHeight: 20,
+  },
+  openDayBannerDate: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.86)",
+    fontWeight: "600",
+  },
   hospitalCard: {
     backgroundColor: WHITE,
     borderRadius: 18,

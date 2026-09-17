@@ -12,13 +12,7 @@ import {
 } from "react-native";
 import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
-import {
-  getHospitalOpenDayRegistrationStatus,
-  getHospitalProfileContent,
-  registerForHospitalOpenDay,
-} from "../services/hospitalService";
-import { getCurrentUser } from "../services/authService";
-import { formatDateOnly } from "../utils/dateUtils";
+import { getHospitalProfileContent } from "../services/hospitalService";
 import { openURL } from "../utils/courseUtils";
 import posthogLogger from "../services/posthogService";
 
@@ -37,27 +31,8 @@ const getEmptyHospitalProfile = () => ({
   about: null,
   differential_points: [],
   images: [],
-  open_day: null,
   plans: [],
 });
-
-const getDateFromDayString = (value) => {
-  if (!value) return null;
-  const parsed = new Date(`${value}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const getOpenDayParts = (value) => {
-  const date = getDateFromDayString(value);
-  if (!date) {
-    return { day: "—", month: "" };
-  }
-
-  return {
-    day: date.toLocaleDateString("es-ES", { day: "2-digit" }),
-    month: date.toLocaleDateString("es-ES", { month: "short" }).replace(".", ""),
-  };
-};
 
 const getFilenameFromUrl = (value, fallback = "plan-formativo.pdf") => {
   if (!value) return fallback;
@@ -93,9 +68,6 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
   const [expandedPlanId, setExpandedPlanId] = useState(null);
   const [planSpecialityFilter, setPlanSpecialityFilter] = useState("");
   const [downloadingPlanId, setDownloadingPlanId] = useState(null);
-  const [currentUserId, setCurrentUserId] = useState(null);
-  const [openDayRegistered, setOpenDayRegistered] = useState(false);
-  const [openDayRegistrationLoading, setOpenDayRegistrationLoading] = useState(false);
 
   useEffect(() => {
     posthogLogger.logScreen("HospitalInfoScreen", {
@@ -106,27 +78,12 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
   useEffect(() => {
     setExpandedPlanId(null);
     setPlanSpecialityFilter("");
-    setOpenDayRegistered(false);
   }, [hospital?.id]);
 
   useEffect(() => {
     if (!hospital?.id) return;
     fetchHospitalProfile();
   }, [hospital?.id]);
-
-  useEffect(() => {
-    loadCurrentUser();
-  }, []);
-
-  useEffect(() => {
-    const openDayId = hospitalProfile?.open_day?.id;
-    if (!openDayId || !currentUserId) {
-      setOpenDayRegistered(false);
-      return;
-    }
-
-    fetchOpenDayRegistrationStatus(openDayId, currentUserId);
-  }, [hospitalProfile?.open_day?.id, currentUserId]);
 
   const fetchHospitalProfile = async () => {
     setProfileLoading(true);
@@ -143,28 +100,6 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
       setHospitalProfile(getEmptyHospitalProfile());
     } finally {
       setProfileLoading(false);
-    }
-  };
-
-  const loadCurrentUser = async () => {
-    try {
-      const { success, user } = await getCurrentUser();
-      setCurrentUserId(success && user?.id ? user.id : null);
-    } catch (error) {
-      console.error("Exception loading current user:", error);
-      setCurrentUserId(null);
-    }
-  };
-
-  const fetchOpenDayRegistrationStatus = async (openDayId, userId) => {
-    try {
-      const { success, isRegistered } =
-        await getHospitalOpenDayRegistrationStatus(openDayId, userId);
-      if (success) {
-        setOpenDayRegistered(isRegistered);
-      }
-    } catch (error) {
-      console.error("Exception fetching open day registration status:", error);
     }
   };
 
@@ -230,127 +165,6 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
     } finally {
       setDownloadingPlanId(null);
     }
-  };
-
-  const handleOpenDayRegistration = async (openDay) => {
-    if (!openDay?.id || openDayRegistered) return;
-
-    if (!currentUserId) {
-      Alert.alert(
-        "Inicia sesión",
-        "Necesitas haber iniciado sesión para inscribirte a una jornada de puertas abiertas."
-      );
-      return;
-    }
-
-    setOpenDayRegistrationLoading(true);
-    try {
-      const { success, error } = await registerForHospitalOpenDay(
-        openDay.id,
-        currentUserId
-      );
-
-      if (!success) {
-        Alert.alert(
-          "Error",
-          error || "No se pudo completar la inscripción a la jornada."
-        );
-        return;
-      }
-
-      setOpenDayRegistered(true);
-      Alert.alert("Inscripción completada", "Tu plaza ha quedado registrada.");
-    } catch (error) {
-      console.error("Exception registering for open day:", error);
-      Alert.alert("Error", "No se pudo completar la inscripción a la jornada.");
-    } finally {
-      setOpenDayRegistrationLoading(false);
-    }
-  };
-
-  const handleOpenDayUrl = (openDay) => {
-    if (!openDay?.cta_url) return;
-
-    openURL(openDay.cta_url, () => {
-      Alert.alert("Error", "No se pudo abrir la jornada.");
-    });
-  };
-
-  const renderOpenDayCard = () => {
-    const openDay = hospitalProfile?.open_day;
-    if (!openDay) return null;
-
-    const dateParts = getOpenDayParts(openDay.event_date);
-    const hasExternalUrl = Boolean(openDay.cta_url);
-    const urlLabel = openDay.cta_label?.trim() || "Ver jornada";
-
-    return (
-      <View style={styles.openDayHero}>
-        <View style={styles.openDayGlowLarge} />
-        <View style={styles.openDayGlowSmall} />
-        <View style={styles.openDayContent}>
-          {openDay.image_public_url ? (
-            <Image
-              source={{ uri: openDay.image_public_url }}
-              style={styles.openDayImage}
-              resizeMode="cover"
-            />
-          ) : null}
-
-          <View style={styles.openDayBadge}>
-            <Icon name="calendar-outline" size={14} color={WHITE} />
-            <Text style={styles.openDayBadgeText}>Próximo evento</Text>
-          </View>
-
-          <View style={styles.openDayTextBlock}>
-            <Text style={styles.openDayTitle}>{openDay.title}</Text>
-            {openDay.description ? (
-              <Text style={styles.openDayDescription}>{openDay.description}</Text>
-            ) : null}
-            <Text style={styles.openDayFullDate}>
-              {formatDateOnly(openDay.event_date)}
-            </Text>
-          </View>
-
-          <View style={styles.openDayFooter}>
-            <View style={styles.openDayDateCard}>
-              <Text style={styles.openDayDateDay}>{dateParts.day}</Text>
-              <Text style={styles.openDayDateMonth}>{dateParts.month}</Text>
-            </View>
-
-            <View style={styles.openDayActions}>
-              <TouchableOpacity
-                style={[
-                  styles.openDayCta,
-                  openDayRegistered && styles.openDayCtaRegistered,
-                ]}
-                activeOpacity={0.85}
-                onPress={() => handleOpenDayRegistration(openDay)}
-                disabled={openDayRegistrationLoading || openDayRegistered}
-              >
-                {openDayRegistrationLoading ? (
-                  <ActivityIndicator size="small" color={PRIMARY} />
-                ) : (
-                  <Text style={styles.openDayCtaText}>
-                    {openDayRegistered ? "Inscrito" : "Inscribirme"}
-                  </Text>
-                )}
-              </TouchableOpacity>
-
-              {hasExternalUrl ? (
-                <TouchableOpacity
-                  style={styles.openDaySecondaryCta}
-                  activeOpacity={0.85}
-                  onPress={() => handleOpenDayUrl(openDay)}
-                >
-                  <Text style={styles.openDaySecondaryCtaText}>{urlLabel}</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-        </View>
-      </View>
-    );
   };
 
   const renderPlanAccordionItem = (plan) => {
@@ -501,8 +315,6 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
                   ) : null}
                 </View>
               )}
-
-              {renderOpenDayCard()}
 
               {(hospitalProfile?.images || []).length > 0 && (
                 <View style={styles.infoCard}>
@@ -692,116 +504,6 @@ const styles = StyleSheet.create({
     borderColor: `${PRIMARY}14`,
   },
   infoChipText: { fontSize: 12, fontWeight: "600", color: ACCENT },
-  openDayHero: {
-    borderRadius: 22,
-    overflow: "hidden",
-    backgroundColor: PRIMARY,
-    padding: 22,
-    position: "relative",
-  },
-  openDayGlowLarge: {
-    position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.14)",
-    top: -60,
-    right: -50,
-  },
-  openDayGlowSmall: {
-    position: "absolute",
-    width: 120,
-    height: 120,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.10)",
-    bottom: -30,
-    right: 24,
-  },
-  openDayContent: { gap: 16 },
-  // La imagen que sube el hospital desde el panel. Va dentro del hero, encima
-  // del badge: es lo primero que se ve de la jornada.
-  openDayImage: {
-    width: "100%",
-    height: 150,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.16)",
-  },
-  openDayBadge: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  openDayBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: WHITE,
-    letterSpacing: 0.7,
-    textTransform: "uppercase",
-  },
-  openDayTextBlock: { gap: 6 },
-  openDayTitle: { fontSize: 24, lineHeight: 30, fontWeight: "800", color: WHITE },
-  openDayDescription: { fontSize: 15, lineHeight: 22, color: "rgba(255,255,255,0.88)" },
-  openDayFullDate: { fontSize: 12, color: "rgba(255,255,255,0.82)", fontWeight: "600", marginTop: 2 },
-  openDayFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  openDayActions: {
-    flex: 1,
-    gap: 10,
-  },
-  openDayDateCard: {
-    minWidth: 84,
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
-  },
-  openDayDateDay: { fontSize: 24, fontWeight: "800", color: WHITE, lineHeight: 28 },
-  openDayDateMonth: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "rgba(255,255,255,0.76)",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginTop: 4,
-  },
-  openDayCta: {
-    backgroundColor: WHITE,
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 15,
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  openDayCtaRegistered: { backgroundColor: "rgba(255,255,255,0.92)" },
-  openDayCtaText: { fontSize: 15, fontWeight: "700", color: PRIMARY },
-  openDaySecondaryCta: {
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.34)",
-    backgroundColor: "rgba(255,255,255,0.14)",
-  },
-  openDaySecondaryCtaText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: WHITE,
-  },
   galleryScrollContent: { gap: 12, paddingRight: 2 },
   galleryItem: {
     width: 240,

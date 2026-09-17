@@ -35,6 +35,7 @@ import {
   TrendUp,
   Exam,
   Camera,
+  DoorOpen,
 } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHospitals } from "../hooks/useHospitals";
@@ -534,6 +535,13 @@ export default function HomeDashboardScreen({
           section: "planes-formativos",
           tint: "#CCFBF1",
           color: "#0D9488",
+        },
+        {
+          label: "Puertas abiertas",
+          icon: DoorOpen,
+          section: "puertas-abiertas",
+          tint: "#FEF3C7",
+          color: "#B45309",
         },
         {
           label: "Mis preferencias",

@@ -9,6 +9,7 @@ import HospitalsScreen from "./HospitalsScreen";
 import HospitalDetailScreen from "./HospitalDetailScreen";
 import HospitalInfoScreen from "./HospitalInfoScreen";
 import FormativePlansScreen from "./FormativePlansScreen";
+import OpenDaysScreen from "./OpenDaysScreen";
 import MirSimulatorScreen from "./MirSimulatorScreen";
 import MirOrientationScreen from "./MirOrientationScreen";
 import MirProjectedScoreScreen from "./MirProjectedScoreScreen";
@@ -123,6 +124,7 @@ const GENERIC_BACK_SECTIONS = new Set([
   "study-photo",
   "specialityQuiz",
   "planes-formativos",
+  "puertas-abiertas",
   "rotaciones-externas",
   "cursos",
   "residentPayouts",
@@ -182,6 +184,9 @@ export default function DashboardScreen({
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [showHospitalInfoScreen, setShowHospitalInfoScreen] = useState(false);
+  // Las jornadas de un hospital se abren por encima de su detalle, como la
+  // pantalla de información: así atrás devuelve al detalle y no al listado.
+  const [showOpenDaysScreen, setShowOpenDaysScreen] = useState(false);
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState(null);
   const [selectedReviewId, setSelectedReviewId] = useState(null);
   // Jornada que se está valorando; llega en el push del hospital.
@@ -999,6 +1004,7 @@ export default function DashboardScreen({
   ) => {
     setSelectedHospital(hospital);
     setShowHospitalInfoScreen(openInfoScreen);
+    setShowOpenDaysScreen(false);
     setSelectedSpecialtyId(specialtyId || null);
     // Guardar la sección de origen para poder volver a ella
     setPreviousSection(fromSection || currentSection);
@@ -1013,6 +1019,7 @@ export default function DashboardScreen({
 
   const handleBackFromDetail = () => {
     setShowHospitalInfoScreen(false);
+    setShowOpenDaysScreen(false);
     setSelectedHospital(null);
     setSelectedSpecialtyId(null);
     // Volver a la sección de origen si existe, sino a la sección por defecto
@@ -1110,8 +1117,23 @@ export default function DashboardScreen({
         isProfileIncomplete={isProfileIncomplete}
         onSectionChange={handleSectionChange}
       >
-        <SwipeBackWrapper onSwipeBack={handleBackFromDetail}>
-          {showHospitalInfoScreen ? (
+        {/* Deslizar hacia atrás sobre las jornadas hace lo mismo que su flecha:
+            volver al detalle del hospital, no salirse de él. */}
+        <SwipeBackWrapper
+          onSwipeBack={
+            showOpenDaysScreen
+              ? () => setShowOpenDaysScreen(false)
+              : handleBackFromDetail
+          }
+        >
+          {showOpenDaysScreen ? (
+            <OpenDaysScreen
+              hospitalId={selectedHospital.id}
+              hospitalName={selectedHospital.name}
+              userProfile={userProfile}
+              onBack={() => setShowOpenDaysScreen(false)}
+            />
+          ) : showHospitalInfoScreen ? (
             <HospitalInfoScreen
               hospital={selectedHospital}
               // Desde "Planes formativos" se entra directo aquí: el hospital
@@ -1128,6 +1150,7 @@ export default function DashboardScreen({
               hospital={selectedHospital}
               selectedSpecialtyId={selectedSpecialtyId}
               onBack={handleBackFromDetail}
+              onOpenDaysPress={() => setShowOpenDaysScreen(true)}
             />
           )}
         </SwipeBackWrapper>
@@ -1470,6 +1493,14 @@ export default function DashboardScreen({
                 openInfoScreen: true,
               })
             }
+          />
+        );
+
+      case "puertas-abiertas":
+        return (
+          <OpenDaysScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
           />
         );
 

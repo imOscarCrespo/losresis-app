@@ -610,10 +610,6 @@ export const getHospitalProfileContent = async (hospitalId) => {
       };
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayIso = today.toISOString().slice(0, 10);
-
     const { data: orgRow, error: orgError } = await supabase
       .from("employer_org")
       .select("id, hospital_id")
@@ -632,7 +628,6 @@ export const getHospitalProfileContent = async (hospitalId) => {
           about: null,
           differential_points: [],
           images: [],
-          open_day: null,
           plans: [],
         },
         error: null,
@@ -642,7 +637,6 @@ export const getHospitalProfileContent = async (hospitalId) => {
     const [
       { data: profileRow, error: profileError },
       { data: imageRows, error: imageError },
-      { data: openDayRows, error: openDayError },
       { data: planRows, error: planError },
     ] = await Promise.all([
       supabase
@@ -656,15 +650,6 @@ export const getHospitalProfileContent = async (hospitalId) => {
         .eq("org_id", orgRow.id)
         .order("position", { ascending: true }),
       supabase
-        .from("hospital_open_day")
-        .select("*")
-        .eq("hospital_id", hospitalId)
-        .eq("is_published", true)
-        .gte("event_date", todayIso)
-        .order("event_date", { ascending: true })
-        .order("created_at", { ascending: false })
-        .limit(1),
-      supabase
         .from("employer_org_profile_speciality")
         .select(
           "org_id, speciality_id, plan_formativo_storage_path, plan_formativo_url, description, differential_points, specialities(name)"
@@ -677,9 +662,6 @@ export const getHospitalProfileContent = async (hospitalId) => {
     }
     if (imageError) {
       throw new Error(imageError.message);
-    }
-    if (openDayError) {
-      throw new Error(openDayError.message);
     }
     if (planError) {
       throw new Error(planError.message);
@@ -714,7 +696,6 @@ export const getHospitalProfileContent = async (hospitalId) => {
           ? profileRow.differential_points.filter(Boolean)
           : [],
         images: imageRows || [],
-        open_day: openDayRows?.[0] || null,
         plans,
       },
       error: null,
@@ -798,27 +779,62 @@ export const getHospitalsWithFormativePlans = async () => {
 };
 
 /**
- * Comprobar si un usuario ya está inscrito a una jornada abierta
- * @param {string} openDayId
- * @param {string} userId
- * @returns {Promise<{success: boolean, isRegistered: boolean, error: string|null}>}
+ * Hoy en YYYY-MM-DD para comparar contra event_date, que es un `date` sin hora.
+ * Se construye con las partes locales a propósito: toISOString() pasa por UTC y
+ * en España devolvía el día anterior, así que una jornada de ayer seguía
+ * contando como futura.
+ * @returns {string}
  */
-export const getHospitalOpenDayRegistrationStatus = async (openDayId, userId) => {
-  try {
-    if (!openDayId || !userId) {
-      return {
-        success: true,
-        isRegistered: false,
-        error: null,
-      };
-    }
+const getTodayIsoDate = () => {
+  const today = new Date();
+  const month = `${today.getMonth() + 1}`.padStart(2, "0");
+  const day = `${today.getDate()}`.padStart(2, "0");
+  return `${today.getFullYear()}-${month}-${day}`;
+};
 
+const mapOpenDayRow = (row) => {
+  const hospital = Array.isArray(row.hospitals) ? row.hospitals[0] : row.hospitals;
+
+  return {
+    id: row.id,
+    hospital_id: row.hospital_id,
+    hospital_name: hospital?.name || "Hospital",
+    hospital_city: hospital?.city || null,
+    hospital_region: hospital?.region || null,
+    title: row.title,
+    description: row.description || "",
+    event_date: row.event_date,
+    cta_label: row.cta_label || null,
+    cta_url: row.cta_url || null,
+    image_public_url: row.image_public_url || null,
+  };
+};
+
+// Embed normal y no `hospitals!inner(...)`: el inner join descartaría la
+// jornada si la fila del hospital no fuera visible, y una lista vacía sin error
+// parece "no hay jornadas". Filtrar no aporta nada, porque hospital_id es NOT
+// NULL con FK y borrado en cascada: toda jornada tiene su hospital.
+const OPEN_DAY_WITH_HOSPITAL_SELECT =
+  "id, hospital_id, title, description, event_date, cta_label, cta_url, image_public_url, hospitals(id, name, city, region)";
+
+/**
+ * Jornadas de puertas abiertas publicadas y todavía por celebrar, de cualquier
+ * hospital. Salen todas: si un hospital publica tres, se ven las tres.
+ *
+ * El nombre del hospital viene del join y no del catálogo empaquetado: una
+ * jornada publicada no puede desaparecer de la lista porque el catálogo local
+ * vaya atrasado respecto a la base de datos.
+ * @returns {Promise<{success: boolean, openDays: array, error: string|null}>}
+ */
+export const getUpcomingHospitalOpenDays = async () => {
+  try {
     const { data, error } = await supabase
-      .from("hospital_open_day_registration")
-      .select("id")
-      .eq("open_day_id", openDayId)
-      .eq("user_id", userId)
-      .maybeSingle();
+      .from("hospital_open_day")
+      .select(OPEN_DAY_WITH_HOSPITAL_SELECT)
+      .eq("is_published", true)
+      .gte("event_date", getTodayIsoDate())
+      .order("event_date", { ascending: true })
+      .order("created_at", { ascending: false });
 
     if (error) {
       throw new Error(error.message);
@@ -826,16 +842,82 @@ export const getHospitalOpenDayRegistrationStatus = async (openDayId, userId) =>
 
     return {
       success: true,
-      isRegistered: Boolean(data?.id),
+      openDays: (data || []).map(mapOpenDayRow),
       error: null,
     };
   } catch (error) {
-    console.error("❌ Error fetching open day registration status:", error);
+    console.error("❌ Error fetching upcoming hospital open days:", error);
+    return { success: false, openDays: [], error: error.message };
+  }
+};
+
+/**
+ * La próxima jornada publicada de un hospital, o null si no tiene ninguna
+ * pendiente. Es lo único que necesita el detalle del hospital para decidir si
+ * pinta el acceso a las jornadas, así que es una query y no el perfil completo.
+ * @param {string} hospitalId
+ * @returns {Promise<{success: boolean, openDay: object|null, error: string|null}>}
+ */
+export const getHospitalNextOpenDay = async (hospitalId) => {
+  try {
+    if (!hospitalId) {
+      return { success: true, openDay: null, error: null };
+    }
+
+    const { data, error } = await supabase
+      .from("hospital_open_day")
+      .select(OPEN_DAY_WITH_HOSPITAL_SELECT)
+      .eq("hospital_id", hospitalId)
+      .eq("is_published", true)
+      .gte("event_date", getTodayIsoDate())
+      .order("event_date", { ascending: true })
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
     return {
-      success: false,
-      isRegistered: false,
-      error: error.message,
+      success: true,
+      openDay: data?.[0] ? mapOpenDayRow(data[0]) : null,
+      error: null,
     };
+  } catch (error) {
+    console.error("❌ Error fetching next hospital open day:", error);
+    return { success: false, openDay: null, error: error.message };
+  }
+};
+
+/**
+ * Los ids de las jornadas a las que ya está inscrito el usuario. Una sola query
+ * para toda la lista: preguntar jornada por jornada crecía con el catálogo.
+ * @param {string} userId
+ * @returns {Promise<{success: boolean, openDayIds: string[], error: string|null}>}
+ */
+export const getMyOpenDayRegistrations = async (userId) => {
+  try {
+    if (!userId) {
+      return { success: true, openDayIds: [], error: null };
+    }
+
+    const { data, error } = await supabase
+      .from("hospital_open_day_registration")
+      .select("open_day_id")
+      .eq("user_id", userId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return {
+      success: true,
+      openDayIds: (data || []).map((row) => row.open_day_id).filter(Boolean),
+      error: null,
+    };
+  } catch (error) {
+    console.error("❌ Error fetching my open day registrations:", error);
+    return { success: false, openDayIds: [], error: error.message };
   }
 };
 
