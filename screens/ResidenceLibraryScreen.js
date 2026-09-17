@@ -409,6 +409,11 @@ export default function ResidenceLibraryScreen({
   const [templateTree, setTemplateTree] = useState([]);
   const [libroReloadKey, setLibroReloadKey] = useState(0);
   const [switchingToTemplate, setSwitchingToTemplate] = useState(false);
+  // Si la siembra del año en curso falló. Se pinta: un residente al que no se le
+  // pudo montar el libro veía el plan de su tutor en solo lectura y un console.error
+  // que solo existe en el ordenador de quien lo programó, así que parecía que la app
+  // "no detectaba su año" y no había nada que hacer.
+  const [seedError, setSeedError] = useState(null);
   const [showMigrationModal, setShowMigrationModal] = useState(false);
   const [templateUpdatedAt, setTemplateUpdatedAt] = useState(null);
   // El sello de plantilla que el residente descartó para el año abierto, si lo hay.
@@ -511,6 +516,10 @@ export default function ResidenceLibraryScreen({
   // solas, así que no se reintenta en bucle — se reintenta al tirar para refrescar
   // (que baja sectionsResolved) o al volver a abrir el Libro.
   const seedingRef = useRef(false);
+
+  // Un solo intento de siembra por año y montaje. Se declara aquí, con el otro, y no
+  // junto a su efecto: handlePullToRefresh lo suelta para reintentar.
+  const autoSeededYearRef = useRef(null);
 
   useEffect(() => {
     // Sin usuario no hay libro que sembrar, pero tampoco hay nada que esperar.
@@ -1043,6 +1052,11 @@ export default function ResidenceLibraryScreen({
   // syncLibroTemplateForUser, así que un cambio del tutor entra sin salir y volver.
   const handlePullToRefresh = () => {
     setRefreshing(true);
+    // Tirar para refrescar es el reintento de la siembra: sin soltar el candado de
+    // "un intento por año", el residente al que le falló se quedaba con el plan en
+    // solo lectura hasta cerrar la app, por mucho que refrescara.
+    autoSeededYearRef.current = null;
+    setSeedError(null);
     // Se marca aquí y no solo en resolveLibro: si no, el efecto de abajo ve
     // sectionsResolved todavía en true en el mismo render y apaga el indicador antes
     // de que la recarga haya empezado.
@@ -1221,15 +1235,14 @@ export default function ResidenceLibraryScreen({
   // Solo cuando no hay nada que perder: si el residente ya tiene libro de ese año
   // se le pregunta antes (canMigrateToTemplate), porque sustituirlo borra lo
   // registrado.
-  const autoSeededYearRef = useRef(null);
-
   useEffect(() => {
     if (!sectionsResolved || !userId || !templateId || !selectedYear) return;
     if (!isOwnYear || switchingToTemplate) return;
     if (allBooks.some((book) => book.residency_year === selectedYear)) return;
     if (!templateOutline.some((block) => block.residency_year === selectedYear)) return;
 
-    // Un solo intento por año: si falla, no se reintenta en bucle.
+    // Un solo intento por año: si falla, no se reintenta en bucle. Se suelta al
+    // tirar para refrescar.
     const attempt = `${userId}:${selectedYear}`;
     if (autoSeededYearRef.current === attempt) return;
     autoSeededYearRef.current = attempt;
@@ -1237,6 +1250,7 @@ export default function ResidenceLibraryScreen({
     setSwitchingToTemplate(true);
     switchLibroYearToTemplate({ userId, residencyYear: selectedYear })
       .then(() => {
+        setSeedError(null);
         posthogLogger.capture("resident_book_year_seeded_from_template", {
           residency_year: selectedYear,
         });
@@ -1244,6 +1258,13 @@ export default function ResidenceLibraryScreen({
       })
       .catch((error) => {
         console.error("Error seeding libro year from template:", error);
+        // Se le dice. Su libro no está, y sin esto la pantalla se queda enseñando
+        // el plan del tutor en solo lectura como si fuera lo normal.
+        setSeedError(error?.message || "No se pudo montar tu libro de este año.");
+        posthogLogger.capture("resident_book_year_seed_failed", {
+          residency_year: selectedYear,
+          error: error?.message || null,
+        });
       })
       .finally(() => setSwitchingToTemplate(false));
   }, [
@@ -1681,6 +1702,15 @@ export default function ResidenceLibraryScreen({
         // Es su año: lo que le falta no es permiso, es cambiarse al libro que ha
         // definido su tutor. Se le ofrece ahí mismo.
         openMigrationModal();
+      } else if (isOwnYear && isTemplateMode) {
+        // Es su año en curso y aun así no hay libro: la siembra no ha llegado a
+        // pasar. Decirle aquí "solo puedes registrar en el libro de tu año en
+        // curso" estando EN su año en curso es lo que hacía parecer que la app no
+        // se había enterado de su año nuevo.
+        Alert.alert(
+          "Tu libro de este año no está montado",
+          `Esto es el plan de tu tutor para R${selectedYear}, no tu libro. Tira hacia abajo para reintentarlo; si sigue igual, avísanos.`
+        );
       } else {
         Alert.alert(
           `Estás viendo R${selectedYear}`,
@@ -2037,6 +2067,19 @@ export default function ResidenceLibraryScreen({
               </View>
             ) : null}
 
+            {/* No se le pudo montar el libro de su año. Va antes que el aviso de
+                solo lectura porque es la CAUSA de que esté en solo lectura: sin
+                esto, lo que lee es que está mirando el plan de su tutor, que suena
+                a que es lo que toca. */}
+            {seedError ? (
+              <View style={styles.seedErrorNotice}>
+                <Icon name="alert-circle-outline" size={16} color="#991B1B" />
+                <Text style={styles.seedErrorNoticeText}>
+                  {`No se pudo montar tu libro de R${selectedYear}, así que lo que ves es el plan de tu tutor y todavía no puedes registrar. Tira hacia abajo para reintentarlo. (${seedError})`}
+                </Text>
+              </View>
+            ) : null}
+
             {/* En el índice el aviso mira solo el AÑO: isSelectedBookReadOnly
                 depende del apartado, y en el índice no hay ninguno abierto. */}
             {(openSection ? isSelectedBookReadOnly : !isSelectedYearWritable) &&
@@ -2375,6 +2418,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: "#92400E",
+  },
+  seedErrorNotice: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  seedErrorNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#991B1B",
   },
   emptyBookCard: {
     backgroundColor: "#FFFFFF",

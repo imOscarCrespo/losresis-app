@@ -154,8 +154,10 @@ export const getLibroArchive = async (userId, currentResidencyYear = null) => {
   const assignedShiftIds = new Set();
 
   const booksByYear = years.map((year) => {
-    // El activo primero, por si hay dos del mismo apartado en el año: el archivado no
-    // debe tapar al activo en el PDF.
+    // Puede haber DOS libros del mismo apartado y año: al cambiar de hospital, el
+    // del hospital anterior se archiva y se siembra el del nuevo. Salen los dos, y
+    // el activo primero: es un archivo, y lo que registró en el hospital anterior
+    // sigue siendo suyo. Quedarse con uno por apartado (un `find`) era perderlo.
     const yearBooks = hydrated
       .filter((book) => book.residency_year === year)
       .sort((a, b) => (a.status === "active" ? -1 : 0) - (b.status === "active" ? -1 : 0));
@@ -171,9 +173,9 @@ export const getLibroArchive = async (userId, currentResidencyYear = null) => {
 
     return {
       residencyYear: year,
-      books: order
-        .map((section) => yearBooks.find((book) => book.section === section))
-        .filter(Boolean),
+      books: order.flatMap((section) =>
+        yearBooks.filter((book) => book.section === section)
+      ),
       shifts,
     };
   });

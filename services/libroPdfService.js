@@ -325,6 +325,11 @@ const renderBook = (book, shifts) => {
       ? "Estructura definida por tu tutor"
       : "Libro montado por ti";
 
+  // Un año puede traer dos libros del mismo apartado: el del hospital anterior, ya
+  // archivado, y el del actual. Sin decir cuál es cuál, el PDF enseña dos apartados
+  // con el mismo título y sin forma de distinguirlos.
+  const state = book.status === "archived" ? "Archivado" : null;
+
   let body;
   switch (book.archetype) {
     case "itinerary":
@@ -344,6 +349,7 @@ const renderBook = (book, shifts) => {
     <section class="book">
       <div class="book-header">
         <h3>${escapeHtml(book.label)}</h3>
+        ${state ? `<span class="badge">${escapeHtml(state)}</span>` : ""}
         <span class="badge">${escapeHtml(ownership)}</span>
       </div>
       ${body}
