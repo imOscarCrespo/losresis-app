@@ -5,14 +5,18 @@ import {
   FlatList,
   Image,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "../components/Icon";
+import { FilterModal } from "../components/FilterModal";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
+import { usePersistedFilters } from "../hooks/usePersistedFilters";
 import {
   getMyOpenDayRegistrations,
   getUpcomingHospitalOpenDays,
@@ -26,6 +30,13 @@ const PRIMARY = "#670CF5";
 const ACCENT = "#1B0977";
 const BG_LIGHT = "#F8F9FE";
 const WHITE = "#FFFFFF";
+
+const DEFAULT_FILTERS = {
+  searchTerm: "",
+  selectedRegion: "",
+  selectedCity: "",
+  sortMode: "date",
+};
 
 const getDateFromDayString = (value) => {
   if (!value) return null;
@@ -54,6 +65,10 @@ const getOpenDayParts = (value) => {
  * Planes Formativos, donde solo la encontraba quien ya estaba mirando ese
  * hospital. Aquí las jornadas son su propio destino, y desde el detalle de un
  * hospital se entra filtrado por él (`hospitalId`).
+ *
+ * La lista se lee como la de hospitales — buscador, chips de comunidad / ciudad
+ * / orden y una fila por hospital — y la jornada entera (imagen, descripción,
+ * inscripción) se abre al pulsar la fila.
  */
 export default function OpenDaysScreen({
   hospitalId = null,
@@ -71,8 +86,40 @@ export default function OpenDaysScreen({
   const [registeringId, setRegisteringId] = useState(null);
   // El filtro que llega del detalle del hospital se puede quitar sin salir.
   const [filterHospitalId, setFilterHospitalId] = useState(hospitalId);
+  // La jornada abierta en detalle. Se guarda el id y no la fila para que un
+  // refresco mientras está abierta no deje datos viejos en pantalla.
+  const [selectedOpenDayId, setSelectedOpenDayId] = useState(null);
+  const [openModal, setOpenModal] = useState(null);
 
   const isMountedRef = useRef(true);
+
+  const { filters, updateFilter, clearAllFilters } = usePersistedFilters(
+    "openDays",
+    DEFAULT_FILTERS,
+    { enableDebounce: true, debounceMs: 500 }
+  );
+
+  const searchTerm = filters.searchTerm || "";
+  const selectedRegion = filters.selectedRegion || "";
+  const selectedCity = filters.selectedCity || "";
+  const sortMode = filters.sortMode || "date";
+
+  const setSearchTerm = useCallback(
+    (value) => updateFilter("searchTerm", value),
+    [updateFilter]
+  );
+  const setSelectedRegion = useCallback(
+    (value) => updateFilter("selectedRegion", value),
+    [updateFilter]
+  );
+  const setSelectedCity = useCallback(
+    (value) => updateFilter("selectedCity", value),
+    [updateFilter]
+  );
+  const setSortMode = useCallback(
+    (value) => updateFilter("sortMode", value),
+    [updateFilter]
+  );
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -147,13 +194,125 @@ export default function OpenDaysScreen({
     }
   }, [fetchOpenDays]);
 
-  const visibleOpenDays = useMemo(
+  // Las jornadas del hospital de origen, antes de aplicar buscador y chips: de
+  // aquí salen las opciones de comunidad y ciudad, para no ofrecer un filtro
+  // que dejaría la lista vacía.
+  const scopedOpenDays = useMemo(
     () =>
       filterHospitalId
         ? openDays.filter((openDay) => openDay.hospital_id === filterHospitalId)
         : openDays,
     [openDays, filterHospitalId]
   );
+
+  const regionOptions = useMemo(
+    () =>
+      [...new Set(scopedOpenDays.map((o) => o.hospital_region).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, "es"))
+        .map((region) => ({ id: region, name: region })),
+    [scopedOpenDays]
+  );
+
+  const cityOptions = useMemo(() => {
+    const source = selectedRegion
+      ? scopedOpenDays.filter((o) => o.hospital_region === selectedRegion)
+      : scopedOpenDays;
+
+    return [...new Set(source.map((o) => o.hospital_city).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "es"))
+      .map((city) => ({ id: city, name: city }));
+  }, [scopedOpenDays, selectedRegion]);
+
+  const sortOptions = useMemo(
+    () => [
+      { id: "date", name: "Fecha" },
+      { id: "alphabetical", name: "Alfabético" },
+    ],
+    []
+  );
+
+  const selectedSortName = useMemo(
+    () => sortOptions.find((option) => option.id === sortMode)?.name ?? "Fecha",
+    [sortMode, sortOptions]
+  );
+
+  // Cambiar de comunidad puede dejar seleccionada una ciudad que ya no está en
+  // ella; ahí el filtro de ciudad se cae solo en vez de vaciar la lista.
+  useEffect(() => {
+    if (!selectedRegion || !selectedCity || scopedOpenDays.length === 0) return;
+
+    const stillAvailable = cityOptions.some(
+      (option) => option.id === selectedCity
+    );
+    if (!stillAvailable) {
+      setSelectedCity("");
+    }
+  }, [
+    selectedRegion,
+    selectedCity,
+    cityOptions,
+    scopedOpenDays.length,
+    setSelectedCity,
+  ]);
+
+  const visibleOpenDays = useMemo(() => {
+    // Entrando desde un hospital la lista ya es "sus jornadas": aplicar encima
+    // el buscador y los chips guardados de la última visita la dejaría vacía
+    // sin que se entienda por qué. Los filtros vuelven al quitar el chip.
+    if (filterHospitalId) return scopedOpenDays;
+
+    const search = searchTerm.trim().toLowerCase();
+
+    const filtered = scopedOpenDays.filter((openDay) => {
+      const matchesSearch =
+        !search || (openDay.hospital_name || "").toLowerCase().includes(search);
+      const matchesRegion =
+        !selectedRegion || openDay.hospital_region === selectedRegion;
+      const matchesCity =
+        !selectedCity ||
+        (openDay.hospital_city || "").toLowerCase() ===
+          selectedCity.toLowerCase();
+
+      return matchesSearch && matchesRegion && matchesCity;
+    });
+
+    if (sortMode === "alphabetical") {
+      return [...filtered].sort((a, b) =>
+        (a.hospital_name || "").localeCompare(b.hospital_name || "", "es")
+      );
+    }
+
+    // Por fecha ya vienen ordenadas de la query (evento más próximo primero).
+    return filtered;
+  }, [
+    scopedOpenDays,
+    filterHospitalId,
+    searchTerm,
+    selectedRegion,
+    selectedCity,
+    sortMode,
+  ]);
+
+  const hasActiveFilters = Boolean(
+    !filterHospitalId &&
+      (searchTerm || selectedRegion || selectedCity || sortMode !== "date")
+  );
+  const openDayCountLabel = `${visibleOpenDays.length} ${
+    visibleOpenDays.length === 1 ? "jornada" : "jornadas"
+  }`;
+
+  const selectedOpenDay = useMemo(
+    () => openDays.find((openDay) => openDay.id === selectedOpenDayId) || null,
+    [openDays, selectedOpenDayId]
+  );
+
+  // Si la jornada abierta se despublica y desaparece en un refresco, se vuelve
+  // a la lista en vez de quedarse en un detalle vacío.
+  useEffect(() => {
+    if (selectedOpenDayId && !selectedOpenDay) {
+      setSelectedOpenDayId(null);
+    }
+  }, [selectedOpenDayId, selectedOpenDay]);
 
   useEffect(() => {
     if (loading) return;
@@ -212,90 +371,24 @@ export default function OpenDaysScreen({
     });
   };
 
-  const renderOpenDayCard = ({ item }) => {
-    const dateParts = getOpenDayParts(item.event_date);
-    const isRegistered = registeredIds.has(item.id);
-    const isRegistering = registeringId === item.id;
-    const hasExternalUrl = Boolean(item.cta_url);
-    const urlLabel = item.cta_label?.trim() || "Ver jornada";
-    const location = [item.hospital_city, item.hospital_region]
-      .filter(Boolean)
-      .join(", ");
-
-    return (
-      <View style={styles.openDayHero}>
-        <View style={styles.openDayGlowLarge} />
-        <View style={styles.openDayGlowSmall} />
-        <View style={styles.openDayContent}>
-          {item.image_public_url ? (
-            <Image
-              source={{ uri: item.image_public_url }}
-              style={styles.openDayImage}
-              resizeMode="cover"
-            />
-          ) : null}
-
-          <View style={styles.openDayBadge}>
-            <Icon name="calendar-outline" size={14} color={WHITE} />
-            <Text style={styles.openDayBadgeText}>Próximo evento</Text>
-          </View>
-
-          <View style={styles.openDayTextBlock}>
-            <Text style={styles.openDayHospital} numberOfLines={2}>
-              {item.hospital_name}
-            </Text>
-            {location ? (
-              <Text style={styles.openDayLocation}>{location}</Text>
-            ) : null}
-            <Text style={styles.openDayTitle}>{item.title}</Text>
-            {item.description ? (
-              <Text style={styles.openDayDescription}>{item.description}</Text>
-            ) : null}
-            <Text style={styles.openDayFullDate}>
-              {formatDateOnly(item.event_date)}
-            </Text>
-          </View>
-
-          <View style={styles.openDayFooter}>
-            <View style={styles.openDayDateCard}>
-              <Text style={styles.openDayDateDay}>{dateParts.day}</Text>
-              <Text style={styles.openDayDateMonth}>{dateParts.month}</Text>
-            </View>
-
-            <View style={styles.openDayActions}>
-              <TouchableOpacity
-                style={[
-                  styles.openDayCta,
-                  isRegistered && styles.openDayCtaRegistered,
-                ]}
-                activeOpacity={0.85}
-                onPress={() => handleRegistration(item)}
-                disabled={isRegistering || isRegistered}
-              >
-                {isRegistering ? (
-                  <ActivityIndicator size="small" color={PRIMARY} />
-                ) : (
-                  <Text style={styles.openDayCtaText}>
-                    {isRegistered ? "Inscrito" : "Inscribirme"}
-                  </Text>
-                )}
-              </TouchableOpacity>
-
-              {hasExternalUrl ? (
-                <TouchableOpacity
-                  style={styles.openDaySecondaryCta}
-                  activeOpacity={0.85}
-                  onPress={() => handleOpenDayUrl(item)}
-                >
-                  <Text style={styles.openDaySecondaryCtaText}>{urlLabel}</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-        </View>
+  // Fila de la lista: solo el hospital, como en el listado de hospitales. Todo
+  // lo demás de la jornada está a un toque, en el detalle.
+  const renderOpenDayItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.7}
+      onPress={() => setSelectedOpenDayId(item.id)}
+      accessibilityRole="button"
+      accessibilityLabel={`Ver la jornada de ${item.hospital_name}`}
+    >
+      <View style={styles.cardInner}>
+        <Text style={styles.cardName} numberOfLines={2}>
+          {item.hospital_name}
+        </Text>
+        <Icon name="arrow-forward" size={20} color={PRIMARY} />
       </View>
-    );
-  };
+    </TouchableOpacity>
+  );
 
   // Con filtro activo el nombre sale del hospital de origen y no de la lista:
   // si su jornada se despublica entre pantallas, el chip sigue explicando qué
@@ -307,56 +400,266 @@ export default function OpenDaysScreen({
       "Hospital"
     : null;
 
-  const renderListHeader = () => {
-    if (!filterHospitalId && visibleOpenDays.length === 0) return null;
-
-    return (
-      <View style={styles.headerRow}>
-        {filterHospitalId ? (
-          <>
-            <View style={styles.filterChip}>
-              <Text style={styles.filterChipText} numberOfLines={1}>
-                {filterLabel}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setFilterHospitalId(null)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Quitar el filtro de hospital"
-              >
-                <Icon name="close" size={14} color={PRIMARY} />
-              </TouchableOpacity>
-            </View>
+  const renderListHeader = () => (
+    <View>
+      {filterHospitalId ? (
+        <View style={styles.hospitalFilterRow}>
+          <View style={styles.filterChip}>
+            <Text style={styles.filterChipText} numberOfLines={1}>
+              {filterLabel}
+            </Text>
             <TouchableOpacity
               onPress={() => setFilterHospitalId(null)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               activeOpacity={0.7}
               accessibilityRole="button"
+              accessibilityLabel="Quitar el filtro de hospital"
             >
-              <Text style={styles.filterClearText}>Ver todas</Text>
+              <Icon name="close" size={14} color={PRIMARY} />
             </TouchableOpacity>
-          </>
+          </View>
+          <TouchableOpacity
+            onPress={() => setFilterHospitalId(null)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+          >
+            <Text style={styles.filterClearText}>Ver todas</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      <View style={styles.sectionRow}>
+        <Text style={styles.sectionLabel}>
+          {hasActiveFilters ? openDayCountLabel : "Jornadas"}
+        </Text>
+        {hasActiveFilters ? (
+          <TouchableOpacity
+            style={styles.sectionAction}
+            onPress={clearAllFilters}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.sectionActionText}>Restablecer filtros</Text>
+          </TouchableOpacity>
         ) : (
-          <Text style={styles.sectionLabel}>
-            {visibleOpenDays.length}{" "}
-            {visibleOpenDays.length === 1 ? "jornada" : "jornadas"}
-          </Text>
+          <Text style={styles.sectionCount}>{openDayCountLabel}</Text>
         )}
       </View>
+    </View>
+  );
+
+  const renderDetail = (openDay) => {
+    const dateParts = getOpenDayParts(openDay.event_date);
+    const isRegistered = registeredIds.has(openDay.id);
+    const isRegistering = registeringId === openDay.id;
+    const hasExternalUrl = Boolean(openDay.cta_url);
+    const urlLabel = openDay.cta_label?.trim() || "Ver jornada";
+    const location = [openDay.hospital_city, openDay.hospital_region]
+      .filter(Boolean)
+      .join(", ");
+
+    return (
+      <HeroScreenLayout
+        title="Jornada"
+        onBack={() => setSelectedOpenDayId(null)}
+        containerStyle={styles.container}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.detailContent,
+            { paddingBottom: 24 + insets.bottom },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.openDayHero}>
+            <View style={styles.openDayGlowLarge} />
+            <View style={styles.openDayGlowSmall} />
+            <View style={styles.openDayContent}>
+              {openDay.image_public_url ? (
+                <Image
+                  source={{ uri: openDay.image_public_url }}
+                  style={styles.openDayImage}
+                  resizeMode="cover"
+                />
+              ) : null}
+
+              <View style={styles.openDayBadge}>
+                <Icon name="calendar-outline" size={14} color={WHITE} />
+                <Text style={styles.openDayBadgeText}>Próximo evento</Text>
+              </View>
+
+              <View style={styles.openDayTextBlock}>
+                <Text style={styles.openDayHospital} numberOfLines={2}>
+                  {openDay.hospital_name}
+                </Text>
+                {location ? (
+                  <Text style={styles.openDayLocation}>{location}</Text>
+                ) : null}
+                <Text style={styles.openDayTitle}>{openDay.title}</Text>
+                {openDay.description ? (
+                  <Text style={styles.openDayDescription}>
+                    {openDay.description}
+                  </Text>
+                ) : null}
+                <Text style={styles.openDayFullDate}>
+                  {formatDateOnly(openDay.event_date)}
+                </Text>
+              </View>
+
+              <View style={styles.openDayFooter}>
+                <View style={styles.openDayDateCard}>
+                  <Text style={styles.openDayDateDay}>{dateParts.day}</Text>
+                  <Text style={styles.openDayDateMonth}>{dateParts.month}</Text>
+                </View>
+
+                <View style={styles.openDayActions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.openDayCta,
+                      isRegistered && styles.openDayCtaRegistered,
+                    ]}
+                    activeOpacity={0.85}
+                    onPress={() => handleRegistration(openDay)}
+                    disabled={isRegistering || isRegistered}
+                  >
+                    {isRegistering ? (
+                      <ActivityIndicator size="small" color={PRIMARY} />
+                    ) : (
+                      <Text style={styles.openDayCtaText}>
+                        {isRegistered ? "Inscrito" : "Inscribirme"}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+
+                  {hasExternalUrl ? (
+                    <TouchableOpacity
+                      style={styles.openDaySecondaryCta}
+                      activeOpacity={0.85}
+                      onPress={() => handleOpenDayUrl(openDay)}
+                    >
+                      <Text style={styles.openDaySecondaryCtaText}>
+                        {urlLabel}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </HeroScreenLayout>
     );
   };
 
+  if (selectedOpenDay) {
+    return renderDetail(selectedOpenDay);
+  }
+
   return (
     <HeroScreenLayout
-      title="Jornadas de puertas abiertas"
+      title="Jornadas"
       onBack={onBack}
-      bottomContent={
-        <Text style={styles.heroSubtitle}>
-          Visita los hospitales que abren sus puertas antes de elegir plaza.
-        </Text>
-      }
       containerStyle={styles.container}
     >
+      {/* Search bar */}
+      {filterHospitalId ? null : (
+        <>
+        <View style={styles.searchWrap}>
+          <Icon
+            name="search"
+            size={20}
+            color="#94A3B8"
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar hospital por nombre"
+            placeholderTextColor="#94A3B8"
+            value={searchTerm}
+            onChangeText={setSearchTerm}
+            returnKeyType="search"
+          />
+          {searchTerm.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchTerm("")}>
+              <Icon name="close-circle" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Filter chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filtersScroll}
+          contentContainerStyle={styles.filtersRow}
+        >
+          <TouchableOpacity
+            style={[styles.chip, selectedRegion && styles.chipActive]}
+            onPress={() => setOpenModal("region")}
+          >
+            <Icon name="map" size={16} color={selectedRegion ? PRIMARY : ACCENT} />
+            <Text
+              style={[styles.chipText, selectedRegion && styles.chipTextActive]}
+              numberOfLines={1}
+            >
+              {selectedRegion || "Comunidad"}
+            </Text>
+            <Icon
+              name="chevron-down"
+              size={16}
+              color={selectedRegion ? PRIMARY : ACCENT}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.chip, selectedCity && styles.chipActive]}
+            onPress={() => setOpenModal("city")}
+          >
+            <Icon
+              name="business"
+              size={16}
+              color={selectedCity ? PRIMARY : ACCENT}
+            />
+            <Text
+              style={[styles.chipText, selectedCity && styles.chipTextActive]}
+              numberOfLines={1}
+            >
+              {selectedCity || "Ciudad"}
+            </Text>
+            <Icon
+              name="chevron-down"
+              size={16}
+              color={selectedCity ? PRIMARY : ACCENT}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.chip, sortMode !== "date" && styles.chipActive]}
+            onPress={() => setOpenModal("sort")}
+          >
+            <Icon
+              name="swap-vertical"
+              size={16}
+              color={sortMode !== "date" ? PRIMARY : ACCENT}
+            />
+            <Text
+              style={[
+                styles.chipText,
+                sortMode !== "date" && styles.chipTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              {selectedSortName}
+            </Text>
+            <Icon
+              name="chevron-down"
+              size={16}
+              color={sortMode !== "date" ? PRIMARY : ACCENT}
+            />
+          </TouchableOpacity>
+        </ScrollView>
+        </>
+      )}
+
       {loading ? (
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={PRIMARY} />
@@ -365,7 +668,7 @@ export default function OpenDaysScreen({
       ) : (
         <FlatList
           data={visibleOpenDays}
-          renderItem={renderOpenDayCard}
+          renderItem={renderOpenDayItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={[
             styles.listContent,
@@ -384,11 +687,23 @@ export default function OpenDaysScreen({
             <View style={styles.emptyContainer}>
               <Icon name="calendar-outline" size={40} color="#CBD5E1" />
               <Text style={styles.emptyText}>
-                {filterHospitalId
-                  ? "Este hospital no tiene jornadas de puertas abiertas pendientes."
-                  : "Todavía no hay jornadas de puertas abiertas publicadas."}
+                {hasActiveFilters
+                  ? "No hay jornadas con estos filtros."
+                  : filterHospitalId
+                    ? "Este hospital no tiene jornadas de puertas abiertas pendientes."
+                    : "Todavía no hay jornadas de puertas abiertas publicadas."}
               </Text>
-              {filterHospitalId ? (
+              {hasActiveFilters ? (
+                <TouchableOpacity
+                  onPress={clearAllFilters}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.filterClearText}>
+                    Restablecer filtros
+                  </Text>
+                </TouchableOpacity>
+              ) : filterHospitalId ? (
                 <TouchableOpacity
                   onPress={() => setFilterHospitalId(null)}
                   activeOpacity={0.8}
@@ -403,6 +718,35 @@ export default function OpenDaysScreen({
           }
         />
       )}
+
+      {/* Filter modals */}
+      <FilterModal
+        visible={openModal === "region"}
+        onClose={() => setOpenModal(null)}
+        title="Filtrar por comunidad autónoma"
+        options={regionOptions}
+        value={selectedRegion}
+        onSelect={setSelectedRegion}
+        placeholder="Todas las comunidades"
+      />
+      <FilterModal
+        visible={openModal === "city"}
+        onClose={() => setOpenModal(null)}
+        title="Filtrar por ciudad"
+        options={cityOptions}
+        value={selectedCity}
+        onSelect={setSelectedCity}
+        placeholder="Todas las ciudades"
+      />
+      <FilterModal
+        visible={openModal === "sort"}
+        onClose={() => setOpenModal(null)}
+        title="Ordenar jornadas"
+        options={sortOptions}
+        value={sortMode}
+        onSelect={setSortMode}
+        placeholder="Fecha"
+      />
     </HeroScreenLayout>
   );
 }
@@ -412,28 +756,116 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BG_LIGHT,
   },
-  heroSubtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#64748B",
+
+  /* Search */
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: 4,
+    paddingVertical: 12,
+    paddingLeft: 44,
+    paddingRight: 16,
+    position: "relative",
+    marginBottom: 4,
   },
+  searchIcon: {
+    position: "absolute",
+    left: 16,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: ACCENT,
+    padding: 0,
+  },
+
+  /* Filter chips */
+  filtersScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  filtersRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingRight: 24,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  chipActive: {
+    backgroundColor: `${PRIMARY}12`,
+    borderColor: `${PRIMARY}30`,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: ACCENT,
+    flexShrink: 1,
+    maxWidth: 110,
+  },
+  chipTextActive: {
+    color: PRIMARY,
+  },
+
+  /* List */
   listContent: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 4,
     flexGrow: 1,
-    gap: 14,
   },
-  headerRow: {
+  hospitalFilterRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    paddingBottom: 2,
+    paddingBottom: 4,
+  },
+  sectionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingVertical: 8,
+    paddingBottom: 10,
   },
   sectionLabel: {
     fontSize: 18,
     fontWeight: "700",
     color: ACCENT,
+  },
+  sectionCount: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: PRIMARY,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  sectionAction: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: `${PRIMARY}10`,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}20`,
+  },
+  sectionActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: PRIMARY,
   },
   filterChip: {
     flexDirection: "row",
@@ -458,7 +890,40 @@ const styles = StyleSheet.create({
     color: PRIMARY,
   },
 
-  /* Tarjeta de jornada */
+  /* Fila de jornada */
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+    overflow: "hidden",
+  },
+  cardInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    padding: 16,
+  },
+  cardName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: ACCENT,
+    lineHeight: 22,
+    flex: 1,
+  },
+
+  /* Detalle de la jornada */
+  detailContent: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+  },
   openDayHero: {
     borderRadius: 22,
     overflow: "hidden",
