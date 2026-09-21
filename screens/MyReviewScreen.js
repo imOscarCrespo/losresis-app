@@ -116,27 +116,38 @@ export default function MyReviewScreen({
     (loadingSpecialties || specialties.length === 0);
   const isResolvingInitialState = isResident &&
     (isResolvingHospital || isResolvingSpecialty);
+  // Tres estados: aprobada / pendiente de moderación / rechazada. Una reseña
+  // rechazada mantiene la fila (para que el residente la edite) pero el gate la
+  // trata como inexistente hasta que la reenvíe.
+  const isReviewRejected = Boolean(existingReview?.rejected_at);
+  const reviewStatus = isReviewRejected
+    ? {
+        chip: styles.statusChipRed,
+        text: styles.statusChipTextRed,
+        icon: "alert-circle",
+        color: ERROR,
+        label: "Rechazada",
+      }
+    : existingReview?.is_approved
+      ? {
+          chip: styles.statusChipGreen,
+          text: styles.statusChipTextGreen,
+          icon: "checkmark-circle",
+          color: SECONDARY,
+          label: "Aprobada",
+        }
+      : {
+          chip: styles.statusChipOrange,
+          text: styles.statusChipTextOrange,
+          icon: "time-outline",
+          color: "#D97706",
+          label: "Pendiente",
+        };
   const headerStatusChip = existingReview ? (
-    <View
-      style={[
-        styles.statusChip,
-        existingReview.is_approved ? styles.statusChipGreen : styles.statusChipOrange,
-      ]}
-    >
-      <Icon
-        name={existingReview.is_approved ? "checkmark-circle" : "time-outline"}
-        size={13}
-        color={existingReview.is_approved ? SECONDARY : "#D97706"}
-      />
-      <Text
-        style={[
-          styles.statusChipText,
-          existingReview.is_approved
-            ? styles.statusChipTextGreen
-            : styles.statusChipTextOrange,
-        ]}
-      >
-        {existingReview.is_approved ? "Aprobada" : "Pendiente"}
+    <View style={[styles.statusChip, reviewStatus.chip]}>
+      <Icon name={reviewStatus.icon} size={13} color={reviewStatus.color} />
+      <Text style={[styles.statusChipText, reviewStatus.text]}>
+        {reviewStatus.label}
       </Text>
     </View>
   ) : null;
@@ -389,6 +400,21 @@ export default function MyReviewScreen({
                 </View>
               </View>
 
+              {isReviewRejected && (
+                <View style={styles.warningBanner}>
+                  <Icon name="alert-circle-outline" size={18} color={ERROR} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.warningTitle}>Reseña rechazada</Text>
+                    <Text style={styles.warningText}>
+                      {existingReview.rejection_reason ||
+                        "No cumple los mínimos de calidad para publicarse."}{" "}
+                      Edítala y vuelve a enviarla para recuperar el acceso a
+                      todas las funcionalidades.
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {/* Answers */}
               {existingReview.review_answer && existingReview.review_answer.length > 0 && (
                 <View style={styles.answersSection}>
@@ -594,6 +620,13 @@ const styles = StyleSheet.create({
   },
   statusChipTextOrange: {
     color: "#D97706",
+  },
+  statusChipRed: {
+    backgroundColor: `${ERROR}1F`,
+    borderColor: `${ERROR}47`,
+  },
+  statusChipTextRed: {
+    color: ERROR,
   },
 
   // ── Alerts ──

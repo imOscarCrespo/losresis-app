@@ -1289,7 +1289,9 @@ export default function DashboardScreen({
             onSuccess={(result) => {
               setReviewComposerMode(null);
               setCurrentSection("myReview");
-              if (result === "created") {
+              // También al editar: reenviar una reseña rechazada vuelve a
+              // contar como reseña y debe reabrir el acceso.
+              if (result === "created" || result === "updated") {
                 onReviewCreated?.();
               }
             }}

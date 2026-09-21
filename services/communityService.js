@@ -249,10 +249,14 @@ export const checkResidentReview = async (userId) => {
       };
     }
 
+    // Una reseña rechazada por moderación (`rejected_at`) no cuenta: el
+    // residente vuelve al gate como si no la hubiera escrito, hasta que la
+    // edite y la reenvíe (updateReview limpia rejected_at).
     const { data, error } = await supabase
       .from("review")
       .select("id")
       .eq("user_id", userId)
+      .is("rejected_at", null)
       .limit(1);
 
     if (error) {

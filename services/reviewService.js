@@ -210,6 +210,10 @@ export const updateReview = async (
         free_comment: freeComment || null,
         is_anonymous: isAnonymous,
         updated_at: new Date().toISOString(),
+        // Reenviar una reseña rechazada la devuelve a "pendiente de moderación"
+        // y reabre el gate (checkResidentReview ignora las rechazadas).
+        rejected_at: null,
+        rejection_reason: null,
       })
       .eq("id", reviewId);
 
