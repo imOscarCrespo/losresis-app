@@ -5,6 +5,13 @@ import { getReviewQuestionsCatalog } from "./staticCatalogService";
  * Servicio para gestionar reseñas de residentes
  */
 
+// El trigger `enforce_meaningful_review_answer_text` rechaza respuestas de
+// relleno ("." etc.) con un mensaje ya pensado para el residente.
+const getAnswersErrorMessage = (answersError, fallback) =>
+  answersError?.hint === "review_answer_not_meaningful" && answersError.message
+    ? answersError.message
+    : fallback;
+
 /**
  * Obtiene las preguntas de reseña disponibles
  * @returns {Promise<{success: boolean, questions: Array, error: string|null}>}
@@ -168,7 +175,10 @@ export const createReview = async (
         return {
           success: false,
           review: null,
-          error: "Error al guardar las respuestas",
+          error: getAnswersErrorMessage(
+            answersError,
+            "Error al guardar las respuestas"
+          ),
         };
       }
     }
@@ -225,11 +235,7 @@ export const updateReview = async (
       };
     }
 
-    // Eliminar respuestas antiguas
-    await supabase.from("review_answer").delete().eq("review_id", reviewId);
-
-    // Insertar las nuevas respuestas
-    const answersToInsert = answers
+    const answersToSave = answers
       .filter((answer) => answer.rating || answer.textValue)
       .map((answer) => ({
         review_id: reviewId,
@@ -238,19 +244,38 @@ export const updateReview = async (
         text_value: answer.textValue || null,
       }));
 
-    if (answersToInsert.length > 0) {
+    // Upsert antes de borrar: si el trigger rechaza una respuesta, el upsert
+    // falla entero y las respuestas anteriores siguen intactas.
+    if (answersToSave.length > 0) {
       const { error: answersError } = await supabase
         .from("review_answer")
-        .insert(answersToInsert);
+        .upsert(answersToSave, { onConflict: "review_id,question_id" });
 
       if (answersError) {
         console.error("Error updating answers:", answersError);
         return {
           success: false,
-          error: "Error al actualizar las respuestas",
+          error: getAnswersErrorMessage(
+            answersError,
+            "Error al actualizar las respuestas"
+          ),
         };
       }
     }
+
+    // Eliminar las respuestas que el residente ha vaciado
+    let staleAnswersQuery = supabase
+      .from("review_answer")
+      .delete()
+      .eq("review_id", reviewId);
+    if (answersToSave.length > 0) {
+      staleAnswersQuery = staleAnswersQuery.not(
+        "question_id",
+        "in",
+        `(${answersToSave.map((answer) => answer.question_id).join(",")})`
+      );
+    }
+    await staleAnswersQuery;
 
     return {
       success: true,

@@ -256,17 +256,37 @@ export default function ReviewsScreen({
     setSelectedHospital,
     selectedSpecialty,
     setSelectedSpecialty,
+    selectedRegion,
+    setSelectedRegion,
     hospitalSearchTerm,
     setHospitalSearchTerm,
     clearFilters,
   } = useReviews();
 
-  const { hospitals, specialties } = useHospitals();
-  const [openModal, setOpenModal] = useState(null); // "hospital" | "specialty" | null
+  const { hospitals, specialties, uniqueRegions } = useHospitals();
+  const [openModal, setOpenModal] = useState(null); // "hospital" | "specialty" | "region" | null
 
   const hospitalOptions = useMemo(() => {
-    return prepareHospitalOptions(hospitals);
-  }, [hospitals]);
+    return prepareHospitalOptions(
+      selectedRegion
+        ? hospitals.filter((h) => h.region === selectedRegion)
+        : hospitals
+    );
+  }, [hospitals, selectedRegion]);
+
+  const regionOptions = useMemo(
+    () => uniqueRegions.map((r) => ({ id: r, name: r })),
+    [uniqueRegions]
+  );
+
+  // Si el hospital seleccionado no pertenece a la nueva comunidad, se limpia
+  const handleRegionSelect = (region) => {
+    setSelectedRegion(region);
+    if (region && selectedHospital) {
+      const hospital = hospitals.find((h) => h.id === selectedHospital);
+      if (hospital && hospital.region !== region) setSelectedHospital("");
+    }
+  };
 
   const specialtyOptions = useMemo(() => {
     return specialties
@@ -278,7 +298,8 @@ export default function ReviewsScreen({
   const hasActiveFilters = !!(
     hospitalSearchTerm ||
     selectedHospital ||
-    selectedSpecialty
+    selectedSpecialty ||
+    selectedRegion
   );
   const reviewCountLabel = `${reviewSummaries.length} ${
     reviewSummaries.length === 1 ? "reseña" : "reseñas"
@@ -370,6 +391,28 @@ export default function ReviewsScreen({
                 name="chevron-down"
                 size={15}
                 color={selectedHospital ? PRIMARY : ACCENT}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.chip, selectedRegion && styles.chipActive]}
+              onPress={() => setOpenModal("region")}
+            >
+              <Icon
+                name="map"
+                size={15}
+                color={selectedRegion ? PRIMARY : ACCENT}
+              />
+              <Text
+                style={[styles.chipText, selectedRegion && styles.chipTextActive]}
+                numberOfLines={1}
+              >
+                {selectedRegion || "Comunidad"}
+              </Text>
+              <Icon
+                name="chevron-down"
+                size={15}
+                color={selectedRegion ? PRIMARY : ACCENT}
               />
             </TouchableOpacity>
 
@@ -477,6 +520,17 @@ export default function ReviewsScreen({
         value={selectedHospital}
         onSelect={setSelectedHospital}
         placeholder="Todos los hospitales"
+      />
+
+      {/* Region filter modal */}
+      <FilterModal
+        visible={openModal === "region"}
+        onClose={() => setOpenModal(null)}
+        title="Filtrar por comunidad autónoma"
+        options={regionOptions}
+        value={selectedRegion}
+        onSelect={handleRegionSelect}
+        placeholder="Todas las comunidades"
       />
 
       {/* Specialty filter modal */}

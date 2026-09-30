@@ -3,6 +3,8 @@ import {
   getHospitalByIdFromCatalog,
   getSpecialityByIdFromCatalog,
 } from "./staticCatalogService";
+import { getReviewQuestions } from "./reviewService";
+import { hasMeaningfulRequiredTextAnswers } from "../utils/reviewAnswerValidation";
 
 const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
 const MADRID_FALLBACK = { latitude: 40.4168, longitude: -3.7038 };
@@ -254,10 +256,9 @@ export const checkResidentReview = async (userId) => {
     // edite y la reenvíe (updateReview limpia rejected_at).
     const { data, error } = await supabase
       .from("review")
-      .select("id")
+      .select("id, is_approved, review_answer (question_id, text_value)")
       .eq("user_id", userId)
-      .is("rejected_at", null)
-      .limit(1);
+      .is("rejected_at", null);
 
     if (error) {
       console.error("Error checking resident review:", error);
@@ -268,9 +269,21 @@ export const checkResidentReview = async (userId) => {
       };
     }
 
+    const reviews = data || [];
+    // Una aprobada cuenta siempre (moderación ya la dio por buena). Una
+    // pendiente sólo si trae respuestas reales a las preguntas de texto
+    // obligatorias: sin eso, una fila vacía o con "." no desbloquea la app.
+    let hasReview = reviews.some((review) => review.is_approved);
+    if (!hasReview && reviews.length > 0) {
+      const { questions } = await getReviewQuestions();
+      hasReview = reviews.some((review) =>
+        hasMeaningfulRequiredTextAnswers(questions, review.review_answer)
+      );
+    }
+
     return {
       success: true,
-      hasReview: data && data.length > 0,
+      hasReview,
       error: null,
     };
   } catch (error) {

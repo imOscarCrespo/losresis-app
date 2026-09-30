@@ -74,6 +74,14 @@ export const getReviewSummaries = async (filters = {}) => {
       });
     }
 
+    // Filtrar por comunidad autónoma del hospital si existe
+    if (filters.region) {
+      filteredData = filteredData.filter((review) => {
+        const hospital = review.hospital || review.hospitals;
+        return hospital?.region === filters.region;
+      });
+    }
+
     // Crear lista plana de resúmenes SIN agrupar por hospital/especialidad
     const summaries = filteredData
       .map((review) => {

@@ -22,6 +22,7 @@ export const useReviews = () => {
     {
       selectedHospital: "",
       selectedSpecialty: "",
+      selectedRegion: "",
       hospitalSearchTerm: "",
     },
     { enableDebounce: true, debounceMs: 500 }
@@ -29,6 +30,7 @@ export const useReviews = () => {
 
   const selectedHospital = filters.selectedHospital;
   const selectedSpecialty = filters.selectedSpecialty;
+  const selectedRegion = filters.selectedRegion;
   const hospitalSearchTerm = filters.hospitalSearchTerm;
 
   // Setters que actualizan los filtros persistentes
@@ -38,6 +40,10 @@ export const useReviews = () => {
   );
   const setSelectedSpecialty = useCallback(
     (value) => updateFilter("selectedSpecialty", value),
+    [updateFilter]
+  );
+  const setSelectedRegion = useCallback(
+    (value) => updateFilter("selectedRegion", value),
     [updateFilter]
   );
   const setHospitalSearchTerm = useCallback(
@@ -54,6 +60,7 @@ export const useReviews = () => {
       const filters = {
         hospitalId: selectedHospital || undefined,
         specialtyId: selectedSpecialty || undefined,
+        region: selectedRegion || undefined,
         hospitalSearchTerm: internalSearchTerm || undefined,
       };
 
@@ -75,7 +82,7 @@ export const useReviews = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedHospital, selectedSpecialty, internalSearchTerm]);
+  }, [selectedHospital, selectedSpecialty, selectedRegion, internalSearchTerm]);
 
   // Debounce para el término de búsqueda (300ms)
   const debouncedSearch = useRef(
@@ -112,6 +119,8 @@ export const useReviews = () => {
     setSelectedHospital,
     selectedSpecialty,
     setSelectedSpecialty,
+    selectedRegion,
+    setSelectedRegion,
     hospitalSearchTerm,
     setHospitalSearchTerm: handleSearchChange,
     clearFilters,

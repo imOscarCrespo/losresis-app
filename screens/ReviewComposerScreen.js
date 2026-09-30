@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import {
   canWriteResidentHospitalReview,
   formatResidentTransitionDeadline,
 } from "../utils/residentAccess";
+import { getReviewTextAnswerProblem } from "../utils/reviewAnswerValidation";
 import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
 import { COLORS } from "../constants/colors";
 
@@ -31,6 +32,7 @@ const WHITE = "#FFFFFF";
 const TEXT_MEDIUM = "#64748B";
 const TEXT_LIGHT = "#94A3B8";
 const BORDER = "#F1F5F9";
+const ERROR = "#B91C1C";
 
 export default function ReviewComposerScreen({
   userProfile,
@@ -41,6 +43,11 @@ export default function ReviewComposerScreen({
   const [answers, setAnswers] = useState({});
   const [freeComment, setFreeComment] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
+  // { [questionId]: mensaje } de las respuestas obligatorias que no valen
+  const [answerErrors, setAnswerErrors] = useState({});
+  const scrollRef = useRef(null);
+  const questionsSectionYRef = useRef(0);
+  const questionYRef = useRef({});
 
   const {
     reviewQuestions,
@@ -121,19 +128,30 @@ export default function ReviewComposerScreen({
     setIsAnonymous(existingReview.is_anonymous || false);
   }, [existingReview]);
 
+  const clearAnswerError = useCallback((questionId) => {
+    setAnswerErrors((prev) => {
+      if (!prev[questionId]) return prev;
+      const next = { ...prev };
+      delete next[questionId];
+      return next;
+    });
+  }, []);
+
   const handleRatingChange = useCallback((questionId, rating) => {
     setAnswers((prev) => ({
       ...prev,
       [questionId]: { ...prev[questionId], rating },
     }));
-  }, []);
+    clearAnswerError(questionId);
+  }, [clearAnswerError]);
 
   const handleTextChange = useCallback((questionId, textValue) => {
     setAnswers((prev) => ({
       ...prev,
       [questionId]: { ...prev[questionId], textValue },
     }));
-  }, []);
+    clearAnswerError(questionId);
+  }, [clearAnswerError]);
 
   const handleSubmit = useCallback(async () => {
     if (!canWriteReview) {
@@ -143,20 +161,44 @@ export default function ReviewComposerScreen({
       );
       return;
     }
-    const unansweredRequired = reviewQuestions.filter((question) => {
-      if (question.is_optional) return false;
+    // Validación previa: si alguna respuesta obligatoria no vale, no se envía
+    // nada a moderación (el trigger de BD aplica la misma regla).
+    const nextAnswerErrors = {};
+    reviewQuestions.forEach((question) => {
+      if (question.is_optional) return;
       const answer = answers[question.id];
-      if (question.type === "rating") return !answer?.rating;
-      if (question.type === "text") {
-        return !answer?.textValue || answer.textValue.trim() === "";
+      if (question.type === "rating") {
+        if (!answer?.rating) {
+          nextAnswerErrors[question.id] = "Elige una puntuación de 1 a 5 estrellas.";
+        }
+        return;
       }
-      return true;
+      if (question.type === "text") {
+        const problem = getReviewTextAnswerProblem(question, answer?.textValue);
+        if (problem) nextAnswerErrors[question.id] = problem;
+        return;
+      }
+      nextAnswerErrors[question.id] = "Esta pregunta es obligatoria.";
     });
 
-    if (unansweredRequired.length > 0) {
+    const invalidQuestions = reviewQuestions.filter(
+      (question) => nextAnswerErrors[question.id]
+    );
+    setAnswerErrors(nextAnswerErrors);
+
+    if (invalidQuestions.length > 0) {
+      const firstY = questionYRef.current[invalidQuestions[0].id];
+      if (firstY !== undefined) {
+        scrollRef.current?.scrollTo?.({
+          y: Math.max(questionsSectionYRef.current + firstY - 12, 0),
+          animated: true,
+        });
+      }
       Alert.alert(
-        "Preguntas obligatorias",
-        "Por favor, responde todas las preguntas obligatorias antes de enviar la reseña"
+        "Revisa tu reseña",
+        invalidQuestions.length === 1
+          ? "Hay 1 respuesta que falta o es demasiado corta para ayudar a otros residentes. Te la hemos marcado en rojo."
+          : `Hay ${invalidQuestions.length} respuestas que faltan o son demasiado cortas para ayudar a otros residentes. Te las hemos marcado en rojo.`
       );
       return;
     }
@@ -229,6 +271,7 @@ export default function ReviewComposerScreen({
         </View>
       ) : (
         <KeyboardAwareScrollView
+          ref={scrollRef}
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           bottomPadding={32}
@@ -272,7 +315,12 @@ export default function ReviewComposerScreen({
             ) : null}
           </View>
 
-          <View style={styles.questionsSection}>
+          <View
+            style={styles.questionsSection}
+            onLayout={(event) => {
+              questionsSectionYRef.current = event.nativeEvent.layout.y;
+            }}
+          >
             <View style={styles.sectionLabelRow}>
               <View style={styles.sectionBar} />
               <Text style={styles.sectionLabelText}>
@@ -281,7 +329,16 @@ export default function ReviewComposerScreen({
             </View>
 
             {reviewQuestions.map((question) => (
-              <View key={question.id} style={styles.questionCard}>
+              <View
+                key={question.id}
+                style={[
+                  styles.questionCard,
+                  answerErrors[question.id] && styles.questionCardError,
+                ]}
+                onLayout={(event) => {
+                  questionYRef.current[question.id] = event.nativeEvent.layout.y;
+                }}
+              >
                 <View style={styles.questionHeaderRow}>
                   <View style={styles.questionHeaderText}>
                     <Text style={styles.questionText}>{question.text}</Text>
@@ -320,7 +377,10 @@ export default function ReviewComposerScreen({
                   </View>
                 ) : (
                   <KeyboardAwareTextInput
-                    style={styles.textInput}
+                    style={[
+                      styles.textInput,
+                      answerErrors[question.id] && styles.textInputError,
+                    ]}
                     multiline
                     numberOfLines={3}
                     value={answers[question.id]?.textValue || ""}
@@ -330,6 +390,15 @@ export default function ReviewComposerScreen({
                     keyboardAwareOptions={{ extraScrollSpace: 40 }}
                   />
                 )}
+
+                {answerErrors[question.id] ? (
+                  <View style={styles.answerErrorRow}>
+                    <Icon name="alert-circle" size={15} color={ERROR} />
+                    <Text style={styles.answerErrorText}>
+                      {answerErrors[question.id]}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             ))}
           </View>
@@ -557,6 +626,26 @@ const styles = StyleSheet.create({
     color: ACCENT,
     textAlignVertical: "top",
     backgroundColor: BG_LIGHT,
+  },
+  questionCardError: {
+    borderColor: "#FECACA",
+  },
+  textInputError: {
+    borderColor: ERROR,
+    backgroundColor: "#FEF2F2",
+  },
+  answerErrorRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginTop: 8,
+  },
+  answerErrorText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    color: ERROR,
+    fontWeight: "600",
   },
   freeCommentFormBlock: {
     marginBottom: 8,
