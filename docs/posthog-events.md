@@ -41,6 +41,9 @@ Este documento lista los eventos que la app envia a PostHog para que Producto pu
 | `resident_review_gate_unlocked_by_review` | Cuando el gate se desbloquea porque el residente ha creado una resena. | `user_id` |
 | `resident_review_gate_reset_after_review_deleted` | Cuando se resetea el gate tras eliminar una resena. | `user_id`, `status` |
 | `housing_landlord_portal_opened` | Cuando un usuario que no puede ofertar vivienda en la app abre el portal de propietarios (vivienda.losresis.com). | `from` (`host_home` / `create_housing_ad` / `edit_housing_ad`), `reason` |
+| `course_enrolled` | Cuando un usuario se inscribe desde la app en un curso con inscripción en la app. | `course_id` |
+| `course_enrollment_cancelled` | Cuando un usuario cancela su inscripción a un curso antes del primer día. | `course_id` |
+| `course_checked_in` | Cuando un inscrito ficha la asistencia de hoy a un curso (no se envía si ya había fichado). | `course_id`, `method` (`deep_link` / `code`) |
 
 ## Pantallas
 

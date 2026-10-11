@@ -1,22 +1,33 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
+import { ConfirmationModal } from "../components/ConfirmationModal";
 import {
   deleteCourse,
   getCourseById,
   toggleCourseLike,
 } from "../services/lectureService";
 import { getCurrentUser } from "../services/authService";
+import {
+  cancelCourseEnrollment,
+  checkInCourse,
+  enrollInCourse,
+  getCourseEnrollmentSummary,
+} from "../services/courseEnrollmentService";
 import { formatDateOnly, formatShortDate } from "../utils/dateUtils";
 import { openURL } from "../utils/courseUtils";
 import posthogLogger from "../services/posthogService";
@@ -88,11 +99,27 @@ function InfoRow({ icon, label, value }) {
   );
 }
 
+// Estado de un día del curso para quien está inscrito.
+const sessionStatus = (date, today, attendedSet) => {
+  if (attendedSet.has(date)) return "attended";
+  if (date >= today) return "pending";
+  return "missed";
+};
+
+const SESSION_STATUS_LABEL = {
+  attended: "Asistencia registrada",
+  pending: "Pendiente",
+  missed: "No asistió",
+};
+
 export default function CourseDetailScreen({
   courseId,
   onBack,
   onEdit,
   onDelete,
+  // Código de fichaje que llega por deep link (losresis://course-checkin).
+  checkinCode = null,
+  onCheckinCodeConsumed,
 }) {
   const insets = useSafeAreaInsets();
   const [course, setCourse] = useState(null);
@@ -100,6 +127,18 @@ export default function CourseDetailScreen({
   const [error, setError] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [summary, setSummary] = useState(null);
+  const [summaryFailed, setSummaryFailed] = useState(false);
+  const [enrollmentBusy, setEnrollmentBusy] = useState(false);
+  const [cancelVisible, setCancelVisible] = useState(false);
+  const [checkinVisible, setCheckinVisible] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [checkinError, setCheckinError] = useState(null);
+  const [enrollmentMessage, setEnrollmentMessage] = useState(null);
+  const consumedCheckinCodeRef = useRef(null);
+
+  const isInApp = course?.enrollment_mode === "in_app";
 
   useEffect(() => {
     posthogLogger.logScreen("CourseDetailScreen", { courseId });
@@ -143,6 +182,144 @@ export default function CourseDetailScreen({
 
     loadCourse();
   }, [courseId, currentUserId]);
+
+  const loadSummary = useCallback(async () => {
+    if (!courseId) return null;
+    const result = await getCourseEnrollmentSummary(courseId);
+    if (result.success) {
+      setSummary(result.data);
+      setSummaryFailed(false);
+      return result.data;
+    }
+    setSummaryFailed(true);
+    return null;
+  }, [courseId]);
+
+  useEffect(() => {
+    if (isInApp && currentUserId) {
+      loadSummary();
+    } else {
+      setSummary(null);
+    }
+  }, [isInApp, currentUserId, loadSummary]);
+
+  const runCheckIn = useCallback(
+    async (code, method) => {
+      setCheckingIn(true);
+      setCheckinError(null);
+      const result = await checkInCourse(courseId, code);
+      setCheckingIn(false);
+
+      if (!result.success) {
+        return { ok: false, error: result.error };
+      }
+
+      if (result.data?.status === "checked_in") {
+        posthogLogger.capture("course_checked_in", {
+          course_id: courseId,
+          method,
+        });
+      }
+      setEnrollmentMessage({
+        kind: "success",
+        text:
+          result.data?.status === "already_checked_in"
+            ? "Ya tenías la asistencia de hoy registrada."
+            : "Asistencia registrada. ¡Buen curso!",
+      });
+      await loadSummary();
+      return { ok: true, error: null };
+    },
+    [courseId, loadSummary]
+  );
+
+  // Deep link: se ficha en cuanto el curso está cargado. El código caduca en
+  // menos de un minuto, así que se consume una sola vez y no se persiste.
+  useEffect(() => {
+    if (!checkinCode) {
+      // Consumido (o sin enlace): un nuevo escaneo del mismo QR vuelve a fichar.
+      consumedCheckinCodeRef.current = null;
+      return;
+    }
+    if (!course || !currentUserId) return;
+    if (consumedCheckinCodeRef.current === checkinCode) return;
+    consumedCheckinCodeRef.current = checkinCode;
+    onCheckinCodeConsumed?.();
+
+    (async () => {
+      const { ok, error: checkinFailure } = await runCheckIn(checkinCode, "deep_link");
+      if (!ok) {
+        // Sin modal abierto: el error se enseña junto al botón del curso.
+        setEnrollmentMessage({ kind: "error", text: checkinFailure });
+      }
+    })();
+  }, [checkinCode, course, currentUserId, onCheckinCodeConsumed, runCheckIn]);
+
+  const handleEnroll = useCallback(async () => {
+    if (!currentUserId) {
+      Alert.alert("Inicia sesión", "Necesitas haber iniciado sesión para inscribirte.");
+      return;
+    }
+    setEnrollmentBusy(true);
+    setEnrollmentMessage(null);
+    const result = await enrollInCourse(courseId);
+    setEnrollmentBusy(false);
+    if (!result.success) {
+      setEnrollmentMessage({ kind: "error", text: result.error });
+      await loadSummary();
+      return;
+    }
+    if (result.data?.status === "enrolled") {
+      posthogLogger.capture("course_enrolled", { course_id: courseId });
+    }
+    setEnrollmentMessage({
+      kind: "success",
+      text: "Inscripción hecha. Hemos añadido los días del curso a tu agenda.",
+    });
+    await loadSummary();
+  }, [courseId, currentUserId, loadSummary]);
+
+  const handleConfirmCancel = useCallback(async () => {
+    setCancelVisible(false);
+    setEnrollmentBusy(true);
+    setEnrollmentMessage(null);
+    const result = await cancelCourseEnrollment(courseId);
+    setEnrollmentBusy(false);
+    if (!result.success) {
+      setEnrollmentMessage({ kind: "error", text: result.error });
+      await loadSummary();
+      return;
+    }
+    posthogLogger.capture("course_enrollment_cancelled", { course_id: courseId });
+    setEnrollmentMessage({ kind: "success", text: "Has cancelado tu inscripción." });
+    await loadSummary();
+  }, [courseId, loadSummary]);
+
+  const openCheckinModal = useCallback(() => {
+    setCodeInput("");
+    setCheckinError(null);
+    setCheckinVisible(true);
+  }, []);
+
+  const handleSubmitCode = useCallback(async () => {
+    if (codeInput.length !== 6 || checkingIn) return;
+    const { ok, error: checkinFailure } = await runCheckIn(codeInput, "code");
+    if (ok) {
+      setCheckinVisible(false);
+    } else {
+      setCheckinError(checkinFailure);
+    }
+  }, [codeInput, checkingIn, runCheckIn]);
+
+  const attendedSet = useMemo(
+    () => new Set(summary?.attended_dates ?? []),
+    [summary?.attended_dates]
+  );
+  const attendedToday = Boolean(summary?.today && attendedSet.has(summary.today));
+  const seatsLeft =
+    summary?.seats_available != null
+      ? Math.max(0, summary.seats_available - (summary.enrolled_count ?? 0))
+      : null;
 
   const sortedDates = useMemo(
     () => (Array.isArray(course?.event_dates) ? [...course.event_dates].sort() : []),
@@ -286,6 +463,81 @@ export default function CourseDetailScreen({
     <HeroScreenLayout
       title="Cursos"
       onBack={onBack}
+      overlay={
+        <>
+          <ConfirmationModal
+            visible={cancelVisible}
+            title="Cancelar inscripción"
+            message="Dejarás tu plaza libre y quitaremos los días del curso de tu agenda."
+            confirmText="Cancelar inscripción"
+            cancelText="Volver"
+            onCancel={() => setCancelVisible(false)}
+            onConfirm={handleConfirmCancel}
+          />
+          <Modal
+            visible={checkinVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setCheckinVisible(false)}
+          >
+            <KeyboardAvoidingView
+              style={styles.modalOverlay}
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+            >
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Fichar asistencia</Text>
+                <Text style={styles.modalText}>
+                  Introduce el código de 6 dígitos que aparece en la pantalla de
+                  la sala.
+                </Text>
+                <TextInput
+                  value={codeInput}
+                  onChangeText={(value) => {
+                    setCodeInput(value.replace(/\D/g, "").slice(0, 6));
+                    setCheckinError(null);
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  autoFocus
+                  placeholder="000000"
+                  placeholderTextColor={MUTED_LIGHT}
+                  style={styles.codeInput}
+                  onSubmitEditing={handleSubmitCode}
+                  textContentType="oneTimeCode"
+                />
+                {checkinError ? (
+                  <Text style={styles.codeError}>{checkinError}</Text>
+                ) : null}
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.modalCancel}
+                    onPress={() => setCheckinVisible(false)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.modalCancelText}>Cerrar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalConfirm,
+                      (codeInput.length !== 6 || checkingIn) &&
+                        styles.primaryButtonDisabled,
+                    ]}
+                    onPress={handleSubmitCode}
+                    disabled={codeInput.length !== 6 || checkingIn}
+                    activeOpacity={0.88}
+                  >
+                    {checkingIn ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>Fichar</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
+        </>
+      }
       rightSlot={
         canEditCourse ? (
           <View style={styles.headerActions}>
@@ -376,7 +628,54 @@ export default function CourseDetailScreen({
               </Text>
             </TouchableOpacity>
 
-            {course.registration_url ? (
+            {isInApp ? (
+              !summary && summaryFailed ? (
+                <TouchableOpacity
+                  style={styles.primaryButton}
+                  onPress={loadSummary}
+                  activeOpacity={0.88}
+                >
+                  <Icon name="refresh" size={18} color="#FFFFFF" />
+                  <Text style={styles.primaryButtonText}>
+                    No se pudo cargar la inscripción. Reintentar
+                  </Text>
+                </TouchableOpacity>
+              ) : !summary ? (
+                <View style={[styles.primaryButton, styles.primaryButtonDisabled]}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                </View>
+              ) : summary.is_enrolled ? (
+                <View style={[styles.primaryButton, styles.primaryButtonEnrolled]}>
+                  <Icon name="checkmark-circle" size={18} color="#FFFFFF" />
+                  <Text style={styles.primaryButtonText}>Inscrito</Text>
+                </View>
+              ) : summary.is_full || summary.is_finished ? (
+                <View style={[styles.primaryButton, styles.primaryButtonDisabled]}>
+                  <Text style={styles.primaryButtonText}>
+                    {summary.is_finished ? "Curso finalizado" : "Completo"}
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.primaryButton,
+                    enrollmentBusy && styles.primaryButtonDisabled,
+                  ]}
+                  onPress={handleEnroll}
+                  activeOpacity={0.88}
+                  disabled={enrollmentBusy}
+                >
+                  {enrollmentBusy ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Text style={styles.primaryButtonText}>Inscribirme</Text>
+                      <Icon name="arrow-forward" size={18} color="#FFFFFF" />
+                    </>
+                  )}
+                </TouchableOpacity>
+              )
+            ) : course.registration_url ? (
               <TouchableOpacity
                 style={styles.primaryButton}
                 onPress={handleRegister}
@@ -387,9 +686,107 @@ export default function CourseDetailScreen({
               </TouchableOpacity>
             ) : null}
           </View>
+
+          {isInApp && summary ? (
+            <View style={styles.enrollmentMeta}>
+              {seatsLeft != null && !summary.is_enrolled && !summary.is_finished ? (
+                <Text style={styles.enrollmentMetaText}>
+                  {seatsLeft === 1 ? "Queda 1 plaza" : `Quedan ${seatsLeft} plazas`}
+                </Text>
+              ) : null}
+              {summary.can_cancel ? (
+                <TouchableOpacity
+                  onPress={() => setCancelVisible(true)}
+                  disabled={enrollmentBusy}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.cancelLink}>Cancelar inscripción</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+
+          {enrollmentMessage ? (
+            <View
+              style={[
+                styles.messageBox,
+                enrollmentMessage.kind === "error"
+                  ? styles.messageBoxError
+                  : styles.messageBoxSuccess,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.messageText,
+                  enrollmentMessage.kind === "error"
+                    ? styles.messageTextError
+                    : styles.messageTextSuccess,
+                ]}
+              >
+                {enrollmentMessage.text}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.content}>
+          {isInApp && summary?.is_enrolled && summary.is_session_today ? (
+            <SectionCard title="Asistencia de hoy">
+              {attendedToday ? (
+                <View style={styles.attendedRow}>
+                  <Icon name="checkmark-circle" size={22} color={SECONDARY} />
+                  <Text style={styles.attendedText}>Asistencia registrada</Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.cardBody}>
+                    {summary.checkin_open_now
+                      ? "Escanea el QR de la sala o introduce el código que aparece en la pantalla."
+                      : "Cuando la organización abra el fichaje, escanea el QR de la sala o introduce el código."}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.primaryButton, styles.checkinButton]}
+                    onPress={openCheckinModal}
+                    activeOpacity={0.88}
+                  >
+                    <Icon name="qr-code-outline" size={18} color="#FFFFFF" />
+                    <Text style={styles.primaryButtonText}>Fichar</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </SectionCard>
+          ) : null}
+
+          {isInApp && summary?.is_enrolled && summary.session_dates?.length ? (
+            <SectionCard title="Tus días del curso">
+              {summary.session_dates.map((date) => {
+                const status = sessionStatus(date, summary.today, attendedSet);
+                return (
+                  <View key={date} style={styles.sessionRow}>
+                    <Text style={styles.timelineText}>{formatShortDate(date)}</Text>
+                    <View
+                      style={[
+                        styles.sessionBadge,
+                        status === "attended" && styles.sessionBadgeAttended,
+                        status === "missed" && styles.sessionBadgeMissed,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.sessionBadgeText,
+                          status === "attended" && styles.sessionBadgeTextAttended,
+                          status === "missed" && styles.sessionBadgeTextMissed,
+                        ]}
+                      >
+                        {SESSION_STATUS_LABEL[status]}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </SectionCard>
+          ) : null}
+
           {(course.hospital?.name || course.venue_name || course.venue_address) && (
             <SectionCard title="Dónde se imparte">
               {course.hospital?.name ? (
@@ -448,7 +845,7 @@ export default function CourseDetailScreen({
             </SectionCard>
           ) : null}
 
-          {course.registration_url ? (
+          {!isInApp && course.registration_url ? (
             <SectionCard title="Inscripción">
               <Text style={styles.cardBody}>
                 Accede al enlace oficial para revisar plazas, requisitos y el
@@ -698,6 +1095,162 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
+  },
+  primaryButtonDisabled: {
+    opacity: 0.55,
+  },
+  primaryButtonEnrolled: {
+    backgroundColor: SECONDARY,
+  },
+  enrollmentMeta: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  enrollmentMetaText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: MUTED,
+  },
+  cancelLink: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: DANGER,
+  },
+  messageBox: {
+    marginTop: 12,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  messageBoxSuccess: {
+    backgroundColor: `${SECONDARY}14`,
+  },
+  messageBoxError: {
+    backgroundColor: "#FEF2F2",
+  },
+  messageText: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+  },
+  messageTextSuccess: {
+    color: SECONDARY,
+  },
+  messageTextError: {
+    color: DANGER,
+  },
+  checkinButton: {
+    marginTop: 14,
+  },
+  attendedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  attendedText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: SECONDARY,
+  },
+  sessionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    gap: 12,
+  },
+  sessionBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: BG_LIGHT,
+  },
+  sessionBadgeAttended: {
+    backgroundColor: `${SECONDARY}14`,
+  },
+  sessionBadgeMissed: {
+    backgroundColor: "#FEF2F2",
+  },
+  sessionBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: MUTED,
+  },
+  sessionBadgeTextAttended: {
+    color: SECONDARY,
+  },
+  sessionBadgeTextMissed: {
+    color: DANGER,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 22,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: ACCENT,
+  },
+  modalText: {
+    marginTop: 8,
+    fontSize: 15,
+    lineHeight: 22,
+    color: MUTED,
+  },
+  codeInput: {
+    marginTop: 18,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}30`,
+    borderRadius: 16,
+    paddingVertical: 14,
+    fontSize: 30,
+    fontWeight: "700",
+    letterSpacing: 10,
+    textAlign: "center",
+    color: ACCENT,
+  },
+  codeError: {
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: "600",
+    color: DANGER,
+    textAlign: "center",
+  },
+  modalActions: {
+    marginTop: 20,
+    flexDirection: "row",
+    gap: 10,
+  },
+  modalCancel: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+    backgroundColor: BG_LIGHT,
+  },
+  modalCancelText: {
+    color: MUTED,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  modalConfirm: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: PRIMARY,
   },
   content: {
     paddingTop: 18,

@@ -173,6 +173,12 @@ const isServiceEvent = (event) => event?.event_type === "service";
 // servicio (ADR 0021 del panel), enlazada por hospital_tutoring.agenda_event_id.
 const isTutoringEvent = (event) => event?.event_type === "tutoring";
 
+// Día de un curso al que el residente se ha inscrito en la app: la base crea y
+// borra estas copias con la inscripción. Un curso que el residente apunta a
+// mano también es de tipo "course", pero no lleva course_enrollment_id.
+const isCourseEnrollmentEvent = (event) =>
+  event?.event_type === "course" && Boolean(event?.metadata?.course_enrollment_id);
+
 /**
  * Lo que proyecta el panel: se consulta, no se toca.
  *
@@ -180,7 +186,8 @@ const isTutoringEvent = (event) => event?.event_type === "tutoring";
  * el residente podía borrar la tutoría que le había puesto su tutor y dejar
  * hospital_tutoring.agenda_event_id apuntando a nada.
  */
-const isPanelEvent = (event) => PANEL_EVENT_TYPES.has(event?.event_type);
+const isPanelEvent = (event) =>
+  PANEL_EVENT_TYPES.has(event?.event_type) || isCourseEnrollmentEvent(event);
 
 const RESEARCH_STATUS_OPTIONS = ["En curso", "Publicado"];
 const RESEARCH_ROLE_OPTIONS = [
@@ -333,6 +340,13 @@ const buildSharedEventDetailRows = (event) => {
       icon: "people-outline",
       label: "Programada por",
       value: metadata.tutor_name || "Tu tutor",
+    });
+  } else if (isCourseEnrollmentEvent(event)) {
+    rows.push({
+      key: "owner",
+      icon: "school-outline",
+      label: "Inscripción",
+      value: "Te inscribiste en este curso desde LosResis",
     });
   } else if (isServiceEvent(event)) {
     // Copia proyectada desde el panel: lo convoca el servicio, no una Conexión.
@@ -1703,7 +1717,9 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                             ? "Solo lectura · la programa tu tutor"
                             : isServiceEvent(detailEvent)
                               ? "Solo lectura · lo gestiona el responsable de tu servicio"
-                              : "Solo lectura · únicamente quien lo creó puede editarlo"}
+                              : isCourseEnrollmentEvent(detailEvent)
+                                ? "Solo lectura · se gestiona desde el curso"
+                                : "Solo lectura · únicamente quien lo creó puede editarlo"}
                         </Text>
                       </View>
 

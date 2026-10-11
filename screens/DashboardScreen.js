@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { AppState, View, Text, StyleSheet, Alert } from "react-native";
+import { AppState, View, Text, StyleSheet, Alert, Linking } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenLayout } from "../components/ScreenLayout";
 import { BackNavigationButton } from "../components/BackNavigationButton";
@@ -53,6 +53,7 @@ import ClinicalAssistantScreen from "./ClinicalAssistantScreen";
 import NotificationSettingsScreen from "../src/screens/settings/NotificationSettingsScreen";
 import NotificationsScreen from "../src/screens/notifications/NotificationsScreen";
 import { setNotificationNavigationHandler } from "../src/services/push/notificationRouter";
+import { parseCourseCheckinUrl } from "../utils/courseCheckinLink";
 import { openDirectChat } from "../services/directChatsService";
 import SpecialityQuizScreen from "./SpecialityQuizScreen";
 import MirQuestionBankScreen from "./MirQuestionBankScreen";
@@ -143,6 +144,9 @@ const DEFAULT_RESIDENT_PAYOUT_ROUTE_PARAMS = {
   lockInitialPeriod: false,
 };
 
+// Enlace de fichaje con el que se abrió la app (ver el listener de Linking).
+let lastHandledInitialCheckinUrl = null;
+
 const getDashboardNavigationStorageKey = (userId) =>
   `${DASHBOARD_NAVIGATION_STORAGE_KEY_PREFIX}${userId}`;
 
@@ -193,6 +197,9 @@ export default function DashboardScreen({
   const [selectedOpenDayId, setSelectedOpenDayId] = useState(null);
   const [selectedArticleId, setSelectedArticleId] = useState(null);
   const [selectedCourseId, setSelectedCourseId] = useState(null);
+  // Código de fichaje llegado por deep link. No se persiste: caduca en menos
+  // de un minuto y no debe relanzarse al reabrir la app.
+  const [pendingCheckinCode, setPendingCheckinCode] = useState(null);
   const [selectedHousingAdId, setSelectedHousingAdId] = useState(null);
   const [creatingHousingAd, setCreatingHousingAd] = useState(false);
   const [editingHousingAdId, setEditingHousingAdId] = useState(null);
@@ -565,6 +572,55 @@ export default function DashboardScreen({
     return cleanup;
   }, []);
 
+  // Deep link de fichaje (losresis://course-checkin). Solo se trata ese host:
+  // losresis://auth/callback sigue siendo cosa de authService. Se espera a que
+  // la navegación esté restaurada para que la restauración no lo pise.
+  const handleSectionChangeRef = useRef(null);
+  const pendingCheckinLinkRef = useRef(null);
+  const isNavigationReadyRef = useRef(false);
+  const flushCheckinLink = () => {
+    const link = pendingCheckinLinkRef.current;
+    if (!link || !handleSectionChangeRef.current) return;
+    pendingCheckinLinkRef.current = null;
+    handleSectionChangeRef.current("courseDetail", {
+      courseId: link.courseId,
+      checkinCode: link.checkinCode,
+    });
+  };
+
+  useEffect(() => {
+    const queueLink = (url) => {
+      const link = parseCourseCheckinUrl(url);
+      if (!link) return;
+      pendingCheckinLinkRef.current = link;
+      if (isNavigationReadyRef.current) {
+        flushCheckinLink();
+      }
+    };
+
+    Linking.getInitialURL()
+      .then((url) => {
+        // getInitialURL devuelve el mismo enlace mientras viva el proceso: si
+        // el Dashboard se vuelve a montar (p. ej. tras cerrar sesión), no se
+        // repite el fichaje.
+        if (url && url !== lastHandledInitialCheckinUrl) {
+          lastHandledInitialCheckinUrl = url;
+          queueLink(url);
+        }
+      })
+      .catch(() => {});
+
+    const subscription = Linking.addEventListener("url", ({ url }) => queueLink(url));
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    isNavigationReadyRef.current = isNavigationReady;
+    if (isNavigationReady) {
+      flushCheckinLink();
+    }
+  }, [isNavigationReady]);
+
   const loadUserProfile = async ({ forceRefresh = false, silent = false } = {}) => {
     try {
       if (!silent) {
@@ -834,6 +890,7 @@ export default function DashboardScreen({
     if (sectionId === "courseDetail" && params.courseId) {
       setPreviousSection(params.fromSection || currentSection);
       setSelectedCourseId(params.courseId);
+      setPendingCheckinCode(params.checkinCode || null);
     }
     // Si es housingDetail, guardar el adId
     if (sectionId === "housingDetail" && params.adId) {
@@ -972,6 +1029,9 @@ export default function DashboardScreen({
       }
     }
   };
+  // El listener de deep links se registra una vez; así llama siempre a la
+  // versión de este render (con el perfil y el gate actuales).
+  handleSectionChangeRef.current = handleSectionChange;
 
   const handleBackFromGenericSection = () => {
     let nextSection = getDefaultSection();
@@ -1319,6 +1379,8 @@ export default function DashboardScreen({
         <SwipeBackWrapper onSwipeBack={handleBackFromCourse}>
           <CourseDetailScreen
             courseId={selectedCourseId}
+            checkinCode={pendingCheckinCode}
+            onCheckinCodeConsumed={() => setPendingCheckinCode(null)}
             onBack={handleBackFromCourse}
             onEdit={(courseId) => {
               setSelectedCourseId(null);
