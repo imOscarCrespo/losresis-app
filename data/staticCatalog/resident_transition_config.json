@@ -2,10 +2,10 @@
   {
     "key": "mir_r1_corporate_email_grace",
     "starts_at": "2026-04-25T00:00:00+00:00",
-    "ends_at": "2026-09-20T21:59:59+00:00",
+    "ends_at": "2026-12-01T22:59:59+00:00",
     "target_resident_year": 1,
     "enabled": true,
     "created_at": "2026-04-09T17:16:47.055871+00:00",
-    "updated_at": "2026-05-24T16:53:58.098907+00:00"
+    "updated_at": "2026-09-30T20:06:47.304689+00:00"
   }
 ]
