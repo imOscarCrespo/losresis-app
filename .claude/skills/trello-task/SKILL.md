@@ -157,8 +157,18 @@ inventando una regla de producto. Si el plan es grande o toca dominio delicado, 
 
 Si un nivel no se puede ejecutar (simulador roto, MCP sin acceso…), dilo en el informe; no lo
 des por verificado.
-- Al acabar, recomienda `/bug-review` antes de subir. No hagas commit ni push: eso lo hace el
-  usuario.
+
+## Paso 4c — Bug review automático
+
+Al terminar la implementación y la verificación, **sin esperar a que el usuario lo pida**, carga
+el skill `bug-review` (herramienta Skill) y ejecútalo en modo **GATE** sobre los cambios locales.
+
+- Si el veredicto es `🚫 BLOCK`, arregla lo bloqueante, vuelve a pasar los tests afectados
+  (Jest y el flujo de Maestro si tocaste pantallas) y repite el bug review hasta que dé `✅ PASS`.
+  Si un bloqueo necesita una decisión de producto, para y pregúntalo.
+- Los avisos 🟡/🔵 no se arreglan solos: van en el informe final para que el usuario decida.
+- Apunta el veredicto y los avisos en el «Verificado» de la tarea del histórico (paso 5).
+- No hagas commit ni push: eso lo hace el usuario.
 
 ## Paso 5 — Histórico de la versión
 
