@@ -65,6 +65,7 @@ import MentalHealthScreen from "./MentalHealthScreen";
 import ResidentPayoutsScreen from "./ResidentPayoutsScreen";
 import ResidentPayoutDetailScreen from "./ResidentPayoutDetailScreen";
 import ResidentPayoutEntryScreen from "./ResidentPayoutEntryScreen";
+import ResidentPayoutExpensesScreen from "./ResidentPayoutExpensesScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
@@ -131,6 +132,7 @@ const GENERIC_BACK_SECTIONS = new Set([
   "residentPayouts",
   "residentPayoutDetail",
   "residentPayoutEntry",
+  "residentPayoutExpenses",
   "mentalHealth",
   "valoracionJornada",
 ]);
@@ -973,6 +975,12 @@ export default function DashboardScreen({
         lockInitialPeriod: Boolean(params.lockInitialPeriod),
       });
     } else if (sectionId === "residentPayoutDetail") {
+      setResidentPayoutRouteParams({
+        initialYear: params.initialYear || null,
+        initialMonth: params.initialMonth || null,
+        lockInitialPeriod: false,
+      });
+    } else if (sectionId === "residentPayoutExpenses") {
       setResidentPayoutRouteParams({
         initialYear: params.initialYear || null,
         initialMonth: params.initialMonth || null,
@@ -2017,6 +2025,9 @@ export default function DashboardScreen({
                   lockInitialPeriod: Boolean(params.lockInitialPeriod),
                 })
               }
+              onOrganizeExpenses={(params = {}) =>
+                handleSectionChange("residentPayoutExpenses", params)
+              }
               initialYear={residentPayoutRouteParams.initialYear}
               initialMonth={residentPayoutRouteParams.initialMonth}
             />
@@ -2029,9 +2040,24 @@ export default function DashboardScreen({
             <ResidentPayoutEntryScreen
               userProfile={userProfile}
               onBack={handleBackFromGenericSection}
+              onOrganizeExpenses={(params = {}) =>
+                handleSectionChange("residentPayoutExpenses", params)
+              }
               initialYear={residentPayoutRouteParams.initialYear}
               initialMonth={residentPayoutRouteParams.initialMonth}
               lockInitialPeriod={residentPayoutRouteParams.lockInitialPeriod}
+            />
+          </SwipeBackWrapper>
+        );
+
+      case "residentPayoutExpenses":
+        return (
+          <SwipeBackWrapper onSwipeBack={handleBackFromGenericSection}>
+            <ResidentPayoutExpensesScreen
+              userProfile={userProfile}
+              onBack={handleBackFromGenericSection}
+              initialYear={residentPayoutRouteParams.initialYear}
+              initialMonth={residentPayoutRouteParams.initialMonth}
             />
           </SwipeBackWrapper>
         );

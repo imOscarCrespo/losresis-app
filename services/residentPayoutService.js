@@ -57,6 +57,13 @@ const normalizePayout = (row) => {
   return {
     ...row,
     gross_total_eur: toNumber(row.gross_total_eur),
+    housing_expense_eur: toNumber(row.housing_expense_eur),
+    food_expense_eur: toNumber(row.food_expense_eur),
+    transport_expense_eur: toNumber(row.transport_expense_eur),
+    leisure_expense_eur: toNumber(row.leisure_expense_eur),
+    other_expense_eur: toNumber(row.other_expense_eur),
+    expenses_organized_at: row.expenses_organized_at ?? null,
+    is_expenses_organized: Boolean(row.expenses_organized_at),
     guard_count: totalGuardCount,
     friday_guard_count: fridayGuardCount,
     holiday_guard_count: holidayGuardCount,
@@ -201,6 +208,35 @@ export const upsertResidentPayout = async (payload) => {
     .upsert(payoutPayload, {
       onConflict: "user_id,period_year,period_month",
     })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return normalizePayout(data);
+};
+
+// Guarda solo las columnas de gastos de una nómina ya existente; el ingreso
+// sigue siendo gross_total_eur y no se toca desde aquí.
+export const saveResidentPayoutExpenses = async ({
+  payoutId,
+  userId,
+  expensesEurByKey,
+}) => {
+  const { data, error } = await supabase
+    .from(TABLE_NAME)
+    .update({
+      housing_expense_eur: toNumber(expensesEurByKey.housing_expense_eur),
+      food_expense_eur: toNumber(expensesEurByKey.food_expense_eur),
+      transport_expense_eur: toNumber(expensesEurByKey.transport_expense_eur),
+      leisure_expense_eur: toNumber(expensesEurByKey.leisure_expense_eur),
+      other_expense_eur: toNumber(expensesEurByKey.other_expense_eur),
+      expenses_organized_at: new Date().toISOString(),
+    })
+    .eq("id", payoutId)
+    .eq("user_id", userId)
     .select("*")
     .single();
 

@@ -15,6 +15,7 @@ import {
 import { Icon } from "../components/Icon";
 import { Button } from "../components";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
+import OrganizeExpensesPromptCard from "../components/payouts/OrganizeExpensesPromptCard";
 import { COLORS } from "../constants/colors";
 import {
   formatPayoutPeriodLabel,
@@ -95,6 +96,7 @@ const GUARD_BREAKDOWN_FIELDS = [
 export default function ResidentPayoutEntryScreen({
   userProfile,
   onBack,
+  onOrganizeExpenses,
   initialYear = null,
   initialMonth = null,
   lockInitialPeriod = false,
@@ -109,6 +111,9 @@ export default function ResidentPayoutEntryScreen({
     Boolean(lockInitialPeriod && initialYear && initialMonth)
   );
   const [editingId, setEditingId] = useState(null);
+  // Estado del formulario tal y como está guardado, para detectar cambios sin guardar.
+  const [savedFormState, setSavedFormState] = useState(null);
+  const [isExpensesOrganized, setIsExpensesOrganized] = useState(false);
   const [formState, setFormState] = useState(
     buildEmptyFormState(defaultYear, defaultMonth)
   );
@@ -236,10 +241,15 @@ export default function ResidentPayoutEntryScreen({
         if (!isMounted) return;
 
         if (row) {
+          const rowFormState = buildFormStateFromRow(row);
           setEditingId(row.id);
-          setFormState(buildFormStateFromRow(row));
+          setFormState(rowFormState);
+          setSavedFormState(rowFormState);
+          setIsExpensesOrganized(Boolean(row.is_expenses_organized));
         } else {
           setEditingId(null);
+          setSavedFormState(null);
+          setIsExpensesOrganized(false);
           setFormState((prev) =>
             buildEmptyFormState(prev.periodYear, prev.periodMonth)
           );
@@ -298,7 +308,11 @@ export default function ResidentPayoutEntryScreen({
     );
   };
 
-  const persistPayout = async (parsedValues, pendingOverride = null) => {
+  const persistPayout = async (
+    parsedValues,
+    pendingOverride = null,
+    afterSave = onBack
+  ) => {
     setSaving(true);
     try {
       await upsertResidentPayout({
@@ -321,7 +335,7 @@ export default function ResidentPayoutEntryScreen({
           : formState.pendingPaymentDescription,
       });
 
-      onBack?.();
+      afterSave?.();
     } catch (error) {
       console.error("Error saving resident payout:", error);
       Alert.alert("Error", "No se ha podido guardar la nómina.");
@@ -330,7 +344,7 @@ export default function ResidentPayoutEntryScreen({
     }
   };
 
-  const handleSave = () => {
+  const handleSave = (afterSave = onBack) => {
     const grossTotal = Number(String(formState.grossTotalEur).replace(",", "."));
     const strikeCount = Number(formState.strikeCount);
     const weekdayGuardCount = Number(formState.weekdayGuardCount);
@@ -397,16 +411,20 @@ export default function ResidentPayoutEntryScreen({
           {
             text: "Marcar pendiente y guardar",
             onPress: () =>
-              persistPayout(parsedValues, {
-                description: buildPendingPaymentDescription(
-                  mismatches,
-                  periodLabel
-                ),
-              }),
+              persistPayout(
+                parsedValues,
+                {
+                  description: buildPendingPaymentDescription(
+                    mismatches,
+                    periodLabel
+                  ),
+                },
+                afterSave
+              ),
           },
           {
             text: "Guardar sin marcar",
-            onPress: () => persistPayout(parsedValues),
+            onPress: () => persistPayout(parsedValues, null, afterSave),
           },
           { text: "Cancelar", style: "cancel" },
         ]
@@ -414,7 +432,34 @@ export default function ResidentPayoutEntryScreen({
       return;
     }
 
-    persistPayout(parsedValues);
+    persistPayout(parsedValues, null, afterSave);
+  };
+
+  const hasUnsavedChanges =
+    Boolean(savedFormState) &&
+    JSON.stringify(formState) !== JSON.stringify(savedFormState);
+
+  // El organizador usa el ingreso guardado: si hay cambios pendientes, se guardan antes.
+  const handleOrganizeExpenses = () => {
+    const openExpenses = () =>
+      onOrganizeExpenses?.({
+        initialYear: formState.periodYear,
+        initialMonth: formState.periodMonth,
+      });
+
+    if (!hasUnsavedChanges) {
+      openExpenses();
+      return;
+    }
+
+    Alert.alert(
+      "Tienes cambios sin guardar",
+      "Guarda la nómina para organizar tus gastos con el importe actualizado.",
+      [
+        { text: "Guardar y continuar", onPress: () => handleSave(openExpenses) },
+        { text: "Cancelar", style: "cancel" },
+      ]
+    );
   };
 
   return (
@@ -449,6 +494,7 @@ export default function ResidentPayoutEntryScreen({
               <View style={styles.card}>
                 <Text style={styles.fieldLabel}>Mes</Text>
                 <TouchableOpacity
+                  testID="payout-month-select"
                   style={[styles.selectButton, periodLocked && styles.selectButtonDisabled]}
                   onPress={openMonthPicker}
                   disabled={periodLocked}
@@ -469,6 +515,7 @@ export default function ResidentPayoutEntryScreen({
 
                 <Text style={styles.fieldLabel}>Total nómina</Text>
                 <TextInput
+                  testID="payout-gross-total"
                   value={formState.grossTotalEur}
                   onChangeText={(value) => setFieldValue("grossTotalEur", value)}
                   keyboardType="decimal-pad"
@@ -625,12 +672,19 @@ export default function ResidentPayoutEntryScreen({
 
                 <Button
                   title={saving ? "Guardando..." : "Guardar nómina"}
-                  onPress={handleSave}
+                  onPress={() => handleSave()}
                   loading={saving}
                   style={styles.primaryAction}
                   textStyle={styles.primaryActionText}
                 />
               </View>
+
+              {editingId && onOrganizeExpenses ? (
+                <OrganizeExpensesPromptCard
+                  isOrganized={isExpensesOrganized}
+                  onPress={handleOrganizeExpenses}
+                />
+              ) : null}
             </View>
           </ScrollView>
         </TouchableWithoutFeedback>

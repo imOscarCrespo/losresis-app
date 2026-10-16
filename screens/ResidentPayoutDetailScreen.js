@@ -10,6 +10,7 @@ import {
 import { Icon } from "../components/Icon";
 import { Button } from "../components";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
+import OrganizeExpensesPromptCard from "../components/payouts/OrganizeExpensesPromptCard";
 import { COLORS } from "../constants/colors";
 import { getResidentPayoutForMonth } from "../services/residentPayoutService";
 
@@ -51,6 +52,7 @@ export default function ResidentPayoutDetailScreen({
   userProfile,
   onBack,
   onEdit,
+  onOrganizeExpenses,
   initialYear = null,
   initialMonth = null,
 }) {
@@ -176,6 +178,13 @@ export default function ResidentPayoutDetailScreen({
               <Text style={styles.emptyText}>No hay guardias registradas este mes.</Text>
             )}
           </View>
+
+          {onOrganizeExpenses ? (
+            <OrganizeExpensesPromptCard
+              isOrganized={Boolean(row.is_expenses_organized)}
+              onPress={() => onOrganizeExpenses({ initialYear, initialMonth })}
+            />
+          ) : null}
 
           <Button
             title="Editar nómina"

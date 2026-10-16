@@ -14,6 +14,7 @@ import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLORS } from "../constants/colors";
 import {
   buildPayoutChartData,
+  formatPayoutPeriodLabel,
   getResidentPayoutsByYear,
 } from "../services/residentPayoutService";
 
@@ -92,6 +93,52 @@ const MonthBarChart = ({ data, width, onSelectMonth }) => {
   );
 };
 
+const capitalize = (text) => (text ? text.charAt(0).toUpperCase() + text.slice(1) : text);
+
+const PayoutListRow = ({ row, onPress }) => {
+  const guardCount = Number(row.guard_count || 0);
+  const isOrganized = Boolean(row.is_expenses_organized);
+
+  return (
+    <TouchableOpacity
+      testID={`payout-row-${row.period_year}-${row.period_month}`}
+      style={styles.payoutRow}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <View style={styles.payoutRowIcon}>
+        <Icon name="cash-outline" size={18} color="#670CF5" />
+      </View>
+      <View style={styles.payoutRowCopy}>
+        <Text style={styles.payoutRowTitle}>
+          {capitalize(formatPayoutPeriodLabel(row.period_year, row.period_month))}
+        </Text>
+        <View style={styles.payoutRowMeta}>
+          {guardCount > 0 ? (
+            <Text style={styles.payoutRowMetaText}>
+              {guardCount} {guardCount === 1 ? "guardia" : "guardias"} ·{" "}
+            </Text>
+          ) : null}
+          <Text
+            style={styles.payoutRowMetaText}
+            testID={`payout-row-status-${row.period_year}-${row.period_month}`}
+          >
+            {isOrganized ? "Organizado" : "Sin organizar"}
+          </Text>
+          <View
+            style={[
+              styles.statusDot,
+              isOrganized ? styles.statusDotOrganized : styles.statusDotPending,
+            ]}
+          />
+        </View>
+      </View>
+      <Text style={styles.payoutRowAmount}>{formatCurrency(row.gross_total_eur)}</Text>
+      <Icon name="chevron-forward" size={18} color="#94A3B8" />
+    </TouchableOpacity>
+  );
+};
+
 export default function ResidentPayoutsScreen({
   userProfile,
   onBack,
@@ -139,6 +186,10 @@ export default function ResidentPayoutsScreen({
     [yearRows]
   );
   const chartData = useMemo(() => buildPayoutChartData(yearRows), [yearRows]);
+  const listRows = useMemo(
+    () => [...yearRows].sort((a, b) => Number(b.period_month) - Number(a.period_month)),
+    [yearRows]
+  );
   const chartWidth = Math.max(width - 48, 320);
   const handleSelectChartMonth = (month) => {
     const selectedRow = yearRows.find(
@@ -234,6 +285,28 @@ export default function ResidentPayoutsScreen({
               onSelectMonth={handleSelectChartMonth}
             />
           </View>
+
+          <View style={styles.listSection}>
+            <Text style={styles.listTitle}>Tus nóminas</Text>
+            {listRows.length ? (
+              listRows.map((row) => (
+                <PayoutListRow
+                  key={row.id}
+                  row={row}
+                  onPress={() =>
+                    onOpenDetail?.({
+                      initialYear: row.period_year,
+                      initialMonth: row.period_month,
+                    })
+                  }
+                />
+              ))
+            ) : (
+              <Text style={styles.listEmptyText}>
+                Aún no has registrado nóminas en {selectedYear}.
+              </Text>
+            )}
+          </View>
         </ScrollView>
       )}
 
@@ -261,7 +334,76 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     gap: 16,
-    paddingBottom: 28,
+    // Deja sitio al botón flotante "Nuevo registro" sobre la última fila.
+    paddingBottom: 104,
+  },
+  listSection: {
+    gap: 10,
+  },
+  listTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#1B0977",
+    marginLeft: 4,
+  },
+  listEmptyText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#64748B",
+    marginLeft: 4,
+  },
+  payoutRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.06)",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  payoutRowIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#F4EEFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  payoutRowCopy: {
+    flex: 1,
+  },
+  payoutRowTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  payoutRowMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 3,
+  },
+  payoutRowMetaText: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginLeft: 6,
+  },
+  statusDotOrganized: {
+    backgroundColor: "#22C55E",
+  },
+  statusDotPending: {
+    backgroundColor: "#CBD5E1",
+  },
+  payoutRowAmount: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#1B0977",
   },
   heroCard: {
     backgroundColor: "#FFFFFF",

@@ -1,0 +1,174 @@
+# Trello #113 · Organizar los gastos mensuales desde Nóminas
+# https://trello.com/c/FRetAsvS
+#
+# Repetible: crea o edita la nómina de enero del año en curso del residente de pruebas
+# y sobrescribe sus gastos. Los importes son los del criterio de aceptación de la tarjeta.
+appId: com.losresis.app
+name: "#113 Organizar mis gastos"
+---
+# La app restaura la última pantalla abierta: se arranca limpia y se vuelve a entrar.
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+# Nóminas → nómina de enero con 3.452 €
+- tapOn: "Nóminas"
+- extendedWaitUntil:
+    visible: "Tus nóminas"
+    timeout: 20000
+- tapOn: "Nuevo registro"
+- tapOn:
+    id: "payout-month-select"
+- tapOn: "enero"
+- tapOn:
+    id: "payout-gross-total"
+- eraseText: 12
+- inputText: "3452"
+# El teclado decimal no tiene "hecho": se cierra tocando fuera, como haría el usuario.
+- tapOn: "Total nómina"
+- scrollUntilVisible:
+    element: "Guardar nómina"
+    direction: DOWN
+- tapOn: "Guardar nómina"
+
+# Criterio: en la lista aparece el mes con su estado
+- extendedWaitUntil:
+    visible: "Tus nóminas"
+    timeout: 20000
+# La lista queda bajo el gráfico y la barra inferior: se centra la fila antes de tocarla.
+- scrollUntilVisible:
+    element:
+      id: "payout-row-.*-1"
+    direction: DOWN
+    centerElement: true
+- takeScreenshot: trello-113-01-lista
+- tapOn:
+    id: "payout-row-.*-1"
+
+# Criterio: el detalle tiene el acceso a organizar los gastos
+- extendedWaitUntil:
+    visible: "Detalle nómina"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: "organize-expenses-button"
+    direction: DOWN
+    centerElement: true
+- takeScreenshot: trello-113-02-detalle
+- tapOn:
+    id: "organize-expenses-button"
+
+# Criterio: 3.452 € de ingresos; 700/450/120/300/542 → 2.112 € de gastos y 1.340 € disponibles
+- extendedWaitUntil:
+    visible: "Ingresos del mes"
+    timeout: 20000
+- assertVisible: ".*3\\.?452.*€.*"
+- runFlow:
+    file: ../subflows/fill-amount.yaml
+    env:
+      FIELD_ID: "expense-input-housing_expense_eur"
+      VALUE: "700"
+      DISMISS_TEXT: "Vivienda"
+- runFlow:
+    file: ../subflows/fill-amount.yaml
+    env:
+      FIELD_ID: "expense-input-food_expense_eur"
+      VALUE: "450"
+      DISMISS_TEXT: "Comida"
+- runFlow:
+    file: ../subflows/fill-amount.yaml
+    env:
+      FIELD_ID: "expense-input-transport_expense_eur"
+      VALUE: "120"
+      DISMISS_TEXT: "Transporte"
+- runFlow:
+    file: ../subflows/fill-amount.yaml
+    env:
+      FIELD_ID: "expense-input-leisure_expense_eur"
+      VALUE: "300"
+      DISMISS_TEXT: "Ocio"
+- runFlow:
+    file: ../subflows/fill-amount.yaml
+    env:
+      FIELD_ID: "expense-input-other_expense_eur"
+      VALUE: "542"
+      DISMISS_TEXT: "Otros"
+- scrollUntilVisible:
+    element: "Ingresos del mes"
+    direction: UP
+- assertVisible: ".*2\\.?112.*€.*"
+- scrollUntilVisible:
+    element:
+      id: "expense-result"
+    direction: DOWN
+- assertVisible: "Te quedan .*1\\.?340.* este mes"
+- takeScreenshot: trello-113-03-organizador
+
+# Caso límite: si los gastos superan lo cobrado se indica el exceso (sin guardar)
+- runFlow:
+    file: ../subflows/fill-amount.yaml
+    env:
+      FIELD_ID: "expense-input-other_expense_eur"
+      VALUE: "5000"
+      DISMISS_TEXT: "Otros"
+- scrollUntilVisible:
+    element:
+      id: "expense-result"
+    direction: DOWN
+- assertVisible: "Superas lo cobrado en .*3\\.?118.*"
+- takeScreenshot: trello-113-04-exceso
+- runFlow:
+    file: ../subflows/fill-amount.yaml
+    env:
+      FIELD_ID: "expense-input-other_expense_eur"
+      VALUE: "542"
+      DISMISS_TEXT: "Otros"
+
+# Criterio: guardar y volver al mismo mes recupera los importes
+- scrollUntilVisible:
+    element: "Guardar gastos"
+    direction: DOWN
+- tapOn: "Guardar gastos"
+- extendedWaitUntil:
+    visible: "Detalle nómina"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: "organize-expenses-button"
+    direction: DOWN
+    centerElement: true
+- assertVisible: "Ver mis gastos"
+- tapOn:
+    id: "organize-expenses-button"
+- extendedWaitUntil:
+    visible: "Ingresos del mes"
+    timeout: 20000
+- assertVisible:
+    id: "expense-input-housing_expense_eur"
+    text: "700"
+- scrollUntilVisible:
+    element:
+      id: "expense-input-other_expense_eur"
+    direction: DOWN
+- assertVisible:
+    id: "expense-input-transport_expense_eur"
+    text: "120"
+- assertVisible:
+    id: "expense-input-other_expense_eur"
+    text: "542"
+- tapOn: "Volver"
+
+# Criterio: en la lista el mes aparece como «Organizado»
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Tus nóminas"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: "payout-row-status-.*-1"
+    direction: DOWN
+    centerElement: true
+- assertVisible:
+    id: "payout-row-status-.*-1"
+    text: "Organizado"
+- takeScreenshot: trello-113-05-lista-organizado

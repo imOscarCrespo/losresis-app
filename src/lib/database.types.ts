@@ -1880,25 +1880,37 @@ export type Database = {
       resident_monthly_payouts: {
         Row: {
           created_at: string
+          expenses_organized_at: string | null
+          food_expense_eur: number
           friday_guard_count: number
           gross_total_eur: number
           guard_count: number
           has_double_pay: boolean
           holiday_guard_count: number
           has_pending_payment: boolean
+          housing_expense_eur: number
           id: string
+          leisure_expense_eur: number
+          other_expense_eur: number
           pending_payment_description: string | null
           period_month: number
           period_year: number
           saturday_guard_count: number
           sunday_guard_count: number
           strike_count: number
+          transport_expense_eur: number
           updated_at: string
           user_id: string
           weekday_guard_count: number
         }
         Insert: {
           created_at?: string
+          expenses_organized_at?: string | null
+          food_expense_eur?: number
+          housing_expense_eur?: number
+          leisure_expense_eur?: number
+          other_expense_eur?: number
+          transport_expense_eur?: number
           friday_guard_count?: number
           gross_total_eur: number
           guard_count?: number
@@ -1918,6 +1930,12 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          expenses_organized_at?: string | null
+          food_expense_eur?: number
+          housing_expense_eur?: number
+          leisure_expense_eur?: number
+          other_expense_eur?: number
+          transport_expense_eur?: number
           friday_guard_count?: number
           gross_total_eur?: number
           guard_count?: number
