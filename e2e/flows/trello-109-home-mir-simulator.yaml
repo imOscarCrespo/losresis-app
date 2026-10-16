@@ -1,0 +1,41 @@
+# Trello #109 · Banner Simulador MIR en el Inicio del estudiante
+# https://trello.com/c/wD1RyBHW
+#
+# Solo lectura: no crea datos. Necesita una cuenta de ESTUDIANTE (el banner no sale
+# al residente). Ejecutar con la cuenta de estudiante de pruebas:
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-student.env scripts/e2e.sh e2e/flows/trello-109-home-mir-simulator.yaml
+appId: com.losresis.app
+name: "#109 Banner Simulador MIR"
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+# Orden: bienvenida → banner → accesos rápidos
+- extendedWaitUntil:
+    visible: "TU ACTIVIDAD"
+    timeout: 20000
+- assertVisible: "Simulador MIR"
+- assertVisible: "Descubre dónde puedes conseguir plaza con tu número MIR."
+- assertVisible: "Viviendas"
+- takeScreenshot: trello-109-home
+
+# Las demás secciones siguen ahí
+- scrollUntilVisible:
+    element: "Herramientas Examen"
+    centerElement: true
+# El banner es un TouchableOpacity: su texto accesible junta título y descripción.
+- assertVisible: "RoomiesMIR.*"
+- takeScreenshot: trello-109-home-scrolled
+- scrollUntilVisible:
+    element: "Calcular mis probabilidades"
+    direction: UP
+    centerElement: true
+
+# El botón abre el simulador existente
+- tapOn: "Calcular mis probabilidades"
+- extendedWaitUntil:
+    visible: "Simulador MIR"
+    timeout: 10000
+- assertNotVisible: "Calcular mis probabilidades"
+- takeScreenshot: trello-109-simulator

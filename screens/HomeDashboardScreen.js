@@ -36,6 +36,7 @@ import {
   Exam,
   Camera,
   DoorOpen,
+  ChartBar,
 } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHospitals } from "../hooks/useHospitals";
@@ -625,6 +626,13 @@ export default function HomeDashboardScreen({
     },
     [onSectionChange]
   );
+
+  const handleMirSimulatorBannerPress = useCallback(() => {
+    posthogLogger.capture("mir_simulator_entry_clicked", {
+      source: "home_banner",
+    });
+    onSectionChange?.("nota-mir");
+  }, [onSectionChange]);
 
   const residentQuickActions = useMemo(
     () =>
@@ -1235,6 +1243,36 @@ export default function HomeDashboardScreen({
       {/* Quick actions para estudiantes */}
       {userProfile?.is_student && (
         <>
+          {/* Simulador MIR destacado. Sale aunque el estudiante no tenga aún
+              simulaciones: es justo quien más necesita descubrirlo. */}
+          <View style={styles.mirSimBanner}>
+            <View style={styles.mirSimTopRow}>
+              <View style={styles.mirSimIconWrap}>
+                <ChartBar size={30} color={PRIMARY} weight="fill" />
+              </View>
+              <View style={styles.mirSimCopy}>
+                <Text style={styles.mirSimTitle}>Simulador MIR</Text>
+                <Text style={styles.mirSimText}>
+                  Descubre dónde puedes conseguir plaza con tu número MIR.
+                </Text>
+              </View>
+              <View style={styles.mirSimBars} pointerEvents="none">
+                <View style={[styles.mirSimBar, { height: 22 }]} />
+                <View style={[styles.mirSimBar, { height: 36 }]} />
+                <View style={[styles.mirSimBar, { height: 52 }]} />
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.mirSimButton}
+              onPress={handleMirSimulatorBannerPress}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+            >
+              <Text style={styles.mirSimButtonText}>Calcular mis probabilidades</Text>
+              <Icon name="arrow-forward" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.studentActionsRow}>
             <QuickActionsMenu
               actions={studentQuickActions}
@@ -2107,7 +2145,73 @@ const styles = StyleSheet.create({
   },
   studentActionsRow: {
     marginHorizontal: -16,
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  mirSimBanner: {
+    borderRadius: 24,
+    backgroundColor: "#F4EEFF",
+    paddingTop: 16,
+    paddingBottom: 14,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "rgba(103,12,245,0.14)",
+  },
+  mirSimTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 14,
+  },
+  mirSimIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: "#E6DAFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mirSimCopy: {
+    flex: 1,
+  },
+  mirSimTitle: {
+    fontSize: 19,
+    fontWeight: "900",
+    color: PRIMARY,
+    lineHeight: 24,
+    marginBottom: 2,
+    letterSpacing: 0.2,
+  },
+  mirSimText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: "rgba(27,9,119,0.75)",
+  },
+  mirSimBars: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 5,
+    height: 52,
+  },
+  mirSimBar: {
+    width: 13,
+    borderRadius: 5,
+    backgroundColor: "rgba(103,12,245,0.12)",
+  },
+  mirSimButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: PRIMARY,
+    borderRadius: 999,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+  },
+  mirSimButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
   },
   sectionBarPurple: {
     width: 4,
