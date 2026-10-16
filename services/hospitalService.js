@@ -627,7 +627,9 @@ export const getHospitalProfileContent = async (hospitalId) => {
           org_id: null,
           about: null,
           differential_points: [],
+          institutional_video_url: null,
           images: [],
+          documents: [],
           plans: [],
         },
         error: null,
@@ -637,11 +639,13 @@ export const getHospitalProfileContent = async (hospitalId) => {
     const [
       { data: profileRow, error: profileError },
       { data: imageRows, error: imageError },
+      { data: documentRows, error: documentError },
       { data: planRows, error: planError },
+      { data: planDocumentRows, error: planDocumentError },
     ] = await Promise.all([
       supabase
         .from("employer_org_profile")
-        .select("org_id, about, differential_points")
+        .select("org_id, about, differential_points, institutional_video_url")
         .eq("org_id", orgRow.id)
         .maybeSingle(),
       supabase
@@ -650,11 +654,21 @@ export const getHospitalProfileContent = async (hospitalId) => {
         .eq("org_id", orgRow.id)
         .order("position", { ascending: true }),
       supabase
+        .from("employer_org_profile_document")
+        .select("id, public_url, title, position")
+        .eq("org_id", orgRow.id)
+        .order("position", { ascending: true }),
+      supabase
         .from("employer_org_profile_speciality")
         .select(
           "org_id, speciality_id, plan_formativo_storage_path, plan_formativo_url, description, differential_points, specialities(name)"
         )
         .eq("org_id", orgRow.id),
+      supabase
+        .from("employer_org_profile_speciality_plan")
+        .select("id, speciality_id, public_url, title, position")
+        .eq("org_id", orgRow.id)
+        .order("position", { ascending: true }),
     ]);
 
     if (profileError) {
@@ -663,8 +677,26 @@ export const getHospitalProfileContent = async (hospitalId) => {
     if (imageError) {
       throw new Error(imageError.message);
     }
+    if (documentError) {
+      throw new Error(documentError.message);
+    }
     if (planError) {
       throw new Error(planError.message);
+    }
+    if (planDocumentError) {
+      throw new Error(planDocumentError.message);
+    }
+
+    // Una especialidad puede tener varios PDF (p. ej. castellano y catalán).
+    const planDocumentsBySpeciality = new Map();
+    for (const row of planDocumentRows || []) {
+      const list = planDocumentsBySpeciality.get(row.speciality_id) || [];
+      list.push({
+        id: row.id,
+        public_url: row.public_url,
+        title: row.title?.trim() || null,
+      });
+      planDocumentsBySpeciality.set(row.speciality_id, list);
     }
 
     const plans = ((planRows || []).map((row) => {
@@ -678,6 +710,12 @@ export const getHospitalProfileContent = async (hospitalId) => {
         speciality_name: specialty?.name || "Especialidad",
         plan_formativo_storage_path: row.plan_formativo_storage_path || null,
         plan_formativo_url: row.plan_formativo_url || null,
+        // Respaldo: filas con el PDF único antiguo y sin documentos propios.
+        documents:
+          planDocumentsBySpeciality.get(row.speciality_id) ||
+          (row.plan_formativo_url
+            ? [{ id: row.plan_formativo_url, public_url: row.plan_formativo_url, title: null }]
+            : []),
         description: row.description || "",
         differential_points: Array.isArray(row.differential_points)
           ? row.differential_points.filter(Boolean)
@@ -695,7 +733,9 @@ export const getHospitalProfileContent = async (hospitalId) => {
         differential_points: Array.isArray(profileRow?.differential_points)
           ? profileRow.differential_points.filter(Boolean)
           : [],
+        institutional_video_url: profileRow?.institutional_video_url?.trim() || null,
         images: imageRows || [],
+        documents: documentRows || [],
         plans,
       },
       error: null,

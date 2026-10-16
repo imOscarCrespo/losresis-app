@@ -14,6 +14,7 @@ import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { getHospitalProfileContent } from "../services/hospitalService";
 import { openURL } from "../utils/courseUtils";
+import { parseInstitutionalVideo } from "../utils/institutionalVideo";
 import posthogLogger from "../services/posthogService";
 
 const PRIMARY = "#670CF5";
@@ -30,7 +31,9 @@ const getEmptyHospitalProfile = () => ({
   org_id: null,
   about: null,
   differential_points: [],
+  institutional_video_url: null,
   images: [],
+  documents: [],
   plans: [],
 });
 
@@ -67,7 +70,7 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
   const [profileLoading, setProfileLoading] = useState(true);
   const [expandedPlanId, setExpandedPlanId] = useState(null);
   const [planSpecialityFilter, setPlanSpecialityFilter] = useState("");
-  const [downloadingPlanId, setDownloadingPlanId] = useState(null);
+  const [downloadingDocumentId, setDownloadingDocumentId] = useState(null);
 
   useEffect(() => {
     posthogLogger.logScreen("HospitalInfoScreen", {
@@ -104,6 +107,29 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
   };
 
   const plans = hospitalProfile?.plans || [];
+  const documents = hospitalProfile?.documents || [];
+  const institutionalVideo = useMemo(
+    () => parseInstitutionalVideo(hospitalProfile?.institutional_video_url),
+    [hospitalProfile?.institutional_video_url]
+  );
+
+  const handleOpenVideo = () => {
+    if (!institutionalVideo) return;
+    posthogLogger.capture("hospital_institutional_video_opened", {
+      hospitalId: hospital?.id,
+      provider: institutionalVideo.provider,
+    });
+    openURL(institutionalVideo.watchUrl, () => {
+      Alert.alert("Error", "No se pudo abrir el vídeo.");
+    });
+  };
+
+  const handleOpenDocument = (document) => {
+    if (!document?.public_url) return;
+    openURL(document.public_url, () => {
+      Alert.alert("Error", "No se pudo abrir el documento.");
+    });
+  };
 
   const visiblePlans = useMemo(
     () =>
@@ -126,17 +152,17 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
     );
   };
 
-  const handleOpenPlanPdf = (plan) => {
-    if (!plan?.plan_formativo_url) return;
-    openURL(plan.plan_formativo_url, () => {
+  const handleOpenPlanPdf = (document) => {
+    if (!document?.public_url) return;
+    openURL(document.public_url, () => {
       Alert.alert("Error", "No se pudo abrir el plan formativo.");
     });
   };
 
-  const handleDownloadPlanPdf = async (plan) => {
-    if (!plan?.plan_formativo_url || downloadingPlanId) return;
+  const handleDownloadPlanPdf = async (plan, document) => {
+    if (!document?.public_url || downloadingDocumentId) return;
 
-    setDownloadingPlanId(plan.speciality_id);
+    setDownloadingDocumentId(document.id);
     try {
       const [{ File, Paths }, Sharing] = await Promise.all([
         import("expo-file-system"),
@@ -144,7 +170,7 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
       ]);
 
       const downloadedFile = await File.downloadFileAsync(
-        plan.plan_formativo_url,
+        document.public_url,
         Paths.cache,
         { idempotent: true }
       );
@@ -153,7 +179,9 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
       if (canShare) {
         await Sharing.shareAsync(downloadedFile.uri, {
           mimeType: "application/pdf",
-          dialogTitle: `Plan formativo de ${plan.speciality_name}`,
+          dialogTitle: document.title
+            ? `Plan formativo de ${plan.speciality_name} (${document.title})`
+            : `Plan formativo de ${plan.speciality_name}`,
           UTI: "com.adobe.pdf",
         });
       } else {
@@ -161,21 +189,17 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
       }
     } catch (error) {
       console.error("Error downloading hospital formative plan:", error);
-      handleOpenPlanPdf(plan);
+      handleOpenPlanPdf(document);
     } finally {
-      setDownloadingPlanId(null);
+      setDownloadingDocumentId(null);
     }
   };
 
   const renderPlanAccordionItem = (plan) => {
     const isExpanded = expandedPlanId === plan.speciality_id;
-    const hasPdf = Boolean(plan.plan_formativo_url);
+    const documents = plan.documents || [];
+    const hasPdf = documents.length > 0;
     const hasDifferentialPoints = (plan.differential_points || []).length > 0;
-    const isDownloading = downloadingPlanId === plan.speciality_id;
-    const fileName = getFilenameFromUrl(
-      plan.plan_formativo_url,
-      `${plan.speciality_name}.pdf`
-    );
 
     return (
       <View key={plan.speciality_id} style={styles.planAccordion}>
@@ -192,7 +216,9 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
             {hasPdf ? (
               <View style={styles.planAccordionPdfTag}>
                 <Icon name="document-text-outline" size={12} color={ERROR} />
-                <Text style={styles.planAccordionPdfTagText}>PDF</Text>
+                <Text style={styles.planAccordionPdfTagText}>
+                  {documents.length > 1 ? `${documents.length} PDF` : "PDF"}
+                </Text>
               </View>
             ) : null}
           </View>
@@ -221,47 +247,59 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
             ) : null}
 
             {hasPdf ? (
-              <View style={styles.planAccordionPdfCard}>
-                <View style={styles.pdfCardHeader}>
-                  <View style={styles.pdfIconWrap}>
-                    <Icon name="document-text-outline" size={28} color={ERROR} />
-                    <Text style={styles.pdfIconLabel}>PDF</Text>
-                  </View>
-                  <View style={styles.pdfCopy}>
-                    <Text style={styles.pdfTitle}>Documento oficial del hospital</Text>
-                    <Text style={styles.pdfFilename} numberOfLines={1}>
-                      {fileName}
-                    </Text>
-                  </View>
-                </View>
+              documents.map((document) => {
+                const isDownloading = downloadingDocumentId === document.id;
+                const fileName = getFilenameFromUrl(
+                  document.public_url,
+                  `${plan.speciality_name}.pdf`
+                );
 
-                <View style={styles.pdfActions}>
-                  <TouchableOpacity
-                    style={styles.primaryActionButton}
-                    activeOpacity={0.85}
-                    onPress={() => handleOpenPlanPdf(plan)}
-                  >
-                    <Icon name="eye-outline" size={16} color={WHITE} />
-                    <Text style={styles.primaryActionButtonText}>Ver documento</Text>
-                  </TouchableOpacity>
+                return (
+                  <View key={document.id} style={styles.planAccordionPdfCard}>
+                    <View style={styles.pdfCardHeader}>
+                      <View style={styles.pdfIconWrap}>
+                        <Icon name="document-text-outline" size={28} color={ERROR} />
+                        <Text style={styles.pdfIconLabel}>PDF</Text>
+                      </View>
+                      <View style={styles.pdfCopy}>
+                        <Text style={styles.pdfTitle}>
+                          {document.title || "Documento oficial del hospital"}
+                        </Text>
+                        <Text style={styles.pdfFilename} numberOfLines={1}>
+                          {fileName}
+                        </Text>
+                      </View>
+                    </View>
 
-                  <TouchableOpacity
-                    style={styles.secondaryActionButton}
-                    activeOpacity={0.85}
-                    onPress={() => handleDownloadPlanPdf(plan)}
-                    disabled={isDownloading}
-                  >
-                    {isDownloading ? (
-                      <ActivityIndicator size="small" color={PRIMARY} />
-                    ) : (
-                      <Icon name="download-outline" size={16} color={PRIMARY} />
-                    )}
-                    <Text style={styles.secondaryActionButtonText}>
-                      {isDownloading ? "Preparando descarga..." : "Descargar PDF"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+                    <View style={styles.pdfActions}>
+                      <TouchableOpacity
+                        style={styles.primaryActionButton}
+                        activeOpacity={0.85}
+                        onPress={() => handleOpenPlanPdf(document)}
+                      >
+                        <Icon name="eye-outline" size={16} color={WHITE} />
+                        <Text style={styles.primaryActionButtonText}>Ver documento</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.secondaryActionButton}
+                        activeOpacity={0.85}
+                        onPress={() => handleDownloadPlanPdf(plan, document)}
+                        disabled={isDownloading}
+                      >
+                        {isDownloading ? (
+                          <ActivityIndicator size="small" color={PRIMARY} />
+                        ) : (
+                          <Icon name="download-outline" size={16} color={PRIMARY} />
+                        )}
+                        <Text style={styles.secondaryActionButtonText}>
+                          {isDownloading ? "Preparando descarga..." : "Descargar PDF"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })
             ) : (
               <Text style={styles.planAccordionEmptyPdf}>
                 El hospital no ha adjuntado un PDF para esta especialidad.
@@ -316,6 +354,30 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
                 </View>
               )}
 
+              {institutionalVideo ? (
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoCardTitle}>Vídeo institucional</Text>
+                  <TouchableOpacity
+                    style={styles.videoThumb}
+                    activeOpacity={0.85}
+                    onPress={handleOpenVideo}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ver vídeo institucional"
+                  >
+                    {institutionalVideo.thumbnailUrl ? (
+                      <Image
+                        source={{ uri: institutionalVideo.thumbnailUrl }}
+                        style={styles.galleryImage}
+                        resizeMode="cover"
+                      />
+                    ) : null}
+                    <View style={styles.videoPlayBadge}>
+                      <Icon name="play" size={26} color={WHITE} />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
               {(hospitalProfile?.images || []).length > 0 && (
                 <View style={styles.infoCard}>
                   <Text style={styles.infoCardTitle}>Galería de imágenes</Text>
@@ -340,6 +402,32 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
                   </ScrollView>
                 </View>
               )}
+
+              {documents.length > 0 ? (
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoCardTitle}>Documentos del hospital</Text>
+                  <View style={styles.documentList}>
+                    {documents.map((document, index) => (
+                      <TouchableOpacity
+                        key={document.id || `${document.public_url}-${index}`}
+                        style={styles.documentRow}
+                        activeOpacity={0.8}
+                        onPress={() => handleOpenDocument(document)}
+                        accessibilityRole="button"
+                      >
+                        <View style={styles.documentIcon}>
+                          <Icon name="document-text-outline" size={20} color={ERROR} />
+                        </View>
+                        <Text style={styles.documentTitle} numberOfLines={2}>
+                          {document.title?.trim() ||
+                            getFilenameFromUrl(document.public_url, "Documento.pdf")}
+                        </Text>
+                        <Icon name="open-outline" size={18} color={PRIMARY} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
 
               <View style={styles.infoCard}>
                 <View style={styles.infoCardHeaderRow}>
@@ -513,6 +601,42 @@ const styles = StyleSheet.create({
     backgroundColor: SURFACE_ALT,
   },
   galleryImage: { width: "100%", height: "100%" },
+  videoThumb: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: ACCENT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  videoPlayBadge: {
+    position: "absolute",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: PRIMARY,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  documentList: { gap: 10 },
+  documentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: SURFACE_ALT,
+  },
+  documentIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  documentTitle: { flex: 1, fontSize: 14, fontWeight: "600", color: ACCENT },
   planFilterRow: { flexDirection: "row", gap: 8, paddingBottom: 14, paddingRight: 4 },
   planFilterChip: {
     flexDirection: "row",
