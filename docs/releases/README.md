@@ -20,6 +20,9 @@ el checklist de publicación. Lo mantiene la skill `/trello-task`.
 ## Reglas
 
 - Una sola versión `en desarrollo` a la vez.
+- Un build enviado a TestFlight o a una vía de pruebas de Play **ya gasta** su versión y su build:
+  aunque no llegue a tiendas, lo siguiente va en una versión nueva. Al hacer `eas submit`, apunta
+  en el fichero `Enviada a TestFlight: <fecha> (build N, commit X)`.
 - Las migraciones de una versión tienen que funcionar con la versión anterior ya publicada
   (se aplican antes de que salga la app nueva).
 - Si algo se publica por EAS Update en vez de por build, se apunta igualmente en la versión cuyo
