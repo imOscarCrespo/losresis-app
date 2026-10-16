@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Platform,
   ScrollView,
   StyleSheet,
@@ -39,6 +40,7 @@ import {
 import { openDirectChat } from "../services/directChatsService";
 import { getSpecialitiesCatalog } from "../services/staticCatalogService";
 import { normalizeSearchText } from "../utils/filterUtils";
+import { validateExperienceForm } from "../utils/externalRotationExperienceForm";
 import RotationReviewDetailScreen from "./RotationReviewDetailScreen";
 import posthogLogger from "../services/posthogService";
 import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
@@ -1038,15 +1040,22 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
 
   const selectedReview = route.payload?.review || null;
 
+  // Formulario tal y como se abrió, para avisar antes de salir con cambios sin guardar.
+  const publishFormSnapshotRef = useRef(null);
+
+  const applyPublishForm = useCallback((form) => {
+    publishFormSnapshotRef.current = JSON.stringify(form);
+    setPublishForm(form);
+  }, []);
+
   const resetPublishForm = useCallback(
     (review = null) => {
       if (!review) {
         setPublishCountryCode("");
-        setPublishForm({
+        // Sin fechas por defecto: es una rotación ya hecha y el residente elige cuándo fue.
+        applyPublishForm({
           ...DEFAULT_PUBLISH_FORM,
           specialityId: profileSpecialtyId,
-          startDate: formatDateForInput(new Date()),
-          endDate: formatDateForInput(addMonthsToDate(new Date())),
         });
         return;
       }
@@ -1054,7 +1063,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       const matchedCountry = findCountryByName(review.country);
       setPublishCountryCode(matchedCountry?.isoCode || "");
 
-      setPublishForm({
+      applyPublishForm({
         rotationId: review.rotation_id || "",
         specialityId: review.speciality_id || "",
         hospitalName: review.external_hospital_name || "",
@@ -1085,7 +1094,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         ),
       });
     },
-    [profileSpecialtyId]
+    [applyPublishForm, profileSpecialtyId]
   );
 
   const resetRotationForm = useCallback(
@@ -1243,10 +1252,14 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     if (field === "publishStartDate") {
       const nextStartDate = formatDateForInput(selectedDate);
 
+      // Solo se propone una fecha de fin si no había una válida: no pisar la que ya eligió.
       setPublishForm((current) => ({
         ...current,
         startDate: nextStartDate,
-        endDate: formatDateForInput(addMonthsToDate(selectedDate)),
+        endDate:
+          current.endDate && current.endDate >= nextStartDate
+            ? current.endDate
+            : formatDateForInput(addMonthsToDate(selectedDate)),
       }));
       return;
     }
@@ -1300,6 +1313,12 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
 
     return undefined;
   }, [activeDateField, publishForm.startDate, rotationForm.startDate]);
+
+  // Una experiencia es de una rotación ya empezada: su inicio no puede ser futuro.
+  const activeDateMaximum = useMemo(
+    () => (activeDateField === "publishStartDate" ? new Date() : undefined),
+    [activeDateField]
+  );
 
   const refreshAll = useCallback(() => {
     setRefreshKey((current) => current + 1);
@@ -1499,35 +1518,9 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       return;
     }
 
-    const requiredTextFields = [
-      publishForm.hospitalName,
-      publishForm.country,
-      publishForm.city,
-      publishForm.startDate,
-      publishForm.highlightSummary,
-      publishForm.beforeYouGo,
-    ];
-
-    if (requiredTextFields.some((value) => !String(value || "").trim())) {
-      Alert.alert(
-        "Campos obligatorios",
-        "Completa hospital, país, ciudad, fecha de inicio y los dos bloques de experiencia."
-      );
-      return;
-    }
-
-    const unansweredRequired = questions
-      .filter((question) => question.type === "rating" && !question.is_optional)
-      .filter((question) => {
-        const answer = publishForm.answers[question.id];
-        return !answer?.rating;
-      });
-
-    if (unansweredRequired.length > 0) {
-      Alert.alert(
-        "Valoraciones incompletas",
-        "Responde las valoraciones obligatorias antes de publicar."
-      );
+    const formProblem = validateExperienceForm(publishForm, questions);
+    if (formProblem) {
+      Alert.alert(formProblem.title, formProblem.message);
       return;
     }
 
@@ -1577,7 +1570,11 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       refreshAll();
     } catch (error) {
       console.error("Error publishing review:", error);
-      Alert.alert("Error", "No se pudo publicar la experiencia.");
+      // El formulario se conserva tal cual para que pueda reintentar sin reescribir nada.
+      Alert.alert(
+        "No se pudo publicar la experiencia",
+        "Revisa tu conexión y vuelve a intentarlo. No hemos borrado nada de lo que has escrito."
+      );
     } finally {
       setSaving(false);
     }
@@ -1652,7 +1649,28 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     }
   }, [route.name, route.payload?.rotation, route.payload?.step]);
 
+  const hasUnsavedPublishChanges =
+    route.name === "publish" &&
+    publishFormSnapshotRef.current !== null &&
+    JSON.stringify(publishForm) !== publishFormSnapshotRef.current;
+
   const handleRouteBack = useCallback(() => {
+    if (hasUnsavedPublishChanges) {
+      Alert.alert(
+        "Tienes cambios sin guardar",
+        "Si sales ahora, perderás lo que has escrito de esta experiencia.",
+        [
+          { text: "Seguir editando", style: "cancel" },
+          {
+            text: "Salir sin guardar",
+            style: "destructive",
+            onPress: () => setRoute({ name: "home", payload: null }),
+          },
+        ]
+      );
+      return;
+    }
+
     if (route.name === "rotation") {
       if (route.payload?.step === "review") {
         setRoute({
@@ -1665,7 +1683,19 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       return;
     }
     setRoute({ name: "home", payload: null });
-  }, [route, userRotations.length]);
+  }, [hasUnsavedPublishChanges, route, userRotations.length]);
+
+  // En Android el botón físico de atrás también pasa por el aviso de cambios sin guardar.
+  useEffect(() => {
+    if (Platform.OS !== "android" || !hasUnsavedPublishChanges) return undefined;
+
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      handleRouteBack();
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [handleRouteBack, hasUnsavedPublishChanges]);
 
   const renderLoadErrorNotice = () =>
     loadError ? (
@@ -2248,45 +2278,42 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     </ScrollView>
   );
 
+  const renderPublishBlockTitle = (number, title) => (
+    <View style={styles.publishBlockHeader}>
+      <View style={styles.publishBlockNumber}>
+        <Text style={styles.publishBlockNumberText}>{number}</Text>
+      </View>
+      <Text style={styles.cardTitle}>{title}</Text>
+    </View>
+  );
+
   const renderPublish = () => {
     return (
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.homeIntro}>
-          Cuenta cómo fue tu rotación: hospital, servicio y logística. Te
+          Cuenta cómo fue tu rotación para ayudar a otros residentes. Te
           llevará menos de 2 minutos.
         </Text>
 
-        <View style={styles.formCard}>
-          <SelectFilter
-            label="Especialidad"
-            value={publishForm.specialityId}
-            onChange={(value) =>
-              setPublishForm((current) => ({ ...current, specialityId: value }))
-            }
-            options={specialtyOptions}
-            placeholder="Selecciona una especialidad"
-            clearLabel="Sin especialidad"
-            emptyText="No hay especialidades disponibles."
-            noMatchesText="No encontramos especialidades con ese nombre"
-            errorText={specialtiesError}
-            onRetry={loadSpecialties}
-          />
+        <View style={styles.formCard} testID="publish-block-where">
+          {renderPublishBlockTitle(1, "¿Dónde rotaste?")}
 
-          <Text style={styles.inputLabel}>Hospital de destino</Text>
+          <Text style={styles.inputLabel}>Hospital o centro de destino</Text>
           <TextInput
             style={styles.textInput}
             value={publishForm.hospitalName}
             onChangeText={(value) =>
               setPublishForm((current) => ({ ...current, hospitalName: value }))
             }
-            placeholder="Ej. Hospital Clínic"
+            placeholder="Ej. Hospital Clínic o Boston Children's Hospital"
           />
 
-          <Text style={styles.inputLabel}>Servicio / unidad</Text>
+          <Text style={styles.inputLabel}>Servicio o unidad (opcional)</Text>
           <TextInput
             style={styles.textInput}
             value={publishForm.serviceName}
@@ -2322,54 +2349,80 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
             </View>
           </View>
 
-          <View style={styles.formColumn}>
-            <Text style={styles.inputLabel}>Fecha de inicio</Text>
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() =>
-                openDatePicker("publishStartDate", publishForm.startDate)
-              }
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.dateButtonText,
-                  !publishForm.startDate && styles.dateButtonPlaceholder,
-                ]}
+          <SelectFilter
+            label="Especialidad (opcional)"
+            value={publishForm.specialityId}
+            onChange={(value) =>
+              setPublishForm((current) => ({ ...current, specialityId: value }))
+            }
+            options={specialtyOptions}
+            placeholder="Selecciona una especialidad"
+            clearLabel="Sin especialidad"
+            emptyText="No hay especialidades disponibles."
+            noMatchesText="No encontramos especialidades con ese nombre"
+            errorText={specialtiesError}
+            onRetry={loadSpecialties}
+          />
+        </View>
+
+        <View style={styles.formCard} testID="publish-block-when">
+          {renderPublishBlockTitle(2, "¿Cuándo y cómo fue?")}
+
+          <View style={styles.formRow}>
+            <View style={styles.formColumn}>
+              <Text style={styles.inputLabel}>Fecha de inicio</Text>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() =>
+                  openDatePicker("publishStartDate", publishForm.startDate)
+                }
+                activeOpacity={0.8}
               >
-                {formatDateForDisplay(publishForm.startDate)}
-              </Text>
-              <Icon name="calendar-outline" size={20} color={TEXT_MUTED} />
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.dateButtonText,
+                    !publishForm.startDate && styles.dateButtonPlaceholder,
+                  ]}
+                >
+                  {formatDateForDisplay(publishForm.startDate)}
+                </Text>
+                <Icon name="calendar-outline" size={20} color={TEXT_MUTED} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.formColumn}>
+              <Text style={styles.inputLabel}>Fecha de fin (opcional)</Text>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() =>
+                  openDatePicker(
+                    "publishEndDate",
+                    publishForm.endDate || publishForm.startDate
+                  )
+                }
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.dateButtonText,
+                    !publishForm.endDate && styles.dateButtonPlaceholder,
+                  ]}
+                >
+                  {formatDateForDisplay(publishForm.endDate)}
+                </Text>
+                <Icon name="calendar-outline" size={20} color={TEXT_MUTED} />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <View style={styles.formColumn}>
-            <Text style={styles.inputLabel}>Fecha de fin</Text>
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() =>
-                openDatePicker(
-                  "publishEndDate",
-                  publishForm.endDate || publishForm.startDate
-                )
-              }
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.dateButtonText,
-                  !publishForm.endDate && styles.dateButtonPlaceholder,
-                ]}
-              >
-                {formatDateForDisplay(publishForm.endDate)}
-              </Text>
-              <Icon
-                name="calendar-outline"
-                size={20}
-                color={TEXT_MUTED}
-              />
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.inputLabel}>Tipo de rotación</Text>
+          <PillGroup
+            options={rotationKindOptions}
+            value={publishForm.rotationKind}
+            onChange={(value) =>
+              setPublishForm((current) => ({ ...current, rotationKind: value }))
+            }
+          />
 
           <Text style={styles.inputLabel}>Dificultad para conseguirla</Text>
           <PillGroup
@@ -2380,7 +2433,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
             }
           />
 
-          <Text style={styles.inputLabel}>Notas sobre la dificultad</Text>
+          <Text style={styles.inputLabel}>Notas sobre la dificultad (opcional)</Text>
           <TextInput
             style={styles.textInput}
             value={publishForm.difficultyNotes}
@@ -2392,24 +2445,19 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
             }
             placeholder="Burocracia, timing, requisitos..."
           />
-
-          <Text style={styles.inputLabel}>Tipo de rotación</Text>
-          <PillGroup
-            options={rotationKindOptions}
-            value={publishForm.rotationKind}
-            onChange={(value) =>
-              setPublishForm((current) => ({ ...current, rotationKind: value }))
-            }
-          />
         </View>
 
-        <View style={styles.formCard}>
-          <Text style={styles.cardTitle}>Valoración</Text>
+        <View style={styles.formCard} testID="publish-block-recommend">
+          {renderPublishBlockTitle(3, "¿Qué recomendarías a otros residentes?")}
+
           {questions
             .filter((question) => question.type === "rating")
             .map((question) => (
               <View key={question.id} style={styles.ratingQuestion}>
-                <Text style={styles.ratingQuestionLabel}>{question.text}</Text>
+                <Text style={styles.ratingQuestionLabel}>
+                  {question.text}
+                  {question.is_optional ? " (opcional)" : ""}
+                </Text>
                 <View style={styles.ratingButtons}>
                   {[1, 2, 3, 4, 5].map((rating) => (
                     <TouchableOpacity
@@ -2446,10 +2494,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
                 </View>
               </View>
             ))}
-        </View>
 
-        <View style={styles.formCard}>
-          <Text style={styles.cardTitle}>Tu opinión</Text>
           <Text style={styles.inputLabel}>¿Qué destacas de esta rotación?</Text>
           <TextInput
             style={[styles.textInput, styles.textArea]}
@@ -2479,10 +2524,8 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
             textAlignVertical="top"
             placeholder="Logística, burocracia, idioma, tiempos, alojamiento..."
           />
-        </View>
 
-        <View style={styles.formCard}>
-          <Text style={styles.cardTitle}>Contacto del servicio</Text>
+          <Text style={styles.inputLabel}>Contacto del servicio (opcional)</Text>
           <TextInput
             style={styles.textInput}
             value={publishForm.tutorName}
@@ -2499,6 +2542,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
             }
             placeholder="Email del contacto"
             autoCapitalize="none"
+            keyboardType="email-address"
           />
         </View>
 
@@ -2869,6 +2913,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
                   onChange={handleDateChange}
                   locale="es-ES"
                   minimumDate={activeDateMinimum}
+                  maximumDate={activeDateMaximum}
                 />
               </>
             ) : (
@@ -2879,6 +2924,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
                 onChange={handleDateChange}
                 locale="es-ES"
                 minimumDate={activeDateMinimum}
+                maximumDate={activeDateMaximum}
               />
             )}
           </View>
@@ -3501,6 +3547,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     color: TEXT,
+  },
+  publishBlockHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  publishBlockNumber: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: PRIMARY_SOFT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  publishBlockNumberText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: PRIMARY,
   },
   inputLabel: {
     fontSize: 13,
