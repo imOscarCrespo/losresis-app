@@ -59,3 +59,34 @@ export const getActiveFilterNames = (filters = []) => {
     })
     .map((filter) => filter.label || filter.id || "");
 };
+
+const ACCENT_FALLBACK = {
+  á: "a", à: "a", ä: "a", â: "a", ã: "a",
+  é: "e", è: "e", ë: "e", ê: "e",
+  í: "i", ì: "i", ï: "i", î: "i",
+  ó: "o", ò: "o", ö: "o", ô: "o", õ: "o",
+  ú: "u", ù: "u", ü: "u", û: "u",
+  ñ: "n", ç: "c",
+};
+
+const stripAccents = (text) => {
+  if (typeof text.normalize === "function") {
+    try {
+      return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    } catch (error) {
+      // Algunos motores JS no implementan normalize; usamos la tabla manual.
+    }
+  }
+  return text.replace(/[^\u0000-\u007f]/g, (char) => ACCENT_FALLBACK[char] || char);
+};
+
+/**
+ * Normalizar texto para búsquedas: minúsculas, sin tildes y sin espacios sobrantes.
+ * "Ginecología" y "GINECOLOGIA" producen el mismo resultado.
+ * @param {*} value - Texto a normalizar
+ * @returns {string} Texto normalizado
+ */
+export const normalizeSearchText = (value) =>
+  stripAccents(String(value ?? "").toLowerCase())
+    .replace(/\s+/g, " ")
+    .trim();

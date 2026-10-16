@@ -33,10 +33,12 @@ import {
   getFavoriteExternalRotationReviews,
   getAllExternalRotationReviews,
   getRotationReviewQuestions,
+  setExternalRotationReviewFavorite,
   updateRotationReview,
 } from "../services/externalRotationReviewService";
 import { openDirectChat } from "../services/directChatsService";
-import { getSpecialties } from "../services/hospitalService";
+import { getSpecialitiesCatalog } from "../services/staticCatalogService";
+import { normalizeSearchText } from "../utils/filterUtils";
 import RotationReviewDetailScreen from "./RotationReviewDetailScreen";
 import posthogLogger from "../services/posthogService";
 import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
@@ -82,6 +84,13 @@ const DEFAULT_PUBLISH_FORM = {
   tutorEmail: "",
   preferredContactMethod: "app_chat",
   answers: {},
+};
+
+const EXPLORE_DEFAULT_FILTERS = {
+  specialtyId: "",
+  country: "",
+  city: "",
+  query: "",
 };
 
 const DEFAULT_ROTATION_FORM = {
@@ -136,6 +145,61 @@ const normalizeLocationValue = (value) =>
 const isSameCountryCity = (left, right) =>
   normalizeLocationValue(left?.country) === normalizeLocationValue(right?.country) &&
   normalizeLocationValue(left?.city) === normalizeLocationValue(right?.city);
+
+const normalizeCenterName = (value) =>
+  normalizeSearchText(value)
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+// El hospital es texto libre: "Hospital Clínic" y "Hospital Clinic de Barcelona" son el mismo
+// centro. Solo aceptamos inclusión cuando el nombre corto tiene al menos dos palabras, para que
+// "Hospital" a secas no coincida con cualquier centro.
+const isSameCenterName = (left, right) => {
+  const a = normalizeCenterName(left);
+  const b = normalizeCenterName(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  return shorter.split(" ").length >= 2 && ` ${longer} `.includes(` ${shorter} `);
+};
+
+const isSameService = (left, right) => {
+  const a = normalizeSearchText(left);
+  const b = normalizeSearchText(right);
+  return Boolean(a) && a === b;
+};
+
+// Coincidencia real entre planes: mismo centro (en la misma ciudad y país) y fechas que se solapan.
+// Compartir solo país o ciudad no es una coincidencia.
+const isSameDestination = (left, right) =>
+  isSameCountryCity(left, right) &&
+  isSameCenterName(left?.hospital_name, right?.hospital_name);
+
+const getOverlapRange = (rotationA, rotationB) => {
+  const startA = new Date(rotationA.start_date);
+  const endA = new Date(rotationA.end_date || rotationA.start_date);
+  const startB = new Date(rotationB.start_date);
+  const endB = new Date(rotationB.end_date || rotationB.start_date);
+  return {
+    start: startA > startB ? startA : startB,
+    end: endA < endB ? endA : endB,
+  };
+};
+
+const formatShortDate = (value) =>
+  new Date(value).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+
+const isNetworkError = (error) =>
+  /network|fetch|timeout|timed out|offline|internet/i.test(
+    String(error?.message || error || "")
+  );
+
+const settle = (promise) =>
+  promise.then(
+    (value) => ({ ok: true, value }),
+    (error) => ({ ok: false, error })
+  );
 
 const parseStoredDate = (value) => {
   if (!value) return new Date();
@@ -234,64 +298,6 @@ const PillGroup = ({ options, value, onChange }) => (
   </View>
 );
 
-const SectionTitle = ({ eyebrow, title, description, actionLabel, onAction }) => (
-  <View style={styles.sectionHeader}>
-    {eyebrow ? <Text style={styles.sectionEyebrow}>{eyebrow}</Text> : null}
-    <View style={styles.sectionTitleRow}>
-      <View style={styles.sectionTitleCopy}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        {description ? (
-          <Text style={styles.sectionDescription}>{description}</Text>
-        ) : null}
-      </View>
-      {actionLabel && onAction ? (
-        <TouchableOpacity onPress={onAction} activeOpacity={0.8}>
-          <Text style={styles.sectionAction}>{actionLabel}</Text>
-        </TouchableOpacity>
-      ) : null}
-    </View>
-  </View>
-);
-
-const HubActionCard = ({ title, description, buttonLabel, onPress, eyebrow }) => (
-  <TouchableOpacity
-    style={styles.hubActionCard}
-    onPress={onPress}
-    activeOpacity={0.85}
-  >
-    <View>
-      {eyebrow ? <Text style={styles.homeSectionLabel}>{eyebrow}</Text> : null}
-      <Text style={styles.hubActionTitle}>{title}</Text>
-      <Text style={styles.hubActionDescription}>{description}</Text>
-    </View>
-    <View style={styles.hubActionButton}>
-      <Text style={styles.hubActionButtonText}>{buttonLabel}</Text>
-    </View>
-  </TouchableOpacity>
-);
-
-const MiniDestinationCard = ({ review, onPress }) => (
-  <TouchableOpacity style={styles.miniDestinationCard} onPress={onPress}>
-    <View style={styles.miniDestinationCopy}>
-      <Text style={styles.miniDestinationTitle}>{review.external_hospital_name}</Text>
-      <Text style={styles.miniDestinationSubtitle}>
-        {[review.city, review.country, review.service_name].filter(Boolean).join(" · ")}
-      </Text>
-    </View>
-    <View style={styles.miniDestinationRating}>
-      <View style={styles.miniRatingRow}>
-        <Icon name="star" size={14} color="#F4B740" />
-        <Text style={styles.miniDestinationRatingValue}>
-          {averageRatingLabel(review)}
-        </Text>
-      </View>
-      <Text style={styles.miniDestinationMeta}>
-        {review.ratings_count || 0} valoraciones
-      </Text>
-    </View>
-  </TouchableOpacity>
-);
-
 const MatchCard = ({
   item,
   onChat,
@@ -325,11 +331,29 @@ const MatchCard = ({
           <Text style={styles.matchInfoText}>{item.dateLabel}</Text>
         </View>
       ) : null}
-      <View style={styles.matchInfoRow}>
-        <Icon name="location-outline" size={14} color={PRIMARY} />
-        <Text style={styles.matchInfoText}>{item.location}</Text>
-      </View>
+      {item.center ? (
+        <View style={styles.matchInfoRow}>
+          <Icon name="business-outline" size={14} color={PRIMARY} />
+          <Text style={styles.matchInfoText}>{item.center}</Text>
+        </View>
+      ) : null}
+      {item.location ? (
+        <View style={styles.matchInfoRow}>
+          <Icon name="location-outline" size={14} color={PRIMARY} />
+          <Text style={styles.matchInfoText}>{item.location}</Text>
+        </View>
+      ) : null}
     </View>
+    {item.reasons?.length ? (
+      <View style={styles.matchReasons}>
+        {item.reasons.map((reason) => (
+          <View key={reason} style={styles.matchReasonChip}>
+            <Icon name="checkmark-circle" size={13} color={SUCCESS} />
+            <Text style={styles.matchReasonText}>{reason}</Text>
+          </View>
+        ))}
+      </View>
+    ) : null}
     <TouchableOpacity onPress={onContact} activeOpacity={0.8}>
       <Text style={styles.matchActionText}>{buttonLabel}</Text>
     </TouchableOpacity>
@@ -370,35 +394,134 @@ const FilterChip = ({ label, active, icon, onPress, disabled = false }) => (
   </TouchableOpacity>
 );
 
-const ReviewListCard = ({ review, onPress }) => (
-  <TouchableOpacity
-    style={styles.reviewCard}
-    onPress={onPress}
-    activeOpacity={0.85}
-  >
-    <View style={styles.reviewCardTop}>
-      <View style={styles.reviewChip}>
-        <Text style={styles.reviewChipText}>
-          {review.specialty_name || "Rotación externa"}
-        </Text>
-      </View>
-      <View style={styles.reviewRatingInline}>
-        <Icon name="star" size={14} color="#F4B740" />
-        <Text style={styles.reviewRatingInlineText}>
-          {averageRatingLabel(review)}
-        </Text>
-      </View>
-    </View>
+const ROTATION_KIND_LABELS = {
+  observational: "Observacional",
+  hands_on: "Participativa",
+};
 
-    <Text style={styles.reviewCardTitle}>{review.external_hospital_name}</Text>
-    <Text style={styles.reviewCardLocation}>
-      {[review.service_name, review.city, review.country].filter(Boolean).join(" · ")}
-    </Text>
+const ReviewListCard = ({
+  review,
+  onPress,
+  isFavorite = false,
+  onToggleFavorite,
+  favoriteDisabled = false,
+}) => {
+  const location = [review.city, review.country].filter(Boolean).join(", ");
+  const kindLabel = ROTATION_KIND_LABELS[review.rotation_kind] || null;
+  const dateLabel = formatDateRange(review.start_date, review.end_date);
+  const hasRatings = review.ratings_count > 0 && typeof review.average_rating === "number";
 
-    <TouchableOpacity style={styles.reviewCardButton} onPress={onPress}>
-      <Text style={styles.reviewCardButtonText}>Ver reseña</Text>
+  return (
+    <TouchableOpacity
+      style={styles.reviewCard}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <View style={styles.reviewCardTop}>
+        <View style={styles.reviewChipsRow}>
+          {review.specialty_name ? (
+            <View style={styles.reviewChip}>
+              <Text style={styles.reviewChipText} numberOfLines={1}>
+                {review.specialty_name}
+              </Text>
+            </View>
+          ) : null}
+          {kindLabel ? (
+            <View style={[styles.reviewChip, styles.reviewChipNeutral]}>
+              <Text style={[styles.reviewChipText, styles.reviewChipTextNeutral]}>
+                {kindLabel}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        {onToggleFavorite ? (
+          <TouchableOpacity
+            style={styles.favoriteButton}
+            onPress={onToggleFavorite}
+            disabled={favoriteDisabled}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isFavorite ? "Quitar de favoritas" : "Guardar en favoritas"
+            }
+          >
+            <Icon
+              name={isFavorite ? "heart" : "heart-outline"}
+              size={22}
+              color={isFavorite ? "#E11D48" : TEXT_MUTED}
+            />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      <View style={styles.reviewCardBody}>
+        <Text style={styles.reviewCardTitle} numberOfLines={2}>
+          {review.external_hospital_name}
+        </Text>
+        {location ? (
+          <View style={styles.reviewMetaRow}>
+            <Icon name="location-outline" size={14} color={TEXT_MUTED} />
+            <Text style={styles.reviewCardLocation} numberOfLines={1}>
+              {location}
+            </Text>
+          </View>
+        ) : null}
+        {review.service_name ? (
+          <View style={styles.reviewMetaRow}>
+            <Icon name="medkit-outline" size={14} color={TEXT_MUTED} />
+            <Text style={styles.reviewCardLocation} numberOfLines={1}>
+              {review.service_name}
+            </Text>
+          </View>
+        ) : null}
+        {dateLabel ? (
+          <View style={styles.reviewMetaRow}>
+            <Icon name="calendar-outline" size={14} color={TEXT_MUTED} />
+            <Text style={styles.reviewCardLocation}>{dateLabel}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {review.highlight_summary ? (
+        <Text style={styles.reviewCardSummary} numberOfLines={2}>
+          {review.highlight_summary}
+        </Text>
+      ) : null}
+
+      <View style={styles.reviewCardFooter}>
+        {hasRatings ? (
+          <View style={styles.reviewRatingInline}>
+            <Icon name="star" size={14} color="#F4B740" />
+            <Text style={styles.reviewRatingInlineText}>
+              {averageRatingLabel(review)}
+            </Text>
+            <Text style={styles.reviewRatingCount}>
+              · {review.ratings_count}{" "}
+              {review.ratings_count === 1 ? "valoración" : "valoraciones"}
+            </Text>
+          </View>
+        ) : (
+          <View />
+        )}
+        <View style={styles.reviewCardLink}>
+          <Text style={styles.reviewCardLinkText}>Ver experiencia</Text>
+          <Icon name="chevron-forward" size={14} color={PRIMARY} />
+        </View>
+      </View>
     </TouchableOpacity>
-  </TouchableOpacity>
+  );
+};
+
+const InlineNotice = ({ message, actionLabel, onAction }) => (
+  <View style={styles.inlineNotice}>
+    <Icon name="warning-outline" size={18} color={WARNING} />
+    <Text style={styles.inlineNoticeText}>{message}</Text>
+    {actionLabel && onAction ? (
+      <TouchableOpacity onPress={onAction} activeOpacity={0.8}>
+        <Text style={styles.inlineNoticeAction}>{actionLabel}</Text>
+      </TouchableOpacity>
+    ) : null}
+  </View>
 );
 
 const ContactOptionCard = ({ icon, color, backgroundColor, title, subtitle, onPress, primary = false }) => (
@@ -492,12 +615,16 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
 
   const [route, setRoute] = useState({ name: "home", payload: null });
   const [specialties, setSpecialties] = useState([]);
+  const [specialtiesError, setSpecialtiesError] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [favoritePendingId, setFavoritePendingId] = useState(null);
   const [rotations, setRotations] = useState([]);
   const [userRotations, setUserRotations] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [favoriteReviews, setFavoriteReviews] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [saving, setSaving] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [rotationToDelete, setRotationToDelete] = useState(null);
@@ -515,11 +642,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     clearAllFilters: clearPersistedExploreFilters,
   } = usePersistedFilters(
     "external-rotations-explore",
-    {
-      specialtyId: "",
-      country: "",
-      city: "",
-    },
+    EXPLORE_DEFAULT_FILTERS,
     { enableDebounce: true, debounceMs: 500 }
   );
 
@@ -527,49 +650,84 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     posthogLogger.logScreen("ExternalRotationsScreen");
   }, []);
 
+  // Las especialidades salen del catálogo estático empaquetado con la app: no dependen de la red,
+  // así que un fallo al cargar reseñas o planes nunca deja el selector vacío.
+  const loadSpecialties = useCallback(() => {
+    try {
+      const catalog = getSpecialitiesCatalog();
+      setSpecialties(
+        [...catalog]
+          .filter((specialty) => specialty?.id && specialty?.name)
+          .sort((a, b) => a.name.localeCompare(b.name, "es"))
+      );
+      setSpecialtiesError(null);
+    } catch (error) {
+      console.error("Error loading specialties catalog:", error);
+      setSpecialtiesError("No pudimos cargar las especialidades.");
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSpecialties();
+  }, [loadSpecialties]);
+
   const loadData = useCallback(async () => {
     if (!userId) {
       return;
     }
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
-      const [
-        specialtiesRes,
-        rotationsData,
-        userRotationsData,
-        reviewsData,
-        questionsData,
-        favoriteReviewsData,
-      ] =
-        await Promise.all([
-          getSpecialties(),
-          getAllRotations({}),
-          getUserRotations(userId),
-          getAllExternalRotationReviews(userId, {}),
-          getRotationReviewQuestions(),
-          getFavoriteExternalRotationReviews(userId),
-        ]);
+    const [
+      rotationsRes,
+      userRotationsRes,
+      reviewsRes,
+      questionsRes,
+      favoriteReviewsRes,
+    ] = await Promise.all([
+      settle(getAllRotations({})),
+      settle(getUserRotations(userId)),
+      settle(getAllExternalRotationReviews(userId, {})),
+      settle(getRotationReviewQuestions()),
+      settle(getFavoriteExternalRotationReviews(userId)),
+    ]);
 
-      if (!specialtiesRes.success) {
-        throw new Error(specialtiesRes.error || "Error loading specialties");
-      }
-
-      setSpecialties(specialtiesRes.specialties || []);
-      setRotations(rotationsData || []);
-      setUserRotations(userRotationsData || []);
-      setReviews(reviewsData || []);
-      setQuestions(questionsData || []);
+    // Cada bloque se aplica por separado: si uno falla, el resto de la pantalla sigue funcionando.
+    if (rotationsRes.ok) setRotations(rotationsRes.value || []);
+    if (userRotationsRes.ok) setUserRotations(userRotationsRes.value || []);
+    if (reviewsRes.ok) setReviews(reviewsRes.value || []);
+    if (questionsRes.ok) setQuestions(questionsRes.value || []);
+    if (favoriteReviewsRes.ok) {
       setFavoriteReviews(
-        (favoriteReviewsData || []).filter((review) => review.user_id !== userId)
+        (favoriteReviewsRes.value || []).filter(
+          (review) => review.user_id !== userId
+        )
       );
-    } catch (error) {
-      console.error("Error loading external rotations data:", error);
-      Alert.alert("Error", "No se pudo cargar la información de rotaciones.");
-    } finally {
-      setLoading(false);
     }
+
+    const failures = [
+      rotationsRes,
+      userRotationsRes,
+      reviewsRes,
+      questionsRes,
+      favoriteReviewsRes,
+    ].filter((result) => !result.ok);
+
+    if (failures.length) {
+      failures.forEach((result) =>
+        console.error("Error loading external rotations data:", result.error)
+      );
+      setLoadError(
+        failures.some((result) => isNetworkError(result.error))
+          ? "Parece que no tienes conexión. Comprueba tu conexión e inténtalo de nuevo."
+          : "No pudimos cargar toda la información de rotaciones externas."
+      );
+    } else {
+      setLoadError(null);
+    }
+
+    setHasLoadedOnce(true);
+    setLoading(false);
   }, [userId]);
 
   useEffect(() => {
@@ -600,14 +758,40 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       .map((city) => ({ value: city.name, label: city.name }));
   }, [exploreFilters.country]);
 
-  const hasActiveExploreFilters = useMemo(
-    () =>
-      Boolean(
-        exploreFilters.specialtyId ||
-          exploreFilters.country ||
-          exploreFilters.city
-      ),
-    [exploreFilters]
+  const specialtyIds = useMemo(
+    () => new Set(specialties.map((specialty) => specialty.id)),
+    [specialties]
+  );
+
+  // Un filtro guardado con una especialidad que ya no existe en el catálogo no debe filtrar nada.
+  const activeExploreSpecialtyId = specialtyIds.has(exploreFilters.specialtyId)
+    ? exploreFilters.specialtyId
+    : "";
+
+  // La especialidad del perfil solo se sugiere si existe en el catálogo disponible.
+  const profileSpecialtyId = specialtyIds.has(userProfile?.speciality_id)
+    ? userProfile.speciality_id
+    : "";
+
+  const hasActiveExploreFilters = Boolean(
+    activeExploreSpecialtyId ||
+      exploreFilters.country ||
+      exploreFilters.city ||
+      String(exploreFilters.query || "").trim()
+  );
+
+  const clearExploreFilters = useCallback(() => {
+    clearPersistedExploreFilters();
+  }, [clearPersistedExploreFilters]);
+
+  const handleExploreCountryChange = useCallback(
+    (country) => {
+      // La ciudad depende del país: si el país cambia, la ciudad anterior deja de ser válida.
+      updateExploreFilters(
+        country === exploreFilters.country ? { country } : { country, city: "" }
+      );
+    },
+    [exploreFilters.country, updateExploreFilters]
   );
 
   const publishCountryOptions = useMemo(() => {
@@ -699,9 +883,16 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
 
   const selectedExploreSpecialtyLabel = useMemo(
     () =>
-      specialtyOptions.find((option) => option.value === exploreFilters.specialtyId)
+      specialtyOptions.find((option) => option.value === activeExploreSpecialtyId)
         ?.label || "Especialidad",
-    [exploreFilters.specialtyId, specialtyOptions]
+    [activeExploreSpecialtyId, specialtyOptions]
+  );
+
+  const profileSpecialtyLabel = useMemo(
+    () =>
+      specialtyOptions.find((option) => option.value === profileSpecialtyId)
+        ?.label || "",
+    [profileSpecialtyId, specialtyOptions]
   );
 
   const myReviews = useMemo(
@@ -718,10 +909,21 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   );
 
   const filteredReviews = useMemo(() => {
+    const normalizedQuery = normalizeSearchText(exploreFilters.query);
+
     return publishedReviews.filter((review) => {
       if (
-        exploreFilters.specialtyId &&
-        review.speciality_id !== exploreFilters.specialtyId
+        activeExploreSpecialtyId &&
+        review.speciality_id !== activeExploreSpecialtyId
+      ) {
+        return false;
+      }
+
+      if (
+        normalizedQuery &&
+        ![review.external_hospital_name, review.service_name, review.city]
+          .map(normalizeSearchText)
+          .some((value) => value.includes(normalizedQuery))
       ) {
         return false;
       }
@@ -739,11 +941,26 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
 
       return true;
     });
-  }, [exploreFilters, publishedReviews]);
+  }, [activeExploreSpecialtyId, exploreFilters, publishedReviews]);
 
   const exploreVisibleReviews = useMemo(
     () => filteredReviews.filter((review) => review.user_id !== userId),
     [filteredReviews, userId]
+  );
+
+  // Experiencias de otros residentes publicadas, sin aplicar filtros: distingue "todavía no hay
+  // experiencias" de "ninguna coincide con tus filtros".
+  const othersPublishedReviewsCount = useMemo(
+    () =>
+      publishedReviews.filter(
+        (review) => review.is_approved && review.user_id !== userId
+      ).length,
+    [publishedReviews, userId]
+  );
+
+  const favoriteIds = useMemo(
+    () => new Set(favoriteReviews.map((review) => review.id)),
+    [favoriteReviews]
   );
 
   const primaryUserRotation = userRotations[0] || null;
@@ -757,28 +974,50 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     const ownRotationIds = new Set(userRotations.map((rotation) => rotation.id));
 
     return rotations
-      .filter((rotation) => !ownRotationIds.has(rotation.id))
-      .filter((rotation) =>
-        userRotations.some(
-          (mine) =>
-            isSameCountryCity(mine, rotation) &&
-            overlaps(mine, rotation)
-        )
+      .filter(
+        (rotation) =>
+          !ownRotationIds.has(rotation.id) && rotation.user_id !== userId
       )
-      .slice(0, 4)
-      .map((rotation) => ({
-        id: rotation.id,
-        userId: rotation.user_id,
-        name: `${rotation.user_name} ${rotation.user_surname}`.trim(),
-        meta: `${rotation.specialty_name || "Residente"}${
-          rotation.user_resident_year ? ` · R${rotation.user_resident_year}` : ""
-        }`,
-        dateLabel: formatDateRange(rotation.start_date, rotation.end_date),
-        location: [rotation.city, rotation.country].filter(Boolean).join(", "),
-        phone: rotation.user_phone,
-        email: rotation.user_email,
-      }));
-  }, [rotations, userRotations]);
+      .map((rotation) => {
+        const mine = userRotations.find(
+          (own) => isSameDestination(own, rotation) && overlaps(own, rotation)
+        );
+        return mine ? { rotation, mine } : null;
+      })
+      .filter(Boolean)
+      .slice(0, 10)
+      .map(({ rotation, mine }) => {
+        const overlap = getOverlapRange(mine, rotation);
+        const reasons = [
+          "Mismo hospital o centro",
+          `Coincidís del ${formatShortDate(overlap.start)} al ${formatShortDate(
+            overlap.end
+          )}`,
+        ];
+
+        if (isSameService(mine.service_name, rotation.service_name)) {
+          reasons.push(`Mismo servicio: ${rotation.service_name}`);
+        }
+
+        return {
+          id: rotation.id,
+          userId: rotation.user_id,
+          name:
+            `${rotation.user_name} ${rotation.user_surname}`.trim() || "Residente",
+          meta: `${rotation.specialty_name || "Residente"}${
+            rotation.user_resident_year ? ` · R${rotation.user_resident_year}` : ""
+          }`,
+          dateLabel: formatDateRange(rotation.start_date, rotation.end_date),
+          center: [rotation.hospital_name, rotation.service_name]
+            .filter(Boolean)
+            .join(" · "),
+          location: [rotation.city, rotation.country].filter(Boolean).join(", "),
+          reasons,
+          phone: rotation.user_phone,
+          email: rotation.user_email,
+        };
+      });
+  }, [rotations, userId, userRotations]);
 
   const historicalMatches = useMemo(() => {
     const ownReviewIds = new Set(myReviews.map((review) => review.id));
@@ -805,7 +1044,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         setPublishCountryCode("");
         setPublishForm({
           ...DEFAULT_PUBLISH_FORM,
-          specialityId: userProfile?.speciality_id || "",
+          specialityId: profileSpecialtyId,
           startDate: formatDateForInput(new Date()),
           endDate: formatDateForInput(addMonthsToDate(new Date())),
         });
@@ -846,7 +1085,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         ),
       });
     },
-    [userProfile?.speciality_id]
+    [profileSpecialtyId]
   );
 
   const resetRotationForm = useCallback(
@@ -856,7 +1095,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         setRotationCountryCode("");
         setRotationForm({
           ...DEFAULT_ROTATION_FORM,
-          specialityId: userProfile?.speciality_id || "",
+          specialityId: profileSpecialtyId,
           startDate,
           endDate: formatDateForInput(addMonthsToDate(startDate)),
           phone: userProfile?.phone || "",
@@ -882,7 +1121,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         phone: userProfile?.phone || "",
       });
     },
-    [userProfile?.phone, userProfile?.speciality_id]
+    [profileSpecialtyId, userProfile?.phone]
   );
 
   const openRotationForm = useCallback(
@@ -1066,38 +1305,42 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     setRefreshKey((current) => current + 1);
   }, []);
 
-  const handleSubmitRotation = useCallback(
-    async () => {
-      if (creationBlockedReason) {
-        Alert.alert(creationBlockedReason.title, creationBlockedReason.message);
-        return;
-      }
+  const buildRotationData = useCallback(() => {
+    const matchedCountry = rotationCountryCode
+      ? Country.getCountryByCode(rotationCountryCode)
+      : null;
+    const cityRecord = rotationCountryCode
+      ? (City.getCitiesOfCountry(rotationCountryCode) || []).find(
+          (city) => city.name === rotationForm.city
+        )
+      : null;
 
-      const matchedCountry = rotationCountryCode
-        ? Country.getCountryByCode(rotationCountryCode)
-        : null;
-      const cityRecord = rotationCountryCode
-        ? (City.getCitiesOfCountry(rotationCountryCode) || []).find(
-            (city) => city.name === rotationForm.city
-          )
-        : null;
+    if (
+      !rotationForm.hospitalName.trim() ||
+      !matchedCountry?.name ||
+      !rotationForm.city ||
+      !rotationForm.startDate ||
+      !rotationForm.endDate
+    ) {
+      return {
+        error: {
+          title: "Faltan datos",
+          message: "Completa hospital o centro, país, ciudad y las fechas aproximadas.",
+        },
+      };
+    }
 
-      if (
-        !rotationForm.hospitalName.trim() ||
-        !rotationForm.specialityId ||
-        !matchedCountry?.name ||
-        !rotationForm.city ||
-        !rotationForm.startDate ||
-        !rotationForm.endDate
-      ) {
-        Alert.alert(
-          "Campos obligatorios",
-          "Completa hospital, especialidad, país, ciudad, fecha de inicio y fecha de fin."
-        );
-        return;
-      }
+    if (rotationForm.endDate < rotationForm.startDate) {
+      return {
+        error: {
+          title: "Revisa las fechas",
+          message: "La fecha de fin no puede ser anterior a la de inicio.",
+        },
+      };
+    }
 
-      const rotationData = {
+    return {
+      data: {
         latitude: cityRecord?.latitude
           ? parseFloat(cityRecord.latitude)
           : rotationForm.latitude,
@@ -1108,12 +1351,41 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         end_date: rotationForm.endDate,
         country: matchedCountry.name,
         city: rotationForm.city,
-        hospital_name: rotationForm.hospitalName,
-        service_name: rotationForm.serviceName,
-        speciality_id: rotationForm.specialityId,
+        hospital_name: rotationForm.hospitalName.trim(),
+        service_name: rotationForm.serviceName.trim(),
+        speciality_id: specialtyIds.has(rotationForm.specialityId)
+          ? rotationForm.specialityId
+          : null,
         notes: rotationForm.notes,
         phone: rotationForm.phone,
-      };
+      },
+    };
+  }, [rotationCountryCode, rotationForm, specialtyIds]);
+
+  const handleReviewRotation = useCallback(() => {
+    const { error } = buildRotationData();
+    if (error) {
+      Alert.alert(error.title, error.message);
+      return;
+    }
+    setRoute((current) => ({
+      name: "rotation",
+      payload: { ...(current.payload || {}), step: "review" },
+    }));
+  }, [buildRotationData]);
+
+  const handleSubmitRotation = useCallback(
+    async () => {
+      if (creationBlockedReason) {
+        Alert.alert(creationBlockedReason.title, creationBlockedReason.message);
+        return;
+      }
+
+      const { data: rotationData, error: validationError } = buildRotationData();
+      if (validationError) {
+        Alert.alert(validationError.title, validationError.message);
+        return;
+      }
 
       try {
         setSaving(true);
@@ -1132,12 +1404,56 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         refreshAll();
       } catch (error) {
         console.error("Error saving rotation:", error);
-        Alert.alert("Error", "No se pudo guardar la futura rotación.");
+        Alert.alert(
+          "Error",
+          isNetworkError(error)
+            ? "No hay conexión. Tu plan no se ha guardado; inténtalo de nuevo."
+            : "No se pudo guardar tu plan de rotación."
+        );
       } finally {
         setSaving(false);
       }
     },
-    [refreshAll, rotationCountryCode, rotationForm, route.payload?.rotation?.id, userId]
+    [
+      buildRotationData,
+      creationBlockedReason,
+      refreshAll,
+      route.payload?.rotation?.id,
+      userId,
+    ]
+  );
+
+  const handleToggleFavorite = useCallback(
+    async (review) => {
+      if (!userId || !review?.id || favoritePendingId) {
+        return;
+      }
+
+      const shouldFavorite = !favoriteIds.has(review.id);
+      const previousFavorites = favoriteReviews;
+      setFavoritePendingId(review.id);
+      setFavoriteReviews((current) =>
+        shouldFavorite
+          ? [review, ...current.filter((item) => item.id !== review.id)]
+          : current.filter((item) => item.id !== review.id)
+      );
+
+      try {
+        await setExternalRotationReviewFavorite(userId, review.id, shouldFavorite);
+      } catch (error) {
+        console.error("Error toggling rotation review favorite:", error);
+        setFavoriteReviews(previousFavorites);
+        Alert.alert(
+          "Error",
+          isNetworkError(error)
+            ? "No hay conexión. No hemos podido actualizar tus favoritas."
+            : "No se pudo actualizar tus favoritas."
+        );
+      } finally {
+        setFavoritePendingId(null);
+      }
+    },
+    [favoriteIds, favoritePendingId, favoriteReviews, userId]
   );
 
   const handleDeleteRotation = useCallback(async () => {
@@ -1231,7 +1547,9 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       rotationId: publishForm.rotationId || null,
       externalHospitalName: publishForm.hospitalName,
       serviceName: publishForm.serviceName,
-      specialityId: publishForm.specialityId || null,
+      specialityId: specialtyIds.has(publishForm.specialityId)
+        ? publishForm.specialityId
+        : null,
       city: publishForm.city,
       country: publishForm.country,
       startDate: publishForm.startDate,
@@ -1263,7 +1581,15 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     } finally {
       setSaving(false);
     }
-  }, [publishForm, questions, refreshAll, route.payload?.review?.id, userId]);
+  }, [
+    creationBlockedReason,
+    publishForm,
+    questions,
+    refreshAll,
+    route.payload?.review?.id,
+    specialtyIds,
+    userId,
+  ]);
 
   const handleOpenAppChat = useCallback(
     async (review) => {
@@ -1311,19 +1637,84 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       case "home":
         return "Rotaciones Externas";
       case "explore":
-        return "Buscar destino";
+        return "Explorar destinos";
       case "plan":
-        return "Ya tengo destino";
+        return "Mi plan de rotación";
       case "rotation":
-        return "Publicar mi plan";
+        if (route.payload?.step === "review") return "Revisa tu plan";
+        return route.payload?.rotation ? "Editar mi plan" : "Crear mi plan";
       case "publish":
-        return "Publicar experiencia";
+        return "Compartir mi experiencia";
       case "contact":
         return "Contactar";
       default:
         return "Rotaciones Externas";
     }
-  }, [route.name]);
+  }, [route.name, route.payload?.rotation, route.payload?.step]);
+
+  const handleRouteBack = useCallback(() => {
+    if (route.name === "rotation") {
+      if (route.payload?.step === "review") {
+        setRoute({
+          name: "rotation",
+          payload: { ...(route.payload || {}), step: "form" },
+        });
+        return;
+      }
+      setRoute({ name: userRotations.length ? "plan" : "home", payload: null });
+      return;
+    }
+    setRoute({ name: "home", payload: null });
+  }, [route, userRotations.length]);
+
+  const renderLoadErrorNotice = () =>
+    loadError ? (
+      <InlineNotice
+        message={loadError}
+        actionLabel={loading ? "Cargando…" : "Reintentar"}
+        onAction={loading ? undefined : refreshAll}
+      />
+    ) : null;
+
+  const renderPlanSummary = (rotation) => {
+    const specialtyName = specialtyOptions.find(
+      (option) => option.value === rotation.speciality_id
+    )?.label;
+
+    return (
+      <View style={styles.planSummaryRows}>
+        <View style={styles.matchInfoRow}>
+          <Icon name="business-outline" size={14} color={PRIMARY} />
+          <Text style={styles.matchInfoText}>
+            {[rotation.hospital_name, rotation.service_name]
+              .filter(Boolean)
+              .join(" · ") || "Hospital sin indicar"}
+          </Text>
+        </View>
+        <View style={styles.matchInfoRow}>
+          <Icon name="location-outline" size={14} color={PRIMARY} />
+          <Text style={styles.matchInfoText}>
+            {[rotation.city, rotation.country].filter(Boolean).join(", ")}
+          </Text>
+        </View>
+        <View style={styles.matchInfoRow}>
+          <Icon name="calendar-outline" size={14} color={PRIMARY} />
+          <Text style={styles.matchInfoText}>
+            {[rotation.start_date, rotation.end_date]
+              .filter(Boolean)
+              .map(formatDateForDisplay)
+              .join(" – ")}
+          </Text>
+        </View>
+        {specialtyName ? (
+          <View style={styles.matchInfoRow}>
+            <Icon name="medkit-outline" size={14} color={PRIMARY} />
+            <Text style={styles.matchInfoText}>{specialtyName}</Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  };
 
   const renderHome = () => (
     <ScrollView
@@ -1331,137 +1722,279 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.homeHeroCard}>
-        <Text style={styles.homeHeroEyebrow}>Rotaciones externas</Text>
-        <Text style={styles.homeHeroTitle}>Tres formas de sacar partido a tu rotación externa</Text>
-      </View>
+      <Text style={styles.homeIntro}>
+        Aprovecha la experiencia de otros residentes para elegir, organizar y
+        contar tu rotación.
+      </Text>
 
-      <View style={styles.hubGrid}>
-        <HubActionCard
-          eyebrow="Buscar destino"
-          title="Quiero decidir dónde ir"
-          description="Lee reseñas, filtra por hospital o ciudad y guarda opciones para comparar"
-          buttonLabel="Buscar destino"
-          onPress={() => setRoute({ name: "explore", payload: null })}
-        />
-        {primaryUserRotation ? (
-          <View style={styles.hubActionCard}>
-            <Text style={styles.homeSectionLabel}>Tu plan activo</Text>
-            <Text style={styles.hubActionTitle}>
-              {primaryUserRotation.hospital_name || "Rotación futura"}
+      {renderLoadErrorNotice()}
+
+      <TouchableOpacity
+        style={styles.homePrimaryCard}
+        onPress={() => setRoute({ name: "explore", payload: null })}
+        activeOpacity={0.88}
+      >
+        <View style={styles.homeCardHeader}>
+          <View style={[styles.homeCardIcon, styles.homeCardIconPrimary]}>
+            <Icon name="compass-outline" size={20} color="#FFFFFF" />
+          </View>
+          <Text style={styles.homePrimaryEyebrow}>Estoy buscando dónde rotar</Text>
+        </View>
+        <Text style={styles.homePrimaryTitle}>Explorar destinos</Text>
+        <Text style={styles.homePrimaryDescription}>
+          Descubre hospitales, lee experiencias de otros residentes y guarda tus
+          favoritos.
+        </Text>
+        <View style={styles.homePrimaryFooter}>
+          {othersPublishedReviewsCount ? (
+            <Text style={styles.homePrimaryMeta}>
+              {othersPublishedReviewsCount}{" "}
+              {othersPublishedReviewsCount === 1
+                ? "experiencia publicada"
+                : "experiencias publicadas"}
             </Text>
-            <Text style={styles.hubActionDescription}>
-              {[
-                primaryUserRotation.service_name,
-                primaryUserRotation.city,
-                primaryUserRotation.country,
-                formatDateRange(
-                  primaryUserRotation.start_date,
-                  primaryUserRotation.end_date
-                ),
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </Text>
-            <View style={styles.inlineStatsRow}>
-              <View style={styles.inlineStatPill}>
-                <Text style={styles.inlineStatValue}>{upcomingMatches.length}</Text>
-                <Text style={styles.inlineStatLabel}>coincidencias</Text>
-              </View>
-              <View style={styles.inlineStatPill}>
-                <Text style={styles.inlineStatValue}>{historicalMatches.length}</Text>
-                <Text style={styles.inlineStatLabel}>experiencias relacionadas</Text>
-              </View>
+          ) : (
+            <View />
+          )}
+          <View style={styles.homePrimaryButton}>
+            <Text style={styles.homePrimaryButtonText}>Explorar destinos</Text>
+            <Icon name="arrow-forward" size={14} color={PRIMARY} />
+          </View>
+        </View>
+      </TouchableOpacity>
+
+      {primaryUserRotation ? (
+        <TouchableOpacity
+          style={styles.hubActionCard}
+          onPress={() => setRoute({ name: "plan", payload: null })}
+          activeOpacity={0.85}
+        >
+          <View style={styles.homeCardHeader}>
+            <View style={styles.homeCardIcon}>
+              <Icon name="paper-plane-outline" size={18} color={PRIMARY} />
             </View>
+            <Text style={styles.homeSectionLabel}>Tu plan publicado</Text>
+          </View>
+          <Text style={styles.hubActionTitle}>
+            {primaryUserRotation.hospital_name || "Rotación futura"}
+          </Text>
+          <Text style={styles.hubActionDescription}>
+            {[
+              primaryUserRotation.city,
+              primaryUserRotation.country,
+              formatDateRange(
+                primaryUserRotation.start_date,
+                primaryUserRotation.end_date
+              ),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </Text>
+          <View style={styles.homeCardFooter}>
+            <Text style={styles.homeCardMeta}>
+              {upcomingMatches.length
+                ? `${upcomingMatches.length} ${
+                    upcomingMatches.length === 1
+                      ? "residente coincide contigo"
+                      : "residentes coinciden contigo"
+                  }`
+                : "Sin coincidencias por ahora"}
+            </Text>
+            <Text style={styles.homeCardLink}>Ver mi plan</Text>
+          </View>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={styles.hubActionCard}
+          onPress={() => openRotationForm()}
+          activeOpacity={0.85}
+        >
+          <View style={styles.homeCardHeader}>
+            <View style={styles.homeCardIcon}>
+              <Icon name="paper-plane-outline" size={18} color={PRIMARY} />
+            </View>
+            <Text style={styles.homeSectionLabel}>Ya sé dónde voy a rotar</Text>
+          </View>
+          <Text style={styles.hubActionTitle}>Publicar mi plan</Text>
+          <Text style={styles.hubActionDescription}>
+            Comparte tu destino y fechas para encontrar residentes que coincidan
+            contigo.
+          </Text>
+          <View style={styles.homeCardFooter}>
+            <View />
+            <Text style={styles.homeCardLink}>Publicar mi plan</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {primaryUserReview ? (
+        <View style={styles.hubActionCard}>
+          <View style={styles.homeCardHeader}>
+            <View style={styles.homeCardIcon}>
+              <Icon name="create-outline" size={18} color={PRIMARY} />
+            </View>
+            <Text style={styles.homeSectionLabel}>Tu experiencia publicada</Text>
+          </View>
+          <Text style={styles.hubActionTitle}>
+            {primaryUserReview.external_hospital_name || "Experiencia publicada"}
+          </Text>
+          <Text style={styles.hubActionDescription}>
+            {[
+              primaryUserReview.city,
+              primaryUserReview.country,
+              formatDateRange(
+                primaryUserReview.start_date,
+                primaryUserReview.end_date
+              ),
+              primaryUserReview.is_approved ? null : "Pendiente de revisión",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </Text>
+          <View style={styles.hubActionRow}>
             <TouchableOpacity
-              style={styles.hubActionButton}
-              onPress={() => setRoute({ name: "plan", payload: null })}
+              style={[
+                styles.hubActionButton,
+                styles.hubActionButtonAlt,
+                styles.hubActionButtonSplit,
+              ]}
+              onPress={() => openPublish(primaryUserReview)}
               activeOpacity={0.85}
             >
-              <Text style={styles.hubActionButtonText}>Gestionar plan</Text>
+              <Text
+                style={[
+                  styles.hubActionButtonText,
+                  styles.hubActionButtonTextAlt,
+                ]}
+              >
+                Editar experiencia
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.hubDangerButton, styles.hubActionButtonSplit]}
+              onPress={() => setReviewToDelete(primaryUserReview)}
+              activeOpacity={0.85}
+            >
+              <Icon name="trash-outline" size={16} color={COLORS.ERROR} />
+              <Text style={styles.hubDangerButtonText}>Eliminar</Text>
             </TouchableOpacity>
           </View>
-        ) : (
-          <HubActionCard
-            eyebrow="Publicar plan"
-            title="Ya sé dónde voy"
-            description="Comparte tu destino y fechas para encontrar otros residentes que coincidan contigo"
-            buttonLabel="Publicar mi plan"
-            onPress={() => setRoute({ name: "plan", payload: null })}
-          />
-        )}
-        {primaryUserReview ? (
-          <View style={styles.hubActionCard}>
-            <Text style={styles.homeSectionLabel}>Tu experiencia publicada</Text>
-            <Text style={styles.hubActionTitle}>
-              {primaryUserReview.external_hospital_name || "Experiencia publicada"}
-            </Text>
-            <Text style={styles.hubActionDescription}>
-              {[
-                primaryUserReview.service_name,
-                primaryUserReview.city,
-                primaryUserReview.country,
-                formatDateRange(
-                  primaryUserReview.start_date,
-                  primaryUserReview.end_date
-                ),
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </Text>
-            <View style={styles.hubActionRow}>
-              <TouchableOpacity
-                style={[
-                  styles.hubActionButton,
-                  styles.hubActionButtonAlt,
-                  styles.hubActionButtonSplit,
-                ]}
-                onPress={() => openPublish(primaryUserReview)}
-                activeOpacity={0.85}
-              >
-                <Text
-                  style={[
-                    styles.hubActionButtonText,
-                    styles.hubActionButtonTextAlt,
-                  ]}
-                >
-                  Editar reseña
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.hubDangerButton, styles.hubActionButtonSplit]}
-                onPress={() => setReviewToDelete(primaryUserReview)}
-                activeOpacity={0.85}
-              >
-                <Icon name="trash-outline" size={16} color={COLORS.ERROR} />
-                <Text style={styles.hubDangerButtonText}>Eliminar</Text>
-              </TouchableOpacity>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={styles.hubActionCard}
+          onPress={() => openPublish()}
+          activeOpacity={0.85}
+        >
+          <View style={styles.homeCardHeader}>
+            <View style={styles.homeCardIcon}>
+              <Icon name="create-outline" size={18} color={PRIMARY} />
             </View>
+            <Text style={styles.homeSectionLabel}>Ya he realizado una rotación</Text>
           </View>
-        ) : (
-          <HubActionCard
-            eyebrow="Compartir experiencia"
-            title="Ya he vuelto de mi rotación"
-            description="Ayuda a otros residentes contando cómo fue tu rotación: hospital, servicio y logística. Te llevará menos de 2 minutos."
-            buttonLabel="Escribir reseña"
-            onPress={() => openPublish()}
-          />
-        )}
-      </View>
+          <Text style={styles.hubActionTitle}>Compartir mi experiencia</Text>
+          <Text style={styles.hubActionDescription}>
+            Cuenta cómo fue tu rotación y ayuda a otros residentes a elegir.
+          </Text>
+          <View style={styles.homeCardFooter}>
+            <View />
+            <Text style={styles.homeCardLink}>Compartir mi experiencia</Text>
+          </View>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
+
+  const renderExploreResults = () => {
+    if (exploreVisibleReviews.length) {
+      return (
+        <>
+          <Text style={styles.resultsCaption}>
+            {exploreVisibleReviews.length}{" "}
+            {exploreVisibleReviews.length === 1 ? "experiencia" : "experiencias"}
+            {hasActiveExploreFilters ? " con estos filtros" : ""}
+          </Text>
+          <View style={styles.reviewGrid}>
+            {exploreVisibleReviews.map((review) => (
+              <ReviewListCard
+                key={review.id}
+                review={review}
+                isFavorite={favoriteIds.has(review.id)}
+                favoriteDisabled={favoritePendingId === review.id}
+                onToggleFavorite={() => handleToggleFavorite(review)}
+                onPress={() =>
+                  setRoute({ name: "detail", payload: { review, from: "explore" } })
+                }
+              />
+            ))}
+          </View>
+        </>
+      );
+    }
+
+    // Sin datos por un fallo de carga: no presentarlo como si no hubiera experiencias.
+    if (loadError && !reviews.length) {
+      return (
+        <EmptyState
+          icon="warning-outline"
+          title="No pudimos cargar las experiencias"
+          description={loadError}
+          actionLabel="Reintentar"
+          onAction={refreshAll}
+        />
+      );
+    }
+
+    if (!othersPublishedReviewsCount) {
+      return (
+        <EmptyState
+          icon="create-outline"
+          title="Todavía no hay experiencias publicadas"
+          description="¿Has hecho una rotación externa? Comparte la tuya para ayudar a otros residentes."
+          actionLabel="Compartir experiencia"
+          onAction={() => openPublish()}
+        />
+      );
+    }
+
+    return (
+      <EmptyState
+        icon="search-outline"
+        title="No encontramos experiencias con estos filtros"
+        description="Prueba con otra especialidad, otro país o un nombre de hospital distinto."
+        actionLabel="Limpiar filtros"
+        onAction={clearExploreFilters}
+      />
+    );
+  };
 
   const renderExplore = () => (
     <ScrollView
       style={styles.scrollView}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
     >
-      <SectionTitle
-        eyebrow="Buscar destino"
-        title="Descubre dónde merece la pena rotar"
-        description="Explora reseñas reales, filtra por especialidad o localización y guarda tus opciones favoritas."
-      />
+      <View style={styles.searchBox}>
+        <Icon name="search" size={18} color={MUTED_LIGHT} />
+        <TextInput
+          style={styles.searchInput}
+          value={exploreFilters.query}
+          onChangeText={(value) => updateExploreFilters({ query: value })}
+          placeholder="Hospital, servicio o ciudad"
+          placeholderTextColor={MUTED_LIGHT}
+          returnKeyType="search"
+        />
+        {exploreFilters.query ? (
+          <TouchableOpacity
+            onPress={() => updateExploreFilters({ query: "" })}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Borrar búsqueda"
+          >
+            <Icon name="close-circle" size={18} color={MUTED_LIGHT} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
 
       <ScrollView
         horizontal
@@ -1471,7 +2004,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       >
         <FilterChip
           label={selectedExploreSpecialtyLabel}
-          active={!!exploreFilters.specialtyId}
+          active={!!activeExploreSpecialtyId}
           icon="medkit-outline"
           onPress={() => setOpenExploreFilter("specialty")}
         />
@@ -1490,105 +2023,101 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         />
       </ScrollView>
 
-      <SectionTitle
-        title="Tus favoritas"
-        description="Guarda reseñas para compararlas después."
-      />
-
-      {favoriteReviews.length ? (
-        <View style={styles.reviewGrid}>
-          {favoriteReviews.map((review) => (
-            <ReviewListCard
-              key={review.id}
-              review={review}
+      {(profileSpecialtyLabel && !activeExploreSpecialtyId) ||
+      hasActiveExploreFilters ? (
+        <View style={styles.filterHintsRow}>
+          {profileSpecialtyLabel && !activeExploreSpecialtyId ? (
+            <TouchableOpacity
+              style={styles.suggestionChip}
               onPress={() =>
-                setRoute({ name: "detail", payload: { review, from: "explore" } })
+                updateExploreFilters({ specialtyId: profileSpecialtyId })
               }
-            />
-          ))}
+              activeOpacity={0.8}
+            >
+              <Icon name="add" size={13} color={PRIMARY} />
+              <Text style={styles.suggestionChipText} numberOfLines={1}>
+                Mi especialidad: {profileSpecialtyLabel}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View />
+          )}
+          {hasActiveExploreFilters ? (
+            <TouchableOpacity onPress={clearExploreFilters} activeOpacity={0.75}>
+              <Text style={styles.clearFiltersText}>Limpiar filtros</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
-      ) : (
-        <EmptyState
-          icon="heart-outline"
-          title="Aún no tienes favoritas"
-          description="Marca reseñas desde el detalle y las tendrás aquí para revisarlas con calma."
-        />
-      )}
+      ) : null}
 
-      <SectionTitle
-        title="Reseñas disponibles"
-        description="Experiencias publicadas por otros residentes para ayudarte a decidir."
-      />
+      {loadError && reviews.length ? renderLoadErrorNotice() : null}
 
-      <View style={styles.resultsRow}>
-        <Text style={styles.resultsLabel}>
-          {hasActiveExploreFilters
-            ? `${exploreVisibleReviews.length} ${
-                exploreVisibleReviews.length === 1 ? "resultado" : "resultados"
-              }`
-            : `${exploreVisibleReviews.length} ${
-                exploreVisibleReviews.length === 1 ? "reseña" : "reseñas"
-              }`}
-        </Text>
-        {hasActiveExploreFilters ? (
-          <TouchableOpacity
-            style={styles.resultsAction}
-            onPress={() => clearPersistedExploreFilters()}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.resultsActionText}>Quitar filtros</Text>
-          </TouchableOpacity>
-        ) : null}
+      {renderExploreResults()}
+
+      <View style={styles.favoritesSection}>
+        <View style={styles.favoritesHeader}>
+          <Icon name="heart" size={16} color="#E11D48" />
+          <Text style={styles.favoritesTitle}>
+            Tus favoritas{favoriteReviews.length ? ` (${favoriteReviews.length})` : ""}
+          </Text>
+        </View>
+        {favoriteReviews.length ? (
+          <View style={styles.reviewGrid}>
+            {favoriteReviews.map((review) => (
+              <ReviewListCard
+                key={`favorite-${review.id}`}
+                review={review}
+                isFavorite
+                favoriteDisabled={favoritePendingId === review.id}
+                onToggleFavorite={() => handleToggleFavorite(review)}
+                onPress={() =>
+                  setRoute({ name: "detail", payload: { review, from: "explore" } })
+                }
+              />
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.favoritesEmptyText}>
+            Pulsa el corazón de una experiencia para guardarla aquí y
+            compararla después.
+          </Text>
+        )}
       </View>
-
-      {exploreVisibleReviews.length ? (
-        <View style={styles.reviewGrid}>
-          {exploreVisibleReviews.map((review) => (
-            <ReviewListCard
-              key={review.id}
-              review={review}
-              onPress={() =>
-                setRoute({ name: "detail", payload: { review, from: "explore" } })
-              }
-            />
-          ))}
-        </View>
-      ) : (
-        <EmptyState
-          icon="search-outline"
-          title="No hay resultados"
-          description="Prueba a quitar filtros o busca otra ciudad, servicio o especialidad."
-        />
-      )}
 
       <SelectorModal
         visible={openExploreFilter === "specialty"}
         onClose={() => setOpenExploreFilter(null)}
-        title="Filtrar por especialidad"
+        title="Especialidad"
         options={specialtyOptions.map((option) => ({
           id: option.value,
           name: option.label,
         }))}
-        value={exploreFilters.specialtyId}
+        value={activeExploreSpecialtyId}
         onSelect={(value) => updateExploreFilters({ specialtyId: value })}
         placeholder="Todas las especialidades"
+        clearLabel="Todas las especialidades"
+        emptyText="No hay especialidades disponibles."
+        noMatchesText="No encontramos especialidades con ese nombre"
+        errorText={specialtiesError}
+        onRetry={loadSpecialties}
       />
       <SelectorModal
         visible={openExploreFilter === "country"}
         onClose={() => setOpenExploreFilter(null)}
-        title="Filtrar por país"
+        title="País"
         options={countryOptions.map((option) => ({
           id: option.value,
           name: option.label,
         }))}
         value={exploreFilters.country}
-        onSelect={(value) => updateExploreFilters({ country: value, city: "" })}
+        onSelect={handleExploreCountryChange}
         placeholder="Todos los países"
+        noMatchesText="No encontramos países con ese nombre"
       />
       <SelectorModal
         visible={openExploreFilter === "city" && !!exploreFilters.country}
         onClose={() => setOpenExploreFilter(null)}
-        title="Filtrar por ciudad"
+        title="Ciudad"
         options={cityOptions.map((option) => ({
           id: option.value,
           name: option.label,
@@ -1596,6 +2125,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         value={exploreFilters.city}
         onSelect={(value) => updateExploreFilters({ city: value })}
         placeholder="Todas las ciudades"
+        noMatchesText="No encontramos ciudades con ese nombre"
       />
     </ScrollView>
   );
@@ -1606,64 +2136,72 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
-      <SectionTitle
-        eyebrow="Ya tengo destino"
-        title="Publica tu plan y mira si alguien coincide contigo"
-        description="Comparte hospital, ciudad y fechas. La app te enseñará residentes que van al mismo lugar y experiencias previas relacionadas."
-      />
+      {renderLoadErrorNotice()}
 
-      {primaryUserRotation ? (
-        <View style={styles.hubActionCard}>
-          <Text style={styles.homeSectionLabel}>Tu plan activo</Text>
-          <Text style={styles.hubActionTitle}>
-            {primaryUserRotation.hospital_name || "Rotación futura"}
-          </Text>
-          <Text style={styles.hubActionDescription}>
-            {[
-              primaryUserRotation.service_name,
-              primaryUserRotation.city,
-              primaryUserRotation.country,
-              formatDateRange(
-                primaryUserRotation.start_date,
-                primaryUserRotation.end_date
-              ),
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </Text>
-          <View style={styles.hubActionRow}>
-            <TouchableOpacity
-              style={[styles.hubActionButton, styles.hubActionButtonAlt, styles.hubActionButtonSplit]}
-              onPress={() => openRotationForm(primaryUserRotation)}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.hubActionButtonText, styles.hubActionButtonTextAlt]}>
-                Editar plan
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.hubDangerButton, styles.hubActionButtonSplit]}
-              onPress={() => setRotationToDelete(primaryUserRotation)}
-              activeOpacity={0.85}
-            >
-              <Icon name="trash-outline" size={16} color={COLORS.ERROR} />
-              <Text style={styles.hubDangerButtonText}>Eliminar</Text>
-            </TouchableOpacity>
+      {userRotations.length ? (
+        userRotations.map((rotation) => (
+          <View key={rotation.id} style={styles.hubActionCard}>
+            <Text style={styles.homeSectionLabel}>Tu plan publicado</Text>
+            {renderPlanSummary(rotation)}
+            <View style={styles.hubActionRow}>
+              <TouchableOpacity
+                style={[
+                  styles.hubActionButton,
+                  styles.hubActionButtonAlt,
+                  styles.hubActionButtonSplit,
+                ]}
+                onPress={() => openRotationForm(rotation)}
+                activeOpacity={0.85}
+              >
+                <Text
+                  style={[styles.hubActionButtonText, styles.hubActionButtonTextAlt]}
+                >
+                  Editar plan
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.hubDangerButton, styles.hubActionButtonSplit]}
+                onPress={() => setRotationToDelete(rotation)}
+                activeOpacity={0.85}
+              >
+                <Icon name="trash-outline" size={16} color={COLORS.ERROR} />
+                <Text style={styles.hubDangerButtonText}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        ))
       ) : (
-        <EmptyState
-          icon="paper-plane-outline"
-          title="Aún no has publicado tu plan futuro"
-          description="Solo necesitas hospital, ciudad y fechas aproximadas para ver si otro residente coincide contigo."
-          actionLabel="Crear mi plan"
-          onAction={() => openRotationForm()}
-        />
+        <View style={styles.hubActionCard}>
+          <Text style={styles.hubActionTitle}>Crea tu plan en un minuto</Text>
+          <Text style={styles.hubActionDescription}>
+            Comparte tu destino y fechas para encontrar residentes que vayan al
+            mismo hospital en las mismas fechas. Solo necesitas:
+          </Text>
+          <View style={styles.planSummaryRows}>
+            {[
+              ["business-outline", "Hospital o centro de destino"],
+              ["location-outline", "País y ciudad"],
+              ["calendar-outline", "Fechas aproximadas de inicio y fin"],
+            ].map(([icon, label]) => (
+              <View key={label} style={styles.matchInfoRow}>
+                <Icon name={icon} size={14} color={PRIMARY} />
+                <Text style={styles.matchInfoText}>{label}</Text>
+              </View>
+            ))}
+          </View>
+          <TouchableOpacity
+            style={styles.fullPrimaryButton}
+            onPress={() => openRotationForm()}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.fullPrimaryButtonText}>Crear mi plan</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
-      {primaryUserRotation ? (
+      {userRotations.length ? (
         <>
-          <Text style={styles.subsectionLabel}>Coincidencias en mismas fechas</Text>
+          <Text style={styles.subsectionLabel}>Residentes que coinciden contigo</Text>
           {upcomingMatches.length ? (
             <View style={styles.matchesList}>
               {upcomingMatches.map((match) => (
@@ -1671,7 +2209,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
                   key={match.id}
                   item={match}
                   onChat={() => handleOpenResidentMatchChat(match)}
-                  buttonLabel="Contactar"
+                  buttonLabel="Escribir por chat"
                   onContact={() => handleOpenResidentMatchChat(match)}
                 />
               ))}
@@ -1679,79 +2217,34 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           ) : (
             <EmptyState
               icon="people-outline"
-              title="Aún no hay coincidencias"
-              description="Cuando otro residente comparta un destino y fechas similares aparecerá aquí."
+              title="Sin coincidencias por ahora"
+              description="Todavía no encontramos otros residentes que coincidan con tu destino y fechas."
             />
           )}
 
-          <Text style={styles.subsectionLabel}>Experiencias previas relacionadas</Text>
           {historicalMatches.length ? (
-            <View style={styles.matchesList}>
-              {historicalMatches.map((review) => (
-                <MatchCard
-                  key={review.id}
-                  item={{
-                    name: `${review.reviewer_name} ${review.reviewer_surname}`.trim(),
-                    meta:
-                      review.service_name ||
-                      review.specialty_name ||
-                      "Experiencia publicada",
-                    location: [review.city, review.country].filter(Boolean).join(", "),
-                    dateLabel: formatDateRange(review.start_date, review.end_date),
-                  }}
-                  onChat={() => handleOpenAppChat(review)}
-                  buttonLabel="Leer reseña"
-                  onContact={() =>
-                    setRoute({ name: "detail", payload: { review, from: "plan" } })
-                  }
-                />
-              ))}
-            </View>
-          ) : (
-            <EmptyState
-              icon="time-outline"
-              title="Todavía no hay experiencias relacionadas"
-              description="Si otros residentes ya han pasado por ese destino, sus reseñas aparecerán aquí."
-            />
-          )}
+            <>
+              <Text style={styles.subsectionLabel}>
+                Experiencias en la misma ciudad
+              </Text>
+              <View style={styles.reviewGrid}>
+                {historicalMatches.map((review) => (
+                  <ReviewListCard
+                    key={review.id}
+                    review={review}
+                    isFavorite={favoriteIds.has(review.id)}
+                    favoriteDisabled={favoritePendingId === review.id}
+                    onToggleFavorite={() => handleToggleFavorite(review)}
+                    onPress={() =>
+                      setRoute({ name: "detail", payload: { review, from: "plan" } })
+                    }
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
         </>
       ) : null}
-
-      {primaryUserReview ? (
-        <View style={styles.hubActionCard}>
-          <Text style={styles.homeSectionLabel}>Tu experiencia publicada</Text>
-          <Text style={styles.hubActionTitle}>
-            {primaryUserReview.external_hospital_name || "Experiencia publicada"}
-          </Text>
-          <Text style={styles.hubActionDescription}>
-            {[
-              primaryUserReview.service_name,
-              primaryUserReview.city,
-              primaryUserReview.country,
-              formatDateRange(
-                primaryUserReview.start_date,
-                primaryUserReview.end_date
-              ),
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </Text>
-          <TouchableOpacity
-            style={styles.hubActionButton}
-            onPress={() => openPublish(primaryUserReview)}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.hubActionButtonText}>Editar experiencia</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <HubActionCard
-          title="Cuando vuelvas, publica la reseña"
-          description="Tu experiencia ayudará a quienes aún están decidiendo dónde rotar."
-          buttonLabel="Escribir reseña"
-          onPress={() => openPublish()}
-        />
-      )}
     </ScrollView>
   );
 
@@ -1762,11 +2255,10 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <SectionTitle
-          eyebrow="Tu experiencia"
-          title="Publicar experiencia"
-          description="Estructura la información para que el resto de residentes pueda decidir mejor."
-        />
+        <Text style={styles.homeIntro}>
+          Cuenta cómo fue tu rotación: hospital, servicio y logística. Te
+          llevará menos de 2 minutos.
+        </Text>
 
         <View style={styles.formCard}>
           <SelectFilter
@@ -1777,6 +2269,11 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
             }
             options={specialtyOptions}
             placeholder="Selecciona una especialidad"
+            clearLabel="Sin especialidad"
+            emptyText="No hay especialidades disponibles."
+            noMatchesText="No encontramos especialidades con ese nombre"
+            errorText={specialtiesError}
+            onRetry={loadSpecialties}
           />
 
           <Text style={styles.inputLabel}>Hospital de destino</Text>
@@ -2022,30 +2519,70 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     );
   };
 
+  const renderRotationReview = () => {
+    const { data } = buildRotationData();
+    if (!data) {
+      return null;
+    }
+    const isEditing = Boolean(route.payload?.rotation?.id);
+
+    return (
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.homeIntro}>
+          Así verán tu plan otros residentes. Te mostraremos quién va al mismo
+          hospital o centro en fechas que se solapan con las tuyas.
+        </Text>
+
+        <View style={styles.hubActionCard}>
+          <Text style={styles.homeSectionLabel}>Tu plan</Text>
+          {renderPlanSummary(data)}
+          {data.notes?.trim() ? (
+            <Text style={styles.hubActionDescription}>{data.notes.trim()}</Text>
+          ) : null}
+        </View>
+
+        <TouchableOpacity
+          style={styles.fullPrimaryButton}
+          onPress={handleSubmitRotation}
+          disabled={saving}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.fullPrimaryButtonText}>
+              {isEditing ? "Guardar cambios" : "Publicar mi plan"}
+            </Text>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={handleRouteBack}
+          disabled={saving}
+        >
+          <Text style={styles.secondaryButtonText}>Volver a editar</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  };
+
   const renderRotationForm = () => (
     <ScrollView
       style={styles.scrollView}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
     >
-      <SectionTitle
-        eyebrow="Tu futura rotación"
-        title={route.payload?.rotation ? "Editar futura rotación" : "Añadir futura rotación"}
-        description="Comparte tus fechas y destino para encontrar a otros residentes con un formato equivalente al de publicar experiencia."
-      />
+      <Text style={styles.homeIntro}>
+        Indica dónde y cuándo vas a rotar. Las fechas pueden ser aproximadas y
+        podrás cambiarlas cuando quieras.
+      </Text>
 
       <View style={styles.formCard}>
-        <SelectFilter
-          label="Especialidad"
-          value={rotationForm.specialityId}
-          onChange={(value) =>
-            setRotationForm((current) => ({ ...current, specialityId: value }))
-          }
-          options={specialtyOptions}
-          placeholder="Selecciona una especialidad"
-        />
-
-        <Text style={styles.inputLabel}>Hospital de destino</Text>
+        <Text style={styles.inputLabel}>Hospital o centro de destino</Text>
         <TextInput
           style={styles.textInput}
           value={rotationForm.hospitalName}
@@ -2055,7 +2592,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           placeholder="Ej. Hospital Clínic"
         />
 
-        <Text style={styles.inputLabel}>Servicio / unidad</Text>
+        <Text style={styles.inputLabel}>Servicio o unidad (opcional)</Text>
         <TextInput
           style={styles.textInput}
           value={rotationForm.serviceName}
@@ -2138,7 +2675,21 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       </View>
 
       <View style={styles.formCard}>
-        <Text style={styles.cardTitle}>Contacto y notas</Text>
+        <SelectFilter
+          label="Especialidad (opcional)"
+          value={rotationForm.specialityId}
+          onChange={(value) =>
+            setRotationForm((current) => ({ ...current, specialityId: value }))
+          }
+          options={specialtyOptions}
+          placeholder="Selecciona una especialidad"
+          clearLabel="Sin especialidad"
+          emptyText="No hay especialidades disponibles."
+          noMatchesText="No encontramos especialidades con ese nombre"
+          errorText={specialtiesError}
+          onRetry={loadSpecialties}
+        />
+        <Text style={styles.cardTitle}>Contacto y notas (opcional)</Text>
         <TextInput
           style={styles.textInput}
           value={rotationForm.phone}
@@ -2163,16 +2714,10 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
 
       <TouchableOpacity
         style={styles.fullPrimaryButton}
-        onPress={handleSubmitRotation}
+        onPress={handleReviewRotation}
         disabled={saving}
       >
-        {saving ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
-        ) : (
-          <Text style={styles.fullPrimaryButtonText}>
-            {route.payload?.rotation ? "Actualizar futura rotación" : "Guardar futura rotación"}
-          </Text>
-        )}
+        <Text style={styles.fullPrimaryButtonText}>Revisar plan</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -2241,7 +2786,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     );
   }
 
-  if (loading) {
+  if (loading && !hasLoadedOnce) {
     return (
       <View style={styles.centeredState}>
         <ActivityIndicator size="large" color={PRIMARY} />
@@ -2271,16 +2816,15 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   return (
     <HeroScreenLayout
       title={routeTitle}
-      onBack={
-        route.name === "home"
-          ? onBack
-          : () => setRoute({ name: "home", payload: null })
-      }
+      onBack={route.name === "home" ? onBack : handleRouteBack}
     >
       {route.name === "home" && renderHome()}
       {route.name === "explore" && renderExplore()}
       {route.name === "plan" && renderPlan()}
-      {route.name === "rotation" && renderRotationForm()}
+      {route.name === "rotation" &&
+        (route.payload?.step === "review"
+          ? renderRotationReview()
+          : renderRotationForm())}
       {route.name === "publish" && renderPublish()}
       {route.name === "contact" && renderContact()}
 
@@ -2356,69 +2900,6 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 120,
     gap: 14,
-  },
-  homeHeroCard: {
-    backgroundColor: PRIMARY,
-    borderRadius: 28,
-    padding: 22,
-    gap: 10,
-  },
-  homeHeroEyebrow: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "rgba(255,255,255,0.78)",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  homeHeroTitle: {
-    fontSize: 28,
-    lineHeight: 32,
-    fontWeight: "800",
-    color: "#FFFFFF",
-  },
-  homeHeroDescription: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: "rgba(255,255,255,0.88)",
-  },
-  sectionHeader: {
-    gap: 6,
-  },
-  sectionEyebrow: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: TEXT_MUTED,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  sectionTitleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  sectionTitleCopy: {
-    flex: 1,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    lineHeight: 26,
-    fontWeight: "800",
-    color: TEXT,
-  },
-  sectionDescription: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: TEXT_MUTED,
-    marginTop: 3,
-  },
-  sectionAction: {
-    color: PRIMARY,
-    fontWeight: "800",
-    fontSize: 13,
-  },
-  hubGrid: {
-    gap: 10,
   },
   hubActionCard: {
     backgroundColor: SURFACE_CARD,
@@ -2505,70 +2986,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 12,
   },
-  inlineStatsRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  inlineStatPill: {
-    flex: 1,
-    backgroundColor: SURFACE_ALT,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  inlineStatValue: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: TEXT,
-  },
-  inlineStatLabel: {
-    fontSize: 11,
-    lineHeight: 15,
-    color: TEXT_MUTED,
-    marginTop: 4,
-  },
-  miniDestinationCard: {
-    backgroundColor: SURFACE_CARD,
-    borderRadius: 16,
-    padding: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  miniDestinationCopy: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  miniDestinationTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: TEXT,
-  },
-  miniDestinationSubtitle: {
-    fontSize: 11,
-    color: TEXT_MUTED,
-    marginTop: 3,
-  },
-  miniDestinationRating: {
-    alignItems: "flex-end",
-  },
-  miniRatingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  miniDestinationRatingValue: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: TEXT,
-  },
-  miniDestinationMeta: {
-    marginTop: 3,
-    fontSize: 11,
-    color: TEXT_MUTED,
-  },
   myReviewCard: {
     backgroundColor: SURFACE_CARD,
     borderRadius: 18,
@@ -2645,33 +3062,6 @@ const styles = StyleSheet.create({
   },
   filterChipTextDisabled: {
     color: TEXT_MUTED,
-  },
-  resultsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    paddingVertical: 6,
-    marginBottom: 8,
-    gap: 12,
-  },
-  resultsLabel: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: "800",
-    color: TEXT,
-  },
-  resultsAction: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: PRIMARY + "10",
-    borderWidth: 1,
-    borderColor: PRIMARY + "20",
-  },
-  resultsActionText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: PRIMARY,
   },
   subsectionLabel: {
     fontSize: 11,
@@ -2784,24 +3174,282 @@ const styles = StyleSheet.create({
     color: TEXT,
   },
   reviewCardTitle: {
-    fontSize: 22,
-    lineHeight: 26,
+    fontSize: 18,
+    lineHeight: 23,
     fontWeight: "800",
     color: TEXT,
   },
   reviewCardLocation: {
+    flex: 1,
     fontSize: 13,
+    lineHeight: 18,
+    color: TEXT_MUTED,
+  },
+  reviewChipsRow: {
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  reviewChipNeutral: {
+    backgroundColor: SURFACE_ALT,
+  },
+  reviewChipTextNeutral: {
+    color: TEXT_MUTED,
+  },
+  favoriteButton: {
+    padding: 2,
+  },
+  reviewCardBody: {
+    gap: 5,
+  },
+  reviewMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  reviewCardSummary: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: TEXT,
+  },
+  reviewCardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
+  reviewRatingCount: {
+    fontSize: 12,
+    color: TEXT_MUTED,
+  },
+  reviewCardLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  reviewCardLinkText: {
+    color: PRIMARY,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  inlineNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: WARNING_SOFT,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  inlineNoticeText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: TEXT,
+  },
+  inlineNoticeAction: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: PRIMARY,
+  },
+  matchReasons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 12,
+  },
+  matchReasonChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: SUCCESS_SOFT,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  matchReasonText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: SUCCESS,
+  },
+  homeIntro: {
+    fontSize: 14,
     lineHeight: 20,
     color: TEXT_MUTED,
   },
-  reviewCardButton: {
+  homePrimaryCard: {
     backgroundColor: PRIMARY,
+    borderRadius: 22,
+    padding: 18,
+    gap: 8,
+  },
+  homeCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  homeCardIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: PRIMARY_SOFT,
+  },
+  homeCardIconPrimary: {
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  homePrimaryEyebrow: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: "800",
+    color: "rgba(255,255,255,0.85)",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  homePrimaryTitle: {
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  homePrimaryDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(255,255,255,0.9)",
+  },
+  homePrimaryFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 4,
+  },
+  homePrimaryMeta: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.85)",
+  },
+  homePrimaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  homePrimaryButtonText: {
+    color: PRIMARY,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  homeCardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
+  homeCardMeta: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "600",
+    color: TEXT_MUTED,
+  },
+  homeCardLink: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: PRIMARY,
+  },
+  resultsCaption: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: TEXT_MUTED,
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: SURFACE_CARD,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 14,
+    minHeight: 48,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: TEXT,
+    paddingVertical: 12,
+  },
+  filterHintsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    marginTop: -4,
+  },
+  suggestionChip: {
+    flexShrink: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: PRIMARY + "55",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  suggestionChipText: {
+    flexShrink: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    color: PRIMARY,
+  },
+  clearFiltersText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: PRIMARY,
+  },
+  favoritesSection: {
+    gap: 10,
+    marginTop: 8,
+  },
+  favoritesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  favoritesTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: TEXT,
+  },
+  favoritesEmptyText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: TEXT_MUTED,
+  },
+  planSummaryRows: {
+    backgroundColor: SURFACE_ALT,
+    borderRadius: 14,
+    padding: 12,
+    gap: 8,
+  },
+  secondaryButton: {
     borderRadius: 999,
     paddingVertical: 14,
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: SURFACE_ALT,
   },
-  reviewCardButtonText: {
-    color: "#FFFFFF",
+  secondaryButtonText: {
+    color: PRIMARY,
+    fontSize: 15,
     fontWeight: "800",
   },
   emptyState: {

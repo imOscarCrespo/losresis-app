@@ -13,6 +13,7 @@ import {
 import { Icon } from "./Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MotionPressable } from "./MotionPressable";
+import { normalizeSearchText } from "../utils/filterUtils";
 
 const DEFAULT_ACCENT = "#1B0977";
 const DEFAULT_PRIMARY = "#670CF5";
@@ -45,6 +46,10 @@ export function SelectorModal({
   allowClear = true,
   confirmText = "Confirmar selección",
   emptyText = "Sin resultados",
+  noMatchesText,
+  clearLabel,
+  errorText = null,
+  onRetry,
   enableSearch = true,
   accentColor = DEFAULT_ACCENT,
   primaryColor = DEFAULT_PRIMARY,
@@ -97,28 +102,60 @@ export function SelectorModal({
   };
 
   const filteredOptions = useMemo(() => {
-    if (!search.trim()) {
+    const normalizedSearch = normalizeSearchText(search);
+    if (!normalizedSearch) {
       return options;
     }
 
-    const lower = search.toLowerCase().trim();
     return options.filter((option) =>
-      String(option?.name ?? option?.label ?? option?.id ?? option?.value ?? "")
-        .toLowerCase()
-        .includes(lower)
+      normalizeSearchText(
+        option?.name ?? option?.label ?? option?.id ?? option?.value ?? ""
+      ).includes(normalizedSearch)
     );
   }, [options, search]);
 
+  const hasOptions = options.length > 0;
+  const isSearching = search.trim().length > 0;
+
   const listData = useMemo(() => {
+    // Con error o sin opciones no ofrecemos "quitar selección": no hay nada que elegir.
+    if (errorText || !hasOptions) {
+      return [];
+    }
+
     const data = [];
 
-    if (allowClear && value) {
-      data.push({ id: "", name: placeholder });
+    if (allowClear && value && !isSearching) {
+      data.push({ id: "", name: clearLabel || placeholder });
     }
 
     data.push(...filteredOptions);
     return data;
-  }, [allowClear, filteredOptions, placeholder, value]);
+  }, [
+    allowClear,
+    clearLabel,
+    errorText,
+    filteredOptions,
+    hasOptions,
+    isSearching,
+    placeholder,
+    value,
+  ]);
+
+  // Solo se puede confirmar un valor vacío (quitar selección) o uno que exista en las opciones.
+  const canConfirm = useMemo(() => {
+    if (errorText) return false;
+    if (tempValue === "" || tempValue === null || tempValue === undefined) {
+      return true;
+    }
+    return options.some((option) => (option?.id ?? option?.value) === tempValue);
+  }, [errorText, options, tempValue]);
+
+  const emptyMessage = errorText
+    ? errorText
+    : !hasOptions
+    ? emptyText
+    : noMatchesText || emptyText;
 
   return (
     <Modal
@@ -215,7 +252,19 @@ export function SelectorModal({
           }}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>{emptyText}</Text>
+              <Text style={styles.emptyText}>{emptyMessage}</Text>
+              {errorText && onRetry ? (
+                <MotionPressable
+                  style={[styles.retryBtn, { borderColor: primaryColor }]}
+                  onPress={onRetry}
+                  scaleTo={0.97}
+                  pressedOpacity={0.8}
+                >
+                  <Text style={[styles.retryText, { color: primaryColor }]}>
+                    Reintentar
+                  </Text>
+                </MotionPressable>
+              ) : null}
             </View>
           }
         />
@@ -231,8 +280,13 @@ export function SelectorModal({
           ]}
         >
           <MotionPressable
-            style={[styles.confirmBtn, { backgroundColor: primaryColor }]}
+            style={[
+              styles.confirmBtn,
+              { backgroundColor: primaryColor },
+              !canConfirm && styles.confirmBtnDisabled,
+            ]}
             onPress={handleConfirm}
+            disabled={!canConfirm}
             scaleTo={0.985}
             pressedOpacity={0.96}
           >
@@ -311,7 +365,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8F5FF",
   },
   optionClear: {
-    backgroundColor: "#FFF7F7",
+    backgroundColor: "#F8FAFC",
   },
   optionPressed: {
     backgroundColor: "#F3F4F6",
@@ -329,7 +383,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   optionNameClear: {
-    color: "#DC2626",
+    color: "#64748B",
   },
   empty: {
     padding: 32,
@@ -339,6 +393,18 @@ const styles = StyleSheet.create({
     color: "#64748B",
     fontSize: 15,
     fontWeight: "600",
+    textAlign: "center",
+  },
+  retryBtn: {
+    marginTop: 16,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  retryText: {
+    fontSize: 14,
+    fontWeight: "800",
   },
   footer: {
     paddingHorizontal: 16,
@@ -354,6 +420,11 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
     elevation: 4,
+  },
+  confirmBtnDisabled: {
+    opacity: 0.45,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   confirmText: {
     color: "#FFFFFF",

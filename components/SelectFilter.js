@@ -16,6 +16,11 @@ import { SelectorModal } from "./SelectorModal";
  * @param {boolean} props.enableSearch - Si se habilita la búsqueda (por defecto true)
  * @param {boolean} props.disabled - Si el selector está deshabilitado
  * @param {boolean} props.required - Si el campo es obligatorio (muestra asterisco)
+ * @param {string} props.clearLabel - Texto de la opción para quitar la selección (por defecto, el placeholder)
+ * @param {string} props.emptyText - Texto cuando no hay ninguna opción disponible
+ * @param {string} props.noMatchesText - Texto cuando la búsqueda no encuentra coincidencias
+ * @param {string} props.errorText - Si se informa, el selector muestra este error en vez de la lista
+ * @param {function} props.onRetry - Acción "Reintentar" cuando hay error
  */
 export const SelectFilter = ({
   label,
@@ -28,6 +33,11 @@ export const SelectFilter = ({
   enableSearch = true,
   disabled = false,
   required = false,
+  clearLabel,
+  emptyText,
+  noMatchesText,
+  errorText = null,
+  onRetry,
 }) => {
   // Usar onChange si está disponible, sino onSelect
   const handleChange = onChange || onSelect;
@@ -59,7 +69,7 @@ export const SelectFilter = ({
   });
 
   const handleSelect = (nextValue) => {
-    handleChange(nextValue === value && !required ? "" : nextValue);
+    handleChange(nextValue);
     setModalVisible(false);
   };
 
@@ -99,9 +109,11 @@ export const SelectFilter = ({
         placeholder={placeholder}
         allowClear={!required}
         enableSearch={enableSearch}
-        emptyText={
-          enableSearch ? "No se encontraron resultados" : "No hay opciones"
-        }
+        clearLabel={clearLabel}
+        emptyText={emptyText || "No hay opciones disponibles"}
+        noMatchesText={noMatchesText || "No se encontraron resultados"}
+        errorText={errorText}
+        onRetry={onRetry}
       />
     </View>
   );

@@ -78,14 +78,15 @@ export const getAllRotations = async (filters = {}) => {
       });
     }
 
-    // Filtrar por fecha de inicio: solo mostrar rotaciones con fecha >= hoy
+    // Solo rotaciones que aún no han terminado (futuras o en curso): una rotación que ya ha
+    // empezado sigue pudiendo coincidir en fechas con el plan de otro residente.
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Resetear horas para comparar solo fechas
 
     filteredData = filteredData.filter((rotation) => {
-      const rotationStart = new Date(rotation.start_date);
-      rotationStart.setHours(0, 0, 0, 0);
-      return rotationStart >= today;
+      const rotationEnd = new Date(rotation.end_date || rotation.start_date);
+      rotationEnd.setHours(0, 0, 0, 0);
+      return rotationEnd >= today;
     });
 
     if (search?.trim()) {
