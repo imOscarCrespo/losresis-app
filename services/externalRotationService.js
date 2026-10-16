@@ -251,6 +251,40 @@ export const updateRotation = async (rotationId, updates, userId) => {
 };
 
 /**
+ * Guarda la respuesta a la invitación de compartir la experiencia de un plan terminado.
+ * @param {string} rotationId - ID del plan
+ * @param {string} userId - ID del usuario (para verificar permisos)
+ * @param {"dismissed"|"not_completed"} response - La descartó o no llegó a hacer la rotación
+ * @returns {Promise<Object>} Plan actualizado
+ */
+export const respondToReviewInvite = async (rotationId, userId, response) => {
+  if (!rotationId || !userId) {
+    throw new Error("Rotation ID and User ID are required");
+  }
+  if (!["dismissed", "not_completed"].includes(response)) {
+    throw new Error(`Invalid review invite response: ${response}`);
+  }
+
+  const { data, error } = await supabase
+    .from("external_rotation")
+    .update({
+      review_invite_response: response,
+      review_invite_responded_at: new Date().toISOString(),
+    })
+    .eq("id", rotationId)
+    .eq("user_id", userId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("❌ Error responding to review invite:", error);
+    throw error;
+  }
+
+  return data;
+};
+
+/**
  * Elimina una rotación externa
  * @param {string} rotationId - ID de la rotación
  * @param {string} userId - ID del usuario (para verificar permisos)
@@ -315,5 +349,6 @@ export default {
   createRotation,
   updateRotation,
   deleteRotation,
+  respondToReviewInvite,
   updateUserPhone,
 };

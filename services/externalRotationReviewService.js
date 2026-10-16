@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { sanitizeHighlightTags } from "../utils/externalRotationQuickReview";
 import {
   getExternalRotationQuestionsCatalog,
   getHospitalByIdFromCatalog,
@@ -277,6 +278,84 @@ export const getRotationReviewQuestions = async () => {
   }
 };
 
+export const DUPLICATE_REVIEW_ERROR = "DUPLICATE_REVIEW";
+
+const fetchOwnRotationOrThrow = async (rotationId, userId) => {
+  const { data, error } = await supabase
+    .from("external_rotation")
+    .select(
+      "id, start_date, end_date, country, city, hospital_name, service_name, speciality_id"
+    )
+    .eq("id", rotationId)
+    .eq("user_id", userId)
+    .single();
+
+  if (error || !data) {
+    console.error("❌ Error fetching rotation:", error);
+    throw new Error("No se pudo obtener la información de la rotación");
+  }
+
+  return data;
+};
+
+const trimOrNull = (value) => value?.trim() || null;
+
+/**
+ * Columnas editables de la reseña. Manda lo que escribe el residente; el plan enlazado
+ * solo rellena lo que haya dejado vacío.
+ */
+const buildReviewColumns = (reviewData, rotation = null) => {
+  const {
+    externalHospitalName,
+    serviceName,
+    specialityId,
+    city,
+    country,
+    startDate,
+    endDate,
+    recommendation,
+    highlightTags,
+    difficulty,
+    difficultyNotes,
+    rotationKind,
+    highlightSummary,
+    beforeYouGo,
+    accommodationNotes,
+    costNotes,
+    tutorName,
+    tutorEmail,
+    preferredContactMethod,
+  } = reviewData;
+  const tags = sanitizeHighlightTags(highlightTags);
+
+  return {
+    external_hospital_name:
+      trimOrNull(externalHospitalName) || rotation?.hospital_name || null,
+    speciality_id: specialityId || rotation?.speciality_id || null,
+    service_name: trimOrNull(serviceName) || rotation?.service_name || null,
+    city: city || rotation?.city || null,
+    country: country || rotation?.country || null,
+    start_date: startDate || rotation?.start_date || null,
+    end_date: endDate || rotation?.end_date || null,
+    recommendation: recommendation || null,
+    highlight_tags: tags.length ? tags : null,
+    difficulty: difficulty || null,
+    difficulty_notes: trimOrNull(difficultyNotes),
+    rotation_kind: rotationKind || null,
+    highlight_summary: trimOrNull(highlightSummary),
+    before_you_go: trimOrNull(beforeYouGo),
+    accommodation_notes: trimOrNull(accommodationNotes),
+    cost_notes: trimOrNull(costNotes),
+    tutor_name: trimOrNull(tutorName),
+    tutor_email: trimOrNull(tutorEmail),
+    preferred_contact_method: preferredContactMethod || "app_chat",
+    allow_app_contact:
+      preferredContactMethod === "app_chat" ||
+      preferredContactMethod === "whatsapp" ||
+      preferredContactMethod === "email",
+  };
+};
+
 /**
  * Crea una nueva reseña de rotación externa
  * @param {Object} reviewData - Datos de la reseña
@@ -284,56 +363,18 @@ export const getRotationReviewQuestions = async () => {
  */
 export const createRotationReview = async (reviewData) => {
   try {
-    const {
-      userId,
-      rotationId,
-      externalHospitalName,
-      serviceName,
-      specialityId,
-      city,
-      country,
-      answers,
-      difficulty,
-      difficultyNotes,
-      rotationKind,
-      highlightSummary,
-      beforeYouGo,
-      tutorName,
-      tutorEmail,
-      preferredContactMethod,
-    } = reviewData;
+    const { userId, rotationId, answers } = reviewData;
 
     if (!userId) {
       throw new Error("User ID is required");
     }
 
-    let rotation = null;
-    if (rotationId) {
-      const { data: rotationData, error: rotationError } = await supabase
-        .from("external_rotation")
-        .select(
-          "id, start_date, end_date, country, city, hospital_name, service_name, speciality_id"
-        )
-        .eq("id", rotationId)
-        .eq("user_id", userId)
-        .single();
+    const rotation = rotationId
+      ? await fetchOwnRotationOrThrow(rotationId, userId)
+      : null;
+    const columns = buildReviewColumns(reviewData, rotation);
 
-      if (rotationError || !rotationData) {
-        console.error("❌ Error fetching rotation:", rotationError);
-        throw new Error("No se pudo obtener la información de la rotación");
-      }
-
-      rotation = rotationData;
-    }
-
-    const finalCountry = rotation?.country || country;
-    const finalCity = rotation?.city || city;
-    const finalHospitalName =
-      externalHospitalName?.trim() || rotation?.hospital_name || null;
-    const finalServiceName = serviceName?.trim() || rotation?.service_name || null;
-    const finalSpecialityId = specialityId || rotation?.speciality_id || null;
-
-    if (!finalCountry || !finalCity || !finalHospitalName) {
+    if (!columns.country || !columns.city || !columns.external_hospital_name) {
       throw new Error("Hospital, país y ciudad son obligatorios");
     }
 
@@ -344,26 +385,7 @@ export const createRotationReview = async (reviewData) => {
         {
           user_id: userId,
           rotation_id: rotationId || null,
-          external_hospital_name: finalHospitalName,
-          speciality_id: finalSpecialityId,
-          service_name: finalServiceName,
-          city: finalCity,
-          country: finalCountry,
-          start_date: reviewData.startDate,
-          end_date: reviewData.endDate || null,
-          difficulty: difficulty || null,
-          difficulty_notes: difficultyNotes?.trim() || null,
-          rotation_kind: rotationKind || null,
-          highlight_summary: highlightSummary?.trim() || null,
-          before_you_go: beforeYouGo?.trim() || null,
-          tutor_name: tutorName?.trim() || null,
-          tutor_email: tutorEmail?.trim() || null,
-          preferred_contact_method:
-            preferredContactMethod || "app_chat",
-          allow_app_contact:
-            preferredContactMethod === "app_chat" ||
-            preferredContactMethod === "whatsapp" ||
-            preferredContactMethod === "email",
+          ...columns,
           free_comment: null,
           is_anonymous: false,
           is_approved: true, // Publicadas automáticamente hasta implementar moderación
@@ -374,6 +396,12 @@ export const createRotationReview = async (reviewData) => {
 
     if (reviewError) {
       console.error("❌ Error creating rotation review:", reviewError);
+      // Índice único (user_id, rotation_id): ya compartió la experiencia de este plan.
+      if (reviewError.code === "23505") {
+        const duplicate = new Error("Ya has compartido la experiencia de este plan");
+        duplicate.code = DUPLICATE_REVIEW_ERROR;
+        throw duplicate;
+      }
       throw reviewError;
     }
 
@@ -459,26 +487,7 @@ export const createRotationReview = async (reviewData) => {
  */
 export const updateRotationReview = async (reviewId, reviewData) => {
   try {
-    const {
-      externalHospitalName,
-      serviceName,
-      specialityId,
-      city,
-      country,
-      answers,
-      difficulty,
-      difficultyNotes,
-      rotationKind,
-      highlightSummary,
-      beforeYouGo,
-      tutorName,
-      tutorEmail,
-      preferredContactMethod,
-      rotationId,
-      userId,
-      startDate: inputStartDate,
-      endDate: inputEndDate,
-    } = reviewData;
+    const { answers, rotationId, userId } = reviewData;
 
     if (!reviewId) {
       throw new Error("Review ID is required");
@@ -501,69 +510,30 @@ export const updateRotationReview = async (reviewId, reviewData) => {
       }
     }
 
-    // Obtener start_date, end_date, country y city de la rotación
-    let resolvedStartDate = null;
-    let resolvedEndDate = null;
-    let rotationCountry = null;
-    let rotationCity = null;
-    let rotationHospitalName = null;
-    let rotationServiceName = null;
-    let rotationSpecialityId = null;
-
+    // El plan enlazado solo rellena huecos; si ya no existe, se edita sin él.
+    let rotation = null;
     if (finalRotationId && finalUserId) {
-      const { data: rotation } = await supabase
+      const { data, error: rotationError } = await supabase
         .from("external_rotation")
         .select(
           "start_date, end_date, country, city, hospital_name, service_name, speciality_id"
         )
         .eq("id", finalRotationId)
         .eq("user_id", finalUserId)
-        .single();
-
-      if (rotation) {
-        resolvedStartDate = rotation.start_date;
-        resolvedEndDate = rotation.end_date;
-        rotationCountry = rotation.country;
-        rotationCity = rotation.city;
-        rotationHospitalName = rotation.hospital_name;
-        rotationServiceName = rotation.service_name;
-        rotationSpecialityId = rotation.speciality_id;
+        .maybeSingle();
+      if (rotationError) {
+        // Sin el plan solo se pierde el relleno de huecos: lo escrito en el formulario manda.
+        console.warn("⚠️ Could not load linked rotation for review update:", rotationError);
       }
+      rotation = data || null;
     }
-
-    // Usar country y city de la rotación si están disponibles, sino usar los del formulario
-    const finalCountry = rotationCountry || country;
-    const finalCity = rotationCity || city;
-    const finalHospitalName =
-      externalHospitalName?.trim() || rotationHospitalName || null;
-    const finalServiceName = serviceName?.trim() || rotationServiceName || null;
-    const finalSpecialityId = specialityId || rotationSpecialityId || null;
 
     // Actualizar la reseña
     const { data: review, error: reviewError } = await supabase
       .from("external_rotation_review")
       .update({
         rotation_id: finalRotationId || null,
-        external_hospital_name: finalHospitalName,
-        speciality_id: finalSpecialityId,
-        service_name: finalServiceName,
-        city: finalCity,
-        country: finalCountry,
-        start_date: resolvedStartDate || inputStartDate,
-        end_date: resolvedEndDate || inputEndDate || null,
-        difficulty: difficulty || null,
-        difficulty_notes: difficultyNotes?.trim() || null,
-        rotation_kind: rotationKind || null,
-        highlight_summary: highlightSummary?.trim() || null,
-        before_you_go: beforeYouGo?.trim() || null,
-        tutor_name: tutorName?.trim() || null,
-        tutor_email: tutorEmail?.trim() || null,
-        preferred_contact_method:
-          preferredContactMethod || "app_chat",
-        allow_app_contact:
-          preferredContactMethod === "app_chat" ||
-          preferredContactMethod === "whatsapp" ||
-          preferredContactMethod === "email",
+        ...buildReviewColumns(reviewData, rotation),
       })
       .eq("id", reviewId)
       .select()

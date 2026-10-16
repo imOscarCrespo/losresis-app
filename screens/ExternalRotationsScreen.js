@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { Icon } from "../components/Icon";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Country, City } from "../services/geoCatalog";
 import { COLORS } from "../constants/colors";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { SwipeBackWrapper } from "../components/SwipeBackWrapper";
@@ -25,6 +24,7 @@ import {
   deleteRotation,
   getAllRotations,
   getUserRotations,
+  respondToReviewInvite,
   updateRotation,
   updateUserPhone,
 } from "../services/externalRotationService";
@@ -33,14 +33,40 @@ import {
   deleteRotationReview,
   getFavoriteExternalRotationReviews,
   getAllExternalRotationReviews,
-  getRotationReviewQuestions,
+  DUPLICATE_REVIEW_ERROR,
   setExternalRotationReviewFavorite,
   updateRotationReview,
 } from "../services/externalRotationReviewService";
 import { openDirectChat } from "../services/directChatsService";
 import { getSpecialitiesCatalog } from "../services/staticCatalogService";
 import { normalizeSearchText } from "../utils/filterUtils";
-import { validateExperienceForm } from "../utils/externalRotationExperienceForm";
+import {
+  findCountryOption,
+  formatLocation,
+  getCityLabel,
+  getCountryLabel,
+} from "../utils/geoSearch";
+import {
+  LocationPickerModal,
+  LocationSelectField,
+} from "../components/externalRotations/LocationPicker";
+import {
+  QUICK_REVIEW_STEPS,
+  getPendingReviewInvites,
+  hasExtendedDetails,
+  isSameCenterName,
+  quickReviewFieldsFromPlan,
+  validateQuickReview,
+  validateQuickReviewStep,
+} from "../utils/externalRotationQuickReview";
+import {
+  QuickReviewAdviceStep,
+  QuickReviewHighlightsStep,
+  QuickReviewHowStep,
+  QuickReviewNav,
+  QuickReviewProgress,
+  ReviewHighlights,
+} from "../components/externalRotations/QuickReview";
 import RotationReviewDetailScreen from "./RotationReviewDetailScreen";
 import posthogLogger from "../services/posthogService";
 import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
@@ -77,11 +103,16 @@ const DEFAULT_PUBLISH_FORM = {
   city: "",
   startDate: "",
   endDate: "",
-  difficulty: "medium",
+  // Sin respuestas por defecto: la reseña solo recoge lo que el residente elige.
+  recommendation: "",
+  difficulty: "",
+  rotationKind: "",
+  highlightTags: [],
   difficultyNotes: "",
-  rotationKind: "observational",
   highlightSummary: "",
   beforeYouGo: "",
+  accommodationNotes: "",
+  costNotes: "",
   tutorName: "",
   tutorEmail: "",
   preferredContactMethod: "app_chat",
@@ -109,27 +140,52 @@ const DEFAULT_ROTATION_FORM = {
   phone: "",
 };
 
-const findCountryByName = (countryName) => {
-  if (!countryName) return null;
+const publishFormFromReview = (review) => ({
+  rotationId: review.rotation_id || "",
+  specialityId: review.speciality_id || "",
+  hospitalName: review.external_hospital_name || "",
+  serviceName: review.service_name || "",
+  country: review.country || "",
+  city: review.city || "",
+  startDate: review.start_date || "",
+  endDate: review.end_date || "",
+  recommendation: review.recommendation || "",
+  difficulty: review.difficulty || "",
+  rotationKind: review.rotation_kind || "",
+  highlightTags: review.highlight_tags || [],
+  difficultyNotes: review.difficulty_notes || "",
+  highlightSummary: review.highlight_summary || "",
+  beforeYouGo: review.before_you_go || "",
+  accommodationNotes: review.accommodation_notes || "",
+  costNotes: review.cost_notes || "",
+  tutorName: review.tutor_name || "",
+  tutorEmail: review.tutor_email || "",
+  preferredContactMethod: "app_chat",
+  // Las valoraciones de reseñas antiguas se conservan: el formulario nuevo no las pide,
+  // pero al guardar se reenvían para que no se pierdan.
+  answers: (review.external_rotation_review_answer || []).reduce(
+    (acc, answer) => {
+      acc[answer.question_id] = {
+        rating: answer.rating_value,
+        textValue: answer.text_value || "",
+      };
+      return acc;
+    },
+    {}
+  ),
+});
 
-  return (
-    Country.getAllCountries().find(
-      (country) =>
-        country.name.toLowerCase() === String(countryName).trim().toLowerCase()
-    ) || null
-  );
+// Referencia estable: una lista nueva en cada render recalcularía la búsqueda del selector.
+const NO_CITIES = [];
+
+// Coordenadas de una opción del catálogo; si no trae, se conservan las que había.
+const coordinatesOf = (option, fallback) => {
+  const latitude = parseFloat(option?.latitude);
+  const longitude = parseFloat(option?.longitude);
+  return Number.isFinite(latitude) && Number.isFinite(longitude)
+    ? { latitude, longitude }
+    : { latitude: fallback.latitude, longitude: fallback.longitude };
 };
-
-const difficultyOptions = [
-  { id: "easy", label: "Fácil" },
-  { id: "medium", label: "Media" },
-  { id: "hard", label: "Difícil" },
-];
-
-const rotationKindOptions = [
-  { id: "observational", label: "Observacional" },
-  { id: "hands_on", label: "Participativa" },
-];
 
 const overlaps = (rotationA, rotationB) => {
   const startA = new Date(rotationA.start_date);
@@ -147,24 +203,6 @@ const normalizeLocationValue = (value) =>
 const isSameCountryCity = (left, right) =>
   normalizeLocationValue(left?.country) === normalizeLocationValue(right?.country) &&
   normalizeLocationValue(left?.city) === normalizeLocationValue(right?.city);
-
-const normalizeCenterName = (value) =>
-  normalizeSearchText(value)
-    .replace(/[^a-z0-9 ]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-// El hospital es texto libre: "Hospital Clínic" y "Hospital Clinic de Barcelona" son el mismo
-// centro. Solo aceptamos inclusión cuando el nombre corto tiene al menos dos palabras, para que
-// "Hospital" a secas no coincida con cualquier centro.
-const isSameCenterName = (left, right) => {
-  const a = normalizeCenterName(left);
-  const b = normalizeCenterName(right);
-  if (!a || !b) return false;
-  if (a === b) return true;
-  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
-  return shorter.split(" ").length >= 2 && ` ${longer} `.includes(` ${shorter} `);
-};
 
 const isSameService = (left, right) => {
   const a = normalizeSearchText(left);
@@ -283,23 +321,6 @@ const normalizeReviewResidentData = (review) => {
   };
 };
 
-const PillGroup = ({ options, value, onChange }) => (
-  <View style={styles.pillGroup}>
-    {options.map((option) => (
-      <TouchableOpacity
-        key={option.id}
-        style={[styles.pill, value === option.id && styles.pillActive]}
-        onPress={() => onChange(option.id)}
-        activeOpacity={0.85}
-      >
-        <Text style={[styles.pillText, value === option.id && styles.pillTextActive]}>
-          {option.label}
-        </Text>
-      </TouchableOpacity>
-    ))}
-  </View>
-);
-
 const MatchCard = ({
   item,
   onChat,
@@ -362,8 +383,9 @@ const MatchCard = ({
   </View>
 );
 
-const FilterChip = ({ label, active, icon, onPress, disabled = false }) => (
+const FilterChip = ({ label, active, icon, onPress, disabled = false, testID }) => (
   <TouchableOpacity
+    testID={testID}
     style={[
       styles.filterChip,
       active && styles.filterChipActive,
@@ -396,11 +418,6 @@ const FilterChip = ({ label, active, icon, onPress, disabled = false }) => (
   </TouchableOpacity>
 );
 
-const ROTATION_KIND_LABELS = {
-  observational: "Observacional",
-  hands_on: "Participativa",
-};
-
 const ReviewListCard = ({
   review,
   onPress,
@@ -408,8 +425,7 @@ const ReviewListCard = ({
   onToggleFavorite,
   favoriteDisabled = false,
 }) => {
-  const location = [review.city, review.country].filter(Boolean).join(", ");
-  const kindLabel = ROTATION_KIND_LABELS[review.rotation_kind] || null;
+  const location = formatLocation(review.city, review.country);
   const dateLabel = formatDateRange(review.start_date, review.end_date);
   const hasRatings = review.ratings_count > 0 && typeof review.average_rating === "number";
 
@@ -425,13 +441,6 @@ const ReviewListCard = ({
             <View style={styles.reviewChip}>
               <Text style={styles.reviewChipText} numberOfLines={1}>
                 {review.specialty_name}
-              </Text>
-            </View>
-          ) : null}
-          {kindLabel ? (
-            <View style={[styles.reviewChip, styles.reviewChipNeutral]}>
-              <Text style={[styles.reviewChipText, styles.reviewChipTextNeutral]}>
-                {kindLabel}
               </Text>
             </View>
           ) : null}
@@ -484,9 +493,13 @@ const ReviewListCard = ({
         ) : null}
       </View>
 
-      {review.highlight_summary ? (
+      <ReviewHighlights review={review} maxTags={3} />
+
+      {review.before_you_go || review.highlight_summary ? (
         <Text style={styles.reviewCardSummary} numberOfLines={2}>
-          {review.highlight_summary}
+          {review.before_you_go
+            ? `Consejo: ${review.before_you_go}`
+            : review.highlight_summary}
         </Text>
       ) : null}
 
@@ -624,7 +637,9 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   const [userRotations, setUserRotations] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [favoriteReviews, setFavoriteReviews] = useState([]);
-  const [questions, setQuestions] = useState([]);
+  const [publishStep, setPublishStep] = useState(0);
+  const [publishDetailsOpen, setPublishDetailsOpen] = useState(false);
+  const [invitePendingId, setInvitePendingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -684,13 +699,11 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       rotationsRes,
       userRotationsRes,
       reviewsRes,
-      questionsRes,
       favoriteReviewsRes,
     ] = await Promise.all([
       settle(getAllRotations({})),
       settle(getUserRotations(userId)),
       settle(getAllExternalRotationReviews(userId, {})),
-      settle(getRotationReviewQuestions()),
       settle(getFavoriteExternalRotationReviews(userId)),
     ]);
 
@@ -698,7 +711,6 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     if (rotationsRes.ok) setRotations(rotationsRes.value || []);
     if (userRotationsRes.ok) setUserRotations(userRotationsRes.value || []);
     if (reviewsRes.ok) setReviews(reviewsRes.value || []);
-    if (questionsRes.ok) setQuestions(questionsRes.value || []);
     if (favoriteReviewsRes.ok) {
       setFavoriteReviews(
         (favoriteReviewsRes.value || []).filter(
@@ -711,7 +723,6 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       rotationsRes,
       userRotationsRes,
       reviewsRes,
-      questionsRes,
       favoriteReviewsRes,
     ].filter((result) => !result.ok);
 
@@ -736,29 +747,25 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     loadData();
   }, [loadData, refreshKey]);
 
-  const countryOptions = useMemo(() => {
-    return Country.getAllCountries()
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((country) => ({ value: country.name, label: country.name }));
-  }, []);
+  // Ciudades donde ya hay planes o reseñas, por país guardado: se ofrecen arriba en el
+  // selector de ciudad y permiten encontrar las que se escribieron a mano.
+  const knownCitiesByCountry = useMemo(() => {
+    const byCountry = {};
+    [...reviews, ...rotations, ...userRotations].forEach((item) => {
+      const countryKey = normalizeSearchText(item?.country);
+      if (!countryKey || !item?.city) return;
+      if (!byCountry[countryKey]) byCountry[countryKey] = [];
+      if (!byCountry[countryKey].includes(item.city)) byCountry[countryKey].push(item.city);
+    });
+    return byCountry;
+  }, [reviews, rotations, userRotations]);
 
-  const cityOptions = useMemo(() => {
-    if (!exploreFilters.country) {
-      return [];
-    }
+  const getKnownCities = useCallback(
+    (countryName) => knownCitiesByCountry[normalizeSearchText(countryName)] || NO_CITIES,
+    [knownCitiesByCountry]
+  );
 
-    const selectedCountry = Country.getAllCountries().find(
-      (country) => country.name === exploreFilters.country
-    );
-
-    if (!selectedCountry) {
-      return [];
-    }
-
-    return (City.getCitiesOfCountry(selectedCountry.isoCode) || [])
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((city) => ({ value: city.name, label: city.name }));
-  }, [exploreFilters.country]);
+  const exploreCountryCode = findCountryOption(exploreFilters.country)?.isoCode || "";
 
   const specialtyIds = useMemo(
     () => new Set(specialties.map((specialty) => specialty.id)),
@@ -795,84 +802,6 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     },
     [exploreFilters.country, updateExploreFilters]
   );
-
-  const publishCountryOptions = useMemo(() => {
-    try {
-      return [
-        { value: "", label: "Selecciona un país" },
-        ...Country.getAllCountries()
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((country) => ({
-            value: country.isoCode,
-            label: country.name,
-          })),
-      ];
-    } catch (error) {
-      console.error("Error loading publish countries:", error);
-      return [{ value: "", label: "Error cargando países" }];
-    }
-  }, []);
-
-  const publishCityOptions = useMemo(() => {
-    if (!publishCountryCode) {
-      return [{ value: "", label: "Primero selecciona un país" }];
-    }
-
-    const cities = City.getCitiesOfCountry(publishCountryCode) || [];
-
-    if (!cities.length) {
-      return [{ value: "", label: "No hay ciudades disponibles" }];
-    }
-
-    return [
-      { value: "", label: "Selecciona una ciudad" },
-      ...cities
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((city) => ({
-          value: city.name,
-          label: city.name,
-        })),
-    ];
-  }, [publishCountryCode]);
-
-  const rotationCountryOptions = useMemo(() => {
-    try {
-      return [
-        { value: "", label: "Selecciona un país" },
-        ...Country.getAllCountries()
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((country) => ({
-            value: country.isoCode,
-            label: country.name,
-          })),
-      ];
-    } catch (error) {
-      console.error("Error loading rotation countries:", error);
-      return [{ value: "", label: "Error cargando países" }];
-    }
-  }, []);
-
-  const rotationCityOptions = useMemo(() => {
-    if (!rotationCountryCode) {
-      return [{ value: "", label: "Primero selecciona un país" }];
-    }
-
-    const cities = City.getCitiesOfCountry(rotationCountryCode) || [];
-
-    if (!cities.length) {
-      return [{ value: "", label: "No hay ciudades disponibles" }];
-    }
-
-    return [
-      { value: "", label: "Selecciona una ciudad" },
-      ...cities
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((city) => ({
-          value: city.name,
-          label: city.name,
-        })),
-    ];
-  }, [rotationCountryCode]);
 
   const specialtyOptions = useMemo(
     () =>
@@ -923,21 +852,31 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
 
       if (
         normalizedQuery &&
-        ![review.external_hospital_name, review.service_name, review.city]
+        ![
+          review.external_hospital_name,
+          review.service_name,
+          review.city,
+          getCityLabel(review.country, review.city),
+        ]
           .map(normalizeSearchText)
           .some((value) => value.includes(normalizedQuery))
       ) {
         return false;
       }
 
+      // Mayúsculas y tildes no cuentan: la ciudad puede venir escrita a mano.
       if (
         exploreFilters.country &&
-        review.country !== exploreFilters.country
+        normalizeSearchText(review.country) !==
+          normalizeSearchText(exploreFilters.country)
       ) {
         return false;
       }
 
-      if (exploreFilters.city && review.city !== exploreFilters.city) {
+      if (
+        exploreFilters.city &&
+        normalizeSearchText(review.city) !== normalizeSearchText(exploreFilters.city)
+      ) {
         return false;
       }
 
@@ -1013,7 +952,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           center: [rotation.hospital_name, rotation.service_name]
             .filter(Boolean)
             .join(" · "),
-          location: [rotation.city, rotation.country].filter(Boolean).join(", "),
+          location: formatLocation(rotation.city, rotation.country),
           reasons,
           phone: rotation.user_phone,
           email: rotation.user_email,
@@ -1049,50 +988,24 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   }, []);
 
   const resetPublishForm = useCallback(
-    (review = null) => {
+    (review = null, plan = null) => {
       if (!review) {
-        setPublishCountryCode("");
+        const fromPlan = plan ? quickReviewFieldsFromPlan(plan) : {};
+        setPublishCountryCode(findCountryOption(fromPlan.country)?.isoCode || "");
         // Sin fechas por defecto: es una rotación ya hecha y el residente elige cuándo fue.
+        // Desde la invitación, el plan terminado rellena el paso 1.
         applyPublishForm({
           ...DEFAULT_PUBLISH_FORM,
-          specialityId: profileSpecialtyId,
+          ...fromPlan,
+          specialityId: fromPlan.specialityId || profileSpecialtyId,
         });
         return;
       }
 
-      const matchedCountry = findCountryByName(review.country);
+      const matchedCountry = findCountryOption(review.country);
       setPublishCountryCode(matchedCountry?.isoCode || "");
 
-      applyPublishForm({
-        rotationId: review.rotation_id || "",
-        specialityId: review.speciality_id || "",
-        hospitalName: review.external_hospital_name || "",
-        serviceName: review.service_name || "",
-        country: review.country || "",
-        city: review.city || "",
-        startDate: review.start_date || "",
-        endDate:
-          review.end_date ||
-          formatDateForInput(addMonthsToDate(review.start_date || new Date())),
-        difficulty: review.difficulty || "medium",
-        difficultyNotes: review.difficulty_notes || "",
-        rotationKind: review.rotation_kind || "observational",
-        highlightSummary: review.highlight_summary || "",
-        beforeYouGo: review.before_you_go || "",
-        tutorName: review.tutor_name || "",
-        tutorEmail: review.tutor_email || "",
-        preferredContactMethod: "app_chat",
-        answers: (review.external_rotation_review_answer || []).reduce(
-          (acc, answer) => {
-            acc[answer.question_id] = {
-              rating: answer.rating_value,
-              textValue: answer.text_value || "",
-            };
-            return acc;
-          },
-          {}
-        ),
-      });
+      applyPublishForm(publishFormFromReview(review));
     },
     [applyPublishForm, profileSpecialtyId]
   );
@@ -1112,7 +1025,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         return;
       }
 
-      const matchedCountry = findCountryByName(rotation.country);
+      const matchedCountry = findCountryOption(rotation.country);
       const startDate = rotation.start_date || formatDateForInput(new Date());
       setRotationCountryCode(matchedCountry?.isoCode || "");
       setRotationForm({
@@ -1145,75 +1058,148 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     [creationBlockedReason, resetRotationForm]
   );
 
+  // Medición del recorrido (solo agregados en PostHog): origen, inicio y paso más avanzado.
+  const publishSessionRef = useRef(null);
+
+  /**
+   * Abre la reseña rápida. `plan` la rellena desde un plan terminado (invitación);
+   * `stepIndex` y `detailsOpen` permiten ir directo a ampliar una reseña propia.
+   */
   const openPublish = useCallback(
-    (review = null) => {
+    (review = null, { plan = null, source = "hub", stepIndex = 0, detailsOpen } = {}) => {
       if (creationBlockedReason && !review) {
         Alert.alert(creationBlockedReason.title, creationBlockedReason.message);
         return;
       }
-      resetPublishForm(review);
-      setRoute({ name: "publish", payload: { review } });
+
+      // Ya compartió la experiencia de este plan: editarla en vez de duplicarla.
+      const existingForPlan =
+        !review && plan ? myReviews.find((item) => item.rotation_id === plan.id) : null;
+      const target = review || existingForPlan || null;
+      const isEditing = Boolean(target);
+
+      resetPublishForm(target, target ? null : plan);
+      setPublishStep(stepIndex);
+      setPublishDetailsOpen(
+        detailsOpen ?? Boolean(target && hasExtendedDetails(publishFormFromReview(target)))
+      );
+      publishSessionRef.current = {
+        source,
+        isEditing,
+        startedAt: Date.now(),
+        maxStep: stepIndex,
+      };
+      posthogLogger.capture("external_rotation_review_started", {
+        source,
+        is_editing: isEditing,
+        from_plan: Boolean(plan),
+      });
+      setRoute({ name: "publish", payload: { review: target } });
     },
-    [creationBlockedReason, resetPublishForm]
+    [creationBlockedReason, myReviews, resetPublishForm]
+  );
+
+  const goToPublishStep = useCallback((nextStep) => {
+    setPublishStep(nextStep);
+    const session = publishSessionRef.current;
+    if (session && nextStep > session.maxStep) {
+      session.maxStep = nextStep;
+      posthogLogger.capture("external_rotation_review_step_viewed", {
+        step: nextStep + 1,
+        step_key: QUICK_REVIEW_STEPS[nextStep]?.key,
+        source: session.source,
+        is_editing: session.isEditing,
+      });
+    }
+  }, []);
+
+  const handlePublishNext = useCallback(() => {
+    const problem = validateQuickReviewStep(
+      QUICK_REVIEW_STEPS[publishStep].key,
+      publishForm
+    );
+    if (problem) {
+      Alert.alert(problem.title, problem.message);
+      return;
+    }
+    goToPublishStep(Math.min(publishStep + 1, QUICK_REVIEW_STEPS.length - 1));
+  }, [goToPublishStep, publishForm, publishStep]);
+
+  const pendingReviewInvites = useMemo(
+    () =>
+      canCreateExternalRotation
+        ? getPendingReviewInvites(userRotations, myReviews)
+        : [],
+    [canCreateExternalRotation, myReviews, userRotations]
+  );
+
+  const handleRespondToInvite = useCallback(
+    async (plan, response) => {
+      try {
+        setInvitePendingId(plan.id);
+        const updated = await respondToReviewInvite(plan.id, userId, response);
+        setUserRotations((current) =>
+          current.map((item) => (item.id === plan.id ? { ...item, ...updated } : item))
+        );
+        posthogLogger.capture("external_rotation_review_invite_dismissed", { response });
+      } catch (error) {
+        console.error("Error responding to review invite:", error);
+        Alert.alert("Error", "No se pudo guardar tu respuesta. Inténtalo de nuevo.");
+      } finally {
+        setInvitePendingId(null);
+      }
+    },
+    [userId]
   );
 
   const handleOpenContact = useCallback((review) => {
     setRoute({ name: "contact", payload: { review } });
   }, []);
 
-  const handlePublishCountryChange = useCallback((countryCode) => {
-    const selectedCountry = countryCode
-      ? Country.getCountryByCode(countryCode)
-      : null;
+  // El selector devuelve la opción elegida (`id` es lo que se guarda) o null al quitarla.
+  // Si el país cambia, la ciudad anterior deja de ser válida.
+  const handlePublishCountryChange = useCallback((option) => {
+    setPublishCountryCode(option?.isoCode || "");
+    setPublishForm((current) =>
+      current.country === (option?.id || "")
+        ? current
+        : { ...current, country: option?.id || "", city: "" }
+    );
+  }, []);
 
-    setPublishCountryCode(countryCode || "");
+  const handlePublishCityChange = useCallback((option) => {
     setPublishForm((current) => ({
       ...current,
-      country: selectedCountry?.name || "",
-      city: "",
+      city: option?.id || "",
     }));
   }, []);
 
-  const handlePublishCityChange = useCallback((cityName) => {
-    setPublishForm((current) => ({
-      ...current,
-      city: cityName || "",
-    }));
+  const handleRotationCountryChange = useCallback((option) => {
+    setRotationCountryCode(option?.isoCode || "");
+    setRotationForm((current) =>
+      current.country === (option?.id || "")
+        ? current
+        : {
+            ...current,
+            country: option?.id || "",
+            city: "",
+            ...coordinatesOf(option, current),
+          }
+    );
   }, []);
 
-  const handleRotationCountryChange = useCallback((countryCode) => {
-    const selectedCountry = countryCode
-      ? Country.getCountryByCode(countryCode)
-      : null;
-
-    setRotationCountryCode(countryCode || "");
+  const handleRotationCityChange = useCallback((option) => {
+    // Una ciudad escrita a mano no está en el catálogo: se usan las coordenadas del
+    // país, porque external_rotation.latitude/longitude no admiten vacío.
     setRotationForm((current) => ({
       ...current,
-      country: selectedCountry?.name || "",
-      city: "",
+      city: option?.id || "",
+      ...coordinatesOf(
+        option?.latitude ? option : findCountryOption(current.country),
+        current
+      ),
     }));
   }, []);
-
-  const handleRotationCityChange = useCallback(
-    (cityName) => {
-      const cities = rotationCountryCode
-        ? City.getCitiesOfCountry(rotationCountryCode) || []
-        : [];
-      const selectedCity = cities.find((city) => city.name === cityName);
-
-      setRotationForm((current) => ({
-        ...current,
-        city: cityName || "",
-        latitude: selectedCity?.latitude
-          ? parseFloat(selectedCity.latitude)
-          : current.latitude,
-        longitude: selectedCity?.longitude
-          ? parseFloat(selectedCity.longitude)
-          : current.longitude,
-      }));
-    },
-    [rotationCountryCode]
-  );
 
   const resetDatePickerState = useCallback(() => {
     setActiveDateField(null);
@@ -1325,18 +1311,11 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   }, []);
 
   const buildRotationData = useCallback(() => {
-    const matchedCountry = rotationCountryCode
-      ? Country.getCountryByCode(rotationCountryCode)
-      : null;
-    const cityRecord = rotationCountryCode
-      ? (City.getCitiesOfCountry(rotationCountryCode) || []).find(
-          (city) => city.name === rotationForm.city
-        )
-      : null;
+    const matchedCountry = findCountryOption(rotationForm.country);
 
     if (
       !rotationForm.hospitalName.trim() ||
-      !matchedCountry?.name ||
+      !matchedCountry ||
       !rotationForm.city ||
       !rotationForm.startDate ||
       !rotationForm.endDate
@@ -1360,15 +1339,11 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
 
     return {
       data: {
-        latitude: cityRecord?.latitude
-          ? parseFloat(cityRecord.latitude)
-          : rotationForm.latitude,
-        longitude: cityRecord?.longitude
-          ? parseFloat(cityRecord.longitude)
-          : rotationForm.longitude,
+        latitude: rotationForm.latitude,
+        longitude: rotationForm.longitude,
         start_date: rotationForm.startDate,
         end_date: rotationForm.endDate,
-        country: matchedCountry.name,
+        country: matchedCountry.id,
         city: rotationForm.city,
         hospital_name: rotationForm.hospitalName.trim(),
         service_name: rotationForm.serviceName.trim(),
@@ -1513,18 +1488,20 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   }, [refreshAll, reviewToDelete, userId]);
 
   const handlePublishSubmit = useCallback(async () => {
+    const isEditing = Boolean(route.payload?.review?.id);
     if (creationBlockedReason) {
       Alert.alert(creationBlockedReason.title, creationBlockedReason.message);
       return;
     }
 
-    const formProblem = validateExperienceForm(publishForm, questions);
+    const formProblem = validateQuickReview(publishForm);
     if (formProblem) {
+      setPublishStep(formProblem.stepIndex);
       Alert.alert(formProblem.title, formProblem.message);
       return;
     }
 
-    const formattedAnswers = Object.entries(publishForm.answers)
+    const formattedAnswers = Object.entries(publishForm.answers || {})
       .filter(([, answer]) => answer?.rating || answer?.textValue?.trim())
       .map(([questionId, answer]) => ({
         question_id: questionId,
@@ -1547,29 +1524,66 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       country: publishForm.country,
       startDate: publishForm.startDate,
       endDate: publishForm.endDate || null,
+      recommendation: publishForm.recommendation,
+      highlightTags: publishForm.highlightTags,
       difficulty: publishForm.difficulty,
       difficultyNotes: publishForm.difficultyNotes,
       rotationKind: publishForm.rotationKind,
       highlightSummary: publishForm.highlightSummary,
       beforeYouGo: publishForm.beforeYouGo,
+      accommodationNotes: publishForm.accommodationNotes,
+      costNotes: publishForm.costNotes,
       tutorName: publishForm.tutorName,
       tutorEmail: publishForm.tutorEmail,
       preferredContactMethod: "app_chat",
       answers: formattedAnswers,
     };
 
+    const previousReview = route.payload?.review || null;
+    const wasExtended = previousReview
+      ? hasExtendedDetails(publishFormFromReview(previousReview))
+      : false;
+    const isExtended = hasExtendedDetails(publishForm);
+
     try {
       setSaving(true);
-      if (route.payload?.review?.id) {
-        await updateRotationReview(route.payload.review.id, payload);
+      if (isEditing) {
+        await updateRotationReview(previousReview.id, payload);
       } else {
         await createRotationReview(payload);
       }
 
-      setRoute({ name: "home", payload: null });
+      const session = publishSessionRef.current;
+      posthogLogger.capture("external_rotation_review_published", {
+        source: session?.source || "hub",
+        is_editing: isEditing,
+        duration_seconds: session
+          ? Math.round((Date.now() - session.startedAt) / 1000)
+          : null,
+        tags_count: (publishForm.highlightTags || []).length,
+        has_advice: Boolean(publishForm.beforeYouGo?.trim()),
+        has_details: isExtended,
+        from_plan: Boolean(publishForm.rotationId),
+      });
+      if (isEditing && isExtended && !wasExtended) {
+        posthogLogger.capture("external_rotation_review_expanded", {
+          source: session?.source || "hub",
+        });
+      }
+      publishSessionRef.current = null;
+      publishFormSnapshotRef.current = null;
+
+      setRoute({ name: "publishSuccess", payload: { isEditing } });
       refreshAll();
     } catch (error) {
       console.error("Error publishing review:", error);
+      if (error?.code === DUPLICATE_REVIEW_ERROR) {
+        Alert.alert(
+          "Ya compartiste esta experiencia",
+          "Ya tienes una experiencia publicada de este plan. Puedes editarla desde Rotaciones Externas."
+        );
+        return;
+      }
       // El formulario se conserva tal cual para que pueda reintentar sin reescribir nada.
       Alert.alert(
         "No se pudo publicar la experiencia",
@@ -1581,9 +1595,8 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   }, [
     creationBlockedReason,
     publishForm,
-    questions,
     refreshAll,
-    route.payload?.review?.id,
+    route.payload?.review,
     specialtyIds,
     userId,
   ]);
@@ -1641,20 +1654,43 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         if (route.payload?.step === "review") return "Revisa tu plan";
         return route.payload?.rotation ? "Editar mi plan" : "Crear mi plan";
       case "publish":
-        return "Compartir mi experiencia";
+        return route.payload?.review ? "Editar mi experiencia" : "Compartir mi experiencia";
+      case "publishSuccess":
+        return "Experiencia publicada";
       case "contact":
         return "Contactar";
       default:
         return "Rotaciones Externas";
     }
-  }, [route.name, route.payload?.rotation, route.payload?.step]);
+  }, [route.name, route.payload?.rotation, route.payload?.step, route.payload?.review]);
 
   const hasUnsavedPublishChanges =
     route.name === "publish" &&
     publishFormSnapshotRef.current !== null &&
     JSON.stringify(publishForm) !== publishFormSnapshotRef.current;
 
+  const exitPublish = useCallback(() => {
+    const session = publishSessionRef.current;
+    if (session) {
+      posthogLogger.capture("external_rotation_review_abandoned", {
+        step: publishStep + 1,
+        max_step: session.maxStep + 1,
+        source: session.source,
+        is_editing: session.isEditing,
+        duration_seconds: Math.round((Date.now() - session.startedAt) / 1000),
+      });
+      publishSessionRef.current = null;
+    }
+    setRoute({ name: "home", payload: null });
+  }, [publishStep]);
+
   const handleRouteBack = useCallback(() => {
+    // En la reseña rápida, «atrás» vuelve al paso anterior antes de salir.
+    if (route.name === "publish" && publishStep > 0) {
+      setPublishStep(publishStep - 1);
+      return;
+    }
+
     if (hasUnsavedPublishChanges) {
       Alert.alert(
         "Tienes cambios sin guardar",
@@ -1664,7 +1700,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           {
             text: "Salir sin guardar",
             style: "destructive",
-            onPress: () => setRoute({ name: "home", payload: null }),
+            onPress: exitPublish,
           },
         ]
       );
@@ -1682,12 +1718,16 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       setRoute({ name: userRotations.length ? "plan" : "home", payload: null });
       return;
     }
+    if (route.name === "publish") {
+      exitPublish();
+      return;
+    }
     setRoute({ name: "home", payload: null });
-  }, [hasUnsavedPublishChanges, route, userRotations.length]);
+  }, [exitPublish, hasUnsavedPublishChanges, publishStep, route, userRotations.length]);
 
-  // En Android el botón físico de atrás también pasa por el aviso de cambios sin guardar.
+  // En Android el botón físico de atrás también recorre los pasos y avisa de cambios sin guardar.
   useEffect(() => {
-    if (Platform.OS !== "android" || !hasUnsavedPublishChanges) return undefined;
+    if (Platform.OS !== "android" || route.name !== "publish") return undefined;
 
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
       handleRouteBack();
@@ -1695,7 +1735,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     });
 
     return () => subscription.remove();
-  }, [handleRouteBack, hasUnsavedPublishChanges]);
+  }, [handleRouteBack, route.name]);
 
   const renderLoadErrorNotice = () =>
     loadError ? (
@@ -1724,7 +1764,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         <View style={styles.matchInfoRow}>
           <Icon name="location-outline" size={14} color={PRIMARY} />
           <Text style={styles.matchInfoText}>
-            {[rotation.city, rotation.country].filter(Boolean).join(", ")}
+            {formatLocation(rotation.city, rotation.country)}
           </Text>
         </View>
         <View style={styles.matchInfoRow}>
@@ -1746,6 +1786,57 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     );
   };
 
+  // Solo la del plan terminado más reciente: una invitación cada vez, no una lista.
+  const renderReviewInvite = () => {
+    const plan = pendingReviewInvites[0];
+    if (!plan) return null;
+    const isPending = invitePendingId === plan.id;
+
+    return (
+      <View style={styles.reviewInviteCard} testID="review-invite">
+        <View style={styles.homeCardHeader}>
+          <View style={styles.homeCardIcon}>
+            <Icon name="sparkles-outline" size={18} color={PRIMARY} />
+          </View>
+          <Text style={styles.homeSectionLabel}>Tu rotación ha terminado</Text>
+        </View>
+        <Text style={styles.hubActionTitle}>
+          ¿Qué tal fue tu rotación en {plan.hospital_name || "tu destino"}?
+        </Text>
+        <Text style={styles.hubActionDescription}>
+          Cuéntaselo a otros residentes en 1 minuto.
+        </Text>
+        <TouchableOpacity
+          style={[styles.hubActionButton, styles.reviewInvitePrimary]}
+          onPress={() => openPublish(null, { plan, source: "invite" })}
+          disabled={isPending}
+          activeOpacity={0.85}
+          testID="review-invite-share"
+        >
+          <Text style={styles.hubActionButtonText}>Compartir mi experiencia</Text>
+        </TouchableOpacity>
+        <View style={styles.hubActionRow}>
+          <TouchableOpacity
+            style={styles.reviewInviteSecondary}
+            onPress={() => handleRespondToInvite(plan, "dismissed")}
+            disabled={isPending}
+            testID="review-invite-dismiss"
+          >
+            <Text style={styles.reviewInviteSecondaryText}>Ahora no</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.reviewInviteSecondary}
+            onPress={() => handleRespondToInvite(plan, "not_completed")}
+            disabled={isPending}
+            testID="review-invite-not-completed"
+          >
+            <Text style={styles.reviewInviteSecondaryText}>No llegué a hacerla</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
   const renderHome = () => (
     <ScrollView
       style={styles.scrollView}
@@ -1758,6 +1849,8 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       </Text>
 
       {renderLoadErrorNotice()}
+
+      {renderReviewInvite()}
 
       <TouchableOpacity
         style={styles.homePrimaryCard}
@@ -1810,8 +1903,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           </Text>
           <Text style={styles.hubActionDescription}>
             {[
-              primaryUserRotation.city,
-              primaryUserRotation.country,
+              formatLocation(primaryUserRotation.city, primaryUserRotation.country),
               formatDateRange(
                 primaryUserRotation.start_date,
                 primaryUserRotation.end_date
@@ -1870,8 +1962,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           </Text>
           <Text style={styles.hubActionDescription}>
             {[
-              primaryUserReview.city,
-              primaryUserReview.country,
+              formatLocation(primaryUserReview.city, primaryUserReview.country),
               formatDateRange(
                 primaryUserReview.start_date,
                 primaryUserReview.end_date
@@ -1888,7 +1979,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
                 styles.hubActionButtonAlt,
                 styles.hubActionButtonSplit,
               ]}
-              onPress={() => openPublish(primaryUserReview)}
+              onPress={() => openPublish(primaryUserReview, { source: "edit" })}
               activeOpacity={0.85}
             >
               <Text
@@ -1924,10 +2015,11 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           </View>
           <Text style={styles.hubActionTitle}>Compartir mi experiencia</Text>
           <Text style={styles.hubActionDescription}>
-            Cuenta cómo fue tu rotación y ayuda a otros residentes a elegir.
+            Tu experiencia puede ayudar al próximo residente que quiera ir a ese
+            hospital.
           </Text>
           <View style={styles.homeCardFooter}>
-            <View />
+            <Text style={styles.homeCardMeta}>1 minuto · sin escribir textos</Text>
             <Text style={styles.homeCardLink}>Compartir mi experiencia</Text>
           </View>
         </TouchableOpacity>
@@ -1982,7 +2074,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           title="Todavía no hay experiencias publicadas"
           description="¿Has hecho una rotación externa? Comparte la tuya para ayudar a otros residentes."
           actionLabel="Compartir experiencia"
-          onAction={() => openPublish()}
+          onAction={() => openPublish(null, { source: "explore_empty" })}
         />
       );
     }
@@ -2039,13 +2131,15 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           onPress={() => setOpenExploreFilter("specialty")}
         />
         <FilterChip
-          label={exploreFilters.country || "País"}
+          testID="explore-country-chip"
+          label={getCountryLabel(exploreFilters.country) || "País"}
           active={!!exploreFilters.country}
           icon="earth-outline"
           onPress={() => setOpenExploreFilter("country")}
         />
         <FilterChip
-          label={exploreFilters.city || "Ciudad"}
+          testID="explore-city-chip"
+          label={getCityLabel(exploreFilters.country, exploreFilters.city) || "Ciudad"}
           active={!!exploreFilters.city}
           icon="business-outline"
           disabled={!exploreFilters.country}
@@ -2131,31 +2225,27 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         errorText={specialtiesError}
         onRetry={loadSpecialties}
       />
-      <SelectorModal
+      <LocationPickerModal
         visible={openExploreFilter === "country"}
         onClose={() => setOpenExploreFilter(null)}
+        kind="country"
         title="País"
-        options={countryOptions.map((option) => ({
-          id: option.value,
-          name: option.label,
-        }))}
         value={exploreFilters.country}
-        onSelect={handleExploreCountryChange}
-        placeholder="Todos los países"
-        noMatchesText="No encontramos países con ese nombre"
+        onSelect={(option) => handleExploreCountryChange(option?.id || "")}
+        allowClear
+        clearLabel="Todos los países"
       />
-      <SelectorModal
+      <LocationPickerModal
         visible={openExploreFilter === "city" && !!exploreFilters.country}
         onClose={() => setOpenExploreFilter(null)}
+        kind="city"
         title="Ciudad"
-        options={cityOptions.map((option) => ({
-          id: option.value,
-          name: option.label,
-        }))}
+        countryCode={exploreCountryCode}
         value={exploreFilters.city}
-        onSelect={(value) => updateExploreFilters({ city: value })}
-        placeholder="Todas las ciudades"
-        noMatchesText="No encontramos ciudades con ese nombre"
+        onSelect={(option) => updateExploreFilters({ city: option?.id || "" })}
+        allowClear
+        clearLabel="Todas las ciudades"
+        knownCities={getKnownCities(exploreFilters.country)}
       />
     </ScrollView>
   );
@@ -2278,16 +2368,128 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     </ScrollView>
   );
 
-  const renderPublishBlockTitle = (number, title) => (
-    <View style={styles.publishBlockHeader}>
-      <View style={styles.publishBlockNumber}>
-        <Text style={styles.publishBlockNumberText}>{number}</Text>
+  const updatePublishForm = useCallback(
+    (changes) => setPublishForm((current) => ({ ...current, ...changes })),
+    []
+  );
+
+  const renderPublishWhereStep = () => (
+    <View style={styles.formCard} testID="publish-step-where">
+      <Text style={styles.inputLabel}>Hospital o centro de destino</Text>
+      <TextInput
+        style={styles.textInput}
+        value={publishForm.hospitalName}
+        onChangeText={(value) =>
+          setPublishForm((current) => ({ ...current, hospitalName: value }))
+        }
+        placeholder="Ej. Hospital Clínic o Boston Children's Hospital"
+      />
+
+      <Text style={styles.inputLabel}>Servicio o unidad (opcional)</Text>
+      <TextInput
+        style={styles.textInput}
+        value={publishForm.serviceName}
+        onChangeText={(value) =>
+          setPublishForm((current) => ({ ...current, serviceName: value }))
+        }
+        placeholder="Ej. Cardiología Pediátrica"
+      />
+
+      <View style={styles.formRow}>
+        <View style={styles.formColumn}>
+          <LocationSelectField
+            testID="publish-country"
+            label="País"
+            kind="country"
+            value={publishForm.country}
+            onSelect={handlePublishCountryChange}
+            placeholder="Selecciona un país"
+          />
+        </View>
+        <View style={styles.formColumn}>
+          <LocationSelectField
+            testID="publish-city"
+            label="Ciudad"
+            kind="city"
+            countryCode={publishCountryCode}
+            value={publishForm.city}
+            onSelect={handlePublishCityChange}
+            knownCities={getKnownCities(publishForm.country)}
+            placeholder={
+              publishCountryCode
+                ? "Selecciona una ciudad"
+                : "Primero selecciona un país"
+            }
+            disabled={!publishCountryCode}
+          />
+        </View>
       </View>
-      <Text style={styles.cardTitle}>{title}</Text>
+
+      <SelectFilter
+        label="Especialidad (opcional)"
+        value={publishForm.specialityId}
+        onChange={(value) =>
+          setPublishForm((current) => ({ ...current, specialityId: value }))
+        }
+        options={specialtyOptions}
+        placeholder="Selecciona una especialidad"
+        clearLabel="Sin especialidad"
+        emptyText="No hay especialidades disponibles."
+        noMatchesText="No encontramos especialidades con ese nombre"
+        errorText={specialtiesError}
+        onRetry={loadSpecialties}
+      />
+      <View style={styles.formRow}>
+        <View style={styles.formColumn}>
+          <Text style={styles.inputLabel}>Fecha de inicio</Text>
+          <TouchableOpacity
+            style={styles.dateButton}
+            onPress={() =>
+              openDatePicker("publishStartDate", publishForm.startDate)
+            }
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.dateButtonText,
+                !publishForm.startDate && styles.dateButtonPlaceholder,
+              ]}
+            >
+              {formatDateForDisplay(publishForm.startDate)}
+            </Text>
+            <Icon name="calendar-outline" size={20} color={TEXT_MUTED} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.formColumn}>
+          <Text style={styles.inputLabel}>Fecha de fin (opcional)</Text>
+          <TouchableOpacity
+            style={styles.dateButton}
+            onPress={() =>
+              openDatePicker(
+                "publishEndDate",
+                publishForm.endDate || publishForm.startDate
+              )
+            }
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.dateButtonText,
+                !publishForm.endDate && styles.dateButtonPlaceholder,
+              ]}
+            >
+              {formatDateForDisplay(publishForm.endDate)}
+            </Text>
+            <Icon name="calendar-outline" size={20} color={TEXT_MUTED} />
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 
   const renderPublish = () => {
+    const stepKey = QUICK_REVIEW_STEPS[publishStep].key;
     return (
       <ScrollView
         style={styles.scrollView}
@@ -2295,273 +2497,72 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.homeIntro}>
-          Cuenta cómo fue tu rotación para ayudar a otros residentes. Te
-          llevará menos de 2 minutos.
-        </Text>
+        {publishStep === 0 && !route.payload?.review ? (
+          <Text style={styles.homeIntro}>
+            Tu experiencia puede ayudar al próximo residente que quiera ir a ese
+            hospital. Son 4 pasos cortos, casi todo con botones.
+          </Text>
+        ) : null}
 
-        <View style={styles.formCard} testID="publish-block-where">
-          {renderPublishBlockTitle(1, "¿Dónde rotaste?")}
+        <QuickReviewProgress stepIndex={publishStep} />
 
-          <Text style={styles.inputLabel}>Hospital o centro de destino</Text>
-          <TextInput
-            style={styles.textInput}
-            value={publishForm.hospitalName}
-            onChangeText={(value) =>
-              setPublishForm((current) => ({ ...current, hospitalName: value }))
-            }
-            placeholder="Ej. Hospital Clínic o Boston Children's Hospital"
+        {stepKey === "where" && renderPublishWhereStep()}
+        {stepKey === "how" && (
+          <QuickReviewHowStep form={publishForm} onChange={updatePublishForm} />
+        )}
+        {stepKey === "highlights" && (
+          <QuickReviewHighlightsStep form={publishForm} onChange={updatePublishForm} />
+        )}
+        {stepKey === "advice" && (
+          <QuickReviewAdviceStep
+            form={publishForm}
+            onChange={updatePublishForm}
+            detailsOpen={publishDetailsOpen}
+            onToggleDetails={() => setPublishDetailsOpen((open) => !open)}
           />
+        )}
 
-          <Text style={styles.inputLabel}>Servicio o unidad (opcional)</Text>
-          <TextInput
-            style={styles.textInput}
-            value={publishForm.serviceName}
-            onChangeText={(value) =>
-              setPublishForm((current) => ({ ...current, serviceName: value }))
-            }
-            placeholder="Ej. Cardiología Pediátrica"
-          />
-
-          <View style={styles.formRow}>
-            <View style={styles.formColumn}>
-              <SelectFilter
-                label="País"
-                value={publishCountryCode}
-                onChange={handlePublishCountryChange}
-                options={publishCountryOptions}
-                placeholder="Selecciona un país"
-              />
-            </View>
-            <View style={styles.formColumn}>
-              <SelectFilter
-                label="Ciudad"
-                value={publishForm.city}
-                onChange={handlePublishCityChange}
-                options={publishCityOptions}
-                placeholder={
-                  publishCountryCode
-                    ? "Selecciona una ciudad"
-                    : "Primero selecciona un país"
-                }
-                disabled={!publishCountryCode}
-              />
-            </View>
-          </View>
-
-          <SelectFilter
-            label="Especialidad (opcional)"
-            value={publishForm.specialityId}
-            onChange={(value) =>
-              setPublishForm((current) => ({ ...current, specialityId: value }))
-            }
-            options={specialtyOptions}
-            placeholder="Selecciona una especialidad"
-            clearLabel="Sin especialidad"
-            emptyText="No hay especialidades disponibles."
-            noMatchesText="No encontramos especialidades con ese nombre"
-            errorText={specialtiesError}
-            onRetry={loadSpecialties}
-          />
-        </View>
-
-        <View style={styles.formCard} testID="publish-block-when">
-          {renderPublishBlockTitle(2, "¿Cuándo y cómo fue?")}
-
-          <View style={styles.formRow}>
-            <View style={styles.formColumn}>
-              <Text style={styles.inputLabel}>Fecha de inicio</Text>
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() =>
-                  openDatePicker("publishStartDate", publishForm.startDate)
-                }
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.dateButtonText,
-                    !publishForm.startDate && styles.dateButtonPlaceholder,
-                  ]}
-                >
-                  {formatDateForDisplay(publishForm.startDate)}
-                </Text>
-                <Icon name="calendar-outline" size={20} color={TEXT_MUTED} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.formColumn}>
-              <Text style={styles.inputLabel}>Fecha de fin (opcional)</Text>
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() =>
-                  openDatePicker(
-                    "publishEndDate",
-                    publishForm.endDate || publishForm.startDate
-                  )
-                }
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.dateButtonText,
-                    !publishForm.endDate && styles.dateButtonPlaceholder,
-                  ]}
-                >
-                  {formatDateForDisplay(publishForm.endDate)}
-                </Text>
-                <Icon name="calendar-outline" size={20} color={TEXT_MUTED} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <Text style={styles.inputLabel}>Tipo de rotación</Text>
-          <PillGroup
-            options={rotationKindOptions}
-            value={publishForm.rotationKind}
-            onChange={(value) =>
-              setPublishForm((current) => ({ ...current, rotationKind: value }))
-            }
-          />
-
-          <Text style={styles.inputLabel}>Dificultad para conseguirla</Text>
-          <PillGroup
-            options={difficultyOptions}
-            value={publishForm.difficulty}
-            onChange={(value) =>
-              setPublishForm((current) => ({ ...current, difficulty: value }))
-            }
-          />
-
-          <Text style={styles.inputLabel}>Notas sobre la dificultad (opcional)</Text>
-          <TextInput
-            style={styles.textInput}
-            value={publishForm.difficultyNotes}
-            onChangeText={(value) =>
-              setPublishForm((current) => ({
-                ...current,
-                difficultyNotes: value,
-              }))
-            }
-            placeholder="Burocracia, timing, requisitos..."
-          />
-        </View>
-
-        <View style={styles.formCard} testID="publish-block-recommend">
-          {renderPublishBlockTitle(3, "¿Qué recomendarías a otros residentes?")}
-
-          {questions
-            .filter((question) => question.type === "rating")
-            .map((question) => (
-              <View key={question.id} style={styles.ratingQuestion}>
-                <Text style={styles.ratingQuestionLabel}>
-                  {question.text}
-                  {question.is_optional ? " (opcional)" : ""}
-                </Text>
-                <View style={styles.ratingButtons}>
-                  {[1, 2, 3, 4, 5].map((rating) => (
-                    <TouchableOpacity
-                      key={rating}
-                      style={[
-                        styles.ratingButton,
-                        publishForm.answers[question.id]?.rating === rating &&
-                          styles.ratingButtonActive,
-                      ]}
-                      onPress={() =>
-                        setPublishForm((current) => ({
-                          ...current,
-                          answers: {
-                            ...current.answers,
-                            [question.id]: {
-                              ...current.answers[question.id],
-                              rating,
-                            },
-                          },
-                        }))
-                      }
-                    >
-                      <Icon
-                        name="star"
-                        size={18}
-                        color={
-                          publishForm.answers[question.id]?.rating === rating
-                            ? "#FFFFFF"
-                            : PRIMARY
-                        }
-                      />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            ))}
-
-          <Text style={styles.inputLabel}>¿Qué destacas de esta rotación?</Text>
-          <TextInput
-            style={[styles.textInput, styles.textArea]}
-            value={publishForm.highlightSummary}
-            onChangeText={(value) =>
-              setPublishForm((current) => ({
-                ...current,
-                highlightSummary: value,
-              }))
-            }
-            multiline
-            textAlignVertical="top"
-            placeholder="Puntos fuertes, técnicas aprendidas, volumen, sesiones..."
-          />
-
-          <Text style={styles.inputLabel}>¿Qué saber antes de ir?</Text>
-          <TextInput
-            style={[styles.textInput, styles.textArea]}
-            value={publishForm.beforeYouGo}
-            onChangeText={(value) =>
-              setPublishForm((current) => ({
-                ...current,
-                beforeYouGo: value,
-              }))
-            }
-            multiline
-            textAlignVertical="top"
-            placeholder="Logística, burocracia, idioma, tiempos, alojamiento..."
-          />
-
-          <Text style={styles.inputLabel}>Contacto del servicio (opcional)</Text>
-          <TextInput
-            style={styles.textInput}
-            value={publishForm.tutorName}
-            onChangeText={(value) =>
-              setPublishForm((current) => ({ ...current, tutorName: value }))
-            }
-            placeholder="Nombre del tutor o contacto"
-          />
-          <TextInput
-            style={styles.textInput}
-            value={publishForm.tutorEmail}
-            onChangeText={(value) =>
-              setPublishForm((current) => ({ ...current, tutorEmail: value }))
-            }
-            placeholder="Email del contacto"
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-        </View>
-
-        <TouchableOpacity
-          style={styles.fullPrimaryButton}
-          onPress={handlePublishSubmit}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.fullPrimaryButtonText}>
-              {route.payload?.review ? "Actualizar experiencia" : "Publicar experiencia"}
-            </Text>
-          )}
-        </TouchableOpacity>
+        <QuickReviewNav
+          stepIndex={publishStep}
+          onPrevious={() => setPublishStep((step) => Math.max(step - 1, 0))}
+          onNext={
+            publishStep === QUICK_REVIEW_STEPS.length - 1
+              ? handlePublishSubmit
+              : handlePublishNext
+          }
+          saving={saving}
+          submitLabel={route.payload?.review ? "Guardar cambios" : "Publicar experiencia"}
+        />
       </ScrollView>
     );
   };
+
+  const renderPublishSuccess = () => (
+    <ScrollView
+      style={styles.scrollView}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.publishSuccessCard} testID="publish-success">
+        <View style={styles.publishSuccessIcon}>
+          <Icon name="checkmark-circle" size={36} color={SUCCESS} />
+        </View>
+        <Text style={styles.publishSuccessTitle}>
+          {route.payload?.isEditing ? "¡Experiencia actualizada!" : "¡Gracias!"}
+        </Text>
+        <Text style={styles.publishSuccessText}>
+          Tu experiencia ya puede ayudar a otros residentes a elegir dónde rotar.
+        </Text>
+      </View>
+      <TouchableOpacity
+        style={styles.fullPrimaryButton}
+        onPress={() => setRoute({ name: "home", payload: null })}
+        testID="publish-success-done"
+      >
+        <Text style={styles.fullPrimaryButtonText}>Volver a Rotaciones Externas</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
 
   const renderRotationReview = () => {
     const { data } = buildRotationData();
@@ -2648,20 +2649,24 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
 
         <View style={styles.formRow}>
           <View style={styles.formColumn}>
-            <SelectFilter
+            <LocationSelectField
+              testID="rotation-country"
               label="País"
-              value={rotationCountryCode}
-              onChange={handleRotationCountryChange}
-              options={rotationCountryOptions}
+              kind="country"
+              value={rotationForm.country}
+              onSelect={handleRotationCountryChange}
               placeholder="Selecciona un país"
             />
           </View>
           <View style={styles.formColumn}>
-            <SelectFilter
+            <LocationSelectField
+              testID="rotation-city"
               label="Ciudad"
+              kind="city"
+              countryCode={rotationCountryCode}
               value={rotationForm.city}
-              onChange={handleRotationCityChange}
-              options={rotationCityOptions}
+              onSelect={handleRotationCityChange}
+              knownCities={getKnownCities(rotationForm.country)}
               placeholder={
                 rotationCountryCode
                   ? "Selecciona una ciudad"
@@ -2841,6 +2846,9 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     );
   }
 
+  // Reciprocidad sin bloquear la lectura: solo a quien puede publicar y aún no ha compartido nada.
+  const canInviteToShare = canCreateExternalRotation && !myReviews.length;
+
   if (route.name === "detail" && selectedReview?.id) {
     const handleBackFromRotationDetail = () =>
       setRoute({ name: route.payload?.from || "explore", payload: null });
@@ -2852,6 +2860,18 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           onBack={handleBackFromRotationDetail}
           onContact={handleOpenAppChat}
           onFavoriteChanged={refreshAll}
+          onAddDetails={(review) =>
+            openPublish(review, {
+              source: "detail_add_details",
+              stepIndex: QUICK_REVIEW_STEPS.length - 1,
+              detailsOpen: true,
+            })
+          }
+          onShareExperience={
+            canInviteToShare
+              ? () => openPublish(null, { source: "detail_reciprocity" })
+              : undefined
+          }
         />
       </SwipeBackWrapper>
     );
@@ -2870,6 +2890,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           ? renderRotationReview()
           : renderRotationForm())}
       {route.name === "publish" && renderPublish()}
+      {route.name === "publishSuccess" && renderPublishSuccess()}
       {route.name === "contact" && renderContact()}
 
       <ConfirmationModal
@@ -3547,6 +3568,56 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     color: TEXT,
+  },
+  reviewInviteCard: {
+    backgroundColor: PRIMARY_SOFT,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "#DDD0FB",
+  },
+  reviewInvitePrimary: {
+    alignSelf: "stretch",
+    minHeight: 40,
+  },
+  reviewInviteSecondary: {
+    flex: 1,
+    minHeight: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewInviteSecondaryText: {
+    color: PRIMARY,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  publishSuccessCard: {
+    backgroundColor: SURFACE_CARD,
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    gap: 10,
+  },
+  publishSuccessIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: SUCCESS_SOFT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  publishSuccessTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: TEXT,
+  },
+  publishSuccessText: {
+    fontSize: 15,
+    lineHeight: 21,
+    color: TEXT_MUTED,
+    textAlign: "center",
   },
   publishBlockHeader: {
     flexDirection: "row",

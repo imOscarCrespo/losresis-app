@@ -16,6 +16,11 @@ fi
 # shellcheck disable=SC1090
 source "$CREDENTIALS"
 
+# URL y anon key públicas del proyecto, para los scripts de preparación de e2e/scripts/.
+APP_ENV="$(cd "$(dirname "$0")/.." && pwd)/.env"
+SUPABASE_URL="$(grep -m1 '^EXPO_PUBLIC_SUPABASE_URL=' "$APP_ENV" | cut -d= -f2- | tr -d '"')"
+SUPABASE_ANON_KEY="$(grep -m1 '^EXPO_PUBLIC_SUPABASE_ANON_KEY=' "$APP_ENV" | cut -d= -f2- | tr -d '"')"
+
 MAESTRO="${MAESTRO:-$HOME/.maestro/bin/maestro}"
 OUTPUT_DIR="${E2E_OUTPUT_DIR:-${TMPDIR:-/tmp}/losresis-e2e}"
 mkdir -p "$OUTPUT_DIR"
@@ -29,6 +34,8 @@ cd "$OUTPUT_DIR"
 "$MAESTRO" test \
   -e E2E_EMAIL="$E2E_EMAIL" \
   -e E2E_PASSWORD="$E2E_PASSWORD" \
+  -e SUPABASE_URL="$SUPABASE_URL" \
+  -e SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
   --test-output-dir "$OUTPUT_DIR" \
   "${FLOWS[@]}"
 echo "Capturas y logs en $OUTPUT_DIR"

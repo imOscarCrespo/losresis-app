@@ -18,6 +18,8 @@ import {
 import { formatLongDate, formatShortDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
+import { ReviewHighlights } from "../components/externalRotations/QuickReview";
+import { getCityLabel, getCountryLabel } from "../utils/geoSearch";
 
 const PRIMARY = "#670CF5";
 const PRIMARY_SOFT = "#F2EBFF";
@@ -28,17 +30,6 @@ const TEXT = "#111827";
 const TEXT_MUTED = "#667085";
 const SUCCESS = "#0F9D7A";
 const WARNING = "#F97316";
-
-const difficultyLabels = {
-  easy: "Fácil",
-  medium: "Media",
-  hard: "Alta",
-};
-
-const rotationKindLabels = {
-  observational: "Observacional",
-  hands_on: "Participativa",
-};
 
 const ratingLabels = {
   "Calidad Docente": "Calidad docente",
@@ -145,6 +136,8 @@ export default function RotationReviewDetailScreen({
   onBack,
   onContact,
   onFavoriteChanged,
+  onAddDetails,
+  onShareExperience,
 }) {
   const [review, setReview] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -250,6 +243,7 @@ export default function RotationReviewDetailScreen({
 
   const canFavorite = Boolean(userId && review?.user_id && review.user_id !== userId);
   const canContact = Boolean(userId && review?.user_id && review.user_id !== userId);
+  const isOwnReview = Boolean(userId && review?.user_id === userId);
 
   const handleToggleFavorite = async () => {
     if (!canFavorite || favoriteLoading) {
@@ -336,13 +330,17 @@ export default function RotationReviewDetailScreen({
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>Experiencia real</Text>
+              <Text style={styles.badgeText}>Experiencia personal de un residente</Text>
             </View>
           </View>
 
           <Text style={styles.heroTitle}>{review.external_hospital_name}</Text>
           <Text style={styles.heroSubtitle}>
-            {[review.service_name, review.city, review.country]
+            {[
+              review.service_name,
+              getCityLabel(review.country, review.city),
+              getCountryLabel(review.country),
+            ]
               .filter(Boolean)
               .join(" · ")}
           </Text>
@@ -382,21 +380,9 @@ export default function RotationReviewDetailScreen({
           ) : null}
         </View>
 
+        <ReviewHighlights review={review} />
+
         <View style={styles.chipsRow}>
-          {review.difficulty ? (
-            <InfoChip
-              icon="flash-outline"
-              label={`Dificultad: ${difficultyLabels[review.difficulty]}`}
-              tone="warning"
-            />
-          ) : null}
-          {review.rotation_kind ? (
-            <InfoChip
-              icon="flask-outline"
-              label={`Tipo: ${rotationKindLabels[review.rotation_kind]}`}
-              tone="success"
-            />
-          ) : null}
           {durationLabel ? (
             <InfoChip
               icon="time-outline"
@@ -419,15 +405,21 @@ export default function RotationReviewDetailScreen({
         ) : null}
 
         <AnswerCard
-          title="¿Qué es lo que más destacas?"
+          title="Lo que le habría gustado saber antes de ir"
+          body={review.before_you_go}
+          tone="success"
+        />
+        <AnswerCard
+          title="¿Qué destacaría?"
           body={review.highlight_summary}
           tone="primary"
         />
         <AnswerCard
-          title="¿Qué debería saber antes de ir?"
-          body={review.before_you_go}
-          tone="success"
+          title="Burocracia y documentación"
+          body={review.difficulty_notes}
         />
+        <AnswerCard title="Alojamiento" body={review.accommodation_notes} />
+        <AnswerCard title="Costes" body={review.cost_notes} />
 
         {(review.tutor_name || review.tutor_email) && (
           <View style={styles.contactCard}>
@@ -450,6 +442,37 @@ export default function RotationReviewDetailScreen({
             </View>
           </View>
         )}
+
+        {isOwnReview && onAddDetails ? (
+          <TouchableOpacity
+            style={styles.inviteCard}
+            onPress={() => onAddDetails(review)}
+            activeOpacity={0.85}
+            testID="review-detail-add-details"
+          >
+            <Text style={styles.inviteTitle}>Añade más detalles</Text>
+            <Text style={styles.inviteText}>
+              Burocracia, alojamiento, costes o contactos: lo que quieras ampliar o corregir.
+            </Text>
+            <Text style={styles.inviteLink}>Editar mi experiencia</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {!isOwnReview && onShareExperience ? (
+          <TouchableOpacity
+            style={styles.inviteCard}
+            onPress={onShareExperience}
+            activeOpacity={0.85}
+            testID="review-detail-share-invite"
+          >
+            <Text style={styles.inviteTitle}>¿Ya has hecho una rotación externa?</Text>
+            <Text style={styles.inviteText}>
+              Comparte tu experiencia para ayudar a quienes están buscando destino. Te llevará
+              1 minuto.
+            </Text>
+            <Text style={styles.inviteLink}>Compartir mi experiencia</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
     </HeroScreenLayout>
   );
@@ -683,6 +706,28 @@ const styles = StyleSheet.create({
     color: TEXT_MUTED,
     textAlign: "center",
     marginTop: 12,
+  },
+  inviteCard: {
+    backgroundColor: PRIMARY_SOFT,
+    borderRadius: 20,
+    padding: 18,
+    gap: 6,
+  },
+  inviteTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: TEXT,
+  },
+  inviteText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: TEXT_MUTED,
+  },
+  inviteLink: {
+    marginTop: 4,
+    fontSize: 14,
+    fontWeight: "800",
+    color: PRIMARY,
   },
   secondaryAction: {
     marginTop: 18,

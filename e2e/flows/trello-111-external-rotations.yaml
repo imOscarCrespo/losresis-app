@@ -1,4 +1,5 @@
 # Trello #111 · Rotaciones externas: selector de especialidades y «Compartir experiencia»
+# (el formulario cambió con #110: reseña rápida por pasos)
 # https://trello.com/c/cIPcU5lb
 #
 # Solo lectura: no publica nada. Una experiencia es visible para otros residentes en
@@ -25,7 +26,8 @@ name: "#111 Rotaciones externas"
     visible: "ESTOY BUSCANDO DÓNDE ROTAR.*"
     timeout: 20000
 # Cada tarjeta del hub es un botón: su texto accesible junta todos sus textos.
-- assertVisible: "YA SÉ DÓNDE VOY A ROTAR, Publicar mi plan.*"
+# Con un plan propio (lo deja el flujo de #110) la tarjeta pasa a «Tu plan publicado».
+- assertVisible: "(YA SÉ DÓNDE VOY A ROTAR, Publicar mi plan|TU PLAN PUBLICADO).*"
 - assertVisible: "YA HE REALIZADO UNA ROTACIÓN, Compartir mi experiencia.*"
 - takeScreenshot: trello-111-hub
 
@@ -51,38 +53,37 @@ name: "#111 Rotaciones externas"
 - assertVisible: "Especialidad"
 - assertNotVisible: "Limpiar filtros"
 
-# Compartir experiencia: tres bloques y aviso al salir con cambios
+# Compartir experiencia (desde #110 es la reseña rápida por pasos; su flujo es
+# trello-110-quick-review.yaml): aviso al salir con cambios
 - tapOn: "Volver"
 - extendedWaitUntil:
     visible: "YA HE REALIZADO UNA ROTACIÓN.*"
     timeout: 10000
+# La invitación de #110 (si hay un plan terminado) empuja la tarjeta hacia abajo.
+- scrollUntilVisible:
+    element: "YA HE REALIZADO UNA ROTACIÓN.*"
+    centerElement: true
 - tapOn: "YA HE REALIZADO UNA ROTACIÓN.*"
 - extendedWaitUntil:
-    visible: "¿Dónde rotaste?"
+    visible: "¿Dónde hiciste la rotación?"
     timeout: 10000
 - takeScreenshot: trello-111-publish-where
 - tapOn: "Ej. Hospital Clínic o Boston Children's Hospital"
 - inputText: "Boston Children's Hospital"
 # El teclado se cierra tocando un texto fijo, como haría el usuario.
-- tapOn: "¿Dónde rotaste?"
-- scrollUntilVisible:
-    element: "¿Cuándo y cómo fue?"
-    centerElement: true
-- takeScreenshot: trello-111-publish-when
-- scrollUntilVisible:
-    element: "¿Qué recomendarías a otros residentes?"
-    centerElement: true
-- takeScreenshot: trello-111-publish-recommend
+- tapOn: "¿Dónde hiciste la rotación?"
 
-# Publicar sin completar: el aviso nombra los campos que faltan
+# Avanzar sin completar: el aviso nombra los campos que faltan
 - scrollUntilVisible:
-    element: "Publicar experiencia"
+    element:
+      id: "quick-review-next"
     centerElement: true
-- tapOn: "Publicar experiencia"
+- tapOn:
+    id: "quick-review-next"
 - extendedWaitUntil:
     visible: "Faltan campos obligatorios"
     timeout: 5000
-- assertVisible: "Completa: País, ciudad.*"
+- assertVisible: "Completa: País, ciudad y fecha de inicio."
 - takeScreenshot: trello-111-publish-missing
 - tapOn: "OK"
 
@@ -93,9 +94,7 @@ name: "#111 Rotaciones externas"
     timeout: 5000
 - takeScreenshot: trello-111-unsaved-alert
 - tapOn: "Seguir editando"
-- scrollUntilVisible:
-    element: "Boston Children's Hospital"
-    direction: UP
+- assertVisible: "Boston Children's Hospital"
 - tapOn: "Volver"
 - tapOn: "Salir sin guardar"
 - extendedWaitUntil:

@@ -1,0 +1,206 @@
+# Trello #110 · Reseña rápida de rotaciones externas
+# https://trello.com/c/30AClPUs
+#
+# Invitación al terminar un plan → reseña rápida sin texto libre → confirmación → ampliar
+# con detalles → borrar. La experiencia es visible en producción solo mientras corre el flujo:
+# se borra al final. El script de preparación deja el plan terminado listo para repetirlo.
+appId: com.losresis.app
+name: "#110 Reseña rápida de rotaciones externas"
+---
+- runScript: ../scripts/seed-110-ended-plan.js
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- extendedWaitUntil:
+    visible: "Nóminas"
+    timeout: 20000
+- tapOn: "Ver más opciones"
+- scrollUntilVisible:
+    element: "Rotaciones externas"
+    centerElement: true
+- tapOn: "Rotaciones externas"
+
+# Invitación contextual por el plan terminado
+- extendedWaitUntil:
+    visible:
+      id: "review-invite"
+    timeout: 20000
+- assertVisible: "¿Qué tal fue tu rotación en E2E Hospital de Pruebas?"
+- assertVisible: "Cuéntaselo a otros residentes en 1 minuto."
+- takeScreenshot: trello-110-invite
+- tapOn:
+    id: "review-invite-share"
+
+# Paso 1: relleno con los datos del plan
+- extendedWaitUntil:
+    visible: "Paso 1 de 4"
+    timeout: 10000
+- assertVisible: "¿Dónde hiciste la rotación?"
+- assertVisible: "E2E Hospital de Pruebas"
+- takeScreenshot: trello-110-step-where
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+
+# Paso 2: las tres preguntas son obligatorias y no traen respuesta por defecto
+- extendedWaitUntil:
+    visible: "Paso 2 de 4"
+    timeout: 5000
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+- extendedWaitUntil:
+    visible: "Faltan campos obligatorios"
+    timeout: 5000
+- assertVisible: "Completa: Si la recomiendas, si fue fácil conseguirla y tipo de rotación."
+- tapOn: "OK"
+- tapOn: "Depende"
+- tapOn: "Normal"
+- tapOn: "Participativa"
+- takeScreenshot: trello-110-step-how
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+
+# Paso 3: varias etiquetas; volver atrás conserva lo elegido
+- extendedWaitUntil:
+    visible: "Paso 3 de 4"
+    timeout: 5000
+- tapOn: "Aprendí muchísimo"
+- tapOn: "Buen ambiente"
+- takeScreenshot: trello-110-step-highlights
+- scrollUntilVisible:
+    element:
+      id: "quick-review-previous"
+    centerElement: true
+- tapOn:
+    id: "quick-review-previous"
+- extendedWaitUntil:
+    visible: "Paso 2 de 4"
+    timeout: 5000
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+- extendedWaitUntil:
+    visible: "Paso 3 de 4"
+    timeout: 5000
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+
+# Paso 4: se publica sin escribir nada
+- extendedWaitUntil:
+    visible: "Paso 4 de 4"
+    timeout: 5000
+- assertVisible: "Añadir más detalles \\(opcional\\).*"
+- scrollUntilVisible:
+    element:
+      id: "quick-review-privacy"
+    centerElement: true
+- takeScreenshot: trello-110-step-advice
+- scrollUntilVisible:
+    element:
+      id: "quick-review-submit"
+    centerElement: true
+- tapOn:
+    id: "quick-review-submit"
+- extendedWaitUntil:
+    visible: "¡Gracias!"
+    timeout: 15000
+- assertVisible: "Tu experiencia ya puede ayudar a otros residentes a elegir dónde rotar."
+- takeScreenshot: trello-110-success
+- tapOn:
+    id: "publish-success-done"
+
+# Ya no se invita por ese plan y la experiencia aparece como propia
+- extendedWaitUntil:
+    visible: "TU EXPERIENCIA PUBLICADA"
+    timeout: 15000
+- assertNotVisible:
+    id: "review-invite"
+- assertVisible: "E2E Hospital de Pruebas"
+- takeScreenshot: trello-110-hub-after
+
+# Ampliarla después: detalles opcionales en el último paso
+- scrollUntilVisible:
+    element: "Editar experiencia"
+    centerElement: true
+- tapOn: "Editar experiencia"
+- extendedWaitUntil:
+    visible: "Paso 1 de 4"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+- extendedWaitUntil:
+    visible: "Paso 4 de 4"
+    timeout: 5000
+- tapOn:
+    id: "quick-review-details-toggle"
+- scrollUntilVisible:
+    element: "Tasas, alquiler, transporte, ayudas..."
+    centerElement: true
+- tapOn: "Tasas, alquiler, transporte, ayudas..."
+- inputText: "Alquiler compartido E2E"
+# El teclado se cierra tocando un texto fijo, como haría el usuario.
+- tapOn: "Costes"
+- takeScreenshot: trello-110-details
+- scrollUntilVisible:
+    element:
+      id: "quick-review-submit"
+    centerElement: true
+- tapOn:
+    id: "quick-review-submit"
+- extendedWaitUntil:
+    visible: "¡Experiencia actualizada!"
+    timeout: 15000
+- tapOn:
+    id: "publish-success-done"
+
+# Limpieza: borrar la experiencia de pruebas
+- extendedWaitUntil:
+    visible: "TU EXPERIENCIA PUBLICADA"
+    timeout: 15000
+- scrollUntilVisible:
+    element: "Eliminar"
+    centerElement: true
+- tapOn: "Eliminar"
+- extendedWaitUntil:
+    visible: "Eliminar experiencia"
+    timeout: 5000
+# El modal tapa la pantalla: su botón es el único «Eliminar» visible.
+- tapOn: "Eliminar"
+- extendedWaitUntil:
+    visible: "YA HE REALIZADO UNA ROTACIÓN.*"
+    timeout: 15000
