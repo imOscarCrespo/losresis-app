@@ -1,0 +1,16 @@
+# Escribe un importe en un campo con teclado decimal y lo cierra.
+# El teclado decimal de iOS no tiene "hecho" y tapa la mitad inferior de la pantalla:
+# se centra el campo antes de tocarlo y se cierra tocando un texto fuera del input.
+# Parámetros: FIELD_ID (testID del input), VALUE, DISMISS_TEXT (texto visible junto al campo).
+appId: com.losresis.app
+---
+- scrollUntilVisible:
+    element:
+      id: ${FIELD_ID}
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: ${FIELD_ID}
+- eraseText: 12
+- inputText: ${VALUE}
+- tapOn: ${DISMISS_TEXT}

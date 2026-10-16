@@ -125,6 +125,14 @@ git add -A && git commit -m "..." && git push origin main
 | 3 | `/bug-review` | Antes de `git push` | ¿Esto va a romper en producción? (PASS/BLOCK) |
 | 4 | `git push` | Publicar | — |
 
+## Tareas de producto desde Trello — `/trello-task`
+
+Pega la URL de una tarjeta (`https://trello.com/c/...`) y la skill lee la descripción, checklists,
+comentarios e imágenes de diseño, te propone un plan, lo implementa tras tu OK y apunta la tarea
+en `docs/releases/<versión de app.json>.md`. Necesita credenciales de Trello en
+`~/.config/trello/credentials` (ver `trello-task/SKILL.md`). Encaja como paso 0 antes del flujo
+de arriba.
+
 ## Notas
 
 - **Orden flexible, gate fijo:** usa 1 y 2 según convenga; haz de 3 un hábito.

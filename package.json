@@ -13,7 +13,8 @@
     "export:static-catalog": "node scripts/export_static_catalog.mjs",
     "scrape:cto-grades-2026": "node scripts/scrape_cto_grades_2026.mjs",
     "sync:cache-aliases": "node scripts/sync_storage_cache_aliases.mjs",
-    "weekly-courses-bot:local": "RUN_LOCAL=1 deno run --allow-net --allow-env --env-file=supabase/functions/weekly-courses-bot/.env.local supabase/functions/weekly-courses-bot/index.ts"
+    "weekly-courses-bot:local": "RUN_LOCAL=1 deno run --allow-net --allow-env --env-file=supabase/functions/weekly-courses-bot/.env.local supabase/functions/weekly-courses-bot/index.ts",
+    "test": "jest"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -64,9 +65,17 @@
     "@types/react": "~19.2.4",
     "babel-preset-expo": "~57.0.0",
     "country-state-city": "^3.2.1",
+    "jest": "~29.7.0",
+    "jest-expo": "~57.0.6",
     "typescript": "~6.0.3"
   },
   "overrides": {
     "react-native-safe-area-context": "$react-native-safe-area-context"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "roots": [
+      "<rootDir>/__tests__"
+    ]
   }
 }

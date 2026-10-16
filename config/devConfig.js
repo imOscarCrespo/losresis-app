@@ -15,6 +15,15 @@
 
 export const DEV_USER_TYPE = null;
 
+/**
+ * DEV_E2E: modo de pruebas automáticas (Maestro en el simulador).
+ * Solo se activa en builds de desarrollo arrancando Metro con EXPO_PUBLIC_E2E=1.
+ * En builds de tienda __DEV__ es false y todo lo que cuelga de aquí desaparece.
+ *   - Muestra el acceso "Entrar como test" (email + contraseña) en WelcomeScreen.
+ *   - No aplica el bloqueo de reseña obligatoria al residente de pruebas.
+ */
+export const DEV_E2E = __DEV__ && process.env.EXPO_PUBLIC_E2E === "1";
+
 /*
 
 usuario resident hospital/especialitat/ciutat

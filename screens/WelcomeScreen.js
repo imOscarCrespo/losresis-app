@@ -38,6 +38,8 @@ import {
 import { supabase } from "../config/supabase";
 import * as Linking from "expo-linking";
 import { COLORS } from "../constants/colors";
+import { DEV_E2E } from "../config/devConfig";
+import DevTestLogin from "../components/DevTestLogin";
 import posthogLogger from "../services/posthogService";
 
 const isDevelopment = __DEV__;
@@ -714,6 +716,8 @@ export default function WelcomeScreen({ onAuthSuccess }) {
             </View>
 
             <View style={styles.actionsContainer}>
+              {DEV_E2E ? <DevTestLogin onSuccess={onAuthSuccess} /> : null}
+
               {/* Google Sign In Button */}
               <Button
                 title={

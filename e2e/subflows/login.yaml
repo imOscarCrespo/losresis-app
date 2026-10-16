@@ -1,0 +1,30 @@
+# Entra con el residente de pruebas si la app está en la pantalla de bienvenida.
+# Requiere Metro arrancado con EXPO_PUBLIC_E2E=1 (ver config/devConfig.js).
+appId: com.losresis.app
+---
+- runFlow:
+    when:
+      visible:
+        id: "e2e-login"
+    commands:
+      - tapOn:
+          id: "e2e-email"
+      # La primera vez, el teclado de iOS enseña su pantalla de bienvenida y se come las pulsaciones.
+      - runFlow:
+          when:
+            visible: "Continue"
+          commands:
+            - tapOn: "Continue"
+            - tapOn:
+                id: "e2e-email"
+      - eraseText: 60
+      - inputText: ${E2E_EMAIL}
+      # Intro pasa el foco a la contraseña (tocar el campo seguro no lo enfoca en iOS).
+      - pressKey: Enter
+      - inputText: ${E2E_PASSWORD}
+      # hideKeyboard no funciona con inputs de React Native en iOS: la contraseña envía con Intro.
+      - pressKey: Enter
+      - extendedWaitUntil:
+          notVisible:
+            id: "e2e-login"
+          timeout: 30000
