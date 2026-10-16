@@ -19,6 +19,9 @@ import { CITY_LOADERS } from "../data/geo/cityLoaders";
 
 // Cache por país: el parseo se hace una sola vez por sesión.
 const cityCache = {};
+// Países cuyo fichero de ciudades no se pudo cargar: el selector lo distingue de
+// "país sin ciudades en el catálogo" para avisar sin bloquear al usuario.
+const cityLoadErrors = {};
 let countriesByCode = null;
 
 export const getAllCountries = () => COUNTRIES;
@@ -64,13 +67,16 @@ export const getCitiesOfCountry = (isoCode) => {
     }));
   } catch (error) {
     console.error(`[geoCatalog] No se pudieron cargar las ciudades de ${isoCode}:`, error);
+    cityLoadErrors[isoCode] = true;
     cityCache[isoCode] = [];
   }
 
   return cityCache[isoCode];
 };
 
+export const didCityLoadFail = (isoCode) => !!cityLoadErrors[isoCode];
+
 // Alias con la forma de `country-state-city` para que los tres consumidores
 // sigan escribiendo `Country.getAllCountries()` y `City.getCitiesOfCountry()`.
 export const Country = { getAllCountries, getCountryByCode };
-export const City = { getCitiesOfCountry };
+export const City = { getCitiesOfCountry, didCityLoadFail };

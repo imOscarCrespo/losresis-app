@@ -1,0 +1,181 @@
+# Trello #112 · Buscadores de país y ciudad de Rotaciones Externas
+# https://trello.com/c/TSM1YqGZ
+#
+# Solo lectura: filtra en «Buscar destino» y rellena «Compartir experiencia» sin
+# publicar nada (las experiencias son visibles para otros residentes en producción).
+appId: com.losresis.app
+name: "#112 Buscadores de país y ciudad"
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- extendedWaitUntil:
+    visible: "Nóminas"
+    timeout: 20000
+- tapOn: "Ver más opciones"
+- scrollUntilVisible:
+    element: "Rotaciones externas"
+    centerElement: true
+- tapOn: "Rotaciones externas"
+- extendedWaitUntil:
+    visible: "ESTOY BUSCANDO DÓNDE ROTAR.*"
+    timeout: 20000
+
+# ── Buscar destino ────────────────────────────────────────────────
+- tapOn: "ESTOY BUSCANDO DÓNDE ROTAR.*"
+- extendedWaitUntil:
+    visible: "País"
+    timeout: 10000
+- tapOn:
+    id: "explore-country-chip"
+
+# Lista inicial sin escribir: España destacada y nombres en español
+- extendedWaitUntil:
+    visible: "Frecuentes"
+    timeout: 5000
+- assertVisible: "España"
+- assertVisible: "Todos los países"
+- assertVisible: "Afganistán"
+- assertNotVisible: "Confirmar selección"
+- takeScreenshot: trello-112-country-initial
+
+# «USA» → Estados Unidos, un toque elige y cierra
+- inputText: "USA"
+- assertVisible: "Estados Unidos"
+- takeScreenshot: trello-112-country-usa
+- tapOn:
+    id: "location-option-United States"
+- extendedWaitUntil:
+    visible: "Estados Unidos"
+    timeout: 5000
+- assertNotVisible: "Frecuentes"
+
+# Ciudad: destinos habituales antes de escribir
+# Los chips están en un scroll horizontal: se arrastra la fila para ver el de ciudad.
+- swipe:
+    from:
+      id: "explore-country-chip"
+    direction: LEFT
+- tapOn:
+    id: "explore-city-chip"
+- extendedWaitUntil:
+    visible: "Destinos habituales"
+    timeout: 5000
+- assertVisible: "Nueva York"
+- takeScreenshot: trello-112-city-featured
+- inputText: "new york"
+- assertVisible: "Nueva York"
+- tapOn:
+    id: "location-option-New York City"
+- extendedWaitUntil:
+    visible: "Nueva York"
+    timeout: 5000
+
+# Cambiar de país limpia la ciudad
+- tapOn:
+    id: "explore-country-chip"
+- extendedWaitUntil:
+    visible: "Todos los países"
+    timeout: 5000
+- inputText: "uk"
+- tapOn:
+    id: "location-option-United Kingdom"
+- extendedWaitUntil:
+    visible: "Reino Unido"
+    timeout: 5000
+- assertNotVisible: "Nueva York"
+- assertVisible:
+    id: "explore-city-chip"
+    text: ".*Ciudad.*"
+
+# «London» → Londres; borrar la búsqueda con la X
+# Los chips están en un scroll horizontal: se arrastra la fila para ver el de ciudad.
+- swipe:
+    from:
+      id: "explore-country-chip"
+    direction: LEFT
+- tapOn:
+    id: "explore-city-chip"
+- extendedWaitUntil:
+    visible: "Destinos habituales"
+    timeout: 5000
+- inputText: "London"
+- assertVisible: "Londres"
+- tapOn: "Borrar búsqueda"
+- assertVisible: "Destinos habituales"
+- inputText: "londres"
+- tapOn:
+    id: "location-option-London"
+- extendedWaitUntil:
+    visible: "Londres"
+    timeout: 5000
+- takeScreenshot: trello-112-explore-filtered
+- tapOn: "Limpiar filtros"
+- assertNotVisible: "Reino Unido"
+
+# ── Compartir experiencia ─────────────────────────────────────────
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "ESTOY BUSCANDO DÓNDE ROTAR.*"
+    timeout: 10000
+# Con la invitación de #110 en el hub, la tarjeta queda más abajo.
+- scrollUntilVisible:
+    element: "YA HE REALIZADO UNA ROTACIÓN.*"
+    centerElement: true
+- tapOn: "YA HE REALIZADO UNA ROTACIÓN.*"
+- extendedWaitUntil:
+    visible: "¿Dónde hiciste la rotación?"
+    timeout: 10000
+
+- tapOn:
+    id: "publish-country"
+- extendedWaitUntil:
+    visible: "Frecuentes"
+    timeout: 5000
+- inputText: "alemania"
+- tapOn:
+    id: "location-option-Germany"
+- extendedWaitUntil:
+    visible: "Alemania"
+    timeout: 5000
+
+# Nombre local «München» → Múnich
+- tapOn:
+    id: "publish-city"
+- extendedWaitUntil:
+    visible: "Destinos habituales"
+    timeout: 5000
+- inputText: "München"
+- assertVisible: "Múnich"
+- tapOn:
+    id: "location-option-Munich"
+- extendedWaitUntil:
+    visible: "Múnich"
+    timeout: 5000
+
+# Ciudad fuera del catálogo: se puede usar tal cual
+- tapOn:
+    id: "publish-city"
+- extendedWaitUntil:
+    visible: "Destinos habituales"
+    timeout: 5000
+- inputText: "Pueblo Inventado"
+- assertVisible: "Usar «Pueblo Inventado» como ciudad"
+- takeScreenshot: trello-112-city-custom
+- tapOn:
+    id: "location-option-custom"
+- extendedWaitUntil:
+    visible: "Pueblo Inventado"
+    timeout: 5000
+- takeScreenshot: trello-112-publish-location
+
+# Salir sin guardar
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Tienes cambios sin guardar"
+    timeout: 5000
+- tapOn: "Salir sin guardar"
+- extendedWaitUntil:
+    visible: "Rotaciones Externas"
+    timeout: 5000

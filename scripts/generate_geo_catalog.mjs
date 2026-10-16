@@ -12,7 +12,9 @@
  * 130.382-141.504) y se llevaba la app por delante antes del primer render.
  *
  * Qué hace esto:
- * - `data/geo/countries.json`: los 250 países, solo con lo que usa la app.
+ * - `data/geo/countries.json`: los 250 países, solo con lo que usa la app, más su
+ *   nombre en español (`es`) y sus coordenadas. Se calcula aquí con `Intl.DisplayNames` porque
+ *   Hermes no lo trae: en el dispositivo no hay forma de traducirlo.
  * - `data/geo/cities/<ISO>.json`: un fichero por país, cargado de forma perezosa.
  *   Lo que mata el crash es que en el arranque no se materializa ninguno: el
  *   array literal solo se construye cuando el usuario elige un país, y el país
@@ -80,10 +82,40 @@ fs.writeFileSync(
     `export const CITY_LOADERS = {\n${loaderEntries}\n};\n`
 );
 
+// `Intl.DisplayNames` da el nombre CLDR, que en unos pocos casos no es el que
+// usa un residente (p. ej. "RAE de Hong Kong (China)" o "Côte d’Ivoire").
+const SPANISH_NAME_OVERRIDES = {
+  CI: "Costa de Marfil",
+  HK: "Hong Kong",
+  MO: "Macao",
+  MM: "Myanmar",
+  UM: "Islas menores alejadas de Estados Unidos",
+  VI: "Islas Vírgenes de Estados Unidos",
+};
+const spanishNames = new Intl.DisplayNames(["es"], { type: "region" });
+const spanishNameOf = (isoCode, fallback) => {
+  if (SPANISH_NAME_OVERRIDES[isoCode]) return SPANISH_NAME_OVERRIDES[isoCode];
+  try {
+    const name = spanishNames.of(isoCode);
+    // Sin traducción, DisplayNames devuelve el propio código.
+    return name && name !== isoCode ? name : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
 fs.writeFileSync(
   path.join(OUT, "countries.json"),
   JSON.stringify(
-    countries.map(({ name, isoCode }) => ({ name, isoCode })),
+    // Las coordenadas del país sirven de respaldo para una ciudad escrita a mano
+    // (external_rotation.latitude/longitude son NOT NULL).
+    countries.map(({ name, isoCode, latitude, longitude }) => ({
+      name,
+      isoCode,
+      es: spanishNameOf(isoCode, name),
+      latitude,
+      longitude,
+    })),
     null,
     0
   ) + "\n"
