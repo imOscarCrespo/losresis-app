@@ -39,6 +39,8 @@ export const LibroAttachmentField = ({
   section,
   onChange,
   disabled = false,
+  // Campo «Imagen» de un apartado personalizado: foto o carrete, sin PDF.
+  imagesOnly = false,
 }) => {
   const [busy, setBusy] = useState(false);
   const current = describeLibroAttachment(value);
@@ -206,14 +208,16 @@ export const LibroAttachmentField = ({
         <Icon name="images-outline" size={16} color="#670CF5" />
         <Text style={styles.pickerText}>Carrete</Text>
       </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.pickerButton}
-        onPress={() => pickAndUpload("document")}
-        activeOpacity={0.85}
-      >
-        <Icon name="document-outline" size={16} color="#670CF5" />
-        <Text style={styles.pickerText}>PDF</Text>
-      </TouchableOpacity>
+      {!imagesOnly ? (
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => pickAndUpload("document")}
+          activeOpacity={0.85}
+        >
+          <Icon name="document-outline" size={16} color="#670CF5" />
+          <Text style={styles.pickerText}>PDF</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 };

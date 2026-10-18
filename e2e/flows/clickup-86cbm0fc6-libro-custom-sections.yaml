@@ -1,0 +1,24 @@
+# ClickUp 86cbm0fc6 · Apartados personalizados en el Libro del Residente
+# https://app.clickup.com/t/86cbm0fc6
+#
+# Regresión: el Libro se abre y pinta su índice con el código de apartados
+# personalizados (lectura de libro_custom_section / libro_custom_entry, progreso
+# combinado). El residente de pruebas (MFyC, H. Ramón y Cajal) no tiene plantilla
+# publicada, así que aquí no aparece ningún apartado personalizado: probarlos de
+# punta a punta exige publicar una plantilla en producción para un hospital con
+# residentes reales, y eso no se hace desde un flujo. Repetible: solo lee.
+appId: com.losresis.app
+name: "86cbm0fc6 Libro con apartados personalizados"
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+# Inicio → acceso rápido «Libro de residentes» (el texto va en dos líneas).
+- tapOn: "Libro de[\\s\\S]*residentes"
+- extendedWaitUntil:
+    visible: "Tu progreso general"
+    timeout: 30000
+- assertVisible: "Apartados del libro"
+- assertNotVisible: "Libro de residente"
+- takeScreenshot: libro-index

@@ -8,6 +8,7 @@ import {
   isLibroProgressDone,
 } from "../data/libroSections";
 import { getResidencyYearWindow } from "../utils/residencyYear";
+import { formatCustomValue } from "../utils/libroCustom";
 
 /**
  * El archivo completo del Libro del Residente en PDF.
@@ -292,6 +293,64 @@ const renderForm = (book) => {
   `;
 };
 
+/**
+ * custom: un apartado personalizado del hospital. Una fila por registro, con la
+ * actividad (si la hay) y cada respuesta con la etiqueta de su campo, también las de
+ * campos que el hospital retiró después. Los adjuntos salen por su nombre.
+ */
+const renderCustom = (book) => {
+  const section = book.customSection || {};
+  const fields = [...(section.fields || [])].sort(
+    (a, b) => (a.position ?? 0) - (b.position ?? 0)
+  );
+  const activities = new Map(
+    (section.activities || []).map((activity) => [activity.id, activity])
+  );
+  const entries = book.customEntries || [];
+
+  if (!entries.length) {
+    return '<p class="muted">Sin registros en este apartado.</p>';
+  }
+
+  const rows = entries
+    .map((entry) => {
+      const activity = entry.activity_id ? activities.get(entry.activity_id) : null;
+      const group = activity?.parent_id ? activities.get(activity.parent_id) : null;
+      const pairs = fields
+        .map((field) => ({
+          label: field.label,
+          value: formatCustomValue(field, entry.field_values?.[field.id]),
+        }))
+        .filter((pair) => pair.value);
+      const detail = pairs.length
+        ? `<ul class="pairs">${pairs
+            .map(
+              (pair) =>
+                `<li><span class="pair-label">${escapeHtml(pair.label)}</span> ${escapeHtml(pair.value)}</li>`
+            )
+            .join("")}</ul>`
+        : '<span class="muted">Sin datos</span>';
+      const name = [group?.name, activity?.name].filter(Boolean).join(" · ");
+
+      return `
+        <tr>
+          <td>${formatDate(entry.performed_at || entry.created_at)}</td>
+          <td>${escapeHtml(name || "—")}${entry.count > 1 ? ` (×${entry.count})` : ""}</td>
+          <td>${detail}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  return `
+    ${section.description ? `<p class="muted">${escapeHtml(section.description)}</p>` : ""}
+    <table>
+      <thead><tr><th>Fecha</th><th>Actividad</th><th>Datos</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+};
+
 /** automatic: Guardias. No las escribe nadie a mano, salen de la Agenda. */
 const renderShifts = (shifts = []) => {
   if (!shifts.length) {
@@ -328,7 +387,12 @@ const renderBook = (book, shifts) => {
   // Un año puede traer dos libros del mismo apartado: el del hospital anterior, ya
   // archivado, y el del actual. Sin decir cuál es cuál, el PDF enseña dos apartados
   // con el mismo título y sin forma de distinguirlos.
-  const state = book.status === "archived" ? "Archivado" : null;
+  const state =
+    book.status === "archived"
+      ? book.archetype === "custom"
+        ? "Retirado por tu hospital"
+        : "Archivado"
+      : null;
 
   let body;
   switch (book.archetype) {
@@ -340,6 +404,9 @@ const renderBook = (book, shifts) => {
       break;
     case "automatic":
       body = renderShifts(shifts);
+      break;
+    case "custom":
+      body = renderCustom(book);
       break;
     default:
       body = renderTree(book);

@@ -70,24 +70,35 @@ export const LibroIndexView = ({
 
     {sections.length ? (
       sections.map((item) => {
+        // Un apartado personalizado trae su icono, color y descripción de la
+        // plantilla; los del catálogo, de data/libroSections.js.
         const color =
-          COLOR_TOKEN_MAP[LIBRO_SECTION_BY_CODE[item.section]?.color_token] ||
-          "#670CF5";
+          COLOR_TOKEN_MAP[
+            item.colorToken || LIBRO_SECTION_BY_CODE[item.section]?.color_token
+          ] || "#670CF5";
 
         return (
           <TouchableOpacity
-            key={item.section}
+            key={item.customSectionId || item.section}
             style={styles.card}
             onPress={() => onOpenSection?.(item)}
             activeOpacity={0.85}
           >
             <View style={[styles.cardIcon, { backgroundColor: `${color}1A` }]}>
-              <Icon name={getLibroSectionIcon(item.section)} size={18} color={color} />
+              <Icon
+                name={item.iconName || getLibroSectionIcon(item.section)}
+                size={18}
+                color={color}
+              />
             </View>
             <View style={styles.cardCopy}>
               <Text style={styles.cardTitle}>{item.label}</Text>
               <Text style={styles.cardSubtitle} numberOfLines={1}>
-                {getLibroSectionDescription(item.section)}
+                {item.isRetired
+                  ? "Retirado por tu hospital"
+                  : item.customSectionId
+                    ? item.description
+                    : getLibroSectionDescription(item.section)}
               </Text>
             </View>
             <View style={styles.cardCount}>

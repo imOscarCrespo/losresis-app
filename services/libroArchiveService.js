@@ -5,6 +5,63 @@ import {
   sortLibroSectionCodes,
 } from "../data/libroSections";
 import { isInResidencyYear } from "../utils/residencyYear";
+import { CUSTOM_SECTION_CODE } from "../utils/libroCustom";
+
+/**
+ * Los registros del residente en apartados personalizados, agrupados como «libros»
+ * de arquetipo `custom` (uno por apartado y año) para que el PDF los pinte junto al
+ * resto. Solo salen apartados que el residente puede leer: los de la plantilla
+ * publicada de su hospital y especialidad.
+ */
+const getCustomArchiveBooks = async (userId) => {
+  const { data: entries, error } = await supabase
+    .from("libro_custom_entry")
+    .select("*")
+    .eq("user_id", userId)
+    .order("performed_at", { ascending: false, nullsFirst: false });
+
+  if (error) throw error;
+  if (!entries?.length) return { books: [], entryCount: 0 };
+
+  const sectionIds = [...new Set(entries.map((entry) => entry.section_id))];
+  const { data: sections, error: sectionsError } = await supabase
+    .from("libro_custom_section")
+    .select(
+      "*, fields:libro_custom_field(*), activities:libro_custom_activity(*)"
+    )
+    .in("id", sectionIds)
+    .order("position", { ascending: true });
+
+  if (sectionsError) throw sectionsError;
+
+  const books = [];
+  (sections || []).forEach((section) => {
+    const years = [
+      ...new Set(
+        entries
+          .filter((entry) => entry.section_id === section.id)
+          .map((entry) => entry.residency_year)
+      ),
+    ];
+    years.forEach((year) => {
+      books.push({
+        id: `${CUSTOM_SECTION_CODE}:${section.id}:${year}`,
+        section: CUSTOM_SECTION_CODE,
+        archetype: CUSTOM_SECTION_CODE,
+        label: section.name,
+        residency_year: year,
+        template_id: section.template_id,
+        status: section.archived_at ? "archived" : "active",
+        customSection: section,
+        customEntries: entries.filter(
+          (entry) => entry.section_id === section.id && entry.residency_year === year
+        ),
+      });
+    });
+  });
+
+  return { books, entryCount: entries.length };
+};
 
 /**
  * Todo el Libro del Residente de un usuario, de todos sus años y apartados.
@@ -58,6 +115,10 @@ export const getLibroArchive = async (userId, currentResidencyYear = null) => {
       throw result.error;
     }
   }
+
+  // Un fallo aquí no se traga: el PDF es el archivo del residente y sin estos
+  // registros estaría incompleto sin decirlo.
+  const custom = await getCustomArchiveBooks(userId);
 
   const books = booksResult.data || [];
   const nodes = nodesResult.data || [];
@@ -141,7 +202,12 @@ export const getLibroArchive = async (userId, currentResidencyYear = null) => {
 
   // Años de mayor a menor, y dentro de cada año los apartados en el orden del
   // catálogo, que es el mismo en el que se los ofrecieron al tutor.
-  const years = [...new Set(hydrated.map((book) => book.residency_year))]
+  const years = [
+    ...new Set([
+      ...hydrated.map((book) => book.residency_year),
+      ...custom.books.map((book) => book.residency_year),
+    ]),
+  ]
     .filter(Boolean)
     .sort((a, b) => b - a);
 
@@ -173,9 +239,13 @@ export const getLibroArchive = async (userId, currentResidencyYear = null) => {
 
     return {
       residencyYear: year,
-      books: order.flatMap((section) =>
-        yearBooks.filter((book) => book.section === section)
-      ),
+      books: [
+        ...order.flatMap((section) =>
+          yearBooks.filter((book) => book.section === section)
+        ),
+        // Los personalizados, detrás, en el orden de la plantilla.
+        ...custom.books.filter((book) => book.residency_year === year),
+      ],
       shifts,
     };
   });
@@ -185,8 +255,8 @@ export const getLibroArchive = async (userId, currentResidencyYear = null) => {
     // Las que no caen en ningún año del libro: guardias anteriores al primer libro,
     // o todas si no se pudo anclar la ventana. No se tiran: son suyas.
     unassignedShifts: allShifts.filter((shift) => !assignedShiftIds.has(shift.id)),
-    totalBooks: hydrated.length,
-    totalEntries: entries.length,
+    totalBooks: hydrated.length + custom.books.length,
+    totalEntries: entries.length + custom.entryCount,
     totalShifts: allShifts.length,
   };
 };

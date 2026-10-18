@@ -133,11 +133,15 @@ _Evitar_: plantilla base (eso es el contenido de arranque por especialidad, que 
 ## Apartado
 
 Unidad de la que se compone el **Libro del Residente** y la **Plantilla del Libro**: Rotaciones, Actividad asistencial, Guardias, Cursos, Congresos, Sesiones clínicas, Investigación y Competencias. El catálogo es **cerrado** —espeja el enum `libro_section_code`— y son **ocho**: Tutorías, Evaluaciones y Reflexión anual salieron de la plantilla y son módulos propios. En código el identificador es `section`, por la base de datos.
+
+Además de los ocho, el hospital puede crear **Apartados personalizados** en su plantilla (ADR 0014): no son valores del enum, viven en `libro_custom_section` y son del arquetipo `custom`. Solo existen en el **Libro oficial**.
 _Evitar_: bloque, sección (en texto visible), módulo (eso son Tutorías, Evaluaciones y Autoevaluación).
 
 ## Arquetipo
 
-El comportamiento que declara un **Apartado** y que decide cómo lo edita el tutor y cómo lo pinta la app. Son cuatro y no hay más: `itinerary` (el tutor define una lista, el residente completa una ficha por elemento), `tree` (el tutor agrupa en **Áreas de actividad** y el residente cuenta registros), `form` (el tutor solo activa campos, el residente crea las filas) y `automatic` (nadie lo escribe: sale de la **Agenda**). El nivel intermedio de agrupación **solo** existe en `tree`.
+El comportamiento que declara un **Apartado** y que decide cómo lo edita el tutor y cómo lo pinta la app. Los ocho del catálogo usan cuatro: `itinerary` (el tutor define una lista, el residente completa una ficha por elemento), `tree` (el tutor agrupa en **Áreas de actividad** y el residente cuenta registros), `form` (el tutor solo activa campos, el residente crea las filas) y `automatic` (nadie lo escribe: sale de la **Agenda**). El nivel intermedio de agrupación **de los del catálogo** solo existe en `tree`.
+
+El quinto es `custom`, el de los **Apartados personalizados**: el hospital define los campos (tipados), el modo de registro (libre, lista de actividades, cuantitativo, formulario único o agrupado), las actividades y sus objetivos, y la app lo pinta todo desde la plantilla (ADR 0014).
 _Evitar_: tipo de bloque, modo, plantilla de apartado.
 
 ## Área de actividad

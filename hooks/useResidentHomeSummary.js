@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getLibroYearOverview } from "../services/libroYearService";
+import { getLibroCustomYearGoals } from "../services/libroCustomService";
+import { combineLibroProgress } from "../utils/libroCustom";
 import {
   getAssessments,
   isAssessmentDueThisMonth,
@@ -138,12 +140,12 @@ export const useResidentHomeSummary = ({
 
     const loadLibroProgress = async () => {
       if (!residentYear) return null;
-      const { progress } = await getLibroYearOverview(
-        userId,
-        residentYear,
-        residentYear
-      );
-      return progress;
+      // Las metas de los apartados personalizados cuentan igual que en el Libro.
+      const [{ progress }, customGoals] = await Promise.all([
+        getLibroYearOverview(userId, residentYear, residentYear),
+        getLibroCustomYearGoals(userId, residentYear),
+      ]);
+      return combineLibroProgress(progress, customGoals);
     };
 
     const loadGross = async () => {

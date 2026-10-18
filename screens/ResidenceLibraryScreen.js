@@ -43,6 +43,26 @@ import { LibroFormEntryScreen } from "../components/libro/LibroFormEntryScreen";
 import { LibroFichaScreen } from "../components/libro/LibroFichaScreen";
 import { LibroItineraryItemScreen } from "../components/libro/LibroItineraryItemScreen";
 import { LibroShiftNotesScreen } from "../components/libro/LibroShiftNotesScreen";
+import { LibroCustomSectionView } from "../components/libro/custom/LibroCustomSectionView";
+import { LibroCustomEntryScreen } from "../components/libro/custom/LibroCustomEntryScreen";
+import {
+  deleteLibroCustomEntry,
+  getLibroCustomEntries,
+  getLibroCustomSections,
+  saveLibroCustomEntry,
+} from "../services/libroCustomService";
+import {
+  CUSTOM_SECTION_CODE,
+  canAddCustomEntry,
+  combineLibroProgress,
+  customSectionCounts,
+  customSectionGoals,
+  liveFields,
+  mergeCustomIntoIndex,
+  performedAtFor,
+  templateYearFor,
+  visibleCustomSections,
+} from "../utils/libroCustom";
 import { toIsoDate } from "../components/libro/LibroDateField";
 import { ConfirmationModal, LibroMigrationModal } from "../components";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
@@ -428,6 +448,14 @@ export default function ResidenceLibraryScreen({
   const [shifts, setShifts] = useState([]);
   const [sectionLoading, setSectionLoading] = useState(false);
   const [savingSection, setSavingSection] = useState(false);
+  // Apartados personalizados de la plantilla publicada (todos los años) y lo que el
+  // residente ha registrado en ellos. La estructura se lee en vivo, no se clona.
+  const [customSections, setCustomSections] = useState([]);
+  const [customEntries, setCustomEntries] = useState([]);
+  // { entry, activityId } con el registro abierto de un apartado personalizado.
+  const [openCustomEntry, setOpenCustomEntry] = useState(null);
+  // La actividad cuyo contador está esperando al servidor ("section" sin actividad).
+  const [busyCustomActivity, setBusyCustomActivity] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   // Cuántos registros se lleva por delante migrar este año. Se cuenta al ofrecerlo,
   // no al confirmarlo, para poder decírselo antes de que decida.
@@ -445,6 +473,8 @@ export default function ResidenceLibraryScreen({
           setTemplateOutline([]);
           setTemplateId(null);
           setTemplateUpdatedAt(null);
+          setCustomSections([]);
+          setCustomEntries([]);
           setSection(DEFAULT_LIBRO_SECTION);
           setSectionsResolved(true);
         }
@@ -472,15 +502,21 @@ export default function ResidenceLibraryScreen({
         ]);
         if (!isMounted) return;
 
-        const outline = template?.id
-          ? await getLibroTemplateOutline(template.id)
-          : [];
+        // Los apartados personalizados no fallan el Libro: si no se pueden leer, se
+        // abre con los de siempre (los servicios devuelven [] y lo registran).
+        const [outline, customSectionRows, customEntryRows] = await Promise.all([
+          template?.id ? getLibroTemplateOutline(template.id) : [],
+          template?.id ? getLibroCustomSections(template.id) : [],
+          getLibroCustomEntries(userId),
+        ]);
         if (!isMounted) return;
 
         setAllBooks(booksData || []);
         setTemplateId(template?.id || null);
         setTemplateUpdatedAt(template?.updated_at || null);
         setTemplateOutline(outline);
+        setCustomSections(customSectionRows);
+        setCustomEntries(customEntryRows);
       } catch (error) {
         console.error("Error resolving libro:", error);
         if (isMounted) {
@@ -488,6 +524,8 @@ export default function ResidenceLibraryScreen({
           setTemplateOutline([]);
           setTemplateId(null);
           setTemplateUpdatedAt(null);
+          setCustomSections([]);
+          setCustomEntries([]);
         }
       } finally {
         if (isMounted) {
@@ -580,9 +618,14 @@ export default function ResidenceLibraryScreen({
     const years = new Set([
       ...allBooks.map((book) => book.residency_year),
       ...templateOutline.map((block) => block.residency_year),
+      // Un año de la plantilla que solo tiene apartados personalizados también es un
+      // año que mirar.
+      ...customSections
+        .filter((customSection) => !customSection.archived_at)
+        .map((customSection) => customSection.residency_year),
     ]);
     return [...years].filter(Boolean).sort((a, b) => a - b);
-  }, [allBooks, templateOutline]);
+  }, [allBooks, templateOutline, customSections]);
 
   // Se abre el año en curso del residente. Si su año no está cubierto, el último
   // que sí lo esté.
@@ -814,9 +857,14 @@ export default function ResidenceLibraryScreen({
       return yearOverview.sections.some((item) => item.isOfficial);
     }
 
+    // Un año de la plantilla con solo apartados personalizados.
+    if (templateId && customSections.some((item) => item.residency_year === templateYearFor(selectedYear))) {
+      return true;
+    }
+
     // Un año sin libros solo puede estar enseñando el plan del tutor.
     return !!templateId && templateSectionsForYear.length > 0;
-  }, [yearOverview.sections, templateId, templateSectionsForYear]);
+  }, [yearOverview.sections, templateId, templateSectionsForYear, customSections, selectedYear]);
 
   // Tiene Libro propio de este año: algún libro sin sellar con template_id, o sea
   // con estructura montada por él.
@@ -837,11 +885,111 @@ export default function ResidenceLibraryScreen({
   // la plantilla de su hospital también la define, no le faltaba ningún apartado y
   // no se le ofrecía nada nunca. Se quedaba editando una estructura propia que su
   // tutor no ve, indefinidamente.
+  // Un año de la plantilla con solo apartados personalizados también se ofrece:
+  // sin esto, quien tiene Libro propio no los vería nunca.
+  const templateHasCustomForYear = customSections.some(
+    (item) => !item.archived_at && item.residency_year === templateYearFor(selectedYear)
+  );
+
+  // Lo que trae el libro de su tutor ese año, con nombre: los del catálogo y los
+  // personalizados, para la tarjeta y el modal de Migrar a la plantilla.
+  const incomingSectionLabels = [
+    ...templateSectionsForYear.map((code) => getLibroSectionLabel(code)),
+    ...customSections
+      .filter(
+        (item) => !item.archived_at && item.residency_year === templateYearFor(selectedYear)
+      )
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+      .map((item) => item.name),
+  ];
+
   const canMigrateToTemplate =
     isOwnYear &&
     !!templateId &&
     hasOwnBookThisYear &&
-    templateSectionsForYear.length > 0;
+    (templateSectionsForYear.length > 0 || templateHasCustomForYear);
+
+  // ---------------------------------------------------------------------------
+  // Apartados personalizados del año abierto (utils/libroCustom.js).
+  //
+  // Son de la plantilla: se ven en el Libro oficial y en el plan del tutor, no en un
+  // Libro propio (llegan al Migrar a la plantilla). Se registra en ellos solo en el
+  // año en curso; no dependen de libro_book, así que un año de la plantilla con solo
+  // apartados personalizados también se puede registrar.
+  // ---------------------------------------------------------------------------
+  const showCustomSections = !!templateId && !hasOwnBookThisYear;
+
+  const yearCustomSections = useMemo(
+    () =>
+      showCustomSections && selectedYear
+        ? visibleCustomSections(customSections, customEntries, selectedYear)
+        : [],
+    [showCustomSections, customSections, customEntries, selectedYear]
+  );
+
+  const customEntriesFor = (sectionId) =>
+    customEntries.filter(
+      (entry) => entry.section_id === sectionId && entry.residency_year === selectedYear
+    );
+
+  const isCustomSectionReadOnly = (customSection) =>
+    !isOwnYear || !!customSection?.archived_at;
+
+  // Las tarjetas del índice: las del catálogo como siempre, con las personalizadas
+  // intercaladas donde el hospital las puso; y su meta suma al Progreso del año.
+  const indexOverview = useMemo(() => {
+    if (!yearCustomSections.length) return yearOverview;
+
+    const templateYear = templateYearFor(selectedYear);
+    const blockPositions = new Map(
+      templateOutline
+        .filter((block) => block.residency_year === templateYear)
+        .map((block) => [block.section, block.position])
+    );
+
+    const goals = [];
+
+    const customItems = yearCustomSections.map((customSection) => {
+      const entries = customEntries.filter(
+        (entry) =>
+          entry.section_id === customSection.id && entry.residency_year === selectedYear
+      );
+      goals.push(...customSectionGoals(customSection, entries));
+      return {
+        section: CUSTOM_SECTION_CODE,
+        customSectionId: customSection.id,
+        position: customSection.position,
+        label: customSection.name,
+        description: customSection.description,
+        iconName: customSection.icon_name,
+        colorToken: customSection.color_token,
+        archetype: CUSTOM_SECTION_CODE,
+        bookId: null,
+        templateId,
+        isOfficial: true,
+        isArchived: false,
+        isRetired: !!customSection.archived_at,
+        count: customSectionCounts(entries).total,
+        total: null,
+      };
+    });
+
+    return {
+      sections: mergeCustomIntoIndex(yearOverview.sections, customItems, blockPositions),
+      progress: combineLibroProgress(yearOverview.progress, goals),
+    };
+  }, [
+    yearOverview,
+    yearCustomSections,
+    customEntries,
+    templateOutline,
+    selectedYear,
+    templateId,
+  ]);
+
+  const openCustomSection = openSection?.customSectionId
+    ? customSections.find((item) => item.id === openSection.customSectionId) || null
+    : null;
 
   // El sello de la plantilla tal como está ahora. Lleva updated_at y no solo el id
   // porque libro_template es UNA fila por hospital+especialidad: republicar no
@@ -966,6 +1114,12 @@ export default function ResidenceLibraryScreen({
     setOpenSection(null);
   }, [selectedYear]);
 
+  // Un registro personalizado abierto es de SU apartado: si se sale de él (cambio de
+  // año, flecha, botón atrás de Android), no puede reaparecer al abrir otro.
+  useEffect(() => {
+    setOpenCustomEntry(null);
+  }, [openSection]);
+
   // ---------------------------------------------------------------------------
   // Los datos del apartado abierto, según su arquetipo. El de `tree` lo sigue
   // cargando useLibroSection, que ya sabe hacerlo.
@@ -973,7 +1127,12 @@ export default function ResidenceLibraryScreen({
   useEffect(() => {
     let isMounted = true;
 
-    if (!openSection || openSection.archetype === "tree") {
+    // El de árbol lo carga useLibroSection, y los personalizados ya están en memoria.
+    if (
+      !openSection ||
+      openSection.archetype === "tree" ||
+      openSection.archetype === CUSTOM_SECTION_CODE
+    ) {
       return () => {
         isMounted = false;
       };
@@ -1037,7 +1196,11 @@ export default function ResidenceLibraryScreen({
   // al apartado anterior haría que la ficha de Rotaciones se creyera de solo lectura
   // (o editable) según el libro de Actividad asistencial.
   const handleOpenSection = (item) => {
-    setSection(item.section);
+    // Un personalizado no es un valor de libro_section_code: `section` (y con él
+    // useLibroSection) se queda como estaba.
+    if (item.archetype !== CUSTOM_SECTION_CODE) {
+      setSection(item.section);
+    }
     setOpenSection(item);
     posthogLogger.capture("resident_book_section_opened", {
       section: item.section,
@@ -1046,6 +1209,143 @@ export default function ResidenceLibraryScreen({
   };
 
   const refreshAfterWrite = () => setLibroReloadKey((prev) => prev + 1);
+
+  // Tras escribir en un personalizado basta con releer sus registros: la estructura
+  // no ha cambiado y el sync de la plantilla no tiene nada que ver.
+  const reloadCustomEntries = async () => {
+    setCustomEntries(await getLibroCustomEntries(userId));
+  };
+
+  // Las reglas del Libro (correo corporativo, reseña) y, encima, que el apartado
+  // admita registros en este año.
+  const guardCustomWrite = (customSection, callback) =>
+    handleProtectedAction(() => {
+      if (isCustomSectionReadOnly(customSection)) {
+        Alert.alert(
+          customSection?.archived_at ? "Apartado retirado" : `Estás viendo R${selectedYear}`,
+          customSection?.archived_at
+            ? "Tu hospital retiró este apartado. Lo que registraste se conserva, pero no admite registros nuevos."
+            : `Solo puedes registrar en el libro de tu año en curso${userResidencyYear ? ` (R${userResidencyYear})` : ""}.`
+        );
+        return;
+      }
+      callback();
+    });
+
+  const handleSaveCustomEntry = async (fieldValues) => {
+    if (!openCustomSection || !openCustomEntry) return false;
+    const fields = liveFields(openCustomSection);
+    setSavingSection(true);
+    try {
+      await saveLibroCustomEntry({
+        entryId: openCustomEntry.entry?.id || null,
+        userId,
+        sectionId: openCustomSection.id,
+        activityId: openCustomEntry.activityId || null,
+        residencyYear: selectedYear,
+        fieldValues,
+        performedAt: performedAtFor(fields, fieldValues),
+      });
+      posthogLogger.capture("resident_book_custom_entry_saved", {
+        record_mode: openCustomSection.record_mode,
+        is_edit: !!openCustomEntry.entry,
+      });
+      await reloadCustomEntries();
+      return true;
+    } catch (error) {
+      console.error("Error saving libro custom entry:", error);
+      Alert.alert("No se pudo guardar", error?.message || "Inténtalo de nuevo.");
+      return false;
+    } finally {
+      setSavingSection(false);
+    }
+  };
+
+  const handleDeleteCustomEntry = async (entry) => {
+    setSavingSection(true);
+    try {
+      await deleteLibroCustomEntry({ entryId: entry.id, userId });
+      await reloadCustomEntries();
+      return true;
+    } catch (error) {
+      console.error("Error deleting libro custom entry:", error);
+      Alert.alert("No se pudo eliminar", error?.message || "Inténtalo de nuevo.");
+      return false;
+    } finally {
+      setSavingSection(false);
+    }
+  };
+
+  // Registro cuantitativo: el + suma uno al momento si no hay nada obligatorio que
+  // pedir; si lo hay, abre el formulario.
+  const handleCustomIncrement = (activityId) => {
+    const customSection = openCustomSection;
+    if (!customSection) return;
+    guardCustomWrite(customSection, async () => {
+      if (liveFields(customSection).some((field) => field.required)) {
+        setOpenCustomEntry({ sectionId: customSection.id, entry: null, activityId });
+        return;
+      }
+      setBusyCustomActivity(activityId || "section");
+      try {
+        await saveLibroCustomEntry({
+          userId,
+          sectionId: customSection.id,
+          activityId,
+          residencyYear: selectedYear,
+          performedAt: performedAtFor([], {}),
+        });
+        posthogLogger.capture("resident_book_custom_counter_incremented", {
+          record_mode: customSection.record_mode,
+        });
+        await reloadCustomEntries();
+      } catch (error) {
+        console.error("Error incrementing libro custom counter:", error);
+        Alert.alert("No se pudo registrar", error?.message || "Inténtalo de nuevo.");
+      } finally {
+        setBusyCustomActivity(null);
+      }
+    });
+  };
+
+  // El − deshace el último registro de esa actividad: es un registro de verdad, así
+  // que se borra el más reciente en vez de apuntar un negativo.
+  const handleCustomDecrement = (activityId) => {
+    const customSection = openCustomSection;
+    if (!customSection) return;
+    const latest = customEntriesFor(customSection.id).find(
+      (entry) => (entry.activity_id || null) === (activityId || null)
+    );
+    if (!latest) return;
+    const undo = async () => {
+      setBusyCustomActivity(activityId || "section");
+      try {
+        await deleteLibroCustomEntry({ entryId: latest.id, userId });
+        await reloadCustomEntries();
+      } catch (error) {
+        console.error("Error decrementing libro custom counter:", error);
+        Alert.alert("No se pudo deshacer", error?.message || "Inténtalo de nuevo.");
+      } finally {
+        setBusyCustomActivity(null);
+      }
+    };
+    guardCustomWrite(customSection, () => {
+      // Un + sin datos se deshace sin preguntar; uno con el formulario rellenado se
+      // lleva lo que escribió, así que se le pregunta.
+      if (Object.keys(latest.field_values || {}).length === 0) {
+        undo();
+        return;
+      }
+      Alert.alert(
+        "Quitar el último registro",
+        "Se borrará el registro más reciente con los datos que rellenaste. No se puede deshacer.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Quitar", style: "destructive", onPress: undo },
+        ]
+      );
+    });
+  };
 
   // Tirar para refrescar. Es la otra mitad de cómo se sincroniza con la plantilla:
   // al abrir el Libro y aquí. Bumpear libroReloadKey vuelve a pasar por
@@ -1486,6 +1786,10 @@ export default function ResidenceLibraryScreen({
         setOpenFormEntry(null);
         return true;
       }
+      if (openCustomEntry) {
+        setOpenCustomEntry(null);
+        return true;
+      }
       if (openFichaNode) {
         setOpenFichaNode(null);
         return true;
@@ -1506,6 +1810,7 @@ export default function ResidenceLibraryScreen({
     showNodeFormScreen,
     showQuickRegister,
     openFormEntry,
+    openCustomEntry,
     openFichaNode,
     openShift,
     openSection,
@@ -1812,6 +2117,38 @@ export default function ResidenceLibraryScreen({
     );
   }
 
+  if (
+    openCustomEntry &&
+    openCustomSection &&
+    openCustomEntry.sectionId === openCustomSection.id
+  ) {
+    const activity = openCustomEntry.activityId
+      ? (openCustomSection.activities || []).find(
+          (item) => item.id === openCustomEntry.activityId
+        ) || null
+      : null;
+    return (
+      <LibroCustomEntryScreen
+        key={openCustomEntry.entry?.id || `new:${openCustomEntry.activityId || ""}`}
+        section={openCustomSection}
+        entry={openCustomEntry.entry}
+        activity={activity}
+        userId={userId}
+        readOnly={isCustomSectionReadOnly(openCustomSection)}
+        saving={savingSection}
+        onClose={() => setOpenCustomEntry(null)}
+        onSave={async (fieldValues) => {
+          const ok = await handleSaveCustomEntry(fieldValues);
+          if (ok !== false) setOpenCustomEntry(null);
+        }}
+        onDelete={async (entry) => {
+          const ok = await handleDeleteCustomEntry(entry);
+          if (ok !== false) setOpenCustomEntry(null);
+        }}
+      />
+    );
+  }
+
   if (openFormEntry) {
     return (
       <LibroFormEntryScreen
@@ -2034,9 +2371,9 @@ export default function ResidenceLibraryScreen({
                       {`Tu tutor ha publicado el libro de R${selectedYear}`}
                     </Text>
                     <Text style={styles.switchTemplateText}>
-                      {`Incluye ${templateSectionsForYear
-                        .map((code) => getLibroSectionLabel(code))
-                        .join(", ")}. Cámbiate para registrar sobre su estructura.`}
+                      {`Incluye ${incomingSectionLabels.join(
+                        ", "
+                      )}. Cámbiate para registrar sobre su estructura.`}
                     </Text>
                   </View>
                   {/* Sin sello no hay nada que recordar, así que no se ofrece una
@@ -2082,12 +2419,16 @@ export default function ResidenceLibraryScreen({
 
             {/* En el índice el aviso mira solo el AÑO: isSelectedBookReadOnly
                 depende del apartado, y en el índice no hay ninguno abierto. */}
-            {(openSection ? isSelectedBookReadOnly : !isSelectedYearWritable) &&
+            {(openSection
+              ? openSection.archetype === CUSTOM_SECTION_CODE
+                ? !isOwnYear
+                : isSelectedBookReadOnly
+              : !isSelectedYearWritable) &&
             !canMigrateToTemplate ? (
               <View style={styles.readOnlyNotice}>
                 <Icon name="lock-closed-outline" size={16} color="#92400E" />
                 <Text style={styles.readOnlyNoticeText}>
-                  {isSelectedBookArchived
+                  {isSelectedBookArchived && openSection?.archetype !== CUSTOM_SECTION_CODE
                     ? "Este libro está archivado. Puedes consultarlo y exportarlo, pero no editarlo."
                     : `Estás viendo R${selectedYear}: es el plan de tu tutor. Solo registras en el libro de tu año en curso.`}
                 </Text>
@@ -2105,12 +2446,56 @@ export default function ResidenceLibraryScreen({
               ) : (
                 <LibroIndexView
                   residencyYear={selectedYear || userResidencyYear || 1}
-                  progress={yearOverview.progress}
-                  sections={yearOverview.sections}
+                  progress={indexOverview.progress}
+                  sections={indexOverview.sections}
                   onOpenSection={handleOpenSection}
                   isArchived={isSelectedBookArchived}
                   isOfficial={isSelectedYearOfficial}
                 />
+              )
+            ) : openSection.archetype === CUSTOM_SECTION_CODE ? (
+              openCustomSection ? (
+                <LibroCustomSectionView
+                  section={openCustomSection}
+                  entries={customEntriesFor(openCustomSection.id)}
+                  readOnly={isCustomSectionReadOnly(openCustomSection)}
+                  busyActivityId={busyCustomActivity}
+                  onCreateEntry={(activityId) =>
+                    guardCustomWrite(openCustomSection, () => {
+                      const existing = customEntriesFor(openCustomSection.id);
+                      if (!canAddCustomEntry(openCustomSection, existing, activityId)) {
+                        // Un solo registro: se edita el que ya hay.
+                        setOpenCustomEntry({
+                          sectionId: openCustomSection.id,
+                          entry: existing.find(
+                            (entry) => (entry.activity_id || null) === (activityId || null)
+                          ),
+                          activityId,
+                        });
+                        return;
+                      }
+                      setOpenCustomEntry({
+                        sectionId: openCustomSection.id,
+                        entry: null,
+                        activityId,
+                      });
+                    })
+                  }
+                  onOpenEntry={(entry) =>
+                    entry &&
+                    setOpenCustomEntry({
+                      sectionId: openCustomSection.id,
+                      entry,
+                      activityId: entry.activity_id || null,
+                    })
+                  }
+                  onIncrement={handleCustomIncrement}
+                  onDecrement={handleCustomDecrement}
+                />
+              ) : (
+                <Text style={styles.customMissingText}>
+                  Este apartado ya no está en la plantilla de tu hospital.
+                </Text>
               )
             ) : openSection.archetype === "itinerary" ? (
               <LibroItineraryView
@@ -2278,9 +2663,7 @@ export default function ResidenceLibraryScreen({
         onExportPdf={handleExportArchivePdf}
         onConfirm={handleConfirmMigration}
         residencyYear={selectedYear}
-        incomingSections={templateSectionsForYear.map((code) =>
-          getLibroSectionLabel(code)
-        )}
+        incomingSections={incomingSectionLabels}
         recordedEntries={entriesAtRisk}
         migrating={switchingToTemplate}
       />
@@ -2302,6 +2685,12 @@ export default function ResidenceLibraryScreen({
 }
 
 const styles = StyleSheet.create({
+  customMissingText: {
+    fontSize: 13,
+    color: "#64748B",
+    textAlign: "center",
+    paddingVertical: 20,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: "#FFFFFF",
