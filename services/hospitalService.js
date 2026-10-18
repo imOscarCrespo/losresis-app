@@ -643,6 +643,7 @@ export const getHospitalProfileContent = async (hospitalId) => {
       { data: documentRows, error: documentError },
       { data: planRows, error: planError },
       { data: planDocumentRows, error: planDocumentError },
+      { data: planImageRows, error: planImageError },
     ] = await Promise.all([
       supabase
         .from("employer_org_profile")
@@ -662,12 +663,17 @@ export const getHospitalProfileContent = async (hospitalId) => {
       supabase
         .from("employer_org_profile_speciality")
         .select(
-          "org_id, speciality_id, plan_formativo_storage_path, plan_formativo_url, description, differential_points, specialities(name)"
+          "org_id, speciality_id, plan_formativo_storage_path, plan_formativo_url, description, differential_points, video_url, specialities(name)"
         )
         .eq("org_id", orgRow.id),
       supabase
         .from("employer_org_profile_speciality_plan")
         .select("id, speciality_id, public_url, title, position")
+        .eq("org_id", orgRow.id)
+        .order("position", { ascending: true }),
+      supabase
+        .from("employer_org_profile_speciality_image")
+        .select("id, speciality_id, public_url, alt_text, position")
         .eq("org_id", orgRow.id)
         .order("position", { ascending: true }),
     ]);
@@ -687,6 +693,9 @@ export const getHospitalProfileContent = async (hospitalId) => {
     if (planDocumentError) {
       throw new Error(planDocumentError.message);
     }
+    if (planImageError) {
+      throw new Error(planImageError.message);
+    }
 
     // Una especialidad puede tener varios PDF (p. ej. castellano y catalán).
     const planDocumentsBySpeciality = new Map();
@@ -698,6 +707,14 @@ export const getHospitalProfileContent = async (hospitalId) => {
         title: row.title?.trim() || null,
       });
       planDocumentsBySpeciality.set(row.speciality_id, list);
+    }
+
+    // Fotos del servicio de cada especialidad, aparte de la galería del hospital.
+    const planImagesBySpeciality = new Map();
+    for (const row of planImageRows || []) {
+      const list = planImagesBySpeciality.get(row.speciality_id) || [];
+      list.push({ id: row.id, public_url: row.public_url, alt_text: row.alt_text || null });
+      planImagesBySpeciality.set(row.speciality_id, list);
     }
 
     const plans = ((planRows || []).map((row) => {
@@ -721,6 +738,8 @@ export const getHospitalProfileContent = async (hospitalId) => {
         differential_points: Array.isArray(row.differential_points)
           ? row.differential_points.filter(Boolean)
           : [],
+        images: planImagesBySpeciality.get(row.speciality_id) || [],
+        video_url: row.video_url?.trim() || null,
       };
     }) || []).sort((a, b) =>
       a.speciality_name.localeCompare(b.speciality_name, "es")

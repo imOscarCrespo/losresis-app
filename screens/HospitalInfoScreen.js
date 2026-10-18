@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Linking,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,8 @@ import {
 } from "react-native";
 import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
+import { ProfileGallery } from "../components/hospitalProfile/ProfileGallery";
+import { VideoThumbnail } from "../components/hospitalProfile/VideoThumbnail";
 import { getHospitalProfileContent } from "../services/hospitalService";
 import { openURL } from "../utils/courseUtils";
 import { parseInstitutionalVideo } from "../utils/institutionalVideo";
@@ -124,6 +125,17 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
     });
   };
 
+  const handleOpenSpecialityVideo = (plan, video) => {
+    posthogLogger.capture("hospital_speciality_video_opened", {
+      hospitalId: hospital?.id,
+      specialityId: plan.speciality_id,
+      provider: video.provider,
+    });
+    openURL(video.watchUrl, () => {
+      Alert.alert("Error", "No se pudo abrir el vídeo.");
+    });
+  };
+
   const handleOpenDocument = (document) => {
     if (!document?.public_url) return;
     openURL(document.public_url, () => {
@@ -200,6 +212,8 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
     const documents = plan.documents || [];
     const hasPdf = documents.length > 0;
     const hasDifferentialPoints = (plan.differential_points || []).length > 0;
+    const planImages = plan.images || [];
+    const planVideo = parseInstitutionalVideo(plan.video_url);
 
     return (
       <View key={plan.speciality_id} style={styles.planAccordion}>
@@ -305,6 +319,24 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
                 El hospital no ha adjuntado un PDF para esta especialidad.
               </Text>
             )}
+
+            {planImages.length > 0 ? (
+              <View style={styles.planAccordionMedia}>
+                <Text style={styles.planAccordionSubtitle}>Fotografías del servicio</Text>
+                <ProfileGallery images={planImages} itemWidth={200} itemHeight={130} />
+              </View>
+            ) : null}
+
+            {planVideo ? (
+              <View style={styles.planAccordionMedia}>
+                <Text style={styles.planAccordionSubtitle}>Vídeo del servicio</Text>
+                <VideoThumbnail
+                  video={planVideo}
+                  onPress={() => handleOpenSpecialityVideo(plan, planVideo)}
+                  accessibilityLabel={`Ver vídeo del servicio de ${plan.speciality_name}`}
+                />
+              </View>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -357,49 +389,18 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
               {institutionalVideo ? (
                 <View style={styles.infoCard}>
                   <Text style={styles.infoCardTitle}>Vídeo institucional</Text>
-                  <TouchableOpacity
-                    style={styles.videoThumb}
-                    activeOpacity={0.85}
+                  <VideoThumbnail
+                    video={institutionalVideo}
                     onPress={handleOpenVideo}
-                    accessibilityRole="button"
                     accessibilityLabel="Ver vídeo institucional"
-                  >
-                    {institutionalVideo.thumbnailUrl ? (
-                      <Image
-                        source={{ uri: institutionalVideo.thumbnailUrl }}
-                        style={styles.galleryImage}
-                        resizeMode="cover"
-                      />
-                    ) : null}
-                    <View style={styles.videoPlayBadge}>
-                      <Icon name="play" size={26} color={WHITE} />
-                    </View>
-                  </TouchableOpacity>
+                  />
                 </View>
               ) : null}
 
               {(hospitalProfile?.images || []).length > 0 && (
                 <View style={styles.infoCard}>
                   <Text style={styles.infoCardTitle}>Galería de imágenes</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.galleryScrollContent}
-                    nestedScrollEnabled
-                  >
-                    {hospitalProfile.images.map((image, index) => (
-                      <View
-                        key={image.id || `${image.public_url}-${index}`}
-                        style={styles.galleryItem}
-                      >
-                        <Image
-                          source={{ uri: image.public_url }}
-                          style={styles.galleryImage}
-                          resizeMode="cover"
-                        />
-                      </View>
-                    ))}
-                  </ScrollView>
+                  <ProfileGallery images={hospitalProfile.images} />
                 </View>
               )}
 
@@ -592,33 +593,6 @@ const styles = StyleSheet.create({
     borderColor: `${PRIMARY}14`,
   },
   infoChipText: { fontSize: 12, fontWeight: "600", color: ACCENT },
-  galleryScrollContent: { gap: 12, paddingRight: 2 },
-  galleryItem: {
-    width: 240,
-    height: 156,
-    borderRadius: 16,
-    overflow: "hidden",
-    backgroundColor: SURFACE_ALT,
-  },
-  galleryImage: { width: "100%", height: "100%" },
-  videoThumb: {
-    width: "100%",
-    aspectRatio: 16 / 9,
-    borderRadius: 16,
-    overflow: "hidden",
-    backgroundColor: ACCENT,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  videoPlayBadge: {
-    position: "absolute",
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: PRIMARY,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   documentList: { gap: 10 },
   documentRow: {
     flexDirection: "row",
@@ -714,6 +688,8 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   planAccordionEmptyPdf: { fontSize: 13, lineHeight: 20, color: TEXT_LIGHT },
+  planAccordionMedia: { gap: 10 },
+  planAccordionSubtitle: { fontSize: 13, fontWeight: "700", color: ACCENT },
   emptyInlineState: {
     paddingVertical: 18,
     alignItems: "center",
