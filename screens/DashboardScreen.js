@@ -15,6 +15,7 @@ import MirOrientationScreen from "./MirOrientationScreen";
 import MirProjectedScoreScreen from "./MirProjectedScoreScreen";
 import ProfileScreen from "./ProfileScreen";
 import ProfileEditScreen from "./ProfileEditScreen";
+import ChangePasswordScreen from "./ChangePasswordScreen";
 import MyConnectionsScreen from "./MyConnectionsScreen";
 import MyPostsScreen from "./MyPostsScreen";
 import MenuScreen from "./MenuScreen";
@@ -1656,6 +1657,15 @@ export default function DashboardScreen({
             onAutoFocusWorkEmailHandled={() =>
               setProfileAutoFocusWorkEmail(false)
             }
+          />
+        );
+
+      case "changePassword":
+        return (
+          <ChangePasswordScreen
+            mode="profile"
+            onBack={() => handleSectionChange("usuario")}
+            onPasswordChanged={() => handleSectionChange("usuario")}
           />
         );
 

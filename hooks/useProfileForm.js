@@ -3,6 +3,7 @@ import { Alert } from "react-native";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { updateUserProfile } from "../services/userService";
 import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
+import { isHospitalCreatedResident } from "../utils/passwordAccess";
 import {
   validateProfileForm,
   shouldShowEmailReview,
@@ -222,7 +223,16 @@ export const useProfileForm = () => {
 
         // Validar email de trabajo para residentes y doctores
         let emailValidation = { isValid: true };
+        // El email de una cuenta creada por el hospital ya lo verificó el panel
+        // (también contra el dominio que declara el owner, que no está en
+        // hospitals.email_domain). Mientras no lo cambie, no se vuelve a mirar
+        // (Trello #100).
+        const keepsHospitalVerifiedEmail =
+          isHospitalCreatedResident(userProfile) &&
+          normalizedFormData.work_email === userProfile?.work_email &&
+          normalizedFormData.hospital_id === userProfile?.hospital_id;
         if (
+          !keepsHospitalVerifiedEmail &&
           (normalizedFormData.is_resident || normalizedFormData.is_doctor) &&
           normalizedFormData.work_email &&
           normalizedFormData.hospital_id

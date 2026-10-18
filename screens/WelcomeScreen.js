@@ -17,6 +17,7 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { FaceIdLogo } from "../components/FaceIdLogo";
 import { LosResisLogo } from "../components/LosResisLogo";
+import HospitalAccessLoginModal from "../components/HospitalAccessLoginModal";
 import {
   signInWithGoogle,
   signInWithApple,
@@ -50,6 +51,7 @@ export default function WelcomeScreen({ onAuthSuccess }) {
   const [isChecking, setIsChecking] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [signingInProvider, setSigningInProvider] = useState(null); // 'google' | 'apple' | 'biometric' | null
+  const [showHospitalAccess, setShowHospitalAccess] = useState(false);
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState(null);
@@ -658,6 +660,20 @@ export default function WelcomeScreen({ onAuthSuccess }) {
     }
   };
 
+  // Login con la cuenta que ha creado el hospital desde el panel (Trello #100).
+  // Termina igual que Google/Apple: prompt de Face ID y luego onAuthSuccess.
+  const handleHospitalAccessSignedIn = async () => {
+    setShowHospitalAccess(false);
+    posthogLogger.capture("Auth Completed", {
+      provider: "password",
+      platform: Platform.OS,
+    });
+    const promptShown = await checkBiometricPromptAfterLogin();
+    if (!promptShown && onAuthSuccess) {
+      onAuthSuccess();
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -755,6 +771,23 @@ export default function WelcomeScreen({ onAuthSuccess }) {
                 />
               )}
 
+              <TouchableOpacity
+                testID="hospital-access-open"
+                style={styles.hospitalAccessLink}
+                onPress={() => {
+                  posthogLogger.capture("Auth Started", {
+                    provider: "password",
+                    platform: Platform.OS,
+                  });
+                  setShowHospitalAccess(true);
+                }}
+                disabled={!!isChecking || signingInWithBiometric}
+              >
+                <Text style={styles.hospitalAccessLinkText}>
+                  Tengo un acceso de mi hospital
+                </Text>
+              </TouchableOpacity>
+
               <View style={styles.dividerContainer}>
                 <View style={styles.dividerLine} />
                 <Text style={styles.dividerText}>o</Text>
@@ -821,6 +854,12 @@ export default function WelcomeScreen({ onAuthSuccess }) {
           </View>
         </View>
       </View>
+
+      <HospitalAccessLoginModal
+        visible={showHospitalAccess}
+        onClose={() => setShowHospitalAccess(false)}
+        onSignedIn={handleHospitalAccessSignedIn}
+      />
 
       {/* Modal para preguntar sobre Face ID la primera vez */}
       <Modal
@@ -1120,5 +1159,17 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
     color: "#1B0977",
+  },
+  hospitalAccessLink: {
+    marginTop: -4,
+    alignSelf: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  hospitalAccessLinkText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.PRIMARY,
+    textDecorationLine: "underline",
   },
 });

@@ -12,9 +12,14 @@ import { useVersionCheck } from "./hooks/useVersionCheck";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import DashboardScreen from "./screens/DashboardScreen";
 import ProfileEditScreen from "./screens/ProfileEditScreen";
+import ChangePasswordScreen from "./screens/ChangePasswordScreen";
 import OnboardingScreen from "./screens/OnboardingScreen";
 import { supabase } from "./config/supabase";
 import { DEV_E2E } from "./config/devConfig";
+import {
+  isHospitalCreatedResident,
+  mustChangePassword,
+} from "./utils/passwordAccess";
 
 // En pruebas automáticas los avisos de LogBox tapan la parte baja de la pantalla;
 // los errores siguen saliendo en el log de Metro.
@@ -72,6 +77,11 @@ const UNRESOLVED_SNAPSHOT = {
 // concedemos bypass a cualquier R1 — preferimos no bloquear por un error de
 // infra al usuario que está empezando residencia.
 const resolveBypassFromConfig = (profile, configResult) => {
+  // El fallback sin config no pasa por shouldBypassResidentReviewGate: la
+  // exención de las cuentas creadas por el hospital (Trello #100) se repite aquí.
+  if (isHospitalCreatedResident(profile)) {
+    return true;
+  }
   const { success, config } = configResult || {};
   if (!success) {
     const residentYear = Number(profile?.resident_year || 0);
@@ -121,6 +131,9 @@ function AppContent() {
   const [residentEmailRejected, setResidentEmailRejected] = useState(false);
   const [residentSeasonalLocked, setResidentSeasonalLocked] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  // Contraseña provisional que puso el hospital (Trello #100): hasta cambiarla
+  // no se entra a la app.
+  const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
   const gateSessionTrackedRef = useRef(null);
   const {
     needsUpdate,
@@ -308,6 +321,7 @@ function AppContent() {
     setResidentEmailRejected(false);
     setResidentSeasonalLocked(false);
     setCurrentUserId(null);
+    setPasswordChangeRequired(false);
   };
 
   // Vuelca una instantánea ya resuelta sobre los estados de las puertas de
@@ -326,6 +340,8 @@ function AppContent() {
 
     const user = userResult?.success ? userResult.user : null;
     if (!user) return false;
+
+    setPasswordChangeRequired(mustChangePassword(user));
 
     const profile = profileResult?.success ? profileResult.profile : null;
 
@@ -581,6 +597,7 @@ function AppContent() {
     gateSessionTrackedRef.current = null;
     setCurrentUserId(null);
     setResidentReviewGateState(null);
+    setPasswordChangeRequired(false);
     // Forzar que el usuario vuelva a hacer login
     setIsAuthenticated(false);
     setNeedsOnboarding(false);
@@ -603,6 +620,12 @@ function AppContent() {
           updateUrl={updateUrl}
           currentVersion={currentVersion}
           minVersion={minVersion}
+        />
+      ) : isAuthenticated && passwordChangeRequired ? (
+        <ChangePasswordScreen
+          mode="required"
+          onPasswordChanged={() => checkAuth({ forceProfileRefresh: true })}
+          onSignOut={handleSignOut}
         />
       ) : isAuthenticated && needsOnboarding ? (
         <OnboardingScreen

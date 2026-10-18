@@ -19,6 +19,7 @@ import {
   getCachedUserProfile,
   syncActiveProfileCacheUser,
 } from "./userProfileCacheService";
+import { mapPasswordSignInError } from "../utils/passwordAccess";
 
 // Clave para almacenar el userId en AsyncStorage
 const USER_ID_KEY = "@losresis:userId";
@@ -431,6 +432,74 @@ export const signInWithGoogle = async (redirectUrl) => {
  */
 export const signInWithApple = async (redirectUrl) => {
   return signInWithOAuth("apple", redirectUrl);
+};
+
+/**
+ * Iniciar sesión con email + contraseña. Solo para residentes cuya cuenta ha
+ * creado su hospital desde el panel (Trello #100, panel ADR 0037): no hay
+ * autoalta ni recuperación por email; si la olvidan, el hospital la regenera.
+ * @param {string} email
+ * @param {string} password
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export const signInWithHospitalAccess = async (email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: String(email || "").trim().toLowerCase(),
+      password,
+    });
+
+    if (error || !data?.session) {
+      return { success: false, error: mapPasswordSignInError(error) };
+    }
+
+    // Lo mismo que hace el login con Google/Apple al terminar.
+    if (data.session.user?.id) {
+      await saveUserId(data.session.user.id);
+    }
+    await saveTokensForBiometric(
+      data.session.access_token,
+      data.session.refresh_token
+    );
+
+    return { success: true, error: null };
+  } catch (error) {
+    console.error("❌ Error al iniciar sesión con contraseña:", error);
+    return { success: false, error: mapPasswordSignInError(error) };
+  }
+};
+
+/**
+ * Cambiar la contraseña del usuario con sesión y quitar la marca de contraseña
+ * provisional que pone el panel.
+ * @param {string} password
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export const updatePassword = async (password) => {
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password,
+      data: { must_change_password: false },
+    });
+
+    if (error) {
+      const message = String(error.message || "").toLowerCase();
+      return {
+        success: false,
+        error: message.includes("different from the old")
+          ? "La nueva contraseña tiene que ser distinta de la provisional."
+          : "No se pudo cambiar la contraseña. Inténtalo de nuevo.",
+      };
+    }
+
+    return { success: true, error: null };
+  } catch (error) {
+    console.error("❌ Error al cambiar la contraseña:", error);
+    return {
+      success: false,
+      error: "No se pudo cambiar la contraseña. Inténtalo de nuevo.",
+    };
+  }
 };
 
 /**

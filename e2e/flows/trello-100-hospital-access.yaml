@@ -1,0 +1,114 @@
+# Trello #100 · Accesos de residentes creados por el hospital
+# https://trello.com/c/thWqM0Ta
+#
+# Login con email + contraseña provisional → puerta de "Elige tu contraseña" (validaciones) →
+# entra a la app sin onboarding ni reseña obligatoria → "Cambiar contraseña" en Perfil.
+# Usa el residente creado como lo hace el panel: E2E_CREDENTIALS=~/.config/losresis/e2e-hospital.env
+# El script de preparación lo deja con la provisional y la marca, para poder repetirlo.
+appId: com.losresis.app
+name: "#100 Acceso de residente creado por el hospital"
+---
+- runScript: ../scripts/reset-100-hospital-access.js
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      id: "hospital-access-open"
+    timeout: 30000
+- tapOn:
+    id: "hospital-access-open"
+- extendedWaitUntil:
+    visible: "Acceso de tu hospital"
+    timeout: 10000
+- takeScreenshot: trello-100-login-modal
+
+# Contraseña incorrecta: mensaje claro, sin pistas
+- tapOn:
+    id: "hospital-access-email"
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - tapOn:
+          id: "hospital-access-email"
+- eraseText: 60
+- inputText: ${E2E_EMAIL}
+- pressKey: Enter
+- inputText: "incorrecta-123"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "Email o contraseña incorrectos.*"
+    timeout: 15000
+- takeScreenshot: trello-100-wrong-password
+
+# Contraseña provisional buena
+- tapOn:
+    id: "hospital-access-email"
+- pressKey: Enter
+- eraseText: 40
+- inputText: ${E2E_PASSWORD}
+- pressKey: Enter
+
+# Face ID: si el simulador lo ofrece la primera vez, se rechaza
+- runFlow:
+    when:
+      visible: "Ahora no"
+    commands:
+      - tapOn: "Ahora no"
+
+# Puerta: hay que cambiar la provisional
+- extendedWaitUntil:
+    visible: "Elige tu contraseña"
+    timeout: 30000
+- assertVisible: "Antes de empezar, cambia la contraseña provisional.*"
+- takeScreenshot: trello-100-change-required
+
+- tapOn:
+    id: "new-password"
+- inputText: "corta"
+- pressKey: Enter
+- inputText: "corta"
+- pressKey: Enter
+- assertVisible: "La contraseña tiene que tener al menos 8 caracteres."
+
+- tapOn:
+    id: "new-password"
+- eraseText: 20
+- inputText: ${E2E_NEW_PASSWORD}
+- pressKey: Enter
+- eraseText: 20
+- inputText: "no-coincide-123"
+- pressKey: Enter
+- assertVisible: "Las contraseñas no coinciden."
+
+- tapOn:
+    id: "new-password-confirmation"
+- eraseText: 30
+- inputText: ${E2E_NEW_PASSWORD}
+- pressKey: Enter
+
+# Dentro: sin onboarding y sin bloqueo de reseña
+- extendedWaitUntil:
+    visible: "Nóminas"
+    timeout: 30000
+- assertNotVisible: "Elige tu contraseña"
+- takeScreenshot: trello-100-dashboard
+
+# Perfil: la cuenta del hospital puede volver a cambiarla
+- tapOn: "Perfil"
+- scrollUntilVisible:
+    element: "Cambiar contraseña"
+    centerElement: true
+- takeScreenshot: trello-100-profile-row
+- tapOn: "Cambiar contraseña"
+- extendedWaitUntil:
+    visible: "Guardar contraseña"
+    timeout: 10000
+- assertNotVisible: "Cerrar sesión"
+- takeScreenshot: trello-100-profile-change
+- tapOn: "Volver"
+- scrollUntilVisible:
+    element: "Cambiar contraseña"
+    centerElement: true

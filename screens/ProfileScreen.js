@@ -11,6 +11,7 @@ import {
   Pressable,
 } from "react-native";
 import { Icon } from "../components/Icon";
+import { isHospitalCreatedResident } from "../utils/passwordAccess";
 import * as Clipboard from "expo-clipboard";
 import { KeyboardAwareScrollView } from "../components/KeyboardAwareScrollView";
 import { KeyboardAwareTextInput } from "../components/KeyboardAwareTextInput";
@@ -663,6 +664,25 @@ export default function ProfileScreen({
                 )}
               </TouchableOpacity>
             </View>
+
+            {isHospitalCreatedResident(userProfile) ? (
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => onSectionChange?.("changePassword")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingsRowContent}>
+                  <Icon
+                    name="lock-closed-outline"
+                    size={24}
+                    color={COLORS.PRIMARY}
+                    style={styles.securityIcon}
+                  />
+                  <Text style={styles.settingsRowTitle}>Cambiar contraseña</Text>
+                </View>
+                <Icon name="chevron-forward" size={20} color={COLORS.TEXT_LIGHT} />
+              </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity
               style={styles.settingsRow}

@@ -1,3 +1,5 @@
+import { isHospitalCreatedResident } from "./passwordAccess";
+
 export const RESIDENT_STATE = {
   ACTIVE: "active",
   PENDING_CORPORATE_EMAIL_SEASONAL: "pending_corporate_email_seasonal",
@@ -128,11 +130,14 @@ export const hasResidentFeatureAccess = (profile, now = new Date()) =>
       !isResidentLockedMissingCorporateEmail(profile, now)
   );
 
+// A quien da de alta su propio hospital desde el panel no se le exige reseñar
+// ese hospital para usar la app (Trello #100).
 export const shouldBypassResidentReviewGate = (
   profile,
   transitionConfig = null,
   now = new Date()
 ) =>
+  isHospitalCreatedResident(profile) ||
   isSeasonalResidentPending(profile, now) ||
   canResidentUseSeasonalGrace(profile, transitionConfig, now);
 

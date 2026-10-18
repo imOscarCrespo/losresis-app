@@ -3,6 +3,7 @@
 # Uso: scripts/e2e.sh e2e/flows/<flujo>.yaml [más flujos...]
 # Credenciales en ~/.config/losresis/e2e.env (E2E_EMAIL, E2E_PASSWORD), fuera del repo.
 # Para flujos de estudiante: E2E_CREDENTIALS=~/.config/losresis/e2e-student.env scripts/e2e.sh ...
+# Residente creado por el hospital (#100): E2E_CREDENTIALS=~/.config/losresis/e2e-hospital.env
 # Las capturas (takeScreenshot) y los logs quedan en $E2E_OUTPUT_DIR, nunca en el repo.
 # Ojo: el commands.json de Maestro incluye las variables en claro; resúmelo con
 # scripts/e2e-summary.mjs, que las oculta.
@@ -34,6 +35,7 @@ cd "$OUTPUT_DIR"
 "$MAESTRO" test \
   -e E2E_EMAIL="$E2E_EMAIL" \
   -e E2E_PASSWORD="$E2E_PASSWORD" \
+  -e E2E_NEW_PASSWORD="${E2E_NEW_PASSWORD:-}" \
   -e SUPABASE_URL="$SUPABASE_URL" \
   -e SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
   --test-output-dir "$OUTPUT_DIR" \
