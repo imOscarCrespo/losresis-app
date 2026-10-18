@@ -16,13 +16,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "../components/Icon";
 import { FilterModal } from "../components/FilterModal";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
+import { OpenDaySpecialitiesSheet } from "../components/OpenDaySpecialitiesSheet";
 import { usePersistedFilters } from "../hooks/usePersistedFilters";
 import {
   getMyOpenDayRegistrations,
+  getOpenDaySpecialityOptions,
+  getTodayIsoDate,
   getUpcomingHospitalOpenDays,
-  registerForHospitalOpenDay,
+  saveOpenDayRegistration,
 } from "../services/hospitalService";
 import { formatDateOnly } from "../utils/dateUtils";
+import {
+  canEditOpenDaySpecialities,
+  getSelectedSpecialityNames,
+} from "../utils/openDaySpecialities";
 import { openURL } from "../utils/courseUtils";
 import posthogLogger from "../services/posthogService";
 
@@ -30,6 +37,8 @@ const PRIMARY = "#670CF5";
 const ACCENT = "#1B0977";
 const BG_LIGHT = "#F8F9FE";
 const WHITE = "#FFFFFF";
+
+const EMPTY_IDS = [];
 
 const DEFAULT_FILTERS = {
   searchTerm: "",
@@ -84,6 +93,10 @@ export default function OpenDaysScreen({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [registeringId, setRegisteringId] = useState(null);
+  // Especialidades marcadas en cada jornada en la que está inscrito.
+  const [specialityIdsByOpenDay, setSpecialityIdsByOpenDay] = useState({});
+  // "register" al inscribirse, "edit" al modificar; null con el sheet cerrado.
+  const [specialitiesSheetMode, setSpecialitiesSheetMode] = useState(null);
   // El filtro que llega del detalle del hospital se puede quitar sin salir.
   const [filterHospitalId, setFilterHospitalId] = useState(hospitalId);
   // La jornada abierta en detalle. Se guarda el id y no la fila para que un
@@ -157,11 +170,13 @@ export default function OpenDaysScreen({
 
         setOpenDays(openDaysResult.success ? openDaysResult.openDays : []);
         setRegisteredIds(new Set(registrationsResult.openDayIds || []));
+        setSpecialityIdsByOpenDay(registrationsResult.specialityIdsByOpenDay || {});
       } catch (error) {
         console.error("Exception fetching open days:", error);
         if (!isActive()) return;
         setOpenDays([]);
         setRegisteredIds(new Set());
+        setSpecialityIdsByOpenDay({});
       }
     },
     [userId]
@@ -306,6 +321,11 @@ export default function OpenDaysScreen({
     [openDays, selectedOpenDayId]
   );
 
+  const selectedSpecialityOptions = useMemo(
+    () => getOpenDaySpecialityOptions(selectedOpenDay?.hospital_id),
+    [selectedOpenDay?.hospital_id]
+  );
+
   // Si la jornada abierta se despublica y desaparece en un refresco, se vuelve
   // a la lista en vez de quedarse en un detalle vacío.
   useEffect(() => {
@@ -322,7 +342,65 @@ export default function OpenDaysScreen({
     });
   }, [loading, openDays.length, filterHospitalId]);
 
-  const handleRegistration = async (openDay) => {
+  // Guarda la inscripción y la selección de especialidades. Solo se da por
+  // hecha si el RPC responde bien: sin conexión no se marca nada en pantalla.
+  const saveRegistration = async (openDay, specialityIds, mode) => {
+    setRegisteringId(openDay.id);
+    try {
+      const { success, error } = await saveOpenDayRegistration(
+        openDay.id,
+        specialityIds
+      );
+
+      if (!success) {
+        // Los errores del RPC ya vienen en español y explican la regla
+        // (jornada empezada, especialidad de otro hospital...); el resto suele
+        // ser la red.
+        const isRuleError = /jornada|especialidad/i.test(error || "");
+        Alert.alert(
+          "No se han podido guardar los cambios",
+          isRuleError
+            ? error
+            : "Revisa tu conexión e inténtalo de nuevo."
+        );
+        return;
+      }
+
+      setRegisteredIds((current) => new Set(current).add(openDay.id));
+      setSpecialityIdsByOpenDay((current) => ({
+        ...current,
+        [openDay.id]: specialityIds,
+      }));
+      setSpecialitiesSheetMode(null);
+
+      if (mode === "edit") {
+        posthogLogger.capture("hospital_open_day_specialities_updated", {
+          open_day_id: openDay.id,
+          hospital_id: openDay.hospital_id,
+          speciality_count: specialityIds.length,
+        });
+        return;
+      }
+
+      posthogLogger.capture("hospital_open_day_registered", {
+        open_day_id: openDay.id,
+        hospital_id: openDay.hospital_id,
+        source: "open_days_screen",
+        speciality_count: specialityIds.length,
+      });
+      Alert.alert("Inscripción completada", "Tu plaza ha quedado registrada.");
+    } catch (error) {
+      console.error("Exception saving open day registration:", error);
+      Alert.alert(
+        "No se han podido guardar los cambios",
+        "Revisa tu conexión e inténtalo de nuevo."
+      );
+    } finally {
+      setRegisteringId(null);
+    }
+  };
+
+  const handleRegistration = (openDay) => {
     if (!openDay?.id || registeredIds.has(openDay.id)) return;
 
     if (!userId) {
@@ -333,34 +411,13 @@ export default function OpenDaysScreen({
       return;
     }
 
-    setRegisteringId(openDay.id);
-    try {
-      const { success, error } = await registerForHospitalOpenDay(
-        openDay.id,
-        userId
-      );
-
-      if (!success) {
-        Alert.alert(
-          "Error",
-          error || "No se pudo completar la inscripción a la jornada."
-        );
-        return;
-      }
-
-      setRegisteredIds((current) => new Set(current).add(openDay.id));
-      posthogLogger.capture("hospital_open_day_registered", {
-        open_day_id: openDay.id,
-        hospital_id: openDay.hospital_id,
-        source: "open_days_screen",
-      });
-      Alert.alert("Inscripción completada", "Tu plaza ha quedado registrada.");
-    } catch (error) {
-      console.error("Exception registering for open day:", error);
-      Alert.alert("Error", "No se pudo completar la inscripción a la jornada.");
-    } finally {
-      setRegisteringId(null);
+    // Sin especialidades vinculadas no hay nada que elegir: inscripción general.
+    if (selectedSpecialityOptions.length === 0) {
+      saveRegistration(openDay, [], "register");
+      return;
     }
+
+    setSpecialitiesSheetMode("register");
   };
 
   const handleOpenDayUrl = (openDay) => {
@@ -456,6 +513,17 @@ export default function OpenDaysScreen({
     const location = [openDay.hospital_city, openDay.hospital_region]
       .filter(Boolean)
       .join(", ");
+    // Referencia estable: el sheet reinicia su borrador cuando cambia.
+    const savedSpecialityIds = specialityIdsByOpenDay[openDay.id] || EMPTY_IDS;
+    const savedSpecialityNames = getSelectedSpecialityNames(
+      savedSpecialityIds,
+      selectedSpecialityOptions
+    );
+    const hasSpecialityOptions = selectedSpecialityOptions.length > 0;
+    const canEditSpecialities = canEditOpenDaySpecialities(
+      openDay.event_date,
+      getTodayIsoDate()
+    );
 
     return (
       <HeroScreenLayout
@@ -545,7 +613,75 @@ export default function OpenDaysScreen({
               </View>
             </View>
           </View>
+
+          {isRegistered && hasSpecialityOptions ? (
+            <View style={styles.specialitiesCard} testID="open-day-my-specialities">
+              <Text style={styles.specialitiesTitle}>Tus especialidades</Text>
+              {savedSpecialityNames.length > 0 ? (
+                <View style={styles.specialityChips}>
+                  {savedSpecialityNames.map((name) => (
+                    <View key={name} style={styles.specialityChip}>
+                      <Text style={styles.specialityChipText}>{name}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.specialitiesText}>
+                  {canEditSpecialities
+                    ? "Añade las especialidades que te interesan para que el hospital pueda organizar mejor la jornada."
+                    : "No indicaste qué especialidades querías conocer."}
+                </Text>
+              )}
+              {canEditSpecialities ? (
+                <TouchableOpacity
+                  testID="open-day-edit-specialities"
+                  style={styles.specialitiesButton}
+                  activeOpacity={0.85}
+                  onPress={() => setSpecialitiesSheetMode("edit")}
+                  disabled={isRegistering}
+                >
+                  <Icon name="create-outline" size={18} color={PRIMARY} />
+                  <Text style={styles.specialitiesButtonText}>
+                    {savedSpecialityNames.length > 0
+                      ? "Modificar especialidades"
+                      : "Añadir especialidades"}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.specialitiesHint}>
+                  La jornada ya ha empezado: tu selección no se puede modificar.
+                </Text>
+              )}
+            </View>
+          ) : null}
+
+          {!isRegistered && !hasSpecialityOptions ? (
+            <View style={styles.specialitiesCard}>
+              <Text style={styles.specialitiesText}>
+                Este hospital no tiene especialidades vinculadas en LosResis, así
+                que tu inscripción será general para toda la jornada.
+              </Text>
+            </View>
+          ) : null}
         </ScrollView>
+
+        <OpenDaySpecialitiesSheet
+          visible={specialitiesSheetMode !== null}
+          options={selectedSpecialityOptions}
+          initialSelectedIds={
+            specialitiesSheetMode === "edit" ? savedSpecialityIds : EMPTY_IDS
+          }
+          confirmLabel={
+            specialitiesSheetMode === "edit"
+              ? "Guardar cambios"
+              : "Confirmar inscripción"
+          }
+          saving={isRegistering}
+          onConfirm={(ids) =>
+            saveRegistration(openDay, ids, specialitiesSheetMode)
+          }
+          onClose={() => setSpecialitiesSheetMode(null)}
+        />
       </HeroScreenLayout>
     );
   };
@@ -1048,6 +1184,39 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: WHITE,
   },
+
+  /* Especialidades que quiere conocer */
+  specialitiesCard: {
+    marginTop: 16,
+    borderRadius: 20,
+    padding: 18,
+    gap: 12,
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  specialitiesTitle: { fontSize: 16, fontWeight: "800", color: ACCENT },
+  specialitiesText: { fontSize: 14, lineHeight: 20, color: "#64748B" },
+  specialityChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  specialityChip: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: "#F4EFFE",
+  },
+  specialityChipText: { fontSize: 13, fontWeight: "700", color: PRIMARY },
+  specialitiesButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 16,
+    paddingVertical: 13,
+    borderWidth: 1,
+    borderColor: PRIMARY,
+  },
+  specialitiesButtonText: { fontSize: 15, fontWeight: "700", color: PRIMARY },
+  specialitiesHint: { fontSize: 13, lineHeight: 18, color: "#94A3B8" },
 
   /* Loading / Empty */
   loading: {

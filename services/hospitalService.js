@@ -15,6 +15,7 @@ import {
   getSpecialitiesCatalog,
   getSpecialityByIdFromCatalog,
 } from "./staticCatalogService";
+import { buildOpenDaySpecialityOptions } from "../utils/openDaySpecialities";
 
 let discoveryRankingSnapshotPromise = null;
 let hospitalSpecialtyCachePromise = null;
@@ -825,7 +826,7 @@ export const getHospitalsWithFormativePlans = async () => {
  * contando como futura.
  * @returns {string}
  */
-const getTodayIsoDate = () => {
+export const getTodayIsoDate = () => {
   const today = new Date();
   const month = `${today.getMonth() + 1}`.padStart(2, "0");
   const day = `${today.getDate()}`.padStart(2, "0");
@@ -930,82 +931,101 @@ export const getHospitalNextOpenDay = async (hospitalId) => {
 };
 
 /**
- * Los ids de las jornadas a las que ya está inscrito el usuario. Una sola query
- * para toda la lista: preguntar jornada por jornada crecía con el catálogo.
+ * Las jornadas a las que ya está inscrito el usuario y, de cada una, las
+ * especialidades que marcó. Una sola query para toda la lista: preguntar
+ * jornada por jornada crecía con el catálogo. Las inscripciones anteriores a la
+ * selección de especialidades salen con la lista vacía.
  * @param {string} userId
- * @returns {Promise<{success: boolean, openDayIds: string[], error: string|null}>}
+ * @returns {Promise<{success: boolean, openDayIds: string[], specialityIdsByOpenDay: Object<string, string[]>, error: string|null}>}
  */
 export const getMyOpenDayRegistrations = async (userId) => {
   try {
     if (!userId) {
-      return { success: true, openDayIds: [], error: null };
+      return {
+        success: true,
+        openDayIds: [],
+        specialityIdsByOpenDay: {},
+        error: null,
+      };
     }
 
     const { data, error } = await supabase
       .from("hospital_open_day_registration")
-      .select("open_day_id")
+      .select("open_day_id, hospital_open_day_registration_speciality(speciality_id)")
       .eq("user_id", userId);
 
     if (error) {
       throw new Error(error.message);
     }
 
+    const rows = (data || []).filter((row) => row?.open_day_id);
+    const specialityIdsByOpenDay = {};
+    rows.forEach((row) => {
+      specialityIdsByOpenDay[row.open_day_id] = (
+        row.hospital_open_day_registration_speciality || []
+      )
+        .map((item) => item.speciality_id)
+        .filter(Boolean);
+    });
+
     return {
       success: true,
-      openDayIds: (data || []).map((row) => row.open_day_id).filter(Boolean),
+      openDayIds: rows.map((row) => row.open_day_id),
+      specialityIdsByOpenDay,
       error: null,
     };
   } catch (error) {
     console.error("❌ Error fetching my open day registrations:", error);
-    return { success: false, openDayIds: [], error: error.message };
+    return {
+      success: false,
+      openDayIds: [],
+      specialityIdsByOpenDay: {},
+      error: error.message,
+    };
   }
 };
 
 /**
- * Registrar a un usuario en una jornada abierta
- * @param {string} openDayId
- * @param {string} userId
- * @returns {Promise<{success: boolean, alreadyRegistered: boolean, error: string|null}>}
+ * Las especialidades que se pueden marcar al inscribirse en una jornada: las
+ * vinculadas al hospital en el catálogo empaquetado, ordenadas por nombre.
+ * @param {string} hospitalId
+ * @returns {Array<{id: string, name: string}>}
  */
-export const registerForHospitalOpenDay = async (openDayId, userId) => {
+export const getOpenDaySpecialityOptions = (hospitalId) =>
+  buildOpenDaySpecialityOptions(
+    hospitalId,
+    getHospitalSpecialityCatalog(),
+    getSpecialitiesCatalog()
+  );
+
+/**
+ * Inscribe al usuario de la sesión en una jornada (si no lo estaba) y guarda
+ * las especialidades que quiere conocer, sustituyendo la selección anterior.
+ * Todo en el RPC: una sola inscripción por jornada, especialidades del hospital
+ * y nada de cambios una vez empezada la jornada.
+ * @param {string} openDayId
+ * @param {string[]} specialityIds
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export const saveOpenDayRegistration = async (openDayId, specialityIds = []) => {
   try {
-    if (!openDayId || !userId) {
-      return {
-        success: false,
-        alreadyRegistered: false,
-        error: "Open day ID and user ID are required",
-      };
+    if (!openDayId) {
+      return { success: false, error: "Open day ID is required" };
     }
 
-    const { error } = await supabase
-      .from("hospital_open_day_registration")
-      .upsert(
-        {
-          open_day_id: openDayId,
-          user_id: userId,
-        },
-        {
-          onConflict: "open_day_id,user_id",
-          ignoreDuplicates: false,
-        }
-      );
+    const { error } = await supabase.rpc("save_hospital_open_day_registration", {
+      p_open_day_id: openDayId,
+      p_speciality_ids: specialityIds,
+    });
 
     if (error) {
       throw new Error(error.message);
     }
 
-    return {
-      success: true,
-      alreadyRegistered: false,
-      error: null,
-    };
+    return { success: true, error: null };
   } catch (error) {
-    console.error("❌ Error registering for hospital open day:", error);
-    return {
-      success: false,
-      alreadyRegistered: false,
-      error: error.message,
-    };
+    console.error("❌ Error saving open day registration:", error);
+    return { success: false, error: error.message };
   }
 };
 
