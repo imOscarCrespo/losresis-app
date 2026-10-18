@@ -1,5 +1,8 @@
 import { supabase } from "../config/supabase";
-import { sanitizeHighlightTags } from "../utils/externalRotationQuickReview";
+import {
+  normalizeContactUrl,
+  sanitizeHighlightTags,
+} from "../utils/externalRotationQuickReview";
 import {
   getExternalRotationQuestionsCatalog,
   getHospitalByIdFromCatalog,
@@ -324,6 +327,8 @@ const buildReviewColumns = (reviewData, rotation = null) => {
     costNotes,
     tutorName,
     tutorEmail,
+    contactPhone,
+    contactUrl,
     preferredContactMethod,
   } = reviewData;
   const tags = sanitizeHighlightTags(highlightTags);
@@ -348,6 +353,8 @@ const buildReviewColumns = (reviewData, rotation = null) => {
     cost_notes: trimOrNull(costNotes),
     tutor_name: trimOrNull(tutorName),
     tutor_email: trimOrNull(tutorEmail),
+    contact_phone: trimOrNull(contactPhone),
+    contact_url: normalizeContactUrl(contactUrl) || null,
     preferred_contact_method: preferredContactMethod || "app_chat",
     allow_app_contact:
       preferredContactMethod === "app_chat" ||

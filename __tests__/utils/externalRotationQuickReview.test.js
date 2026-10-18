@@ -1,17 +1,20 @@
 import {
   getPendingReviewInvites,
   hasExtendedDetails,
+  hasReviewContact,
   isSameCenterName,
+  normalizeContactUrl,
   quickReviewFieldsFromPlan,
   sanitizeHighlightTags,
   toggleHighlightTag,
   validateQuickReview,
   validateQuickReviewStep,
+  validateReviewContact,
 } from "../../utils/externalRotationQuickReview";
 
 const TODAY = new Date(2026, 9, 16);
 
-// Reseña rápida mínima: sin ningún texto libre.
+// Reseña rápida mínima: sin ningún texto libre, solo el medio de contacto obligatorio.
 const quickForm = {
   hospitalName: "Boston Children's Hospital",
   country: "United States",
@@ -23,6 +26,10 @@ const quickForm = {
   rotationKind: "hands_on",
   highlightTags: [],
   beforeYouGo: "",
+  tutorName: "",
+  tutorEmail: "",
+  contactPhone: "",
+  contactUrl: "https://www.childrenshospital.org/visiting-students",
 };
 
 describe("validateQuickReview", () => {
@@ -80,9 +87,17 @@ describe("validateQuickReviewStep", () => {
     ).toBeNull();
   });
 
-  it("los pasos 3 y 4 son siempre opcionales", () => {
+  it("el paso 3 es opcional; el 4 solo exige un medio de contacto", () => {
     expect(validateQuickReviewStep("highlights", {}, TODAY)).toBeNull();
-    expect(validateQuickReviewStep("advice", {}, TODAY)).toBeNull();
+    expect(validateQuickReviewStep("advice", { tutorEmail: "docencia@hospital.es" }, TODAY)).toBeNull();
+    expect(validateQuickReviewStep("advice", {}, TODAY).title).toBe("Falta el contacto");
+  });
+
+  it("al editar una reseña ya publicada no exige contacto", () => {
+    expect(validateQuickReviewStep("advice", {}, TODAY, { requireContact: false })).toBeNull();
+    const oldReview = { ...quickForm, contactUrl: "" };
+    expect(validateQuickReview(oldReview, TODAY)).toMatchObject({ stepIndex: 3 });
+    expect(validateQuickReview(oldReview, TODAY, { requireContact: false })).toBeNull();
   });
 });
 
@@ -214,5 +229,58 @@ describe("quickReviewFieldsFromPlan", () => {
       startDate: "2026-07-01",
       endDate: "2026-09-30",
     });
+  });
+});
+
+describe("validateReviewContact", () => {
+  it("basta con uno de correo, teléfono o enlace; el nombre solo no vale", () => {
+    expect(validateReviewContact({ tutorEmail: "docencia@hospital.es" })).toBeNull();
+    expect(validateReviewContact({ contactPhone: "+34 912 34 56 78" })).toBeNull();
+    expect(validateReviewContact({ contactUrl: "hospital.es/rotaciones" })).toBeNull();
+    expect(validateReviewContact({ tutorName: "Secretaría de Docencia" })).toMatchObject({
+      title: "Falta el contacto",
+    });
+    expect(validateReviewContact({ tutorEmail: "   ", contactPhone: " " }).title).toBe(
+      "Falta el contacto"
+    );
+  });
+
+  it("rechaza un dato escrito con formato inválido aunque haya otro válido", () => {
+    expect(
+      validateReviewContact({ tutorEmail: "docencia@hospital.es", contactPhone: "123" }).message
+    ).toBe("El teléfono no es válido.");
+    expect(validateReviewContact({ tutorEmail: "docencia@hospital" }).message).toBe(
+      "El correo electrónico no es válido."
+    );
+    expect(validateReviewContact({ contactUrl: "hospital es" }).message).toBe(
+      "El enlace de solicitud no es válido."
+    );
+    expect(validateReviewContact({ contactPhone: "llamar a secretaría" }).message).toBe(
+      "El teléfono no es válido."
+    );
+  });
+
+  it("sin obligación, sigue validando el formato", () => {
+    expect(validateReviewContact({}, { required: false })).toBeNull();
+    expect(validateReviewContact({ contactPhone: "12" }, { required: false }).message).toBe(
+      "El teléfono no es válido."
+    );
+  });
+});
+
+describe("normalizeContactUrl", () => {
+  it("añade https cuando falta y respeta el protocolo escrito", () => {
+    expect(normalizeContactUrl(" hospital.es/rotaciones ")).toBe("https://hospital.es/rotaciones");
+    expect(normalizeContactUrl("http://hospital.es")).toBe("http://hospital.es");
+    expect(normalizeContactUrl("")).toBe("");
+  });
+});
+
+describe("hasReviewContact", () => {
+  it("lee el formulario y la fila de BD; una reseña antigua sin contacto no tiene", () => {
+    expect(hasReviewContact({ contactPhone: "600111222" })).toBe(true);
+    expect(hasReviewContact({ contact_url: "https://hospital.es" })).toBe(true);
+    expect(hasReviewContact({ tutor_name: "Dr. Pérez", tutor_email: null })).toBe(false);
+    expect(hasReviewContact(null)).toBe(false);
   });
 });

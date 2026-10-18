@@ -72,6 +72,36 @@ describe("createRotationReview", () => {
     });
   });
 
+  it("guarda el contacto para solicitar la rotación, con el enlace siempre con protocolo", async () => {
+    mockBuilder.responses = [{ data: { id: "r1" }, error: null }];
+
+    await createRotationReview({
+      ...quickReview,
+      tutorName: " Secretaría de Docencia ",
+      tutorEmail: "docencia@mayo.edu",
+      contactPhone: " +1 507 284 2511 ",
+      contactUrl: "mayo.edu/visiting-residents",
+    });
+
+    expect(mockBuilder.insert.mock.calls[0][0][0]).toMatchObject({
+      tutor_name: "Secretaría de Docencia",
+      tutor_email: "docencia@mayo.edu",
+      contact_phone: "+1 507 284 2511",
+      contact_url: "https://mayo.edu/visiting-residents",
+    });
+  });
+
+  it("deja el contacto a null si no se escribe", async () => {
+    mockBuilder.responses = [{ data: { id: "r1" }, error: null }];
+
+    await createRotationReview({ ...quickReview, contactPhone: "  ", contactUrl: "" });
+
+    expect(mockBuilder.insert.mock.calls[0][0][0]).toMatchObject({
+      contact_phone: null,
+      contact_url: null,
+    });
+  });
+
   it("guarda null en vez de un array vacío si no elige etiquetas", async () => {
     mockBuilder.responses = [{ data: { id: "r1" }, error: null }];
 

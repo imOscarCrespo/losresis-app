@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +21,7 @@ import { formatLongDate, formatShortDate } from "../utils/dateUtils";
 import { COLORS } from "../constants/colors";
 import posthogLogger from "../services/posthogService";
 import { ReviewHighlights } from "../components/externalRotations/QuickReview";
+import { hasReviewContact, normalizeContactUrl } from "../utils/externalRotationQuickReview";
 import { getCityLabel, getCountryLabel } from "../utils/geoSearch";
 
 const PRIMARY = "#670CF5";
@@ -382,6 +385,8 @@ export default function RotationReviewDetailScreen({
 
         <ReviewHighlights review={review} />
 
+        <RotationContactCard review={review} />
+
         <View style={styles.chipsRow}>
           {durationLabel ? (
             <InfoChip
@@ -421,28 +426,6 @@ export default function RotationReviewDetailScreen({
         <AnswerCard title="Alojamiento" body={review.accommodation_notes} />
         <AnswerCard title="Costes" body={review.cost_notes} />
 
-        {(review.tutor_name || review.tutor_email) && (
-          <View style={styles.contactCard}>
-            <View style={styles.contactTitleRow}>
-              <Icon name="mail-outline" size={18} color={PRIMARY} />
-              <Text style={styles.contactTitle}>
-                Contacto para acceder a la rotación
-              </Text>
-            </View>
-            <View style={styles.contactInnerCard}>
-              <View>
-                <Text style={styles.contactLabel}>Tutor responsable</Text>
-                <Text style={styles.contactName}>
-                  {review.tutor_name || "No especificado"}
-                </Text>
-              </View>
-              {review.tutor_email ? (
-                <Text style={styles.contactEmail}>{review.tutor_email}</Text>
-              ) : null}
-            </View>
-          </View>
-        )}
-
         {isOwnReview && onAddDetails ? (
           <TouchableOpacity
             style={styles.inviteCard}
@@ -477,6 +460,82 @@ export default function RotationReviewDetailScreen({
     </HeroScreenLayout>
   );
 }
+
+const openContact = (channel, url) => {
+  posthogLogger.capture("external_rotation_review_contact_opened", { channel });
+  Linking.openURL(url).catch((error) => {
+    console.warn("⚠️ Could not open rotation contact:", error);
+    Alert.alert("No se pudo abrir", "Prueba a copiar el dato y abrirlo tú mismo.");
+  });
+};
+
+const ContactRow = ({ icon, value, onPress, testID }) => (
+  <TouchableOpacity
+    style={styles.contactRow}
+    onPress={onPress}
+    activeOpacity={0.8}
+    accessibilityRole="link"
+    testID={testID}
+  >
+    <Icon name={icon} size={18} color={PRIMARY} />
+    <Text style={styles.contactValue} numberOfLines={2}>
+      {value}
+    </Text>
+    <Icon name="open-outline" size={16} color={TEXT_MUTED} />
+  </TouchableOpacity>
+);
+
+// Contacto para solicitar la rotación (ClickUp 86cbm0fbc). Las reseñas antiguas pueden no
+// tenerlo, o tener solo el nombre del tutor: se pinta lo que haya.
+const RotationContactCard = ({ review }) => {
+  const name = review.tutor_name?.trim();
+  if (!name && !hasReviewContact(review)) return null;
+
+  const email = review.tutor_email?.trim();
+  const phone = review.contact_phone?.trim();
+  const url = normalizeContactUrl(review.contact_url);
+
+  return (
+    <View style={styles.contactCard} testID="review-detail-contact">
+      <View style={styles.contactTitleRow}>
+        <Icon name="mail-outline" size={18} color={PRIMARY} />
+        <Text style={styles.contactTitle}>Contacto para solicitar esta rotación</Text>
+      </View>
+      <View style={styles.contactInnerCard}>
+        {name ? (
+          <View>
+            <Text style={styles.contactLabel}>Persona o departamento</Text>
+            <Text style={styles.contactName}>{name}</Text>
+          </View>
+        ) : null}
+        {email ? (
+          <ContactRow
+            icon="mail-outline"
+            value={email}
+            onPress={() => openContact("email", `mailto:${email}`)}
+            testID="review-detail-contact-email"
+          />
+        ) : null}
+        {phone ? (
+          <ContactRow
+            icon="call-outline"
+            value={phone}
+            onPress={() => openContact("phone", `tel:${phone.replace(/[^0-9+]/g, "")}`)}
+            testID="review-detail-contact-phone"
+          />
+        ) : null}
+        {url ? (
+          <ContactRow
+            icon="open-outline"
+            value={url.replace(/^https?:\/\//i, "")}
+            onPress={() => openContact("url", url)}
+            testID="review-detail-contact-url"
+          />
+        ) : null}
+      </View>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -661,6 +720,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   contactTitle: {
+    flex: 1,
     fontSize: 18,
     fontWeight: "800",
     color: TEXT,
@@ -682,7 +742,14 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: TEXT,
   },
-  contactEmail: {
+  contactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 40,
+  },
+  contactValue: {
+    flex: 1,
     fontSize: 14,
     color: PRIMARY,
     fontWeight: "600",

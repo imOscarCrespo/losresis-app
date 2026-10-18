@@ -59,7 +59,10 @@ export const QuickReviewProgress = ({ stepIndex }) => {
           style={[styles.progressFill, { width: `${((stepIndex + 1) / total) * 100}%` }]}
         />
       </View>
-      <Text style={styles.stepTitle}>{QUICK_REVIEW_STEPS[stepIndex].title}</Text>
+      {/* El paso 4 tiene varias tarjetas y cada una lleva su propio título. */}
+      {QUICK_REVIEW_STEPS[stepIndex].key !== "advice" ? (
+        <Text style={styles.stepTitle}>{QUICK_REVIEW_STEPS[stepIndex].title}</Text>
+      ) : null}
     </View>
   );
 };
@@ -168,9 +171,70 @@ const DetailInput = ({ label, value, onChangeText, placeholder, multiline = true
   </>
 );
 
+// Contacto para solicitar la rotación (ClickUp 86cbm0fbc): basta con correo, teléfono o enlace.
+const ReviewContactCard = ({ form, onChange }) => (
+  <View style={styles.card} testID="quick-review-contact">
+    <View style={styles.cardHeader}>
+      <Text style={styles.cardTitle}>¿Con quién pueden contactar para hacer esta rotación?</Text>
+      <Text style={styles.helperText}>
+        Ayuda a otros residentes a saber a quién dirigirse para solicitar esta rotación externa.
+      </Text>
+    </View>
+    <DetailInput
+      label="Persona o departamento de contacto (opcional)"
+      value={form.tutorName}
+      onChangeText={(value) => onChange({ tutorName: value })}
+      placeholder="Ej. Secretaría de Docencia del Hospital"
+      multiline={false}
+      testID="quick-review-contact-name"
+    />
+    <DetailInput
+      label="Correo electrónico"
+      value={form.tutorEmail}
+      onChangeText={(value) => onChange({ tutorEmail: value })}
+      placeholder="Ej. docencia@hospital.es"
+      multiline={false}
+      autoCapitalize="none"
+      autoCorrect={false}
+      keyboardType="email-address"
+      testID="quick-review-contact-email"
+    />
+    <DetailInput
+      label="Teléfono"
+      value={form.contactPhone}
+      onChangeText={(value) => onChange({ contactPhone: value })}
+      placeholder="Ej. +34 912 345 678"
+      multiline={false}
+      keyboardType="phone-pad"
+      testID="quick-review-contact-phone"
+    />
+    <DetailInput
+      label="Enlace para solicitar la rotación"
+      value={form.contactUrl}
+      onChangeText={(value) => onChange({ contactUrl: value })}
+      placeholder="Ej. www.hospital.es/rotaciones-externas"
+      multiline={false}
+      autoCapitalize="none"
+      autoCorrect={false}
+      keyboardType="url"
+      testID="quick-review-contact-url"
+    />
+    <View style={styles.contactNote}>
+      <Icon name="information-circle-outline" size={18} color={PRIMARY} />
+      <Text style={styles.contactNoteText}>
+        Indica al menos un correo, teléfono o enlace. Mejor los de docencia, secretaría o el
+        responsable de rotaciones que datos personales.
+      </Text>
+    </View>
+  </View>
+);
+
 export const QuickReviewAdviceStep = ({ form, onChange, detailsOpen, onToggleDetails }) => (
   <>
+    <ReviewContactCard form={form} onChange={onChange} />
+
     <View style={styles.card}>
+      <Text style={styles.cardTitle}>Un consejo para el siguiente residente</Text>
       <Text style={styles.inputLabel}>¿Qué te habría gustado saber antes de ir? (opcional)</Text>
       <TextInput
         style={[styles.textInput, styles.textArea]}
@@ -197,7 +261,7 @@ export const QuickReviewAdviceStep = ({ form, onChange, detailsOpen, onToggleDet
         <View style={styles.detailsToggleText}>
           <Text style={styles.detailsTitle}>Añadir más detalles (opcional)</Text>
           <Text style={styles.helperText}>
-            Burocracia, alojamiento, costes, contactos y qué destacarías.
+            Burocracia, alojamiento, costes y qué destacarías.
           </Text>
         </View>
         <Icon name={detailsOpen ? "chevron-up" : "chevron-down"} size={20} color={PRIMARY} />
@@ -228,22 +292,6 @@ export const QuickReviewAdviceStep = ({ form, onChange, detailsOpen, onToggleDet
             value={form.highlightSummary}
             onChangeText={(value) => onChange({ highlightSummary: value })}
             placeholder="Puntos fuertes, técnicas aprendidas, volumen, sesiones..."
-          />
-          <DetailInput
-            label="Contacto del servicio"
-            value={form.tutorName}
-            onChangeText={(value) => onChange({ tutorName: value })}
-            placeholder="Nombre del tutor o contacto"
-            multiline={false}
-          />
-          <TextInput
-            style={styles.textInput}
-            value={form.tutorEmail}
-            onChangeText={(value) => onChange({ tutorEmail: value })}
-            placeholder="Email del contacto"
-            placeholderTextColor="#98A2B3"
-            autoCapitalize="none"
-            keyboardType="email-address"
           />
         </View>
       ) : null}
@@ -387,6 +435,26 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 18,
     gap: 12,
+  },
+  cardHeader: {
+    gap: 4,
+  },
+  cardTitle: {
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "800",
+    color: TEXT,
+  },
+  contactNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  contactNoteText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: TEXT_MUTED,
   },
   question: {
     gap: 10,

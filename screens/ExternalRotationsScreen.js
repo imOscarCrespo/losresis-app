@@ -54,6 +54,7 @@ import {
   QUICK_REVIEW_STEPS,
   getPendingReviewInvites,
   hasExtendedDetails,
+  hasReviewContact,
   isSameCenterName,
   quickReviewFieldsFromPlan,
   validateQuickReview,
@@ -115,6 +116,8 @@ const DEFAULT_PUBLISH_FORM = {
   costNotes: "",
   tutorName: "",
   tutorEmail: "",
+  contactPhone: "",
+  contactUrl: "",
   preferredContactMethod: "app_chat",
   answers: {},
 };
@@ -160,6 +163,8 @@ const publishFormFromReview = (review) => ({
   costNotes: review.cost_notes || "",
   tutorName: review.tutor_name || "",
   tutorEmail: review.tutor_email || "",
+  contactPhone: review.contact_phone || "",
+  contactUrl: review.contact_url || "",
   preferredContactMethod: "app_chat",
   // Las valoraciones de reseñas antiguas se conservan: el formulario nuevo no las pide,
   // pero al guardar se reenvían para que no se pierdan.
@@ -1061,6 +1066,12 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   // Medición del recorrido (solo agregados en PostHog): origen, inicio y paso más avanzado.
   const publishSessionRef = useRef(null);
 
+  // Cada paso empieza arriba: el 4 abre con el contacto, que no debe quedar fuera de pantalla.
+  const publishScrollRef = useRef(null);
+  useEffect(() => {
+    publishScrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [publishStep]);
+
   /**
    * Abre la reseña rápida. `plan` la rellena desde un plan terminado (invitación);
    * `stepIndex` y `detailsOpen` permiten ir directo a ampliar una reseña propia.
@@ -1116,14 +1127,16 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   const handlePublishNext = useCallback(() => {
     const problem = validateQuickReviewStep(
       QUICK_REVIEW_STEPS[publishStep].key,
-      publishForm
+      publishForm,
+      undefined,
+      { requireContact: !route.payload?.review?.id }
     );
     if (problem) {
       Alert.alert(problem.title, problem.message);
       return;
     }
     goToPublishStep(Math.min(publishStep + 1, QUICK_REVIEW_STEPS.length - 1));
-  }, [goToPublishStep, publishForm, publishStep]);
+  }, [goToPublishStep, publishForm, publishStep, route.payload?.review?.id]);
 
   const pendingReviewInvites = useMemo(
     () =>
@@ -1494,9 +1507,14 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       return;
     }
 
-    const formProblem = validateQuickReview(publishForm);
+    // El contacto es obligatorio en las publicaciones nuevas; al editar una antigua, no.
+    const formProblem = validateQuickReview(publishForm, undefined, {
+      requireContact: !isEditing,
+    });
     if (formProblem) {
       setPublishStep(formProblem.stepIndex);
+      // Si el problema es del último paso, el paso no cambia: se sube igualmente al contacto.
+      publishScrollRef.current?.scrollTo({ y: 0, animated: true });
       Alert.alert(formProblem.title, formProblem.message);
       return;
     }
@@ -1535,6 +1553,8 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       costNotes: publishForm.costNotes,
       tutorName: publishForm.tutorName,
       tutorEmail: publishForm.tutorEmail,
+      contactPhone: publishForm.contactPhone,
+      contactUrl: publishForm.contactUrl,
       preferredContactMethod: "app_chat",
       answers: formattedAnswers,
     };
@@ -1562,6 +1582,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
           : null,
         tags_count: (publishForm.highlightTags || []).length,
         has_advice: Boolean(publishForm.beforeYouGo?.trim()),
+        has_contact: hasReviewContact(publishForm),
         has_details: isExtended,
         from_plan: Boolean(publishForm.rotationId),
       });
@@ -2492,6 +2513,7 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
     const stepKey = QUICK_REVIEW_STEPS[publishStep].key;
     return (
       <ScrollView
+        ref={publishScrollRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}

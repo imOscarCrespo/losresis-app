@@ -50,14 +50,83 @@ export const QUICK_REVIEW_STEPS = [
 ];
 
 // Campos de la reseña completa: si alguno tiene contenido, la reseña está «ampliada».
+// El contacto no cuenta: tiene su propia tarjeta al principio del paso 4.
 const EXTENDED_FIELDS = [
   "highlightSummary",
   "difficultyNotes",
   "accommodationNotes",
   "costNotes",
-  "tutorName",
-  "tutorEmail",
 ];
+
+// Los tres formatos espejan los CHECK de external_rotation_review en losresis-db
+// (tutor_email_ck, contact_phone_check y contact_url_check).
+const EMAIL_PATTERN = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+const PHONE_PATTERN = /^\+?[0-9 ().-]+$/;
+const URL_PATTERN = /^https?:\/\/[^\s/]+\.[^\s]+$/i;
+const MAX_PHONE_LENGTH = 40;
+const MAX_URL_LENGTH = 500;
+
+const trimText = (value) => String(value || "").trim();
+
+const isValidContactEmail = (value) => EMAIL_PATTERN.test(value);
+
+const isValidContactPhone = (value) => {
+  const digits = value.replace(/[^0-9]/g, "");
+  return (
+    value.length <= MAX_PHONE_LENGTH &&
+    PHONE_PATTERN.test(value) &&
+    digits.length >= 6 &&
+    digits.length <= 15
+  );
+};
+
+/** El enlace de solicitud se guarda siempre con protocolo: "hospital.es/x" → "https://hospital.es/x". */
+export const normalizeContactUrl = (value) => {
+  const url = trimText(value);
+  if (!url) return "";
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+};
+
+const isValidContactUrl = (value) =>
+  value.length <= MAX_URL_LENGTH && URL_PATTERN.test(normalizeContactUrl(value));
+
+
+/** ¿Tiene la reseña algún medio de contacto (email, teléfono o enlace)? Sirve para el formulario y para filas de BD. */
+export const hasReviewContact = (source) =>
+  Boolean(
+    trimText(source?.tutorEmail ?? source?.tutor_email) ||
+      trimText(source?.contactPhone ?? source?.contact_phone) ||
+      trimText(source?.contactUrl ?? source?.contact_url)
+  );
+
+/**
+ * Valida la tarjeta de contacto. Un dato escrito siempre tiene que ser válido; que haya al
+ * menos uno solo se exige con `required` (publicaciones nuevas).
+ * Devuelve { title, message } o null.
+ */
+export const validateReviewContact = (form, { required = true } = {}) => {
+  const email = trimText(form?.tutorEmail);
+  const phone = trimText(form?.contactPhone);
+  const url = trimText(form?.contactUrl);
+
+  if (email && !isValidContactEmail(email)) {
+    return { title: "Revisa el contacto", message: "El correo electrónico no es válido." };
+  }
+  if (phone && !isValidContactPhone(phone)) {
+    return { title: "Revisa el contacto", message: "El teléfono no es válido." };
+  }
+  if (url && !isValidContactUrl(url)) {
+    return { title: "Revisa el contacto", message: "El enlace de solicitud no es válido." };
+  }
+  if (required && !email && !phone && !url) {
+    return {
+      title: "Falta el contacto",
+      message:
+        "Indica al menos un correo, teléfono o enlace para que otros residentes sepan a quién pedir esta rotación.",
+    };
+  }
+  return null;
+};
 
 const STEP_REQUIRED_FIELDS = {
   where: [
@@ -87,8 +156,14 @@ const joinLabels = (labels) =>
 
 /**
  * Devuelve el problema del paso como { title, message }, o null si se puede avanzar.
+ * `requireContact` es false al editar una reseña ya publicada: las antiguas no tienen contacto.
  */
-export const validateQuickReviewStep = (stepKey, form, today = new Date()) => {
+export const validateQuickReviewStep = (
+  stepKey,
+  form,
+  today = new Date(),
+  { requireContact = true } = {}
+) => {
   const missing = (STEP_REQUIRED_FIELDS[stepKey] || [])
     .filter(([field]) => !String(form?.[field] || "").trim())
     .map(([, label]) => label);
@@ -117,6 +192,10 @@ export const validateQuickReviewStep = (stepKey, form, today = new Date()) => {
     }
   }
 
+  if (stepKey === "advice") {
+    return validateReviewContact(form, { required: requireContact });
+  }
+
   return null;
 };
 
@@ -124,9 +203,14 @@ export const validateQuickReviewStep = (stepKey, form, today = new Date()) => {
  * Valida todos los pasos. Devuelve { stepIndex, title, message } del primer paso con
  * problema, o null si se puede publicar.
  */
-export const validateQuickReview = (form, today = new Date()) => {
+export const validateQuickReview = (form, today = new Date(), options = {}) => {
   for (let stepIndex = 0; stepIndex < QUICK_REVIEW_STEPS.length; stepIndex += 1) {
-    const problem = validateQuickReviewStep(QUICK_REVIEW_STEPS[stepIndex].key, form, today);
+    const problem = validateQuickReviewStep(
+      QUICK_REVIEW_STEPS[stepIndex].key,
+      form,
+      today,
+      options
+    );
     if (problem) return { stepIndex, ...problem };
   }
   return null;
