@@ -1,6 +1,6 @@
 ---
 name: clickup-task
-description: Implementa en LosResis una o varias tareas de ClickUp del equipo de producto. Lee la tarea (descripción preparada por un agente de IA, checklists, comentarios e imágenes PNG de diseño si las hay), diseña la solución óptima como desarrollador senior contra el código real, la implementa tras validar el plan y apunta la tarea en el histórico de la versión de app.json (docs/releases/<versión>.md). Úsalo cuando el usuario pegue una URL app.clickup.com/t/..., diga "implementa esta tarea", "haz esta tarea de ClickUp", "/clickup-task" o similar.
+description: Implementa en LosResis una o varias tareas de ClickUp del equipo de producto. Lee la tarea (descripción preparada por un agente de IA, checklists, comentarios e imágenes PNG de diseño si las hay), diseña la solución óptima como desarrollador senior contra el código real, la implementa tras validar el plan y apunta la tarea en el histórico de la versión que marca su tag de ClickUp (docs/releases/<versión>.md), abriendo esa versión en app.json si aún no existe. Al terminar con todo en verde sube los cambios a main (app, losresis-db y panel con su vercel --prod) y pasa la tarea de ClickUp a complete. Úsalo cuando el usuario pegue una URL app.clickup.com/t/..., diga "implementa esta tarea", "haz esta tarea de ClickUp", "/clickup-task" o similar.
 ---
 
 # clickup-task — de tarea de ClickUp a código en LosResis
@@ -77,7 +77,7 @@ discrepancias en el plan y aplica la del texto salvo que el usuario diga otra co
   renombrar/borrar lo que la app publicada usa; RLS que no cierre flujos vivos. Si no se puede,
   parte el cambio (primero ampliar, retirar lo viejo más adelante) y dilo en el plan.
 - Las migraciones las aplica Claude con `mcp__supabase__apply_migration` y después commitea solo su
-  `.sql` en `losresis-db`. Si el MCP responde "no permission", ejecuta `list_projects`: si no
+  `.sql` en `losresis-db` y lo sube a `main` (paso 6). Si el MCP responde "no permission", ejecuta `list_projects`: si no
   aparece `chgretwxywvaaruwovbb`, el MCP está conectado con otra cuenta y hay que pedir al usuario
   que lo reconecte.
 - Si toca catálogos estáticos (hospitales, especialidades, notas…), recuerda
@@ -89,10 +89,18 @@ Piensa como senior: busca la solución más simple que cumple la tarea, encaja c
 del repo y no rompe a usuarios con versiones antiguas de la app (la BD es compartida y hay gente
 sin actualizar). Si ves dos caminos razonables, elige uno y di por qué en una línea.
 
+**`losresis-panel` se despliega independientemente de `losresis-app`.** El panel sale a
+producción en cuanto se termina la tarea (paso 4d); la app, semanas después, con su build de la
+versión. Así que la parte del panel tiene que funcionar sola en producción con la app publicada
+de hoy y con la migración ya aplicada: nada en el panel puede esperar a que salga la app nueva,
+ni romper lo que la app publicada lee o escribe. Si la tarea solo se puede hacer con panel y
+app saliendo a la vez, parte el cambio o dilo en el plan («Riesgos y compatibilidad»).
+
 Presenta al usuario un plan corto y **espera su OK antes de tocar código**:
 
 ```
 ## <número> · <título>  (<url>)
+Versión: <tag> — existente / se abre ahora (ver paso 5).
 Qué pide producto: 2-3 líneas en tus palabras.
 Diseño: qué imágenes has visto y cómo las traduces (o "sin diseño"), y discrepancias mockup ↔ texto.
 Solución: los cambios, archivo a archivo (app / losresis-db / panel si aplica).
@@ -172,23 +180,54 @@ el skill `bug-review` (herramienta Skill) y ejecútalo en modo **GATE** sobre lo
   Si un bloqueo necesita una decisión de producto, para y pregúntalo.
 - Los avisos 🟡/🔵 no se arreglan solos: van en el informe final para que el usuario decida.
 - Apunta el veredicto y los avisos en el «Verificado» de la tarea del histórico (paso 5).
-- No hagas commit ni push: eso lo hace el usuario.
+- Con `✅ PASS` todo se sube sin preguntar: el panel en el paso 4d y la app y `losresis-db` en el
+  paso 6.
+
+## Paso 4d — Subir el panel a producción
+
+Si la tarea toca `losresis-panel` y el bug review dio `✅ PASS`, **súbelo a producción sin
+esperar a que salga la app** (autorización del usuario, 2026-10-20). El proyecto de Vercel
+**no** despliega con el push a `main` (no tiene la integración de git): se despliega con el CLI,
+`vercel --prod`, que sube los ficheros locales tal cual. Por eso el árbol tiene que estar limpio
+antes de desplegar.
+
+1. Requisitos: la migración de la tarea, si la hay, ya está aplicada en producción (el panel
+   no puede ir por delante de la BD); `npx tsc --noEmit`, lint y `npx vitest run` en verde.
+2. `git fetch` y comprueba que `main` local no va por detrás de `origin/main`. Si va por detrás
+   y el árbol tiene otros cambios, `git pull --rebase` solo si es fast-forward limpio; si no,
+   para y avisa. Nunca stash, reset ni force.
+3. Commit **solo con los ficheros de la tarea** (`#<número> <área>: <qué>` y la línea
+   `Co-Authored-By`) y `git push origin main`. Los demás cambios sin commitear del árbol son del
+   usuario: no los toques.
+4. Si después del commit `git status --porcelain` no está vacío (cambios del usuario), **no
+   despliegues**: subirían también. Para y avisa.
+5. Desde `losresis-panel`: `vercel --prod --yes`. Comprueba con `vercel ls losresis-panel --prod`
+   que el más reciente está `● Ready` (si sale `Error`, `vercel inspect <url> --logs` y avisa).
+   El dominio es `panel.losresis.com`.
+6. Apunta en el histórico: «Panel desplegado en producción el <fecha> (commit `<sha>`)».
 
 ## Paso 5 — Histórico de la versión
 
 Cada versión de la app tiene un fichero `docs/releases/<version>.md` con las tareas que lleva.
 
-**Qué versión usar.** Lee `expo.version`, `expo.ios.buildNumber` y `expo.android.versionCode` de
-`app.json`:
+**Qué versión usar.** La decide producto con un **tag de versión** en la tarea (`tags` de
+`task.json`, p. ej. `"1.0.93"`; acepta también `v1.0.93`). No la deduzcas de `app.json`.
 
-- Si existe `docs/releases/<version>.md` con `Estado: en desarrollo`, añade la tarea ahí.
-- Si existe con `Estado: publicada`, esa versión ya salió: sube la versión de parche
-  (`1.0.90` → `1.0.91`) y suma 1 a `buildNumber` y a `versionCode` en `app.json`, y crea el
-  fichero nuevo.
-- Si no existe y `app.json` ya tiene la versión subida respecto a `HEAD`
-  (`git show HEAD:app.json`), crea el fichero con esa versión.
-- Si no existe y la versión es la misma que en `HEAD`, pregunta al usuario si esa versión ya
-  está publicada antes de subirla o reutilizarla.
+- Sin tag de versión, o con más de uno: pregunta al usuario a qué versión va. No adivines.
+- Existe `docs/releases/<tag>.md` con `Estado: en desarrollo`: añade la tarea ahí y no toques
+  `app.json`.
+- Existe con `Estado: publicada`: para y avisa; la tarea apunta a una versión que ya salió
+  (seguramente el tag está mal). Pregunta a qué versión va.
+- No existe y el tag es **mayor** que `expo.version` de `app.json`: abre la versión. En
+  `app.json` pon `expo.version` = tag y suma 1 a `expo.ios.buildNumber` y a
+  `expo.android.versionCode`; crea `docs/releases/<tag>.md` con `Base: <versión anterior> (build N)`.
+- No existe y el tag es **menor o igual** que `expo.version`: no bajes la versión de `app.json`;
+  pregunta (o el tag está mal o falta el fichero de esa versión).
+- Si el tag es una versión en desarrollo **anterior** a la de `app.json` (p. ej. tag `1.0.91` con
+  `app.json` en `1.0.92`), avisa en el plan: lo que entre en `main` se compila ya como la
+  versión de `app.json`, así que hay que decidir si va en una rama aparte.
+
+Pon la versión en el plan del paso 3 (`Versión: <tag> — existente / se abre ahora`).
 
 **Formato** (crea el fichero con la cabecera si no existe; las tareas van en orden de llegada):
 
@@ -211,24 +250,66 @@ Si la misma tarea ya está en el fichero (por una segunda pasada), actualiza su 
 de duplicarla.
 
 El ciclo completo (abrir, sumar tareas, cerrar, publicar) está en `docs/releases/README.md`:
-- Una sola versión `en desarrollo` a la vez; la versión se sube **una vez por versión**, no por
-  tarea. Si dudas de si la versión de `app.json` ya está en tiendas, pregunta.
+- La versión de `app.json` se sube **una vez por versión** (cuando llega la primera tarea con
+  ese tag), no por tarea. Puede haber varias versiones `en desarrollo` a la vez; el tag de cada
+  tarea dice a cuál va.
 - Al crear un fichero nuevo, copia la estructura de la última versión: «Tareas», «Otros cambios
   desde la <anterior>» (commits de `main` desde la subida de versión anterior que no vienen de
   ClickUp), «Infraestructura de desarrollo» si aplica y el «Checklist de publicación».
-- Al terminar una tarea, propón al usuario el `git add` con solo los ficheros de esa tarea para
-  que vaya en su propio commit (`#<número> <área>: <qué>`), separado de otros cambios suyos.
+- La entrada del histórico va en el mismo commit que el código de la app de la tarea (paso 6).
 - **Cerrar versión** (cuando el usuario diga "cerramos la versión", "vamos a publicar"…):
   recorre el checklist del fichero. Ejecuta tú lo que puedas (`npm test`, todos los flujos de
   `e2e/flows/` de la versión como regresión, `/bug-review`, comprobar migraciones aplicadas) y
-  deja marcado lo que es del usuario (móvil físico, commit/push, build de EAS, tag).
+  deja marcado lo que es del usuario (móvil físico, build de EAS, tag). Comprueba también que
+  todas las tareas de la versión están ya en `origin/main`.
 - Cuando el usuario diga que la versión se ha publicado, cambia `Estado:` a `publicada`, añade
   `Publicada: <fecha>` y recuérdale el tag `git tag v<version> <commit>`.
 
+## Paso 6 — Subir a `main` y cerrar la tarea en ClickUp
+
+Cuando la tarea está terminada y **todo está bien**, la subes tú sin esperar a que el usuario lo
+pida (autorización del usuario, 2026-10-21). «Todo está bien» quiere decir:
+- el bug review dio `✅ PASS`;
+- Jest (y vitest, `tsc` y lint del panel si lo tocas) están en verde, igual que el flujo de
+  Maestro de la tarea;
+- la migración, si la hay, ya está aplicada en producción.
+
+Si algo de eso falla o no se ha podido ejecutar, no subas nada: dilo en el informe. Si quedan
+pendientes que no bloquean (p. ej. probar en un móvil físico), apúntalos en el histórico y sigue.
+
+1. **Antes de commitear, en cada repo:** `git fetch` y comprueba que `main` local no va por
+   detrás de `origin/main`. Si va por detrás, `git pull --rebase` solo si es un fast-forward
+   limpio; si no, para y avisa. Nunca stash, reset ni force.
+2. **`losresis-db`:** un commit solo con el `.sql` de la migración y `git push origin main`.
+3. **`losresis-panel`:** commit, push y `vercel --prod` como en el paso 4d. El push solo **no
+   despliega**: sin el `vercel --prod --yes` y el `● Ready` en `vercel ls losresis-panel --prod`,
+   el panel no está subido.
+4. **`losresis-app`:** un commit con solo los ficheros de la tarea, incluida su entrada en
+   `docs/releases/<version>.md`, y `git push origin main`. Así queda en un commit propio,
+   separado de los cambios del usuario.
+   - Mensaje: `#<número> <área>: <qué>` y la línea `Co-Authored-By`.
+   - Los ficheros que borra la tarea (flujos o scripts obsoletos) también van en el commit.
+   - El resto de cambios sin commitear del árbol son del usuario o de otra sesión: no los añadas,
+     y nómbralos en el informe.
+   - Subir a `main` no publica la app: sale con el build de EAS de su versión, que hace el usuario.
+5. **ClickUp:** con todo subido (y el panel `● Ready` si aplica), pasa la tarea a `complete`:
+
+   ```bash
+   node .claude/skills/clickup-task/scripts/set_status.mjs "<url>"
+   ```
+
+   El script comprueba que el estado existe en la lista de la tarea y solo cambia el estado. Si
+   sale `UNKNOWN_STATUS`, enseña los estados disponibles al usuario y pregunta; no elijas otro.
+   Si la tarea tiene subtareas que entraron en esta pasada, pásalas también.
+6. Apunta en la entrada del histórico: «Subido a `main` el <fecha> (commit `<sha>`). Tarea en
+   ClickUp: complete.» El commit no puede llevar su propio sha. Por eso esta línea va en un
+   segundo commit pequeño (`#<número> docs: histórico`) que también se sube.
+
 ## Lo que esta skill no hace
 
-- No escribe en ClickUp (ni cambia estados ni comenta) salvo que el usuario lo pida.
-- No hace commit, push, builds de EAS ni EAS Update.
+- No escribe en ClickUp más allá de pasar a `complete` las tareas terminadas (paso 6): ni comenta
+  ni cambia otros campos, salvo que el usuario lo pida.
+- No hace builds de EAS ni EAS Update, ni crea el tag de la versión.
 
 ## Credenciales
 
@@ -243,4 +324,4 @@ El workspace es privado, así que el script necesita un token personal de ClickU
    ```
 
 El token hereda los permisos del usuario en todos sus workspaces (no hay modo solo lectura), así
-que esta skill solo hace `GET`. Nunca pegues el token en el chat ni lo guardes dentro del repo.
+que esta skill solo hace `GET`, salvo el `PUT` de estado de `set_status.mjs` (paso 6). Nunca pegues el token en el chat ni lo guardes dentro del repo.
