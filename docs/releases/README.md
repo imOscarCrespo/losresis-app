@@ -5,7 +5,8 @@ el checklist de publicación. Lo mantiene la skill `/clickup-task`.
 
 ## Ciclo de vida
 
-1. **Abrir versión.** La primera tarea tras publicar una versión sube `expo.version` (parche),
+1. **Abrir versión.** Producto marca cada tarea de ClickUp con un tag de versión (`1.0.93`). La
+   primera tarea con un tag que aún no tiene fichero pone esa versión en `expo.version`, suma 1 a
    `ios.buildNumber` y `android.versionCode` en `app.json` y crea `<version>.md` con
    `Estado: en desarrollo`. Solo se sube la versión **una vez por versión**, no por tarea.
 2. **Sumar tareas.** Cada tarea de ClickUp añade su entrada en «Tareas» y, idealmente, va en su
@@ -19,7 +20,8 @@ el checklist de publicación. Lo mantiene la skill `/clickup-task`.
 
 ## Reglas
 
-- Una sola versión `en desarrollo` a la vez.
+- La versión de una tarea la da su tag de ClickUp. Puede haber varias versiones `en desarrollo`
+  a la vez (p. ej. una en QA y la siguiente abierta); `app.json` lleva siempre la más alta.
 - Un build enviado a TestFlight o a una vía de pruebas de Play **ya gasta** su versión y su build:
   aunque no llegue a tiendas, lo siguiente va en una versión nueva. Al hacer `eas submit`, apunta
   en el fichero `Enviada a TestFlight: <fecha> (build N, commit X)`.
