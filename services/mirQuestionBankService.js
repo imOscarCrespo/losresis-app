@@ -18,24 +18,20 @@ const shuffleValue = () => Math.random();
 
 /**
  * Especialidades y años disponibles entre las preguntas activas, para los
- * filtros del drill.
+ * filtros del drill. Se agregan en servidor (get_mir_filter_options): el banco
+ * supera las 1.000 filas que PostgREST devuelve como máximo por consulta.
  */
 export const getMirFilterOptions = async () => {
   try {
-    const { data, error } = await supabase
-      .from("mir_questions")
-      .select("specialty, exam_year")
-      .eq("is_active", true);
+    const { data, error } = await supabase.rpc("get_mir_filter_options");
 
     if (error) throw error;
 
-    const specialties = [
-      ...new Set((data || []).map((row) => row.specialty).filter(Boolean)),
-    ].sort((a, b) => a.localeCompare(b, "es"));
+    const specialties = (data?.specialties || [])
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "es"));
 
-    const years = [
-      ...new Set((data || []).map((row) => row.exam_year).filter(Boolean)),
-    ].sort((a, b) => b - a);
+    const years = (data?.years || []).filter(Boolean).sort((a, b) => b - a);
 
     return { success: true, specialties, years };
   } catch (error) {
@@ -44,48 +40,27 @@ export const getMirFilterOptions = async () => {
   }
 };
 
-const buildCandidatesQuery = (filters = {}) => {
-  let query = supabase
-    .from("mir_questions")
-    .select("id")
-    .eq("is_active", true);
-
-  if (filters.specialty) query = query.eq("specialty", filters.specialty);
-  if (filters.examYear) query = query.eq("exam_year", filters.examYear);
-
-  return query;
-};
-
 /**
  * Pool del drill para unos filtros: ids de preguntas candidatas y cuándo
  * respondió el usuario cada una en modo drill. Se carga UNA vez por cambio de
  * filtro (cuidar el egress); la elección de la siguiente pregunta es local
- * con pickNextFromPool.
+ * con pickNextFromPool. Una sola llamada a get_mir_drill_pool (un jsonb), que
+ * no queda cortada por el límite de 1.000 filas de PostgREST. El usuario lo
+ * fija el servidor con auth.uid(); userId se mantiene por compatibilidad.
  */
 export const getMirDrillPool = async (userId, filters = {}) => {
   try {
-    const [{ data: candidates, error: candidatesError }, { data: stateRows, error: stateError }] =
-      await Promise.all([
-        buildCandidatesQuery(filters),
-        supabase
-          .from("mir_user_question_state")
-          .select("question_id, last_drill_answered_at")
-          .eq("user_id", userId)
-          .not("last_drill_answered_at", "is", null),
-      ]);
-
-    if (candidatesError) throw candidatesError;
-    if (stateError) throw stateError;
-
-    const answeredAt = {};
-    (stateRows || []).forEach((row) => {
-      answeredAt[row.question_id] = row.last_drill_answered_at;
+    const { data, error } = await supabase.rpc("get_mir_drill_pool", {
+      p_specialty: filters.specialty || null,
+      p_exam_year: filters.examYear || null,
     });
+
+    if (error) throw error;
 
     return {
       success: true,
-      candidateIds: (candidates || []).map((row) => row.id),
-      answeredAt,
+      candidateIds: data?.candidate_ids || [],
+      answeredAt: data?.answered_at || {},
     };
   } catch (error) {
     console.error("Error loading MIR drill pool:", error);
@@ -295,30 +270,20 @@ export const getMirQuestionRanking = async ({ minAnswers = 1, limit = 10 } = {})
 /** Resumen personal para la cabecera: respondidas, aciertos y fallos totales. */
 export const getMirUserSummary = async (userId) => {
   try {
-    const { data, error } = await supabase
-      .from("mir_user_question_state")
-      .select("times_correct, times_failed, is_important, note")
-      .eq("user_id", userId);
+    // Agregado en servidor (get_mir_user_summary): con el banco histórico un
+    // estudiante puede superar las 1.000 filas de estado que PostgREST
+    // devuelve por consulta. El usuario lo fija auth.uid().
+    const { data, error } = await supabase.rpc("get_mir_user_summary");
 
     if (error) throw error;
 
-    const rows = data || [];
-    const totals = rows.reduce(
-      (acc, row) => {
-        acc.correct += row.times_correct;
-        acc.failed += row.times_failed;
-        return acc;
-      },
-      { correct: 0, failed: 0 }
-    );
-
     return {
       success: true,
-      answeredQuestions: rows.filter((r) => r.times_correct + r.times_failed > 0).length,
-      totalCorrect: totals.correct,
-      totalFailed: totals.failed,
-      importantCount: rows.filter((r) => r.is_important).length,
-      noteCount: rows.filter((r) => r.note).length,
+      answeredQuestions: Number(data?.answered_questions || 0),
+      totalCorrect: Number(data?.total_correct || 0),
+      totalFailed: Number(data?.total_failed || 0),
+      importantCount: Number(data?.important_count || 0),
+      noteCount: Number(data?.note_count || 0),
     };
   } catch (error) {
     console.error("Error loading MIR user summary:", error);
