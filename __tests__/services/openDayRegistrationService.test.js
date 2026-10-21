@@ -121,11 +121,23 @@ describe("saveOpenDayRegistration", () => {
 });
 
 describe("getOpenDaySpecialityOptions", () => {
-  it("sale del catálogo hospital-especialidad, no de todas las MIR", () => {
-    expect(getOpenDaySpecialityOptions("h1")).toEqual([
+  it("una jornada sin especialidades elegidas ofrece todas las del hospital", () => {
+    expect(
+      getOpenDaySpecialityOptions({ hospital_id: "h1", offered_specialities: [] })
+    ).toEqual([
       { id: "card", name: "Cardiología" },
       { id: "mi", name: "Medicina Interna" },
     ]);
-    expect(getOpenDaySpecialityOptions("h2")).toEqual([]);
+    expect(getOpenDaySpecialityOptions({ hospital_id: "h2" })).toEqual([]);
+    expect(getOpenDaySpecialityOptions(null)).toEqual([]);
+  });
+
+  it("si el hospital ha elegido, solo ofrece esas", () => {
+    expect(
+      getOpenDaySpecialityOptions({
+        hospital_id: "h1",
+        offered_specialities: [{ id: "mi", name: "Medicina Interna" }],
+      })
+    ).toEqual([{ id: "mi", name: "Medicina Interna" }]);
   });
 });

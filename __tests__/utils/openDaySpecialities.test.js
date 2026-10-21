@@ -1,5 +1,8 @@
 import {
+  buildOfferedSpecialityOptions,
   buildOpenDaySpecialityOptions,
+  getAvailableSelectionIds,
+  getRetiredSelectionIds,
   canConfirmOpenDaySpecialities,
   canEditOpenDaySpecialities,
   getSelectedSpecialityNames,
@@ -81,5 +84,45 @@ describe("getSelectedSpecialityNames", () => {
       "Cardiología",
       "Pediatría",
     ]);
+  });
+});
+
+describe("especialidades participantes de la jornada", () => {
+  const HOSPITAL = SPECIALITIES.slice(0, 3);
+
+  it("el hospital tiene 7 y ofrece 3: el estudiante ve solo esas 3, por nombre", () => {
+    const offered = [
+      { id: "ped", name: "Pediatría" },
+      { id: "anes", name: "Anestesiología" },
+      { id: "mi", name: "Medicina Interna" },
+      { id: "mi", name: "Medicina Interna" },
+    ];
+    expect(buildOfferedSpecialityOptions(offered, HOSPITAL).map((o) => o.name)).toEqual([
+      "Anestesiología",
+      "Medicina Interna",
+      "Pediatría",
+    ]);
+  });
+
+  it("sin elegir (jornadas antiguas) mantiene todas las del hospital", () => {
+    expect(buildOfferedSpecialityOptions([], HOSPITAL)).toBe(HOSPITAL);
+    expect(buildOfferedSpecialityOptions(undefined, HOSPITAL)).toBe(HOSPITAL);
+    expect(buildOfferedSpecialityOptions(undefined, undefined)).toEqual([]);
+  });
+
+  it("detecta lo marcado que la jornada ya no ofrece, sin borrarlo", () => {
+    const options = [{ id: "mi", name: "Medicina Interna" }];
+    expect(getRetiredSelectionIds(["card", "mi"], options)).toEqual(["card"]);
+    expect(getRetiredSelectionIds(["mi"], options)).toEqual([]);
+    // Inscripción general: no hay nada retirado.
+    expect(getRetiredSelectionIds(["card"], [])).toEqual([]);
+  });
+
+  it("al modificar solo se premarca lo que sigue disponible", () => {
+    const options = [{ id: "mi", name: "Medicina Interna" }];
+    expect(getAvailableSelectionIds(["card", "mi"], options)).toEqual(["mi"]);
+    expect(canConfirmOpenDaySpecialities(getAvailableSelectionIds(["card"], options), options)).toBe(
+      false
+    );
   });
 });

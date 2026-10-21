@@ -15,7 +15,10 @@ import {
   getSpecialitiesCatalog,
   getSpecialityByIdFromCatalog,
 } from "./staticCatalogService";
-import { buildOpenDaySpecialityOptions } from "../utils/openDaySpecialities";
+import {
+  buildOfferedSpecialityOptions,
+  buildOpenDaySpecialityOptions,
+} from "../utils/openDaySpecialities";
 
 let discoveryRankingSnapshotPromise = null;
 let hospitalSpecialtyCachePromise = null;
@@ -867,6 +870,13 @@ const mapOpenDayRow = (row) => {
     cta_label: row.cta_label || null,
     cta_url: row.cta_url || null,
     image_public_url: row.image_public_url || null,
+    // Las que el hospital ha elegido para esta jornada; vacía = sin elegir.
+    offered_specialities: (row.hospital_open_day_speciality || [])
+      .map((item) =>
+        Array.isArray(item?.specialities) ? item.specialities[0] : item?.specialities
+      )
+      .filter((speciality) => speciality?.id && speciality?.name)
+      .map(({ id, name }) => ({ id, name })),
   };
 };
 
@@ -874,8 +884,10 @@ const mapOpenDayRow = (row) => {
 // jornada si la fila del hospital no fuera visible, y una lista vacía sin error
 // parece "no hay jornadas". Filtrar no aporta nada, porque hospital_id es NOT
 // NULL con FK y borrado en cascada: toda jornada tiene su hospital.
+// Con las especialidades que participan en la jornada (y su nombre de la BD,
+// no del catálogo empaquetado, por si va atrasado).
 const OPEN_DAY_WITH_HOSPITAL_SELECT =
-  "id, hospital_id, title, description, event_date, cta_label, cta_url, image_public_url, hospitals(id, name, city, region)";
+  "id, hospital_id, title, description, event_date, cta_label, cta_url, image_public_url, hospitals(id, name, city, region), hospital_open_day_speciality(speciality_id, specialities(id, name))";
 
 /**
  * Jornadas de puertas abiertas publicadas y todavía por celebrar, de cualquier
@@ -1006,15 +1018,19 @@ export const getMyOpenDayRegistrations = async (userId) => {
 
 /**
  * Las especialidades que se pueden marcar al inscribirse en una jornada: las
- * vinculadas al hospital en el catálogo empaquetado, ordenadas por nombre.
- * @param {string} hospitalId
+ * que el hospital ha elegido para ella o, si no ha elegido, todas las
+ * vinculadas al hospital en el catálogo empaquetado. Ordenadas por nombre.
+ * @param {{hospital_id: string, offered_specialities?: Array<{id: string, name: string}>}|null} openDay
  * @returns {Array<{id: string, name: string}>}
  */
-export const getOpenDaySpecialityOptions = (hospitalId) =>
-  buildOpenDaySpecialityOptions(
-    hospitalId,
-    getHospitalSpecialityCatalog(),
-    getSpecialitiesCatalog()
+export const getOpenDaySpecialityOptions = (openDay) =>
+  buildOfferedSpecialityOptions(
+    openDay?.offered_specialities,
+    buildOpenDaySpecialityOptions(
+      openDay?.hospital_id,
+      getHospitalSpecialityCatalog(),
+      getSpecialitiesCatalog()
+    )
   );
 
 /**

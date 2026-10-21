@@ -72,3 +72,49 @@ export const getSelectedSpecialityNames = (selectedIds, options) => {
     .filter((option) => selected.has(option.id))
     .map((option) => option.name);
 };
+
+/**
+ * Lo que se puede marcar en una jornada concreta: las especialidades que el
+ * hospital ha elegido para ella. Una jornada sin elegir (las anteriores a esta
+ * opción) ofrece todas las del hospital, como antes.
+ * @param {Array<{id: string, name: string}>} offeredSpecialities - Elegidas para la jornada
+ * @param {Array<{id: string, name: string}>} hospitalOptions - Todas las del hospital
+ * @returns {Array<{id: string, name: string}>}
+ */
+export const buildOfferedSpecialityOptions = (offeredSpecialities, hospitalOptions) => {
+  if (!offeredSpecialities?.length) return hospitalOptions || [];
+
+  const seen = new Set();
+  return offeredSpecialities
+    .filter((speciality) => {
+      if (!speciality?.id || !speciality.name || seen.has(speciality.id)) return false;
+      seen.add(speciality.id);
+      return true;
+    })
+    .map(({ id, name }) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
+};
+
+/**
+ * Las especialidades que el usuario marcó y la jornada ya no ofrece. Se
+ * conservan en su inscripción, pero ya no se pueden volver a marcar.
+ * @param {string[]} selectedIds
+ * @param {Array<{id: string}>} options
+ * @returns {string[]}
+ */
+export const getRetiredSelectionIds = (selectedIds, options) => {
+  if (!options?.length) return [];
+  const available = new Set(options.map((option) => option.id));
+  return (selectedIds || []).filter((id) => !available.has(id));
+};
+
+/**
+ * La selección que se abre al modificar: solo lo que sigue ofreciéndose.
+ * @param {string[]} selectedIds
+ * @param {Array<{id: string}>} options
+ * @returns {string[]}
+ */
+export const getAvailableSelectionIds = (selectedIds, options) => {
+  const available = new Set((options || []).map((option) => option.id));
+  return (selectedIds || []).filter((id) => available.has(id));
+};

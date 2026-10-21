@@ -28,6 +28,8 @@ import {
 import { formatDateOnly } from "../utils/dateUtils";
 import {
   canEditOpenDaySpecialities,
+  getAvailableSelectionIds,
+  getRetiredSelectionIds,
   getSelectedSpecialityNames,
 } from "../utils/openDaySpecialities";
 import { openURL } from "../utils/courseUtils";
@@ -322,8 +324,19 @@ export default function OpenDaysScreen({
   );
 
   const selectedSpecialityOptions = useMemo(
-    () => getOpenDaySpecialityOptions(selectedOpenDay?.hospital_id),
-    [selectedOpenDay?.hospital_id]
+    () => getOpenDaySpecialityOptions(selectedOpenDay),
+    [selectedOpenDay]
+  );
+
+  // Al modificar se abre con lo que sigue ofreciéndose. Memorizado: el sheet
+  // reinicia su borrador cuando cambia la referencia.
+  const editableSpecialityIds = useMemo(
+    () =>
+      getAvailableSelectionIds(
+        specialityIdsByOpenDay[selectedOpenDayId] || EMPTY_IDS,
+        selectedSpecialityOptions
+      ),
+    [specialityIdsByOpenDay, selectedOpenDayId, selectedSpecialityOptions]
   );
 
   // Si la jornada abierta se despublica y desaparece en un refresco, se vuelve
@@ -519,6 +532,9 @@ export default function OpenDaysScreen({
       savedSpecialityIds,
       selectedSpecialityOptions
     );
+    // Lo que marcó y la jornada ya no ofrece: se conserva, pero se le avisa.
+    const hasRetiredSpecialities =
+      getRetiredSelectionIds(savedSpecialityIds, selectedSpecialityOptions).length > 0;
     const hasSpecialityOptions = selectedSpecialityOptions.length > 0;
     const canEditSpecialities = canEditOpenDaySpecialities(
       openDay.event_date,
@@ -632,6 +648,12 @@ export default function OpenDaysScreen({
                     : "No indicaste qué especialidades querías conocer."}
                 </Text>
               )}
+              {hasRetiredSpecialities && canEditSpecialities ? (
+                <Text style={styles.specialitiesHint} testID="open-day-retired-specialities">
+                  Una de las especialidades que seleccionaste ya no participa en
+                  esta jornada. Puedes actualizar tus preferencias.
+                </Text>
+              ) : null}
               {canEditSpecialities ? (
                 <TouchableOpacity
                   testID="open-day-edit-specialities"
@@ -669,7 +691,7 @@ export default function OpenDaysScreen({
           visible={specialitiesSheetMode !== null}
           options={selectedSpecialityOptions}
           initialSelectedIds={
-            specialitiesSheetMode === "edit" ? savedSpecialityIds : EMPTY_IDS
+            specialitiesSheetMode === "edit" ? editableSpecialityIds : EMPTY_IDS
           }
           confirmLabel={
             specialitiesSheetMode === "edit"
