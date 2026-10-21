@@ -104,13 +104,10 @@ name: "#110 Reseña rápida de rotaciones externas"
 - tapOn:
     id: "quick-review-next"
 
-# Paso 4: se publica sin escribir texto libre; solo el contacto es obligatorio (ClickUp 86cbm0fbc)
+# Paso 4: se publica sin escribir texto libre, ni siquiera el contacto (ClickUp 86cbm0vbf)
 - extendedWaitUntil:
     visible: "Paso 4 de 4"
     timeout: 5000
-- tapOn: "Ej. docencia@hospital.es"
-- inputText: "docencia-e2e@losresis.test"
-- tapOn: "Correo electrónico"
 - scrollUntilVisible:
     element: "Añadir más detalles \\(opcional\\).*"
     centerElement: true

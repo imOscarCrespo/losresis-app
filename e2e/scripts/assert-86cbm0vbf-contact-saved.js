@@ -1,7 +1,8 @@
-// ClickUp 86cbm0fbc: comprueba que la experiencia recién publicada guardó el contacto.
+// ClickUp 86cbm0vbf: comprueba el contacto en texto libre de la experiencia de pruebas.
 // La app no deja abrir la ficha propia desde «Explorar destinos», así que se lee la fila.
 // Actúa como el propio residente (su JWT y RLS por propietario): solo lee datos suyos.
-// Variables: E2E_EMAIL, E2E_PASSWORD, SUPABASE_URL, SUPABASE_ANON_KEY (las pasa scripts/e2e.sh).
+// Variables: E2E_EMAIL, E2E_PASSWORD, SUPABASE_URL, SUPABASE_ANON_KEY (las pasa scripts/e2e.sh)
+// y EXPECTED_CONTACT (el texto esperado en tutor_name; vacío = sin contacto).
 var HOSPITAL = "E2E Hospital de Pruebas";
 
 var auth = http.post(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
@@ -28,10 +29,10 @@ var rows = json(
 if (rows.length !== 1) throw new Error("Se esperaba 1 experiencia de pruebas y hay " + rows.length);
 
 var expected = {
-  tutor_name: "Secretaria de Docencia E2E",
-  tutor_email: "docencia-e2e@losresis.test",
-  contact_phone: "999999999",
-  contact_url: "https://losresis.com/rotaciones-e2e",
+  tutor_name: EXPECTED_CONTACT || null,
+  tutor_email: null,
+  contact_phone: null,
+  contact_url: null,
 };
 Object.keys(expected).forEach(function (key) {
   if (rows[0][key] !== expected[key]) {

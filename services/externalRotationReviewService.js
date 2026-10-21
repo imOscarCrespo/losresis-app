@@ -1,8 +1,5 @@
 import { supabase } from "../config/supabase";
-import {
-  normalizeContactUrl,
-  sanitizeHighlightTags,
-} from "../utils/externalRotationQuickReview";
+import { sanitizeHighlightTags } from "../utils/externalRotationQuickReview";
 import {
   getExternalRotationQuestionsCatalog,
   getHospitalByIdFromCatalog,
@@ -326,9 +323,6 @@ const buildReviewColumns = (reviewData, rotation = null) => {
     accommodationNotes,
     costNotes,
     tutorName,
-    tutorEmail,
-    contactPhone,
-    contactUrl,
     preferredContactMethod,
   } = reviewData;
   const tags = sanitizeHighlightTags(highlightTags);
@@ -351,10 +345,12 @@ const buildReviewColumns = (reviewData, rotation = null) => {
     before_you_go: trimOrNull(beforeYouGo),
     accommodation_notes: trimOrNull(accommodationNotes),
     cost_notes: trimOrNull(costNotes),
+    // Contacto en texto libre (ClickUp 86cbm0vbf). Al editar, el correo, teléfono y enlace
+    // antiguos llegan ya dentro del texto: se vacían para que la ficha no los repita.
     tutor_name: trimOrNull(tutorName),
-    tutor_email: trimOrNull(tutorEmail),
-    contact_phone: trimOrNull(contactPhone),
-    contact_url: normalizeContactUrl(contactUrl) || null,
+    tutor_email: null,
+    contact_phone: null,
+    contact_url: null,
     preferred_contact_method: preferredContactMethod || "app_chat",
     allow_app_contact:
       preferredContactMethod === "app_chat" ||

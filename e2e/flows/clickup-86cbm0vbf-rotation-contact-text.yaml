@@ -1,0 +1,245 @@
+# ClickUp 86cbm0vbf · Contacto de la rotación externa en una sola casilla de texto libre
+# https://app.clickup.com/t/86cbm0vbf
+#
+# Publicación desde la invitación del plan terminado: el paso 4 tiene una única casilla de
+# contacto y se publica sin rellenarla → al editar se escribe un contacto sin formato (un
+# teléfono incompleto vale) y queda guardado → al volver a editar se ve y se conserva sin
+# tocarlo → la ficha de una experiencia publicada muestra su contacto → borrar.
+# Reutiliza la preparación de #110, que limpia las reseñas de pruebas y deja el plan.
+appId: com.losresis.app
+name: "86cbm0vbf Contacto en texto libre"
+---
+- runScript: ../scripts/seed-110-ended-plan.js
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- extendedWaitUntil:
+    visible: "Nóminas"
+    timeout: 20000
+- tapOn: "Ver más opciones"
+- scrollUntilVisible:
+    element: "Rotaciones externas"
+    centerElement: true
+- tapOn: "Rotaciones externas"
+
+- extendedWaitUntil:
+    visible:
+      id: "review-invite"
+    timeout: 20000
+- tapOn:
+    id: "review-invite-share"
+
+# Pasos 1 a 3 sin cambios: el plan rellena el 1, el 2 pide sus tres respuestas.
+- extendedWaitUntil:
+    visible: "Paso 1 de 4"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+- extendedWaitUntil:
+    visible: "Paso 2 de 4"
+    timeout: 5000
+- tapOn: "Sí"
+- tapOn: "Difícil"
+- tapOn: "Observacional"
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+- extendedWaitUntil:
+    visible: "Paso 3 de 4"
+    timeout: 5000
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+
+# Paso 4: una pregunta y una casilla; ninguno de los cuatro campos anteriores.
+- extendedWaitUntil:
+    visible: "Paso 4 de 4"
+    timeout: 5000
+- assertVisible: "¿Con quién contactaste para conseguir la rotación?"
+- assertVisible: "Correo, teléfono, secretaría o persona de contacto..."
+- assertNotVisible: "¿Con quién pueden contactar para hacer esta rotación?"
+- assertNotVisible: "Persona o departamento de contacto.*"
+- assertNotVisible: "Correo electrónico"
+- assertNotVisible: "Teléfono"
+- assertNotVisible: "Enlace para solicitar la rotación"
+- assertNotVisible: "Indica al menos un correo.*"
+- assertVisible: "Un consejo para el siguiente residente"
+- takeScreenshot: clickup-86cbm0vbf-step-contact
+
+# El contacto es opcional: se publica sin rellenarlo.
+- scrollUntilVisible:
+    element:
+      id: "quick-review-submit"
+    centerElement: true
+- tapOn:
+    id: "quick-review-submit"
+- extendedWaitUntil:
+    visible: "¡Gracias!"
+    timeout: 15000
+- tapOn:
+    id: "publish-success-done"
+- extendedWaitUntil:
+    visible: "TU EXPERIENCIA PUBLICADA"
+    timeout: 15000
+- runScript:
+    file: ../scripts/assert-86cbm0vbf-contact-saved.js
+    env:
+      EXPECTED_CONTACT: ""
+
+# Editarla y escribir un contacto libre: el 999 no es un teléfono válido y no se exige.
+- scrollUntilVisible:
+    element: "Editar experiencia"
+    centerElement: true
+- tapOn: "Editar experiencia"
+- extendedWaitUntil:
+    visible: "Paso 1 de 4"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+- extendedWaitUntil:
+    visible: "Paso 4 de 4"
+    timeout: 5000
+- tapOn:
+    id: "quick-review-contact"
+- inputText: "Secretaria E2E 999"
+# El teclado se cierra tocando el título de la tarjeta, como haría el usuario.
+- tapOn: "¿Con quién contactaste para conseguir la rotación?"
+- takeScreenshot: clickup-86cbm0vbf-contact-filled
+- scrollUntilVisible:
+    element:
+      id: "quick-review-submit"
+    centerElement: true
+- tapOn:
+    id: "quick-review-submit"
+- extendedWaitUntil:
+    visible: "¡Experiencia actualizada!"
+    timeout: 15000
+- tapOn:
+    id: "publish-success-done"
+- extendedWaitUntil:
+    visible: "TU EXPERIENCIA PUBLICADA"
+    timeout: 15000
+- runScript:
+    file: ../scripts/assert-86cbm0vbf-contact-saved.js
+    env:
+      EXPECTED_CONTACT: "Secretaria E2E 999"
+
+# Al volver a editar se ve el contacto guardado y, sin tocarlo, se conserva.
+- scrollUntilVisible:
+    element: "Editar experiencia"
+    centerElement: true
+- tapOn: "Editar experiencia"
+- extendedWaitUntil:
+    visible: "Paso 1 de 4"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+- scrollUntilVisible:
+    element:
+      id: "quick-review-next"
+    centerElement: true
+- tapOn:
+    id: "quick-review-next"
+- extendedWaitUntil:
+    visible: "Paso 4 de 4"
+    timeout: 5000
+- assertVisible: "Secretaria E2E 999"
+- scrollUntilVisible:
+    element:
+      id: "quick-review-submit"
+    centerElement: true
+- tapOn:
+    id: "quick-review-submit"
+- extendedWaitUntil:
+    visible: "¡Experiencia actualizada!"
+    timeout: 15000
+- tapOn:
+    id: "publish-success-done"
+- extendedWaitUntil:
+    visible: "TU EXPERIENCIA PUBLICADA"
+    timeout: 15000
+- runScript:
+    file: ../scripts/assert-86cbm0vbf-contact-saved.js
+    env:
+      EXPECTED_CONTACT: "Secretaria E2E 999"
+
+# La ficha publicada muestra el contacto. Solo lectura sobre experiencias ajenas: la que
+# existe es anterior a la tarea y guarda su contacto en el mismo campo.
+- scrollUntilVisible:
+    element: "ESTOY BUSCANDO DÓNDE ROTAR.*"
+    direction: UP
+    centerElement: true
+- tapOn: "ESTOY BUSCANDO DÓNDE ROTAR.*"
+- extendedWaitUntil:
+    visible: "Hospital, servicio o ciudad"
+    timeout: 10000
+# La tarjeta es un botón: su texto accesible junta todos sus textos.
+- scrollUntilVisible:
+    element: ".*Ver experiencia.*"
+    centerElement: true
+- tapOn: ".*Ver experiencia.*"
+- scrollUntilVisible:
+    element:
+      id: "review-detail-contact-text"
+    centerElement: true
+- assertVisible: "Contacto para solicitar esta rotación"
+- assertNotVisible: "Persona o departamento"
+- takeScreenshot: clickup-86cbm0vbf-detail-contact
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Hospital, servicio o ciudad"
+    timeout: 10000
+- tapOn: "Volver"
+
+# Limpieza: borrar la experiencia de pruebas
+- extendedWaitUntil:
+    visible: "TU EXPERIENCIA PUBLICADA"
+    timeout: 15000
+- scrollUntilVisible:
+    element: "Eliminar"
+    centerElement: true
+- tapOn: "Eliminar"
+- extendedWaitUntil:
+    visible: "Eliminar experiencia"
+    timeout: 5000
+- tapOn: "Eliminar"
+- extendedWaitUntil:
+    visible: "YA HE REALIZADO UNA ROTACIÓN.*"
+    timeout: 15000

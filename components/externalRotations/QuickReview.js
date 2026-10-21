@@ -171,61 +171,21 @@ const DetailInput = ({ label, value, onChangeText, placeholder, multiline = true
   </>
 );
 
-// Contacto para solicitar la rotación (ClickUp 86cbm0fbc): basta con correo, teléfono o enlace.
+// Contacto en texto libre y opcional (ClickUp 86cbm0vbf): se guarda en tutor_name.
 const ReviewContactCard = ({ form, onChange }) => (
-  <View style={styles.card} testID="quick-review-contact">
-    <View style={styles.cardHeader}>
-      <Text style={styles.cardTitle}>¿Con quién pueden contactar para hacer esta rotación?</Text>
-      <Text style={styles.helperText}>
-        Ayuda a otros residentes a saber a quién dirigirse para solicitar esta rotación externa.
-      </Text>
-    </View>
-    <DetailInput
-      label="Persona o departamento de contacto (opcional)"
+  <View style={styles.card}>
+    <Text style={styles.cardTitle}>¿Con quién contactaste para conseguir la rotación?</Text>
+    <TextInput
+      style={[styles.textInput, styles.textAreaSmall]}
       value={form.tutorName}
       onChangeText={(value) => onChange({ tutorName: value })}
-      placeholder="Ej. Secretaría de Docencia del Hospital"
-      multiline={false}
-      testID="quick-review-contact-name"
+      placeholder="Correo, teléfono, secretaría o persona de contacto..."
+      placeholderTextColor="#98A2B3"
+      multiline
+      textAlignVertical="top"
+      maxLength={300}
+      testID="quick-review-contact"
     />
-    <DetailInput
-      label="Correo electrónico"
-      value={form.tutorEmail}
-      onChangeText={(value) => onChange({ tutorEmail: value })}
-      placeholder="Ej. docencia@hospital.es"
-      multiline={false}
-      autoCapitalize="none"
-      autoCorrect={false}
-      keyboardType="email-address"
-      testID="quick-review-contact-email"
-    />
-    <DetailInput
-      label="Teléfono"
-      value={form.contactPhone}
-      onChangeText={(value) => onChange({ contactPhone: value })}
-      placeholder="Ej. +34 912 345 678"
-      multiline={false}
-      keyboardType="phone-pad"
-      testID="quick-review-contact-phone"
-    />
-    <DetailInput
-      label="Enlace para solicitar la rotación"
-      value={form.contactUrl}
-      onChangeText={(value) => onChange({ contactUrl: value })}
-      placeholder="Ej. www.hospital.es/rotaciones-externas"
-      multiline={false}
-      autoCapitalize="none"
-      autoCorrect={false}
-      keyboardType="url"
-      testID="quick-review-contact-url"
-    />
-    <View style={styles.contactNote}>
-      <Icon name="information-circle-outline" size={18} color={PRIMARY} />
-      <Text style={styles.contactNoteText}>
-        Indica al menos un correo, teléfono o enlace. Mejor los de docencia, secretaría o el
-        responsable de rotaciones que datos personales.
-      </Text>
-    </View>
   </View>
 );
 
@@ -436,25 +396,11 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 12,
   },
-  cardHeader: {
-    gap: 4,
-  },
   cardTitle: {
     fontSize: 20,
     lineHeight: 26,
     fontWeight: "800",
     color: TEXT,
-  },
-  contactNote: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  contactNoteText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-    color: TEXT_MUTED,
   },
   question: {
     gap: 10,

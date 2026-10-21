@@ -72,34 +72,28 @@ describe("createRotationReview", () => {
     });
   });
 
-  it("guarda el contacto para solicitar la rotación, con el enlace siempre con protocolo", async () => {
+  it("guarda el contacto en texto libre, sin exigir formato", async () => {
     mockBuilder.responses = [{ data: { id: "r1" }, error: null }];
 
     await createRotationReview({
       ...quickReview,
-      tutorName: " Secretaría de Docencia ",
-      tutorEmail: "docencia@mayo.edu",
-      contactPhone: " +1 507 284 2511 ",
-      contactUrl: "mayo.edu/visiting-residents",
+      tutorName: " Dra. García, responsable de rotaciones · +34 912 345 678 ",
     });
 
     expect(mockBuilder.insert.mock.calls[0][0][0]).toMatchObject({
-      tutor_name: "Secretaría de Docencia",
-      tutor_email: "docencia@mayo.edu",
-      contact_phone: "+1 507 284 2511",
-      contact_url: "https://mayo.edu/visiting-residents",
+      tutor_name: "Dra. García, responsable de rotaciones · +34 912 345 678",
+      tutor_email: null,
+      contact_phone: null,
+      contact_url: null,
     });
   });
 
   it("deja el contacto a null si no se escribe", async () => {
     mockBuilder.responses = [{ data: { id: "r1" }, error: null }];
 
-    await createRotationReview({ ...quickReview, contactPhone: "  ", contactUrl: "" });
+    await createRotationReview({ ...quickReview, tutorName: "  " });
 
-    expect(mockBuilder.insert.mock.calls[0][0][0]).toMatchObject({
-      contact_phone: null,
-      contact_url: null,
-    });
+    expect(mockBuilder.insert.mock.calls[0][0][0].tutor_name).toBeNull();
   });
 
   it("guarda null en vez de un array vacío si no elige etiquetas", async () => {
@@ -182,6 +176,37 @@ describe("updateRotationReview", () => {
     expect(mockBuilder.insert.mock.calls[0][0]).toEqual([
       { review_id: "r1", question_id: "q1", rating_value: 4, text_value: null },
     ]);
+  });
+
+  it("al editar, el contacto antiguo ya va en el texto: vacía correo, teléfono y enlace", async () => {
+    mockBuilder.responses = [
+      { data: { rotation_id: null, user_id: "u1" }, error: null }, // reseña existente
+      { data: { id: "r1" }, error: null }, // update
+      { data: null, error: null }, // delete answers
+    ];
+
+    await updateRotationReview("r1", {
+      ...quickReview,
+      tutorName: "Secretaría · docencia@mayo.edu · +1 507 284 2511",
+    });
+
+    expect(mockBuilder.update.mock.calls[0][0]).toMatchObject({
+      tutor_name: "Secretaría · docencia@mayo.edu · +1 507 284 2511",
+      tutor_email: null,
+      contact_phone: null,
+      contact_url: null,
+    });
+  });
+
+  it("devuelve el error si Supabase rechaza la edición", async () => {
+    mockBuilder.responses = [
+      { data: { rotation_id: null, user_id: "u1" }, error: null }, // reseña existente
+      { data: null, error: { message: "boom" } }, // update
+    ];
+
+    await expect(updateRotationReview("r1", { ...quickReview })).rejects.toMatchObject({
+      message: "boom",
+    });
   });
 });
 

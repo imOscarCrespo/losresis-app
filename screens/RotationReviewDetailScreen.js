@@ -485,8 +485,8 @@ const ContactRow = ({ icon, value, onPress, testID }) => (
   </TouchableOpacity>
 );
 
-// Contacto para solicitar la rotación (ClickUp 86cbm0fbc). Las reseñas antiguas pueden no
-// tenerlo, o tener solo el nombre del tutor: se pinta lo que haya.
+// Contacto para solicitar la rotación: texto libre en tutor_name (ClickUp 86cbm0vbf). Correo,
+// teléfono y enlace sueltos solo quedan en reseñas de la 1.0.92 (86cbm0fbc): se pintan si están.
 const RotationContactCard = ({ review }) => {
   const name = review.tutor_name?.trim();
   if (!name && !hasReviewContact(review)) return null;
@@ -503,10 +503,9 @@ const RotationContactCard = ({ review }) => {
       </View>
       <View style={styles.contactInnerCard}>
         {name ? (
-          <View>
-            <Text style={styles.contactLabel}>Persona o departamento</Text>
-            <Text style={styles.contactName}>{name}</Text>
-          </View>
+          <Text style={styles.contactName} selectable testID="review-detail-contact-text">
+            {name}
+          </Text>
         ) : null}
         {email ? (
           <ContactRow
@@ -731,15 +730,10 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
   },
-  contactLabel: {
-    fontSize: 11,
-    color: PRIMARY,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
   contactName: {
-    fontSize: 17,
-    fontWeight: "800",
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: "600",
     color: TEXT,
   },
   contactRow: {

@@ -54,6 +54,7 @@ import {
   QUICK_REVIEW_STEPS,
   getPendingReviewInvites,
   hasExtendedDetails,
+  contactTextFromReview,
   hasReviewContact,
   isSameCenterName,
   quickReviewFieldsFromPlan,
@@ -114,10 +115,8 @@ const DEFAULT_PUBLISH_FORM = {
   beforeYouGo: "",
   accommodationNotes: "",
   costNotes: "",
+  // Contacto en texto libre: va a tutor_name (ver contactTextFromReview).
   tutorName: "",
-  tutorEmail: "",
-  contactPhone: "",
-  contactUrl: "",
   preferredContactMethod: "app_chat",
   answers: {},
 };
@@ -161,10 +160,7 @@ const publishFormFromReview = (review) => ({
   beforeYouGo: review.before_you_go || "",
   accommodationNotes: review.accommodation_notes || "",
   costNotes: review.cost_notes || "",
-  tutorName: review.tutor_name || "",
-  tutorEmail: review.tutor_email || "",
-  contactPhone: review.contact_phone || "",
-  contactUrl: review.contact_url || "",
+  tutorName: contactTextFromReview(review),
   preferredContactMethod: "app_chat",
   // Las valoraciones de reseñas antiguas se conservan: el formulario nuevo no las pide,
   // pero al guardar se reenvían para que no se pierdan.
@@ -1125,18 +1121,13 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
   }, []);
 
   const handlePublishNext = useCallback(() => {
-    const problem = validateQuickReviewStep(
-      QUICK_REVIEW_STEPS[publishStep].key,
-      publishForm,
-      undefined,
-      { requireContact: !route.payload?.review?.id }
-    );
+    const problem = validateQuickReviewStep(QUICK_REVIEW_STEPS[publishStep].key, publishForm);
     if (problem) {
       Alert.alert(problem.title, problem.message);
       return;
     }
     goToPublishStep(Math.min(publishStep + 1, QUICK_REVIEW_STEPS.length - 1));
-  }, [goToPublishStep, publishForm, publishStep, route.payload?.review?.id]);
+  }, [goToPublishStep, publishForm, publishStep]);
 
   const pendingReviewInvites = useMemo(
     () =>
@@ -1507,14 +1498,9 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       return;
     }
 
-    // El contacto es obligatorio en las publicaciones nuevas; al editar una antigua, no.
-    const formProblem = validateQuickReview(publishForm, undefined, {
-      requireContact: !isEditing,
-    });
+    const formProblem = validateQuickReview(publishForm);
     if (formProblem) {
       setPublishStep(formProblem.stepIndex);
-      // Si el problema es del último paso, el paso no cambia: se sube igualmente al contacto.
-      publishScrollRef.current?.scrollTo({ y: 0, animated: true });
       Alert.alert(formProblem.title, formProblem.message);
       return;
     }
@@ -1552,9 +1538,6 @@ export const ExternalRotationsScreen = ({ userProfile, navigation, onBack }) => 
       accommodationNotes: publishForm.accommodationNotes,
       costNotes: publishForm.costNotes,
       tutorName: publishForm.tutorName,
-      tutorEmail: publishForm.tutorEmail,
-      contactPhone: publishForm.contactPhone,
-      contactUrl: publishForm.contactUrl,
       preferredContactMethod: "app_chat",
       answers: formattedAnswers,
     };
