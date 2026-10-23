@@ -68,18 +68,34 @@ discrepancias en el plan y aplica la del texto salvo que el usuario diga otra co
 - Localiza las pantallas, servicios, hooks y tablas implicadas. Reutiliza lo que ya existe antes
   de crear piezas nuevas.
 - Si toca base de datos: el esquema real está en `~/code/losresis-shared/losresis-db`
-  (actualízalo con `git pull` si el árbol está limpio) y en la propia BD (`execute_sql`, solo
-  lectura). Toda migración nueva va en `losresis-db`, con nombres en inglés y revisando el
-  borrado de usuario si hay FK a `users`.
+  (actualízalo con `git pull` si el árbol está limpio) y en la propia BD (solo lectura, ver
+  **Cómo se accede a la BD** abajo). Toda migración nueva va en `losresis-db`, con nombres en
+  inglés y revisando el borrado de usuario si hay FK a `users`.
+- **Cómo se accede a la BD de LosResis: con el CLI de Supabase, nunca con el MCP.** El MCP de
+  Supabase de esta máquina está conectado a otra cuenta y no ve `chgretwxywvaaruwovbb`; no
+  pidas al usuario que lo reconecte. El CLI ya está autenticado (token en el keychain) y
+  linkado desde `losresis-app`:
+
+  ```bash
+  cd ~/code/losresis-shared/losresis-app
+  cat supabase/.temp/project-ref                          # tiene que dar chgretwxywvaaruwovbb
+  supabase db query --linked "select 1"                   # consulta suelta
+  supabase db query --linked -f /ruta/a/la/migracion.sql  # un fichero entero
+  ```
+
+  Comprueba el `project-ref` antes de la primera consulta de la sesión. `supabase db push` NO
+  (el submódulo `supabase/migrations` está desincronizado con `losresis-db`): se aplica el
+  fichero suelto. No escribas en `supabase_migrations.schema_migrations`. Procedimiento
+  completo en `losresis-db/README.md` («Cómo se ejecuta SQL»).
 - **La migración tiene que ser independiente del código nuevo.** Se aplica antes de que salga la
   versión de la app, así que la app publicada tiene que seguir funcionando con ella (p. ej. crear
   una nómina). Columnas nuevas nullable o con `DEFAULT`; nada de `NOT NULL` sin default ni de
   renombrar/borrar lo que la app publicada usa; RLS que no cierre flujos vivos. Si no se puede,
   parte el cambio (primero ampliar, retirar lo viejo más adelante) y dilo en el plan.
-- Las migraciones las aplica Claude con `mcp__supabase__apply_migration` y después commitea solo su
-  `.sql` en `losresis-db` y lo sube a `main` (paso 6). Si el MCP responde "no permission", ejecuta `list_projects`: si no
-  aparece `chgretwxywvaaruwovbb`, el MCP está conectado con otra cuenta y hay que pedir al usuario
-  que lo reconecte.
+- Las migraciones las aplica Claude con `supabase db query --linked -f <fichero.sql>` y después
+  commitea solo su `.sql` en `losresis-db` y lo sube a `main` (paso 6). Las migraciones tienen
+  que ser idempotentes (`IF NOT EXISTS`, `CREATE OR REPLACE`, `DROP POLICY IF EXISTS`): no
+  quedan registradas en `schema_migrations`.
 - Si toca catálogos estáticos (hospitales, especialidades, notas…), recuerda
   `npm run export:static-catalog`.
 
@@ -130,12 +146,12 @@ inventando una regla de producto. Si el plan es grande o toca dominio delicado, 
    Supabase se mockea en la frontera dentro de la factoría de `jest.mock` (ver
    `__tests__/services/residentPayoutService.test.js`) y se prueba también el camino de `error`.
 2. **Base de datos — ensayo que se revierte.** Antes de aplicar una migración, un único
-   `DO $$ ... $$` vía `apply_migration` que: aplica el DDL, simula las escrituras de la **app
+   `DO $$ ... $$` (en un `.sql` del scratchpad, con `supabase db query --linked -f`) que: aplica el DDL, simula las escrituras de la **app
    publicada** (mismas columnas que envía hoy), comprueba que sigue funcionando y que no pisa lo
    nuevo, y si hay RLS nueva la prueba como otro usuario
    (`SET LOCAL ROLE authenticated; SELECT set_config('request.jwt.claims', '{"sub":"<uuid>"}', true);`).
-   Termina en `RAISE EXCEPTION 'ENSAYO_OK ...'`. Después verifica con `execute_sql` que no quedó
-   nada y aplica la migración real.
+   Termina en `RAISE EXCEPTION 'ENSAYO_OK ...'`. Después verifica con una consulta
+   (`supabase db query --linked`) que no quedó nada y aplica la migración real.
 3. **Pantallas — Maestro en el simulador de iOS.**
    - Arranque (`npx expo run:ios` NO sirve: trata el simulador como iPhone físico y pide firma):
      1. Simulador iPhone 17 Pro `E37FCB60-7E7D-4531-8148-BD2A3BC1EF7A` arrancado.
@@ -167,7 +183,7 @@ inventando una regla de producto. Si el plan es grande o toca dominio delicado, 
    - El residente de pruebas es `e2e-resident@losresis.test` (MFyC, H. Ramón y Cajal) y vive en la
      BD de producción: solo crear datos propios suyos, nunca tocar los de otros usuarios.
 
-Si un nivel no se puede ejecutar (simulador roto, MCP sin acceso…), dilo en el informe; no lo
+Si un nivel no se puede ejecutar (simulador roto, CLI de Supabase sin sesión…), dilo en el informe; no lo
 des por verificado.
 
 ## Paso 4c — Bug review automático
