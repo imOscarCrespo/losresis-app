@@ -183,7 +183,13 @@ const run = async () => {
     ),
   ]);
 
-  const compactHospitals = (hospitals || []).map((hospital) => ({
+  // Los hospitales de prueba (`is_test`) no van nunca al catálogo de la app.
+  const testHospitalIds = new Set(
+    (hospitals || []).filter((hospital) => hospital.is_test).map((hospital) => hospital.id)
+  );
+  const isRealHospital = (hospitalId) => !testHospitalIds.has(hospitalId);
+
+  const compactHospitals = (hospitals || []).filter((hospital) => isRealHospital(hospital.id)).map((hospital) => ({
     id: hospital.id,
     name: hospital.name,
     city: hospital.city,
@@ -196,13 +202,13 @@ const run = async () => {
     email_domain: hospital.email_domain ?? [],
   }));
 
-  const compactHospitalSpeciality = (hospitalSpeciality || []).map((row) => ({
+  const compactHospitalSpeciality = (hospitalSpeciality || []).filter((row) => isRealHospital(row.hospital_id)).map((row) => ({
     hospital_id: row.hospital_id,
     speciality_id: row.speciality_id,
     ...(row.info_note ? { info_note: row.info_note } : {}),
   }));
 
-  const compactHospitalSpecialityGrades = (hospitalSpecialityGrades || []).map(
+  const compactHospitalSpecialityGrades = (hospitalSpecialityGrades || []).filter((row) => isRealHospital(row.hospital_id)).map(
     (row) => ({
       hospital_id: row.hospital_id,
       speciality_id: row.speciality_id,
