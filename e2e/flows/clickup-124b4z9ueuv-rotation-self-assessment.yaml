@@ -1,0 +1,367 @@
+# ClickUp 124b4z9ueuv · Autoevaluación de rotaciones en el Libro (RE-IMPULS Sant Pau)
+# https://app.clickup.com/t/124b4z9ueuv
+#
+# Residente R1 de MFyC del Hospital E2E LosResis (hospital de pruebas oculto):
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-r1.env scripts/e2e.sh e2e/flows/clickup-124b4z9ueuv-rotation-self-assessment.yaml
+# Docencia tiene publicada en el panel «Medicina Interna y Geriatría» (5 objetivos),
+# con la consecución de objetivos y «Conocimientos y habilidades» habilitados para
+# el residente y «Actitudes» solo para Docencia.
+#
+# Recorre: Libro → Rotaciones → rotación publicada → empezar, escribir, guardar
+# borrador, salir y volver (se recupera), completar los 5 objetivos, revisar y
+# finalizar; después la rúbrica (NA, valor exacto 7 en un nivel 6-7, nota
+# calculada) y su finalización.
+# Repetible: el residente no puede borrar sus autoevaluaciones, así que si la
+# rotación ya está completada el flujo empieza «otro periodo» (rotación repetida).
+appId: com.losresis.app
+name: "124b4z9ueuv Autoevaluación de rotaciones"
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- tapOn: "Libro de[\\s\\S]*residentes"
+- extendedWaitUntil:
+    visible: "Tu progreso general"
+    timeout: 30000
+# La tarjeta del apartado agrupa título y descripción en una sola etiqueta.
+- tapOn: "Rotaciones[\\s\\S]*externas e internas[\\s\\S]*"
+- extendedWaitUntil:
+    visible: "Autoevaluación de rotaciones"
+    timeout: 20000
+- assertVisible: ".*Medicina Interna y Geriatría.*Autoevaluación.*"
+- assertVisible: ".*Duración prevista: 2 meses · 5 objetivos formativos.*"
+- takeScreenshot: 124-rotations-list
+- tapOn:
+    id: "rotation-assessment-card-Medicina Interna y Geriatría"
+
+# Detalle: los tres bloques.
+- extendedWaitUntil:
+    visible: "Objetivos formativos"
+    timeout: 10000
+- assertVisible: "Mi autoevaluación"
+- assertVisible: "Rúbrica de evaluación"
+- takeScreenshot: 124-rotation-detail
+
+# Si una ejecución anterior la completó entera: otro periodo de la misma rotación
+# (el botón está al final del detalle, junto a la rúbrica).
+- scrollUntilVisible:
+    element:
+      id: "rotation-open-rubric"
+    centerElement: true
+# Cada pasada añade una línea a «Otros periodos»: el botón se busca hasta el final.
+- scrollUntilVisible:
+    element:
+      id: "rotation-new-period"
+    centerElement: true
+    timeout: 8000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "rotation-new-period"
+    commands:
+      - tapOn:
+          id: "rotation-new-period"
+      - tapOn: "Empezar"
+- runFlow:
+    when:
+      visible:
+        id: "rotation-link-none"
+    commands:
+      - tapOn:
+          id: "rotation-link-none"
+- runFlow:
+    when:
+      visible:
+        id: "rotation-open-rubric"
+    commands:
+      - scrollUntilVisible:
+          element: "Mi autoevaluación"
+          direction: UP
+          centerElement: true
+# Objetivos (si una ejecución anterior ya los finalizó, se pasa a la rúbrica).
+- runFlow:
+    when:
+      notVisible: "Has completado esta autoevaluación."
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: "rotation-start-assessment"
+          commands:
+            - tapOn:
+                id: "rotation-start-assessment"
+      - runFlow:
+          when:
+            visible:
+              id: "rotation-continue-assessment"
+          commands:
+            - tapOn:
+                id: "rotation-continue-assessment"
+      - runFlow:
+          when:
+            visible:
+              id: "rotation-link-none"
+          commands:
+            - tapOn:
+                id: "rotation-link-none"
+
+      # Objetivo 1: escribir y guardar borrador.
+      - extendedWaitUntil:
+          visible:
+            id: "rotation-objective-counter"
+          timeout: 15000
+      - assertVisible: "Objetivo 1 de 5"
+      - tapOn:
+          id: "rotation-objective-answer"
+      - eraseText: 200
+      - inputText: "He aprendido a hacer una valoracion estructurada del paciente."
+      - tapOn: "Objetivo 1 de 5"
+      - scrollUntilVisible:
+          element:
+            id: "rotation-save-draft"
+          centerElement: true
+      - tapOn:
+          id: "rotation-save-draft"
+      - extendedWaitUntil:
+          visible: "Borrador guardado."
+          timeout: 10000
+      - takeScreenshot: 124-draft-saved
+
+      # Cerrar la app y volver: el borrador sigue ahí.
+      - stopApp
+      - launchApp
+      - runFlow:
+          when:
+            visible: "Libro de[\\s\\S]*residentes"
+          commands:
+            - tapOn: "Libro de[\\s\\S]*residentes"
+      - runFlow:
+          when:
+            visible: "Tu progreso general"
+          commands:
+            - tapOn: "Rotaciones[\\s\\S]*externas e internas[\\s\\S]*"
+      - extendedWaitUntil:
+          visible: ".*Medicina Interna y Geriatría.*Autoevaluación en curso.*"
+          timeout: 20000
+      - tapOn:
+          id: "rotation-assessment-card-Medicina Interna y Geriatría"
+      - extendedWaitUntil:
+          visible: "Tienes una autoevaluación sin finalizar."
+          timeout: 10000
+      - assertVisible: "[1-5] de 5 objetivos respondidos"
+      - tapOn:
+          id: "rotation-continue-assessment"
+
+      # Objetivos 2 a 5.
+      - repeat:
+          times: 4
+          commands:
+            - scrollUntilVisible:
+                element:
+                  id: "rotation-objective-next"
+                centerElement: true
+            - tapOn:
+                id: "rotation-objective-next"
+            - scrollUntilVisible:
+                element:
+                  id: "rotation-objective-answer"
+                direction: UP
+                centerElement: true
+            - tapOn:
+                id: "rotation-objective-answer"
+            - eraseText: 400
+            - inputText: "Reflexion sobre este objetivo de la rotacion."
+            # Cierra el teclado tocando la tarjeta del objetivo (arriba, fuera del
+            # teclado): el ScrollView lo suelta al tocar fuera de un control.
+            - tapOn:
+                point: "50%,25%"
+      - assertVisible: "Objetivo 5 de 5"
+      - scrollUntilVisible:
+          element:
+            id: "rotation-finish-assessment"
+          centerElement: true
+      - tapOn:
+          id: "rotation-finish-assessment"
+
+      # Revisión antes de finalizar.
+      - extendedWaitUntil:
+          visible: "Comprueba tus respuestas antes de finalizar."
+          timeout: 10000
+      - assertVisible: "5 de 5 objetivos respondidos"
+      - takeScreenshot: 124-review
+      - scrollUntilVisible:
+          element:
+            id: "rotation-confirm-finish"
+          centerElement: true
+      - tapOn:
+          id: "rotation-confirm-finish"
+      - extendedWaitUntil:
+          visible: "Has finalizado la autoevaluación de Medicina Interna y Geriatría."
+          timeout: 10000
+      - takeScreenshot: 124-done
+      - tapOn: "Volver a la rotación"
+
+# Rúbrica: consecución (Sí en los 5), Conocimientos (NA, 7 exacto, 5 en el resto).
+- scrollUntilVisible:
+    element:
+      id: "rotation-open-rubric"
+    centerElement: true
+- tapOn:
+    id: "rotation-open-rubric"
+- extendedWaitUntil:
+    visible: "Tu autoevaluación"
+    timeout: 10000
+- repeat:
+    times: 5
+    commands:
+      - evalScript: "${output.objectiveIndex = (output.objectiveIndex === undefined ? 0 : output.objectiveIndex + 1)}"
+      - retry:
+          maxRetries: 3
+          commands:
+            # Despega el chip del borde superior (la cabecera tapa media fila y
+            # Maestro lo da por visible sin centrarlo).
+            - swipe:
+                start: "50%,45%"
+                end: "50%,60%"
+            - scrollUntilVisible:
+                element:
+                  id: "rubric-0-${output.objectiveIndex}-level-0"
+                centerElement: true
+            - waitForAnimationToEnd
+            - tapOn:
+                id: "rubric-0-${output.objectiveIndex}-level-0"
+            - assertVisible:
+                id: "rubric-0-${output.objectiveIndex}-level-0"
+                selected: true
+- retry:
+    maxRetries: 3
+    commands:
+      # Despega el chip del borde superior (la cabecera tapa media fila y
+      # Maestro lo da por visible sin centrarlo).
+      - swipe:
+          start: "50%,45%"
+          end: "50%,60%"
+      - scrollUntilVisible:
+          element:
+            id: "rubric-1-0-level-0"
+          centerElement: true
+      - waitForAnimationToEnd
+      - tapOn:
+          id: "rubric-1-0-level-0"
+      - assertVisible:
+          id: "rubric-1-0-level-0"
+          selected: true
+- retry:
+    maxRetries: 3
+    commands:
+      # Despega el chip del borde superior (la cabecera tapa media fila y
+      # Maestro lo da por visible sin centrarlo).
+      - swipe:
+          start: "50%,45%"
+          end: "50%,60%"
+      - scrollUntilVisible:
+          element:
+            id: "rubric-1-1-level-4"
+          centerElement: true
+      - waitForAnimationToEnd
+      - tapOn:
+          id: "rubric-1-1-level-4"
+      - assertVisible:
+          id: "rubric-1-1-level-4"
+          selected: true
+- retry:
+    maxRetries: 3
+    commands:
+      # Despega el chip del borde superior (la cabecera tapa media fila y
+      # Maestro lo da por visible sin centrarlo).
+      - swipe:
+          start: "50%,45%"
+          end: "50%,60%"
+      - scrollUntilVisible:
+          element:
+            id: "rubric-1-1-score-7"
+          centerElement: true
+      - waitForAnimationToEnd
+      - tapOn:
+          id: "rubric-1-1-score-7"
+      - assertVisible:
+          id: "rubric-1-1-score-7"
+          selected: true
+- repeat:
+    times: 4
+    commands:
+      - evalScript: "${output.criterionIndex = (output.criterionIndex === undefined ? 2 : output.criterionIndex + 1)}"
+      - retry:
+          maxRetries: 3
+          commands:
+            # Despega el chip del borde superior (la cabecera tapa media fila y
+            # Maestro lo da por visible sin centrarlo).
+            - swipe:
+                start: "50%,45%"
+                end: "50%,60%"
+            - scrollUntilVisible:
+                element:
+                  id: "rubric-1-${output.criterionIndex}-level-3"
+                centerElement: true
+            - waitForAnimationToEnd
+            - tapOn:
+                id: "rubric-1-${output.criterionIndex}-level-3"
+            - assertVisible:
+                id: "rubric-1-${output.criterionIndex}-level-3"
+                selected: true
+- scrollUntilVisible:
+    element:
+      id: "rubric-save-draft"
+    centerElement: true
+- tapOn:
+    id: "rubric-save-draft"
+# En esta pantalla tan larga, XCTest devuelve a veces la jerarquía vacía: se reintenta.
+- retry:
+    maxRetries: 3
+    commands:
+      - scrollUntilVisible:
+          element: "Borrador guardado."
+          direction: UP
+          centerElement: true
+# 7 + 5×4 = 27 sobre 5 aplicables × 10 → 5,4 (NA fuera del cálculo).
+# Mismo reintento por la jerarquía vacía de XCTest.
+- retry:
+    maxRetries: 3
+    commands:
+      - scrollUntilVisible:
+          element: "Resultado de mi autoevaluación: 5,4/10"
+          centerElement: true
+# Actitudes es de Docencia: se consulta, no se responde.
+- scrollUntilVisible:
+    element: "Evaluación de Docencia · solo consulta"
+    centerElement: true
+- assertNotVisible:
+    id: "rubric-2-0-level-0"
+- takeScreenshot: 124-rubric
+- scrollUntilVisible:
+    element:
+      id: "rubric-final-reflection"
+    centerElement: true
+- waitForAnimationToEnd
+- tapOn:
+    id: "rubric-final-reflection"
+- inputText: "Quiero seguir mejorando en la toma de decisiones."
+- tapOn: "Reflexión final"
+- scrollUntilVisible:
+    element:
+      id: "rubric-finish"
+    centerElement: true
+- waitForAnimationToEnd
+- tapOn:
+    id: "rubric-finish"
+- tapOn: "Confirmar finalización"
+- extendedWaitUntil:
+    visible: "Has finalizado tu rúbrica."
+    timeout: 10000
+- assertVisible: "Autoevaluación completada el.*"
+- scrollUntilVisible:
+    element: ".*Resultado de mi autoevaluación: 5,4/10.*"
+    centerElement: true
+- takeScreenshot: 124-completed

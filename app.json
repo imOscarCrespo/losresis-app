@@ -2,7 +2,7 @@
   "expo": {
     "name": "LosResis",
     "slug": "losresis-react-app",
-    "version": "1.0.93",
+    "version": "1.0.94",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.losresis.app",
-      "buildNumber": "111",
+      "buildNumber": "112",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -31,7 +31,7 @@
       },
       "googleServicesFile": "./google-services.json",
       "package": "com.losresis.app",
-      "versionCode": 111,
+      "versionCode": 112,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"

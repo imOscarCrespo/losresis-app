@@ -45,6 +45,14 @@ import { LibroItineraryItemScreen } from "../components/libro/LibroItineraryItem
 import { LibroShiftNotesScreen } from "../components/libro/LibroShiftNotesScreen";
 import { LibroCustomSectionView } from "../components/libro/custom/LibroCustomSectionView";
 import { LibroCustomEntryScreen } from "../components/libro/custom/LibroCustomEntryScreen";
+import { RotationAssessmentSection } from "../components/libro/rotationAssessment/RotationAssessmentSection";
+import { RotationAssessmentFlow } from "../components/libro/rotationAssessment/RotationAssessmentFlow";
+import { useRotationAssessments } from "../hooks/useRotationAssessments";
+import { buildRotationCards } from "../utils/rotationAssessment";
+import {
+  getHospitalByIdFromCatalog,
+  getSpecialityByIdFromCatalog,
+} from "../services/staticCatalogService";
 import {
   deleteLibroCustomEntry,
   getLibroCustomEntries,
@@ -393,6 +401,8 @@ export default function ResidenceLibraryScreen({
   // al crear uno. Solo en el Libro propio: la lista del oficial es del tutor.
   const [openItineraryItem, setOpenItineraryItem] = useState(null);
   const [openShift, setOpenShift] = useState(null);
+  // La rotación publicada por Docencia cuya autoevaluación está abierta (su key).
+  const [openRotationKey, setOpenRotationKey] = useState(null);
   const [selectedParentForChild, setSelectedParentForChild] = useState(null);
   const [quickRegisterNode, setQuickRegisterNode] = useState(null);
   const [collapsedCategories, setCollapsedCategories] = useState({});
@@ -771,6 +781,41 @@ export default function ResidenceLibraryScreen({
   // A nivel de AÑO (el índice, el rail): si en ese año se puede registrar algo.
   const isSelectedYearWritable =
     isOwnYear || ownActiveBookYears.has(selectedYear);
+
+  // Autoevaluación de rotaciones (ClickUp 124b4z9ueuv): las rotaciones que
+  // Docencia publica en el panel para su hospital, especialidad y año, dentro del
+  // apartado Rotaciones. Se carga al abrir el apartado y se pinta solo si hay algo.
+  const isRotationsSection =
+    openSection?.section === "rotations" && openSection?.archetype === "itinerary";
+  const rotationAssessments = useRotationAssessments(selectedYear, isRotationsSection);
+  const rotationCards = useMemo(
+    () =>
+      buildRotationCards({
+        rotations: rotationAssessments.rotations,
+        assessments: rotationAssessments.assessments,
+      }),
+    [rotationAssessments.rotations, rotationAssessments.assessments]
+  );
+  const openRotationCard = openRotationKey
+    ? rotationCards.find((card) => card.key === openRotationKey) || null
+    : null;
+  const rotationContextLabel = useMemo(() => {
+    const context = rotationAssessments.context;
+    return [
+      context?.hospital_id ? getHospitalByIdFromCatalog(context.hospital_id)?.name : null,
+      context?.speciality_id ? getSpecialityByIdFromCatalog(context.speciality_id)?.name : null,
+      selectedYear ? `R${selectedYear}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }, [rotationAssessments.context, selectedYear]);
+  // Empezar una autoevaluación nueva sigue la regla de escritura del Libro: no se
+  // desbloquea ningún año por tener rotaciones publicadas. Un borrador ya
+  // empezado se puede seguir completando.
+  const canStartRotationAssessment =
+    !!selectedYear &&
+    (!userResidencyYear || selectedYear <= userResidencyYear) &&
+    (isOwnYear || !isSelectedBookReadOnly);
 
   // Un libro sembrado de la plantilla lo define el tutor: el residente registra
   // actividad dentro, pero no añade, edita ni borra su estructura. Es distinto de
@@ -1774,6 +1819,9 @@ export default function ResidenceLibraryScreen({
     if (Platform.OS !== "android") return undefined;
 
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      // La autoevaluación de rotaciones gestiona su propio atrás (con aviso de
+      // cambios sin guardar): false deja pasar el evento a su handler.
+      if (openRotationCard) return false;
       if (showNodeFormScreen) {
         closeNodeFormScreen();
         return true;
@@ -1814,6 +1862,7 @@ export default function ResidenceLibraryScreen({
     openFichaNode,
     openShift,
     openSection,
+    openRotationCard,
   ]);
 
   const handleAddNode = async (formData) => {
@@ -2173,6 +2222,23 @@ export default function ResidenceLibraryScreen({
     );
   }
 
+  if (openRotationCard) {
+    return (
+      <RotationAssessmentFlow
+        key={openRotationCard.key}
+        card={openRotationCard}
+        nodes={itineraryNodes}
+        rotations={rotationAssessments.rotations}
+        assessments={rotationAssessments.assessments}
+        contextLabel={rotationContextLabel}
+        canStart={canStartRotationAssessment}
+        onClose={() => setOpenRotationKey(null)}
+        onReload={rotationAssessments.reload}
+        onAssessmentSaved={rotationAssessments.replaceAssessment}
+      />
+    );
+  }
+
   if (openFichaNode) {
     return (
       <LibroFichaScreen
@@ -2498,6 +2564,19 @@ export default function ResidenceLibraryScreen({
                 </Text>
               )
             ) : openSection.archetype === "itinerary" ? (
+              <>
+              {isRotationsSection ? (
+                <RotationAssessmentSection
+                  cards={rotationCards}
+                  nodes={itineraryNodes}
+                  assessments={rotationAssessments.assessments}
+                  contextLabel={rotationContextLabel}
+                  loading={rotationAssessments.loading}
+                  error={rotationAssessments.error}
+                  onRetry={rotationAssessments.reload}
+                  onOpen={(card) => setOpenRotationKey(card.key)}
+                />
+              ) : null}
               <LibroItineraryView
                 section={openSection.section}
                 nodes={itineraryNodes}
@@ -2519,6 +2598,7 @@ export default function ResidenceLibraryScreen({
                   })
                 }
               />
+              </>
             ) : openSection.archetype === "form" ? (
               <LibroFormView
                 section={openSection.section}

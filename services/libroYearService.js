@@ -195,7 +195,7 @@ export const getLibroItinerary = async (bookId) => {
   const { data: nodes, error } = await supabase
     .from("libro_node")
     .select(
-      "id, name, description, center, duration_amount, duration_unit, position, section, comments_mode"
+      "id, name, description, center, duration_amount, duration_unit, position, section, comments_mode, template_node_id"
     )
     .eq("book_id", bookId)
     .is("parent_node_id", null)
