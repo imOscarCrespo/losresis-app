@@ -22,6 +22,16 @@ APP_ENV="$(cd "$(dirname "$0")/.." && pwd)/.env"
 SUPABASE_URL="$(grep -m1 '^EXPO_PUBLIC_SUPABASE_URL=' "$APP_ENV" | cut -d= -f2- | tr -d '"')"
 SUPABASE_ANON_KEY="$(grep -m1 '^EXPO_PUBLIC_SUPABASE_ANON_KEY=' "$APP_ENV" | cut -d= -f2- | tr -d '"')"
 
+# Cuenta owner del panel del Hospital E2E, para los flujos que preparan datos como
+# Docencia (p. ej. generar una evaluación). Opcional: sin el fichero van vacías.
+PANEL_CREDENTIALS="${E2E_PANEL_CREDENTIALS:-${HOME}/.config/losresis/e2e-panel.env}"
+PANEL_OWNER_EMAIL=""
+PANEL_OWNER_PASSWORD=""
+if [[ -f "$PANEL_CREDENTIALS" ]]; then
+  PANEL_OWNER_EMAIL="$(grep -m1 '^PANEL_OWNER_EMAIL=' "$PANEL_CREDENTIALS" | cut -d= -f2-)"
+  PANEL_OWNER_PASSWORD="$(grep -m1 '^PANEL_OWNER_PASSWORD=' "$PANEL_CREDENTIALS" | cut -d= -f2-)"
+fi
+
 MAESTRO="${MAESTRO:-$HOME/.maestro/bin/maestro}"
 OUTPUT_DIR="${E2E_OUTPUT_DIR:-${TMPDIR:-/tmp}/losresis-e2e}"
 mkdir -p "$OUTPUT_DIR"
@@ -38,6 +48,8 @@ cd "$OUTPUT_DIR"
   -e E2E_NEW_PASSWORD="${E2E_NEW_PASSWORD:-}" \
   -e SUPABASE_URL="$SUPABASE_URL" \
   -e SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+  -e PANEL_OWNER_EMAIL="$PANEL_OWNER_EMAIL" \
+  -e PANEL_OWNER_PASSWORD="$PANEL_OWNER_PASSWORD" \
   --test-output-dir "$OUTPUT_DIR" \
   "${FLOWS[@]}"
 echo "Capturas y logs en $OUTPUT_DIR"

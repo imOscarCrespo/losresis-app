@@ -5,8 +5,13 @@
 // los de esa foto, y las respuestas se guardan contra ellos. Por eso una
 // autoevaluación siempre se pinta con su propia versión, nunca con la última.
 //
+// Desde 124b4z9vbvu, Docencia también genera evaluaciones individuales (con
+// periodo) desde el panel, y cada objetivo lo valora el residente con la escala
+// del bloque de consecución: esa valoración es la que cuenta para enviar los
+// objetivos; la reflexión escrita pasa a ser opcional.
+//
 // Las reglas de validación y de nota son espejo de losresis-db
-// (20261025160000_rotation_self_assessment.sql) y del panel
+// (20261025160000_rotation_self_assessment.sql, 20261026120000_rotation_evaluations.sql) y del panel
 // (src/lib/rotationAssessment.ts → computeBlockScore). La base es la que manda;
 // aquí solo se adelanta para poder decirlo en pantalla.
 
@@ -34,7 +39,8 @@ export const normalizeVersion = (content) => {
     .map((objective) => ({
       id: String(objective.id),
       title: objective.title || "",
-      description: objective.description || "",
+      // La descripción es opcional: vacía no se pinta.
+      description: typeof objective.description === "string" ? objective.description.trim() : "",
     }));
 
   const blocks = (Array.isArray(content?.blocks) ? content.blocks : [])
@@ -66,9 +72,10 @@ export const normalizeVersion = (content) => {
         description: block.description || "",
         scale: (Array.isArray(block.scale) ? block.scale : []).map(asLevel),
         scoring: block.scoring && typeof block.scoring === "object" ? block.scoring : null,
-        // Sin la marca (versiones publicadas antes de que existiera) el bloque es
-        // de Docencia: estar publicado no da permiso para responderlo.
-        selfAssessable: block.resident_self_assessment === true,
+        // La consecución de objetivos la valora siempre el residente (en su parte
+        // de objetivos). Un bloque de criterios, solo si Docencia lo marca: sin la
+        // marca (versiones anteriores) es de Docencia y solo se consulta.
+        selfAssessable: kind === "objectives" || block.resident_self_assessment === true,
         items,
       };
     });
@@ -99,21 +106,35 @@ export const objectivesLabel = (count) =>
 // Objetivos
 // ---------------------------------------------------------------------------
 
-export const isObjectiveAnswered = (answers, objectiveId) =>
-  !isBlank(answers?.[objectiveId]);
+/** El bloque de consecución de objetivos de la versión, si lo tiene. */
+export const objectivesBlockOf = (version) =>
+  version.blocks.find((block) => block.kind === "objectives") || null;
 
-export const objectiveProgress = (version, answers) => {
+/**
+ * Un objetivo está respondido cuando tiene su valoración en la escala de
+ * consecución. Si la versión no tiene ese bloque (no hay escala), cuenta la
+ * reflexión escrita, como antes.
+ */
+export const isObjectiveAnswered = (version, objectiveAnswers, rubricAnswers, objectiveId) => {
+  const block = objectivesBlockOf(version);
+  if (!block) return !isBlank(objectiveAnswers?.[objectiveId]);
+  return isRubricAnswerValid(block, rubricAnswers?.[block.id]?.[objectiveId]);
+};
+
+export const objectiveProgress = (version, objectiveAnswers, rubricAnswers) => {
   const total = version.objectives.length;
   const answered = version.objectives.filter((objective) =>
-    isObjectiveAnswered(answers, objective.id)
+    isObjectiveAnswered(version, objectiveAnswers, rubricAnswers, objective.id)
   ).length;
   return { answered, total };
 };
 
-/** Títulos de los objetivos sin respuesta, en el orden de Docencia. */
-export const missingObjectives = (version, answers) =>
+/** Títulos de los objetivos sin valorar, en el orden de Docencia. */
+export const missingObjectives = (version, objectiveAnswers, rubricAnswers) =>
   version.objectives
-    .filter((objective) => !isObjectiveAnswered(answers, objective.id))
+    .filter(
+      (objective) => !isObjectiveAnswered(version, objectiveAnswers, rubricAnswers, objective.id)
+    )
     .map((objective) => objective.title);
 
 // ---------------------------------------------------------------------------
@@ -167,8 +188,12 @@ export const isRubricAnswerValid = (block, answer) => {
   return answer.score === null || answer.score === undefined;
 };
 
+/**
+ * Los bloques de la parte "rúbrica" del residente: los de criterios que Docencia
+ * le habilita. La consecución de objetivos va en su parte de objetivos.
+ */
 export const selfAssessableBlocks = (version) =>
-  version.blocks.filter((block) => block.selfAssessable);
+  version.blocks.filter((block) => block.kind === "criteria" && block.selfAssessable);
 
 export const rubricProgress = (version, rubricAnswers) => {
   let answered = 0;
@@ -245,16 +270,21 @@ export const formatGrade = (grade) =>
 // Estados
 // ---------------------------------------------------------------------------
 
-const hasRubricAnswers = (assessment) =>
-  Object.values(assessment?.rubric_answers || {}).some(
-    (block) => block && Object.keys(block).length > 0
-  ) || !isBlank(assessment?.final_reflection);
+const hasAnswersIn = (assessment, blocks) =>
+  blocks.some((block) => Object.keys(assessment?.rubric_answers?.[block.id] || {}).length > 0);
+
+const hasRubricAnswers = (assessment, version) =>
+  hasAnswersIn(assessment, selfAssessableBlocks(version)) || !isBlank(assessment?.final_reflection);
 
 /** pending | draft | completed */
 export const objectivesStatus = (assessment, version) => {
   if (!assessment) return "pending";
   if (assessment.objectives_completed_at) return "completed";
-  return objectiveProgress(version, assessment.objective_answers).answered > 0
+  const objectivesBlock = objectivesBlockOf(version);
+  const hasReflection = Object.values(assessment.objective_answers || {}).some(
+    (value) => !isBlank(value)
+  );
+  return hasReflection || (objectivesBlock && hasAnswersIn(assessment, [objectivesBlock]))
     ? "draft"
     : "pending";
 };
@@ -269,7 +299,7 @@ export const rubricStatus = (assessment, version) => {
   if (!selfAssessableBlocks(version).length) return "consult";
   if (!assessment) return "pending";
   if (assessment.rubric_completed_at) return "completed";
-  return hasRubricAnswers(assessment) ? "draft" : "pending";
+  return hasRubricAnswers(assessment, version) ? "draft" : "pending";
 };
 
 /** El estado de la autoevaluación entera: pending | draft | completed. */
@@ -302,38 +332,68 @@ export const PART_STATUS_LABEL = {
 
 const byCreatedAt = (a, b) => String(a.created_at).localeCompare(String(b.created_at));
 
+/** "1 de enero de 2026 – 31 de marzo de 2026": el periodo que indicó Docencia. */
+export const periodLabel = (assessment, formatDate) => {
+  const start = assessment?.period_start ? formatDate(assessment.period_start) : "";
+  const end = assessment?.period_end ? formatDate(assessment.period_end) : "";
+  if (start && end) return `${start} – ${end}`;
+  if (start) return `Desde el ${start}`;
+  if (end) return `Hasta el ${end}`;
+  return "";
+};
+
 /**
- * Una tarjeta por rotación publicada del año, con la autoevaluación que toca
- * (la abierta, o la última si todas están completadas) y las anteriores. Al
- * final, las autoevaluaciones de rotaciones que ya no están publicadas para él
- * (retiradas, o de otro hospital o especialidad): el historial no se pierde.
+ * Las tarjetas de un año.
+ *
+ * Cada evaluación que genera Docencia (generated_by) es su propia tarjeta, con
+ * su periodo, y su clave es su id: no cambia al guardarla ni al completarla.
+ * Las que empezó el residente se agrupan por rotación como antes: la abierta (o
+ * la última completada) en la tarjeta y las demás en `previous`; esa tarjeta
+ * tiene como clave el id de la rotación, así sigue siendo la misma al empezar.
+ * La tarjeta para empezar una rotación publicada solo sale si Docencia no le ha
+ * generado ninguna. Al final, las de rotaciones que ya no están publicadas para
+ * él (retiradas, o de otro hospital o especialidad): el historial no se pierde.
  */
 export const buildRotationCards = ({ rotations = [], assessments = [] }) => {
   const published = new Set(rotations.map((rotation) => rotation.rotation_id));
   const assessmentsOf = (rotationId) =>
     assessments.filter((item) => item.rotation_id === rotationId).sort(byCreatedAt);
 
-  const cardFor = (rotationId, plan) => {
-    const own = assessmentsOf(rotationId);
-    const current = own.find((item) => !item.completed_at) || own[own.length - 1] || null;
+  const card = (rotationId, plan, current, previous, key, generated) => {
     const version = normalizeVersion(current ? current.content : plan?.content);
     return {
-      key: rotationId,
+      key,
       rotationId,
       plan: plan || null,
       retired: !plan,
+      generated,
       assessment: current,
-      previous: own.filter((item) => item !== current),
+      previous,
       version,
       versionNumber: current ? current.version : plan?.version,
       status: assessmentStatus(current, version),
     };
   };
 
-  const cards = rotations.map((plan) => cardFor(plan.rotation_id, plan));
+  const cardsFor = (rotationId, plan) => {
+    const own = assessmentsOf(rotationId);
+    const generated = own.filter((item) => item.generated_by);
+    const selfStarted = own.filter((item) => !item.generated_by);
+    const cards = generated.map((item) => card(rotationId, plan, item, [], item.id, true));
+    if (selfStarted.length || (!generated.length && plan)) {
+      const current =
+        selfStarted.find((item) => !item.completed_at) || selfStarted[selfStarted.length - 1] || null;
+      cards.unshift(
+        card(rotationId, plan, current, selfStarted.filter((item) => item !== current), rotationId, false)
+      );
+    }
+    return cards;
+  };
+
+  const cards = rotations.flatMap((plan) => cardsFor(plan.rotation_id, plan));
   const history = [...new Set(assessments.map((item) => item.rotation_id))]
     .filter((rotationId) => !published.has(rotationId))
-    .map((rotationId) => cardFor(rotationId, null));
+    .flatMap((rotationId) => cardsFor(rotationId, null));
 
   return [...cards, ...history];
 };

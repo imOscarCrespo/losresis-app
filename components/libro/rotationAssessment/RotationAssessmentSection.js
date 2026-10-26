@@ -6,8 +6,16 @@ import {
   durationLabel,
   nodeForAssessment,
   objectivesLabel,
+  periodLabel,
   templateNodeFor,
 } from "../../../utils/rotationAssessment";
+
+const shortDate = (value) => {
+  const date = new Date(`${String(value).slice(0, 10)}T12:00:00`);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
+};
 
 const STATUS_TONE = {
   pending: { color: "#B45309", background: "#FEF3C7" },
@@ -86,11 +94,20 @@ export const RotationAssessmentSection = ({
             style={styles.card}
             onPress={() => onOpen?.(card)}
             activeOpacity={0.85}
-            testID={`rotation-assessment-card-${card.version.rotation.name}`}
+            // Las generadas por Docencia llevan su periodo en el id; la del
+            // residente, el nombre a secas.
+            testID={`rotation-assessment-card-${card.version.rotation.name}${
+              card.generated ? `-${card.assessment?.period_start || card.assessment?.id}` : ""
+            }`}
           >
             <View style={styles.cardCopy}>
               <Text style={styles.cardTitle}>{card.version.rotation.name}</Text>
               <Text style={styles.cardMeta}>{meta}</Text>
+              {periodLabel(card.assessment, shortDate) ? (
+                <Text style={styles.cardMeta}>
+                  {`Periodo: ${periodLabel(card.assessment, shortDate)}`}
+                </Text>
+              ) : null}
               {node ? (
                 <Text style={styles.cardMeta} numberOfLines={1}>
                   {`En tu Libro: ${node.name}`}

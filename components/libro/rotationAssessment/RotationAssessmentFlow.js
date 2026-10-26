@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { HeroScreenLayout } from "../../HeroScreenLayout";
-import { RotationRubricView } from "./RotationRubricView";
+import { ItemRating, RotationRubricView } from "./RotationRubricView";
 import {
   completeRotationSelfAssessment,
   saveRotationSelfAssessmentDraft,
@@ -31,7 +31,9 @@ import {
   normalizeVersion,
   objectiveProgress,
   objectivesLabel,
+  objectivesBlockOf,
   objectivesStatus,
+  periodLabel,
   rubricStatus,
   selfAssessableBlocks,
   templateNodeFor,
@@ -88,6 +90,13 @@ const saveErrorMessage = (error, fallback) => {
 
 const sameJson = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
 
+/** Las respuestas de rúbrica sin el bloque `blockId` (la consecución va con los objetivos). */
+const without = (answers, blockId) => {
+  if (!blockId || !answers) return answers || {};
+  const { [blockId]: _omit, ...rest } = answers;
+  return rest;
+};
+
 export const RotationAssessmentFlow = ({
   card,
   nodes = [],
@@ -113,6 +122,10 @@ export const RotationAssessmentFlow = ({
   );
   const versionNumber = assessment ? assessment.version : card.versionNumber;
   const rotationName = version.rotation.name;
+  // La valoración de cada objetivo se guarda en el bloque de consecución
+  // (rubric_answers[bloque]), pero es parte de "Mi autoevaluación" (objetivos).
+  const objectivesBlock = objectivesBlockOf(version);
+  const objectivesBlockId = objectivesBlock?.id || null;
 
   const [screen, setScreen] = useState("detail");
   const [objectiveIndex, setObjectiveIndex] = useState(0);
@@ -155,17 +168,31 @@ export const RotationAssessmentFlow = ({
       ]);
       if (!active) return;
       let recovered = false;
-      if (objectivesCache && !sameJson(objectivesCache.answers, serverObjectives)) {
+      const serverRatings = objectivesBlockId ? serverRubric[objectivesBlockId] || {} : {};
+      if (
+        objectivesCache &&
+        (!sameJson(objectivesCache.answers, serverObjectives) ||
+          !sameJson(objectivesCache.ratings, serverRatings))
+      ) {
         setObjectiveDraft(objectivesCache.answers || {});
+        if (objectivesBlockId) {
+          setRubricDraft((current) => ({
+            ...current,
+            [objectivesBlockId]: objectivesCache.ratings || {},
+          }));
+        }
         setDirty((current) => ({ ...current, objectives: true }));
         recovered = true;
       }
       if (
         rubricCache &&
-        (!sameJson(rubricCache.answers, serverRubric) ||
+        (!sameJson(rubricCache.answers, without(serverRubric, objectivesBlockId)) ||
           (rubricCache.reflection || "") !== serverReflection)
       ) {
-        setRubricDraft(rubricCache.answers || {});
+        setRubricDraft((current) => ({
+          ...without(rubricCache.answers, objectivesBlockId),
+          ...(objectivesBlockId ? { [objectivesBlockId]: current[objectivesBlockId] || {} } : {}),
+        }));
         setReflectionDraft(rubricCache.reflection || "");
         setDirty((current) => ({ ...current, rubric: true }));
         recovered = true;
@@ -188,13 +215,22 @@ export const RotationAssessmentFlow = ({
   useEffect(() => {
     if (objectivesEditable || !assessment) return;
     setObjectiveDraft(assessment.objective_answers || {});
+    if (objectivesBlockId) {
+      setRubricDraft((current) => ({
+        ...current,
+        [objectivesBlockId]: assessment.rubric_answers?.[objectivesBlockId] || {},
+      }));
+    }
     setDirty((current) => ({ ...current, objectives: false }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objectivesEditable]);
 
   useEffect(() => {
     if (rubricEditable || !assessment) return;
-    setRubricDraft(assessment.rubric_answers || {});
+    setRubricDraft((current) => ({
+      ...(assessment.rubric_answers || {}),
+      ...(objectivesBlockId ? { [objectivesBlockId]: current[objectivesBlockId] || {} } : {}),
+    }));
     setReflectionDraft(assessment.final_reflection || "");
     setDirty((current) => ({ ...current, rubric: false }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -204,21 +240,28 @@ export const RotationAssessmentFlow = ({
   useEffect(() => {
     if (!assessment?.id || !dirty.objectives) return undefined;
     const timer = setTimeout(
-      () => writeCache(assessment.id, "objectives", { answers: objectiveDraft }),
+      () =>
+        writeCache(assessment.id, "objectives", {
+          answers: objectiveDraft,
+          ratings: objectivesBlockId ? rubricDraft[objectivesBlockId] || {} : {},
+        }),
       400
     );
     return () => clearTimeout(timer);
-  }, [assessment?.id, dirty.objectives, objectiveDraft]);
+  }, [assessment?.id, dirty.objectives, objectiveDraft, rubricDraft, objectivesBlockId]);
 
   useEffect(() => {
     if (!assessment?.id || !dirty.rubric) return undefined;
     const timer = setTimeout(
       () =>
-        writeCache(assessment.id, "rubric", { answers: rubricDraft, reflection: reflectionDraft }),
+        writeCache(assessment.id, "rubric", {
+          answers: without(rubricDraft, objectivesBlockId),
+          reflection: reflectionDraft,
+        }),
       400
     );
     return () => clearTimeout(timer);
-  }, [assessment?.id, dirty.rubric, rubricDraft, reflectionDraft]);
+  }, [assessment?.id, dirty.rubric, rubricDraft, reflectionDraft, objectivesBlockId]);
 
   const runOnce = async (fn) => {
     // Pulsar dos veces Guardar o Finalizar no lanza dos operaciones.
@@ -242,6 +285,9 @@ export const RotationAssessmentFlow = ({
     try {
       const row = await saveRotationSelfAssessmentDraft(assessment.id, {
         objectiveAnswers: objectiveDraft,
+        rubricAnswers: objectivesBlockId
+          ? { [objectivesBlockId]: rubricDraft[objectivesBlockId] || {} }
+          : undefined,
       });
       onAssessmentSaved?.(row);
       setDirty((current) => ({ ...current, objectives: false }));
@@ -260,7 +306,7 @@ export const RotationAssessmentFlow = ({
     if (!assessment?.id || !rubricEditable) return true;
     // Un nivel con rango (6-7) sin la puntuación exacta no se puede guardar: la
     // base lo rechaza, y guardarlo sin ella sería quedarse con el intervalo.
-    const pending = version.blocks.filter((block) =>
+    const pending = selfAssessableBlocks(version).filter((block) =>
       Object.values(rubricDraft[block.id] || {}).some(
         (answer) => answer && !isRubricAnswerValid(block, answer)
       )
@@ -274,7 +320,7 @@ export const RotationAssessmentFlow = ({
     }
     try {
       const row = await saveRotationSelfAssessmentDraft(assessment.id, {
-        rubricAnswers: rubricDraft,
+        rubricAnswers: without(rubricDraft, objectivesBlockId),
         finalReflection: reflectionDraft,
       });
       onAssessmentSaved?.(row);
@@ -414,8 +460,17 @@ export const RotationAssessmentFlow = ({
             await clearCache(assessment.id, unsavedPart);
             if (unsavedPart === "objectives") {
               setObjectiveDraft(assessment.objective_answers || {});
+              if (objectivesBlockId) {
+                setRubricDraft((current) => ({
+                  ...current,
+                  [objectivesBlockId]: assessment.rubric_answers?.[objectivesBlockId] || {},
+                }));
+              }
             } else {
-              setRubricDraft(assessment.rubric_answers || {});
+              setRubricDraft((current) => ({
+                ...(assessment.rubric_answers || {}),
+                ...(objectivesBlockId ? { [objectivesBlockId]: current[objectivesBlockId] || {} } : {}),
+              }));
               setReflectionDraft(assessment.final_reflection || "");
             }
             setDirty((current) => ({ ...current, [unsavedPart]: false }));
@@ -434,7 +489,7 @@ export const RotationAssessmentFlow = ({
       ]
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, unsavedPart, assessment, objectiveDraft, rubricDraft, reflectionDraft]);
+  }, [screen, unsavedPart, assessment, objectiveDraft, rubricDraft, reflectionDraft, objectivesBlockId]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -448,11 +503,13 @@ export const RotationAssessmentFlow = ({
   // Pantallas
   // -------------------------------------------------------------------------
 
-  const progress = objectiveProgress(version, objectiveDraft);
+  const progress = objectiveProgress(version, objectiveDraft, rubricDraft);
   const node = nodeForAssessment(assessment, nodes) || autoNode;
   const nodeDates = [node?.progress?.payload?.start_date, node?.progress?.payload?.end_date]
     .map(formatDate)
     .filter(Boolean);
+  // El periodo que indicó Docencia al generar manda sobre las fechas de la ficha.
+  const period = periodLabel(assessment, formatDate);
 
   const Notice = notice ? (
     <View style={[styles.notice, notice.error && styles.noticeError]} testID="rotation-assessment-notice">
@@ -491,7 +548,11 @@ export const RotationAssessmentFlow = ({
 
   const renderDetail = () => {
     const objectivesCount = version.objectives.length;
-    const answered = objectiveProgress(version, assessment?.objective_answers).answered;
+    const answered = objectiveProgress(
+      version,
+      assessment?.objective_answers,
+      assessment?.rubric_answers
+    ).answered;
     const canStartHere = canStart && !card.retired;
     const selfBlocks = selfAssessableBlocks(version);
 
@@ -504,7 +565,9 @@ export const RotationAssessmentFlow = ({
               {`Duración prevista: ${durationLabel(version.rotation.durationMonths)}`}
             </Text>
           ) : null}
-          {nodeDates.length ? (
+          {period ? (
+            <Text style={styles.body}>{`Periodo: ${period}`}</Text>
+          ) : nodeDates.length ? (
             <Text style={styles.body}>{`Fechas: ${nodeDates.join(" – ")}`}</Text>
           ) : null}
           {node ? <Text style={styles.muted}>{`En tu Libro: ${node.name}`}</Text> : null}
@@ -547,13 +610,19 @@ export const RotationAssessmentFlow = ({
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Mi autoevaluación</Text>
             <Text style={styles.body}>
-              Reflexiona sobre los conocimientos y competencias que has adquirido.
+              {objectivesBlock
+                ? "Valora tu grado de consecución de cada objetivo formativo."
+                : "Reflexiona sobre los conocimientos y competencias que has adquirido."}
             </Text>
             {objectivesState === "completed" ? (
               <>
-                <Text style={styles.body}>Has completado esta autoevaluación.</Text>
+                <Text style={styles.body}>
+                  {assessment?.objectives_completed_at
+                    ? `Enviaste tu autoevaluación el ${formatDate(assessment.objectives_completed_at)}.`
+                    : "Has enviado tu autoevaluación."}
+                </Text>
                 <Text style={styles.strong}>
-                  {`${answered} de ${objectivesCount} objetivos respondidos`}
+                  {`${answered} de ${objectivesCount} objetivos valorados`}
                 </Text>
                 <Button
                   label="Ver respuestas"
@@ -562,11 +631,11 @@ export const RotationAssessmentFlow = ({
                   testID="rotation-view-answers"
                 />
               </>
-            ) : assessment && answered > 0 ? (
+            ) : assessment && objectivesState === "draft" ? (
               <>
-                <Text style={styles.body}>Tienes una autoevaluación sin finalizar.</Text>
+                <Text style={styles.body}>Tienes una autoevaluación sin enviar.</Text>
                 <Text style={styles.strong}>
-                  {`${answered} de ${objectivesCount} objetivos respondidos`}
+                  {`${answered} de ${objectivesCount} objetivos valorados`}
                 </Text>
                 <Button
                   label="Continuar autoevaluación"
@@ -655,16 +724,21 @@ export const RotationAssessmentFlow = ({
                   }}
                 >
                   <Text style={styles.link}>
-                    {item.completed_at
-                      ? `Completada el ${formatDate(item.completed_at)}`
-                      : `Empezada el ${formatDate(item.created_at)} · sin finalizar`}
+                    {[
+                      periodLabel(item, formatDate),
+                      item.completed_at
+                        ? `Completada el ${formatDate(item.completed_at)}`
+                        : `Empezada el ${formatDate(item.created_at)} · sin finalizar`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </Text>
                 </TouchableOpacity>
               ))}
           </View>
         ) : null}
 
-        {canStartHere && card.assessment?.completed_at && !selectedId ? (
+        {canStartHere && !card.generated && card.assessment?.completed_at && !selectedId ? (
           <Button
             label="Autoevaluar otro periodo de esta rotación"
             variant="secondary"
@@ -736,7 +810,7 @@ export const RotationAssessmentFlow = ({
         <View key={objective.id} style={styles.card}>
           <Text style={styles.label}>{`Objetivo ${index + 1}`}</Text>
           {objective.title ? <Text style={styles.strong}>{objective.title}</Text> : null}
-          <Text style={styles.body}>{objective.description}</Text>
+          {objective.description ? <Text style={styles.body}>{objective.description}</Text> : null}
         </View>
       ))}
       {objectivesState === "completed" ? (
@@ -756,22 +830,45 @@ export const RotationAssessmentFlow = ({
     const index = Math.min(objectiveIndex, Math.max(total - 1, 0));
     const objective = version.objectives[index];
     if (!objective) return null;
-    const missing = missingObjectives(version, objectiveDraft);
+    const missing = missingObjectives(version, objectiveDraft, rubricDraft);
 
     return (
       <>
         <Text style={styles.label} testID="rotation-objective-counter">
           {`Objetivo ${index + 1} de ${total}`}
         </Text>
+        {objectivesBlock ? (
+          <View style={styles.card}>
+            <ItemRating
+              block={objectivesBlock}
+              item={objective}
+              answer={rubricDraft[objectivesBlock.id]?.[objective.id]}
+              editable={objectivesEditable}
+              testPrefix={`objective-${index}`}
+              standalone
+              onChange={(answer) => {
+                setRubricDraft((current) => ({
+                  ...current,
+                  [objectivesBlock.id]: { ...(current[objectivesBlock.id] || {}), [objective.id]: answer },
+                }));
+                setDirty((current) => ({ ...current, objectives: true }));
+                setNotice(null);
+              }}
+            />
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Objetivo</Text>
+            {objective.title ? <Text style={styles.strong}>{objective.title}</Text> : null}
+            {objective.description ? <Text style={styles.body}>{objective.description}</Text> : null}
+          </View>
+        )}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Objetivo</Text>
-          {objective.title ? <Text style={styles.strong}>{objective.title}</Text> : null}
-          <Text style={styles.body}>{objective.description}</Text>
-        </View>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Mi autoevaluación</Text>
+          <Text style={styles.cardTitle}>
+            {objectivesBlock ? "Reflexión (opcional)" : "Mi autoevaluación"}
+          </Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, objectivesBlock && styles.inputShort]}
             value={objectiveDraft[objective.id] || ""}
             onChangeText={(text) => {
               setObjectiveDraft((current) => ({ ...current, [objective.id]: text }));
@@ -786,7 +883,7 @@ export const RotationAssessmentFlow = ({
             testID="rotation-objective-answer"
           />
         </View>
-        <Text style={styles.muted}>{`${progress.answered} de ${total} objetivos respondidos`}</Text>
+        <Text style={styles.muted}>{`${progress.answered} de ${total} objetivos valorados`}</Text>
         <View style={styles.row}>
           <View style={styles.rowItem}>
             <Button
@@ -811,13 +908,14 @@ export const RotationAssessmentFlow = ({
         <Button
           label="Guardar borrador"
           variant="secondary"
-          disabled={!dirty.objectives}
+          disabled={!dirty.objectives || !objectivesEditable}
           onPress={() => handleSaveDraft("objectives")}
           testID="rotation-save-draft"
         />
         <Button
-          label="Finalizar autoevaluación"
-          disabled={missing.length > 0}
+          label="Enviar autoevaluación"
+          // Una autoevaluación ya enviada no se reenvía: solo se consulta.
+          disabled={missing.length > 0 || !objectivesEditable}
           onPress={() =>
             runOnce(async () => {
               const ok = await saveObjectives();
@@ -831,7 +929,7 @@ export const RotationAssessmentFlow = ({
         />
         {missing.length ? (
           <Text style={styles.muted}>
-            {`Para finalizar, responde también: ${missing.join(", ")}.`}
+            {`Para enviarla, valora también: ${missing.join(", ")}.`}
           </Text>
         ) : null}
       </>
@@ -844,28 +942,52 @@ export const RotationAssessmentFlow = ({
         <Text style={styles.cardTitle}>{title}</Text>
         <Text style={styles.muted}>{rotationName}</Text>
         <Text style={styles.strong}>
-          {`${objectiveProgress(version, objectiveDraft).answered} de ${version.objectives.length} objetivos respondidos`}
+          {`${objectiveProgress(version, objectiveDraft, rubricDraft).answered} de ${version.objectives.length} objetivos valorados`}
         </Text>
         {versionLine ? <Text style={styles.muted}>{versionLine}</Text> : null}
         {assessment?.objectives_completed_at ? (
           <Text style={styles.muted}>
-            {`Finalizada el ${formatDate(assessment.objectives_completed_at)}`}
+            {`Enviada el ${formatDate(assessment.objectives_completed_at)}`}
           </Text>
         ) : null}
       </View>
-      {version.objectives.map((objective, index) => (
-        <View key={objective.id} style={styles.card}>
-          <Text style={styles.label}>{`Objetivo ${index + 1}`}</Text>
-          <Text style={styles.body}>{objective.description}</Text>
-          <Text style={styles.answer}>{objectiveDraft[objective.id] || "Sin respuesta"}</Text>
-        </View>
-      ))}
+      {version.objectives.map((objective, index) => {
+        const reflection = objectiveDraft[objective.id];
+        return (
+          <View key={objective.id} style={styles.card}>
+            <Text style={styles.label}>{`Objetivo ${index + 1}`}</Text>
+            {objectivesBlock ? (
+              <ItemRating
+                block={objectivesBlock}
+                item={objective}
+                answer={rubricDraft[objectivesBlock.id]?.[objective.id]}
+                editable={false}
+                testPrefix={`objective-review-${index}`}
+                standalone
+              />
+            ) : (
+              <>
+                {objective.title ? <Text style={styles.strong}>{objective.title}</Text> : null}
+                {objective.description ? <Text style={styles.body}>{objective.description}</Text> : null}
+              </>
+            )}
+            {reflection && reflection.trim() ? (
+              <Text style={styles.answer}>{reflection}</Text>
+            ) : !objectivesBlock ? (
+              <Text style={styles.answer}>Sin respuesta</Text>
+            ) : null}
+          </View>
+        );
+      })}
     </>
   );
 
   const renderReview = () => (
     <>
-      <Text style={styles.body}>Comprueba tus respuestas antes de finalizar.</Text>
+      <Text style={styles.body}>
+        Comprueba tus valoraciones antes de enviarlas. Una vez enviada, tu autoevaluación ya no se
+        puede cambiar y Docencia podrá consultarla.
+      </Text>
       {renderAnswersList("Revisa tu autoevaluación")}
       {Notice}
       <Button
@@ -875,7 +997,7 @@ export const RotationAssessmentFlow = ({
         testID="rotation-keep-editing"
       />
       <Button
-        label="Confirmar finalización"
+        label="Confirmar envío"
         onPress={() => handleComplete("objectives")}
         testID="rotation-confirm-finish"
       />
@@ -884,8 +1006,8 @@ export const RotationAssessmentFlow = ({
 
   const renderDone = () => (
     <View style={styles.card} testID="rotation-assessment-done">
-      <Text style={styles.cardTitle}>Autoevaluación completada</Text>
-      <Text style={styles.body}>{`Has finalizado la autoevaluación de ${rotationName}.`}</Text>
+      <Text style={styles.cardTitle}>Autoevaluación enviada</Text>
+      <Text style={styles.body}>{`Has enviado tu autoevaluación de ${rotationName}.`}</Text>
       <Button label="Volver a la rotación" onPress={() => setScreen("detail")} />
     </View>
   );
@@ -960,7 +1082,7 @@ export const RotationAssessmentFlow = ({
     answer: "Mi autoevaluación",
     answers: "Mis respuestas",
     review: "Revisa tu autoevaluación",
-    done: "Autoevaluación completada",
+    done: "Autoevaluación enviada",
     rubric: "Rúbrica de evaluación",
   };
 
@@ -1033,6 +1155,7 @@ const styles = StyleSheet.create({
   },
   link: { fontSize: 14, fontWeight: "700", color: "#670CF5", paddingVertical: 4 },
   statusDone: { fontSize: 14, fontWeight: "800", color: "#047857" },
+  inputShort: { minHeight: 110 },
   input: {
     minHeight: 180,
     padding: 12,

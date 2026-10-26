@@ -11,7 +11,9 @@ import {
   needsExactScore,
   normalizeVersion,
   objectiveProgress,
+  objectivesBlockOf,
   objectivesStatus,
+  periodLabel,
   rubricStatus,
   scoreOptions,
   templateNodeFor,
@@ -91,14 +93,48 @@ describe("normalizeVersion", () => {
     const version = normalizeVersion(content());
     expect(version.blocks.find((b) => b.id === "ba").selfAssessable).toBe(false);
   });
+
+  it("la consecución de objetivos la valora siempre el residente, aunque no lleve la marca", () => {
+    const version = normalizeVersion(content({ selfAssessable: false }));
+    expect(version.blocks.find((b) => b.id === "bo").selfAssessable).toBe(true);
+    expect(version.blocks.find((b) => b.id === "bc").selfAssessable).toBe(false);
+  });
+
+  it("un objetivo sin descripción no trae texto de relleno", () => {
+    const raw = content();
+    raw.objectives[0].description = null;
+    raw.objectives[1].description = "   ";
+    const version = normalizeVersion(raw);
+    expect(version.objectives.map((o) => o.description)).toEqual(["", ""]);
+  });
 });
 
 describe("objetivos", () => {
   const version = normalizeVersion(content());
+  const yes = { level_id: "yes", score: null };
 
-  it("una respuesta en blanco no cuenta", () => {
-    expect(objectiveProgress(version, { o1: "Aprendí", o2: "   " })).toEqual({ answered: 1, total: 2 });
-    expect(missingObjectives(version, { o1: "Aprendí" })).toEqual(["Síndromes agudos"]);
+  it("cuenta la valoración de consecución, no la reflexión (que es opcional)", () => {
+    expect(objectivesBlockOf(version).id).toBe("bo");
+    expect(objectiveProgress(version, { o1: "Aprendí", o2: "Mucho" }, {})).toEqual({ answered: 0, total: 2 });
+    expect(objectiveProgress(version, {}, { bo: { o1: yes } })).toEqual({ answered: 1, total: 2 });
+    expect(missingObjectives(version, {}, { bo: { o1: yes } })).toEqual(["Síndromes agudos"]);
+    expect(missingObjectives(version, {}, { bo: { o1: yes, o2: { level_id: "no", score: null } } })).toEqual([]);
+  });
+
+  it("una valoración con un nivel que no es de la escala no cuenta", () => {
+    expect(missingObjectives(version, {}, { bo: { o1: yes, o2: { level_id: "l5", score: 5 } } })).toEqual([
+      "Síndromes agudos",
+    ]);
+  });
+
+  it("sin escala de consecución, como antes: cuenta la reflexión y una en blanco no vale", () => {
+    const legacy = normalizeVersion({ ...content(), blocks: content().blocks.filter((b) => b.kind !== "objectives") });
+    expect(objectiveProgress(legacy, { o1: "Aprendí", o2: "   " }, {})).toEqual({ answered: 1, total: 2 });
+    expect(missingObjectives(legacy, { o1: "Aprendí" }, {})).toEqual(["Síndromes agudos"]);
+  });
+
+  it("una valoración sola ya pone los objetivos en curso", () => {
+    expect(objectivesStatus({ objective_answers: {}, rubric_answers: { bo: { o1: yes } } }, version)).toBe("draft");
   });
 
   it("pendiente sin respuestas, en curso con alguna, completada al finalizar", () => {
@@ -146,12 +182,16 @@ describe("respuestas de rúbrica", () => {
     expect(isRubricAnswerValid(criteria, { level_id: "yes", score: null })).toBe(false);
   });
 
-  it("solo faltan los bloques que responde el residente", () => {
+  it("en la rúbrica solo faltan los bloques de criterios que responde el residente", () => {
     const answers = {
       bc: { c1: { level_id: "l5", score: 5 }, c2: { level_id: "na", score: null } },
       bo: { o1: { level_id: "yes", score: null } },
     };
-    expect(missingRubricBlocks(version, answers)).toEqual(["Grado de consecución"]);
+    // La consecución va en sus objetivos, y Actitudes es del servicio.
+    expect(missingRubricBlocks(version, answers)).toEqual([]);
+    expect(missingRubricBlocks(version, { bc: { c1: { level_id: "l5", score: 5 } } })).toEqual([
+      "Conocimientos y habilidades",
+    ]);
   });
 });
 
@@ -211,6 +251,13 @@ describe("estados de la rúbrica y global", () => {
     expect(assessmentStatus({ ...assessment, completed_at: "2026-10-26" }, version)).toBe("completed");
   });
 
+  it("valorar objetivos no pone en curso la rúbrica", () => {
+    const version = normalizeVersion(content());
+    expect(rubricStatus({ rubric_answers: { bo: { o1: { level_id: "yes", score: null } } } }, version)).toBe(
+      "pending"
+    );
+  });
+
   it("una reflexión final sola ya pone la rúbrica en curso", () => {
     const version = normalizeVersion(content());
     expect(rubricStatus({ rubric_answers: {}, final_reflection: "Mejorar" }, version)).toBe("draft");
@@ -260,6 +307,40 @@ describe("buildRotationCards", () => {
     expect(card.previous.map((a) => a.id)).toEqual(["a1"]);
   });
 
+  it("cada evaluación generada por Docencia es su tarjeta, con su id como clave", () => {
+    const first = assessment("g1", "r1", { created_at: "2026-01-01", generated_by: "doc", period_start: "2026-01-01" });
+    const second = assessment("g2", "r1", { created_at: "2026-05-01", generated_by: "doc", completed_at: "2026-07-01" });
+    const cards = buildRotationCards({ rotations: [plan("r1")], assessments: [second, first] });
+    // Sin autoevaluaciones propias no sale la tarjeta de empezar.
+    expect(cards.map((c) => [c.key, c.assessment.id, c.generated])).toEqual([
+      ["g1", "g1", true],
+      ["g2", "g2", true],
+    ]);
+  });
+
+  it("completar una generada no cambia la clave de ninguna tarjeta", () => {
+    const open = (extra = {}) => assessment("g1", "r1", { generated_by: "doc", created_at: "2026-01-01", ...extra });
+    const other = assessment("g2", "r1", { generated_by: "doc", created_at: "2026-02-01" });
+    const keys = (items) => buildRotationCards({ rotations: [plan("r1")], assessments: items }).map((c) => c.key);
+    expect(keys([open(), other])).toEqual(keys([open({ completed_at: "2026-03-01" }), other]));
+  });
+
+  it("las del residente siguen agrupadas aparte de las de Docencia", () => {
+    const own = assessment("a1", "r1", { created_at: "2025-01-01", completed_at: "2025-02-01" });
+    const generated = assessment("g1", "r1", { generated_by: "doc", created_at: "2026-01-01" });
+    const cards = buildRotationCards({ rotations: [plan("r1")], assessments: [generated, own] });
+    expect(cards.map((c) => [c.key, c.assessment.id])).toEqual([
+      ["r1", "a1"],
+      ["g1", "g1"],
+    ]);
+  });
+
+  it("la tarjeta de una rotación sin empezar conserva su clave al empezarla", () => {
+    const [before] = buildRotationCards({ rotations: [plan("r1")], assessments: [] });
+    const [after] = buildRotationCards({ rotations: [plan("r1")], assessments: [assessment("a1", "r1")] });
+    expect(after.key).toBe(before.key);
+  });
+
   it("las autoevaluaciones de rotaciones retiradas siguen en el historial", () => {
     const cards = buildRotationCards({
       rotations: [plan("r1")],
@@ -297,5 +378,19 @@ describe("fichas del Libro", () => {
 
   it("no se ofrecen las fichas que ya son otra rotación publicada", () => {
     expect(linkableNodes(nodes, rotations, []).map((n) => n.id)).toEqual(["n3"]);
+  });
+});
+
+describe("periodLabel", () => {
+  const fmt = (value) => value.slice(0, 10);
+
+  it("enseña el periodo que indicó Docencia, o nada si no hay", () => {
+    expect(periodLabel({ period_start: "2026-01-01", period_end: "2026-03-31" }, fmt)).toBe(
+      "2026-01-01 – 2026-03-31"
+    );
+    expect(periodLabel({ period_start: "2026-01-01", period_end: null }, fmt)).toBe("Desde el 2026-01-01");
+    expect(periodLabel({ period_start: null, period_end: "2026-03-31" }, fmt)).toBe("Hasta el 2026-03-31");
+    expect(periodLabel({}, fmt)).toBe("");
+    expect(periodLabel(null, fmt)).toBe("");
   });
 });

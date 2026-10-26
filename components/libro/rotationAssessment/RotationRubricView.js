@@ -11,9 +11,10 @@ import {
 
 /**
  * La rúbrica de una versión publicada. Cada bloque se pinta según quién lo
- * responde: los que Docencia ha habilitado para el residente (`selfAssessable`)
- * se valoran aquí; el resto es evaluación de Docencia y solo se consulta. Las
- * dos cosas no se mezclan: el residente nunca escribe la evaluación oficial.
+ * responde: los de criterios que Docencia ha habilitado para el residente se
+ * valoran aquí; el resto es evaluación del servicio y solo se consulta. La
+ * consecución de objetivos la valora el residente en «Mi autoevaluación»: aquí
+ * solo se enseña. El residente nunca ve ni escribe la valoración del servicio.
  */
 
 const ScaleLegend = ({ block }) => (
@@ -45,10 +46,12 @@ const ResultLine = ({ block, blockAnswers }) => {
   return null;
 };
 
-const ItemRating = ({ block, item, answer, editable, onChange, testPrefix }) => {
+export const ItemRating = ({ block, item, answer, editable, onChange, testPrefix, standalone = false }) => {
   const selected = findLevel(block, answer);
   return (
-    <View style={styles.item}>
+    // `standalone`: sola en su tarjeta (Mi autoevaluación), sin la línea que la
+    // separa del item anterior dentro de un bloque.
+    <View style={standalone ? styles.itemStandalone : styles.item}>
       <Text style={styles.itemTitle}>{item.title}</Text>
       {item.description ? <Text style={styles.itemText}>{item.description}</Text> : null}
       <Text style={styles.itemLabel}>{editable ? "Mi valoración" : "Valoración"}</Text>
@@ -132,11 +135,16 @@ export const RotationRubricView = ({
       {version.blocks.map((block, blockIndex) => {
         const blockAnswers = rubricAnswers?.[block.id] || {};
         const legendOpen = !!openLegends[block.id];
+        const blockEditable = editable && block.kind === "criteria";
         return (
           <View key={block.id} style={styles.block}>
             <Text style={styles.blockTitle}>{block.title}</Text>
             <Text style={block.selfAssessable ? styles.badgeSelf : styles.badgeTeacher}>
-              {block.selfAssessable ? "Tu autoevaluación" : "Evaluación de Docencia · solo consulta"}
+              {block.kind === "objectives"
+                ? "Tu valoración, desde «Mi autoevaluación»"
+                : block.selfAssessable
+                  ? "Tu autoevaluación"
+                  : "Evaluación del servicio · solo consulta"}
             </Text>
             {block.description ? <Text style={styles.itemText}>{block.description}</Text> : null}
 
@@ -160,7 +168,7 @@ export const RotationRubricView = ({
                     block={block}
                     item={item}
                     answer={blockAnswers[item.id]}
-                    editable={editable}
+                    editable={blockEditable}
                     onChange={(answer) => onChangeAnswer?.(block.id, item.id, answer)}
                   />
                 ))
@@ -223,6 +231,7 @@ const styles = StyleSheet.create({
   legendCode: { fontSize: 13, fontWeight: "700", color: "#1B0977" },
   legendText: { fontSize: 12, color: "#64748B", lineHeight: 17 },
   item: { gap: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  itemStandalone: { gap: 6 },
   itemTitle: { fontSize: 14, fontWeight: "700", color: "#1B0977" },
   itemText: { fontSize: 13, color: "#64748B", lineHeight: 19 },
   itemLabel: { fontSize: 12, fontWeight: "700", color: "#64748B" },

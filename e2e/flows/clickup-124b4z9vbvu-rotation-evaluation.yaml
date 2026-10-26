@@ -1,0 +1,235 @@
+# ClickUp 124b4z9vbvu · Evaluaciones individuales de rotaciones (lado del residente)
+# https://app.clickup.com/t/124b4z9vbvu
+#
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-r1.env scripts/e2e.sh e2e/flows/clickup-124b4z9vbvu-rotation-evaluation.yaml
+# Necesita también ~/.config/losresis/e2e-panel.env (owner del Hospital E2E).
+#
+# Docencia (el owner, por API) genera una evaluación de «Medicina Interna y
+# Geriatría» para el residente R1 con un periodo nuevo. El residente la encuentra
+# en Libro → Rotaciones con su periodo, valora los 5 objetivos con la escala de
+# consecución (sin escribir reflexión), guarda, envía con confirmación y completa
+# la rúbrica que Docencia le habilitó. Al final se comprueba por API que Docencia
+# ve las 5 valoraciones y que ni el residente ni el owner pueden escribir la
+# valoración del servicio.
+# Repetible: cada pasada genera una evaluación nueva (otro periodo) y la completa.
+appId: com.losresis.app
+name: "124b4z9vbvu Evaluación individual de rotación"
+---
+- runScript: ../scripts/seed-124b4z9vbvu-evaluation.js
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- tapOn: "Libro de[\\s\\S]*residentes"
+- extendedWaitUntil:
+    visible: "Tu progreso general"
+    timeout: 30000
+- tapOn: "Rotaciones[\\s\\S]*externas e internas[\\s\\S]*"
+- extendedWaitUntil:
+    visible: "Autoevaluación de rotaciones"
+    timeout: 20000
+- assertVisible: ".*Medicina Interna y Geriatría.*Periodo: .*Autoevaluación pendiente.*"
+- takeScreenshot: vbvu-list
+
+# Cada evaluación generada es su tarjeta: la de esta pasada lleva su periodo en el id.
+- scrollUntilVisible:
+    element:
+      id: "rotation-assessment-card-Medicina Interna y Geriatría-${output.periodStart}"
+    centerElement: true
+- tapOn:
+    id: "rotation-assessment-card-Medicina Interna y Geriatría-${output.periodStart}"
+
+- extendedWaitUntil:
+    visible: "Periodo: .*"
+    timeout: 10000
+- assertVisible: "Valora tu grado de consecución de cada objetivo formativo."
+- assertVisible: "Todavía no has empezado tu autoevaluación."
+- takeScreenshot: vbvu-detail
+- tapOn:
+    id: "rotation-start-assessment"
+
+# Objetivo 1: valorar y guardar borrador.
+- extendedWaitUntil:
+    visible:
+      id: "rotation-objective-counter"
+    timeout: 15000
+- assertVisible: "Objetivo 1 de 5"
+- assertVisible: "Reflexión \\(opcional\\)"
+- tapOn:
+    id: "objective-0-level-0"
+- assertVisible:
+    id: "objective-0-level-0"
+    selected: true
+- assertVisible: "1 de 5 objetivos valorados"
+- takeScreenshot: vbvu-objective
+- scrollUntilVisible:
+    element:
+      id: "rotation-save-draft"
+    centerElement: true
+- tapOn:
+    id: "rotation-save-draft"
+- extendedWaitUntil:
+    visible: "Borrador guardado."
+    timeout: 10000
+
+# Objetivos 2 a 5: «Parcialmente» en el 2, «Sí» en el resto.
+- repeat:
+    times: 4
+    commands:
+      - evalScript: "${output.objective = (output.objective === undefined ? 1 : output.objective + 1)}"
+      - scrollUntilVisible:
+          element:
+            id: "rotation-objective-next"
+          centerElement: true
+      - tapOn:
+          id: "rotation-objective-next"
+      - scrollUntilVisible:
+          element:
+            id: "objective-${output.objective}-level-0"
+          direction: UP
+          centerElement: true
+      - tapOn:
+          id: "objective-${output.objective}-level-${output.objective === 1 ? 1 : 0}"
+- assertVisible: "Objetivo 5 de 5"
+- scrollUntilVisible:
+    element: "5 de 5 objetivos valorados"
+    centerElement: true
+- scrollUntilVisible:
+    element:
+      id: "rotation-finish-assessment"
+    centerElement: true
+- tapOn:
+    id: "rotation-finish-assessment"
+
+# Confirmación antes del envío definitivo.
+- extendedWaitUntil:
+    visible: "Comprueba tus valoraciones antes de enviarlas.*"
+    timeout: 10000
+- assertVisible: "5 de 5 objetivos valorados"
+- takeScreenshot: vbvu-review
+- scrollUntilVisible:
+    element:
+      id: "rotation-confirm-finish"
+    centerElement: true
+- tapOn:
+    id: "rotation-confirm-finish"
+- extendedWaitUntil:
+    visible: "Has enviado tu autoevaluación de Medicina Interna y Geriatría."
+    timeout: 10000
+- takeScreenshot: vbvu-sent
+- tapOn: "Volver a la rotación"
+- extendedWaitUntil:
+    visible: "Enviaste tu autoevaluación el .*"
+    timeout: 10000
+
+# La rúbrica que Docencia le habilitó (Conocimientos): NA, 7 exacto y 5 en el resto.
+- scrollUntilVisible:
+    element:
+      id: "rotation-open-rubric"
+    centerElement: true
+- tapOn:
+    id: "rotation-open-rubric"
+- extendedWaitUntil:
+    visible: "Tu valoración, desde «Mi autoevaluación»"
+    timeout: 10000
+# La consecución ya no se responde aquí: se ve, pero no se toca.
+- assertNotVisible:
+    id: "rubric-0-0-level-1"
+- retry:
+    maxRetries: 3
+    commands:
+      - swipe:
+          start: "50%,45%"
+          end: "50%,60%"
+      - scrollUntilVisible:
+          element:
+            id: "rubric-1-0-level-0"
+          centerElement: true
+      - waitForAnimationToEnd
+      - tapOn:
+          id: "rubric-1-0-level-0"
+      - assertVisible:
+          id: "rubric-1-0-level-0"
+          selected: true
+- retry:
+    maxRetries: 3
+    commands:
+      - swipe:
+          start: "50%,45%"
+          end: "50%,60%"
+      - scrollUntilVisible:
+          element:
+            id: "rubric-1-1-level-4"
+          centerElement: true
+      - waitForAnimationToEnd
+      - tapOn:
+          id: "rubric-1-1-level-4"
+      - assertVisible:
+          id: "rubric-1-1-level-4"
+          selected: true
+- retry:
+    maxRetries: 3
+    commands:
+      - swipe:
+          start: "50%,45%"
+          end: "50%,60%"
+      - scrollUntilVisible:
+          element:
+            id: "rubric-1-1-score-7"
+          centerElement: true
+      - waitForAnimationToEnd
+      - tapOn:
+          id: "rubric-1-1-score-7"
+      - assertVisible:
+          id: "rubric-1-1-score-7"
+          selected: true
+- repeat:
+    times: 4
+    commands:
+      - evalScript: "${output.criterion = (output.criterion === undefined ? 2 : output.criterion + 1)}"
+      - retry:
+          maxRetries: 3
+          commands:
+            - swipe:
+                start: "50%,45%"
+                end: "50%,60%"
+            - scrollUntilVisible:
+                element:
+                  id: "rubric-1-${output.criterion}-level-3"
+                centerElement: true
+            - waitForAnimationToEnd
+            - tapOn:
+                id: "rubric-1-${output.criterion}-level-3"
+            - assertVisible:
+                id: "rubric-1-${output.criterion}-level-3"
+                selected: true
+- retry:
+    maxRetries: 3
+    commands:
+      - scrollUntilVisible:
+          element: "Resultado de mi autoevaluación: 5,4/10"
+          centerElement: true
+- scrollUntilVisible:
+    element: "Evaluación del servicio · solo consulta"
+    centerElement: true
+- takeScreenshot: vbvu-rubric
+- scrollUntilVisible:
+    element:
+      id: "rubric-finish"
+    centerElement: true
+- waitForAnimationToEnd
+- tapOn:
+    id: "rubric-finish"
+- tapOn: "Confirmar finalización"
+- extendedWaitUntil:
+    visible: "Has finalizado tu rúbrica."
+    timeout: 10000
+- assertVisible: "Autoevaluación completada el.*"
+- takeScreenshot: vbvu-completed
+
+# Docencia ve lo enviado; el residente y el owner no escriben la valoración del servicio.
+- runScript:
+    file: ../scripts/assert-124b4z9vbvu-evaluation.js
+    env:
+      EVALUATION_ID: ${output.evaluationId}
+- assertTrue: ${output.evaluationChecked}

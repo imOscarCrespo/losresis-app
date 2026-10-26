@@ -2,6 +2,11 @@
 # Requiere Metro arrancado con EXPO_PUBLIC_E2E=1 (ver config/devConfig.js).
 appId: com.losresis.app
 ---
+# Con Metro recién arrancado (o tras un cambio) el bundle tarda: se espera a que
+# haya pantalla (bienvenida o inicio) antes de decidir si hace falta entrar.
+- extendedWaitUntil:
+    visible: "Bienvenido de nuevo|Libro de[\\s\\S]*residentes"
+    timeout: 90000
 - runFlow:
     when:
       visible:

@@ -7,10 +7,12 @@
 # con la consecución de objetivos y «Conocimientos y habilidades» habilitados para
 # el residente y «Actitudes» solo para Docencia.
 #
-# Recorre: Libro → Rotaciones → rotación publicada → empezar, escribir, guardar
-# borrador, salir y volver (se recupera), completar los 5 objetivos, revisar y
-# finalizar; después la rúbrica (NA, valor exacto 7 en un nivel 6-7, nota
+# Recorre: Libro → Rotaciones → rotación publicada → empezar, valorar y escribir,
+# guardar borrador, salir y volver (se recupera), valorar los 5 objetivos, revisar
+# y enviar; después la rúbrica (NA, valor exacto 7 en un nivel 6-7, nota
 # calculada) y su finalización.
+# Desde 124b4z9vbvu la consecución de cada objetivo se valora en «Mi
+# autoevaluación» (la reflexión es opcional) y ya no en la rúbrica.
 # Repetible: el residente no puede borrar sus autoevaluaciones, así que si la
 # rotación ya está completada el flujo empieza «otro periodo» (rotación repetida).
 appId: com.losresis.app
@@ -83,7 +85,7 @@ name: "124b4z9ueuv Autoevaluación de rotaciones"
 # Objetivos (si una ejecución anterior ya los finalizó, se pasa a la rúbrica).
 - runFlow:
     when:
-      notVisible: "Has completado esta autoevaluación."
+      notVisible: "Enviaste tu autoevaluación el .*"
     commands:
       - runFlow:
           when:
@@ -107,17 +109,23 @@ name: "124b4z9ueuv Autoevaluación de rotaciones"
             - tapOn:
                 id: "rotation-link-none"
 
-      # Objetivo 1: escribir y guardar borrador.
+      # Objetivo 1: valorar, escribir y guardar borrador.
       - extendedWaitUntil:
           visible:
             id: "rotation-objective-counter"
           timeout: 15000
       - assertVisible: "Objetivo 1 de 5"
       - tapOn:
+          id: "objective-0-level-0"
+      - scrollUntilVisible:
+          element:
+            id: "rotation-objective-answer"
+          centerElement: true
+      - tapOn:
           id: "rotation-objective-answer"
       - eraseText: 200
       - inputText: "He aprendido a hacer una valoracion estructurada del paciente."
-      - tapOn: "Objetivo 1 de 5"
+      - tapOn: "Reflexión \\(opcional\\)"
       - scrollUntilVisible:
           element:
             id: "rotation-save-draft"
@@ -132,6 +140,10 @@ name: "124b4z9ueuv Autoevaluación de rotaciones"
       # Cerrar la app y volver: el borrador sigue ahí.
       - stopApp
       - launchApp
+      # La app restaura la última pantalla (Libro o inicio): se espera a que pinte.
+      - extendedWaitUntil:
+          visible: "Tu progreso general|Libro de[\\s\\S]*residentes"
+          timeout: 30000
       - runFlow:
           when:
             visible: "Libro de[\\s\\S]*residentes"
@@ -148,9 +160,9 @@ name: "124b4z9ueuv Autoevaluación de rotaciones"
       - tapOn:
           id: "rotation-assessment-card-Medicina Interna y Geriatría"
       - extendedWaitUntil:
-          visible: "Tienes una autoevaluación sin finalizar."
+          visible: "Tienes una autoevaluación sin enviar."
           timeout: 10000
-      - assertVisible: "[1-5] de 5 objetivos respondidos"
+      - assertVisible: "[1-5] de 5 objetivos valorados"
       - tapOn:
           id: "rotation-continue-assessment"
 
@@ -158,6 +170,7 @@ name: "124b4z9ueuv Autoevaluación de rotaciones"
       - repeat:
           times: 4
           commands:
+            - evalScript: "${output.objective = (output.objective === undefined ? 1 : output.objective + 1)}"
             - scrollUntilVisible:
                 element:
                   id: "rotation-objective-next"
@@ -166,17 +179,22 @@ name: "124b4z9ueuv Autoevaluación de rotaciones"
                 id: "rotation-objective-next"
             - scrollUntilVisible:
                 element:
-                  id: "rotation-objective-answer"
+                  id: "objective-${output.objective}-level-0"
                 direction: UP
+                centerElement: true
+            - tapOn:
+                id: "objective-${output.objective}-level-0"
+            - scrollUntilVisible:
+                element:
+                  id: "rotation-objective-answer"
                 centerElement: true
             - tapOn:
                 id: "rotation-objective-answer"
             - eraseText: 400
             - inputText: "Reflexion sobre este objetivo de la rotacion."
-            # Cierra el teclado tocando la tarjeta del objetivo (arriba, fuera del
-            # teclado): el ScrollView lo suelta al tocar fuera de un control.
-            - tapOn:
-                point: "50%,25%"
+            # Cierra el teclado tocando el título de la reflexión (fuera de los
+            # chips de valoración): el ScrollView lo suelta al tocar fuera de un control.
+            - tapOn: "Reflexión \\(opcional\\)"
       - assertVisible: "Objetivo 5 de 5"
       - scrollUntilVisible:
           element:
@@ -187,9 +205,9 @@ name: "124b4z9ueuv Autoevaluación de rotaciones"
 
       # Revisión antes de finalizar.
       - extendedWaitUntil:
-          visible: "Comprueba tus respuestas antes de finalizar."
+          visible: "Comprueba tus valoraciones antes de enviarlas.*"
           timeout: 10000
-      - assertVisible: "5 de 5 objetivos respondidos"
+      - assertVisible: "5 de 5 objetivos valorados"
       - takeScreenshot: 124-review
       - scrollUntilVisible:
           element:
@@ -198,43 +216,32 @@ name: "124b4z9ueuv Autoevaluación de rotaciones"
       - tapOn:
           id: "rotation-confirm-finish"
       - extendedWaitUntil:
-          visible: "Has finalizado la autoevaluación de Medicina Interna y Geriatría."
+          visible: "Has enviado tu autoevaluación de Medicina Interna y Geriatría."
           timeout: 10000
       - takeScreenshot: 124-done
       - tapOn: "Volver a la rotación"
 
-# Rúbrica: consecución (Sí en los 5), Conocimientos (NA, 7 exacto, 5 en el resto).
+# Rúbrica: Conocimientos (NA, 7 exacto, 5 en el resto). La consecución ya se
+# valoró en «Mi autoevaluación»: aquí solo se ve.
 - scrollUntilVisible:
     element:
       id: "rotation-open-rubric"
     centerElement: true
+# Con «Otros periodos» largo el botón queda bajo la cabecera: se despega del
+# borde superior antes de tocarlo.
+- swipe:
+    start: "50%,45%"
+    end: "50%,60%"
+- scrollUntilVisible:
+    element:
+      id: "rotation-open-rubric"
+    centerElement: true
+- waitForAnimationToEnd
 - tapOn:
     id: "rotation-open-rubric"
 - extendedWaitUntil:
-    visible: "Tu autoevaluación"
+    visible: "Tu valoración, desde «Mi autoevaluación»"
     timeout: 10000
-- repeat:
-    times: 5
-    commands:
-      - evalScript: "${output.objectiveIndex = (output.objectiveIndex === undefined ? 0 : output.objectiveIndex + 1)}"
-      - retry:
-          maxRetries: 3
-          commands:
-            # Despega el chip del borde superior (la cabecera tapa media fila y
-            # Maestro lo da por visible sin centrarlo).
-            - swipe:
-                start: "50%,45%"
-                end: "50%,60%"
-            - scrollUntilVisible:
-                element:
-                  id: "rubric-0-${output.objectiveIndex}-level-0"
-                centerElement: true
-            - waitForAnimationToEnd
-            - tapOn:
-                id: "rubric-0-${output.objectiveIndex}-level-0"
-            - assertVisible:
-                id: "rubric-0-${output.objectiveIndex}-level-0"
-                selected: true
 - retry:
     maxRetries: 3
     commands:
@@ -335,7 +342,7 @@ name: "124b4z9ueuv Autoevaluación de rotaciones"
           centerElement: true
 # Actitudes es de Docencia: se consulta, no se responde.
 - scrollUntilVisible:
-    element: "Evaluación de Docencia · solo consulta"
+    element: "Evaluación del servicio · solo consulta"
     centerElement: true
 - assertNotVisible:
     id: "rubric-2-0-level-0"
