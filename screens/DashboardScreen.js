@@ -202,6 +202,7 @@ export default function DashboardScreen({
   const [selectedOpenDayId, setSelectedOpenDayId] = useState(null);
   // Postguardia: la guardia (agenda_events) que se registra.
   const [selectedShiftEventId, setSelectedShiftEventId] = useState(null);
+  const [selectedClinicalCaseId, setSelectedClinicalCaseId] = useState(null);
   const [selectedArticleId, setSelectedArticleId] = useState(null);
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   // Código de fichaje llegado por deep link. No se persiste: caduca en menos
@@ -529,9 +530,13 @@ export default function DashboardScreen({
       return;
     }
 
-    // El tutor ha publicado o actualizado la plantilla del libro.
+    // El tutor ha publicado o actualizado la plantilla del libro, o ha revisado
+    // un caso clínico (entonces se abre ese caso).
     if (data?.destination_section === "residenceLibrary") {
-      handleSectionChange("residenceLibrary");
+      handleSectionChange(
+        "residenceLibrary",
+        data?.clinical_case_id ? { clinicalCaseId: data.clinical_case_id } : {}
+      );
       return;
     }
 
@@ -911,6 +916,10 @@ export default function DashboardScreen({
     // Postguardia: la pantalla solo necesita la guardia.
     if (sectionId === "shiftDebrief" && params.agendaEventId) {
       setSelectedShiftEventId(params.agendaEventId);
+    }
+    // Revisión del tutor de un caso clínico: el Libro abre ese caso.
+    if (sectionId === "residenceLibrary" || sectionId === "libro-residente") {
+      setSelectedClinicalCaseId(params.clinicalCaseId || null);
     }
     if (sectionId === "myReview") {
       setMyReviewAutoOpenCreate(Boolean(params.autoOpenCreateReview));
@@ -1767,11 +1776,12 @@ export default function DashboardScreen({
                 handleSectionChange("shiftDebrief", {
                   agendaEventId: entityId.agendaEventId,
                 });
+              } else if (screenId === "residenceLibrary") {
+                handleSectionChange(screenId, entityId || {});
               } else if (
                 screenId === "tutorias" ||
                 screenId === "evaluaciones" ||
-                screenId === "autoevaluacion" ||
-                screenId === "residenceLibrary"
+                screenId === "autoevaluacion"
               ) {
                 handleSectionChange(screenId);
               } else if (screenId === "recordatoriosServicio") {
@@ -1874,6 +1884,8 @@ export default function DashboardScreen({
             onBack={handleBackFromGenericSection}
             residentHasReview={residentHasReview}
             residentReviewGateStatus={residentGateStatus}
+            initialClinicalCaseId={selectedClinicalCaseId}
+            onInitialClinicalCaseHandled={() => setSelectedClinicalCaseId(null)}
           />
         );
 

@@ -57,6 +57,7 @@ export type NotificationNavigationPayload =
       focusQuestions?: boolean;
       openDayId?: string;
       agendaEventId?: string;
+      clinicalCaseId?: string;
       initialTab?: string;
       matchId?: string;
       courseId?: string;
@@ -253,7 +254,11 @@ export default function NotificationsScreen({
         data.destination_section === "autoevaluacion" ||
         data.destination_section === "residenceLibrary"
       ) {
-        onNavigateToEntity(data.destination_section, {});
+        // La revisión del tutor de un caso clínico abre ese caso.
+        onNavigateToEntity(
+          data.destination_section,
+          data.clinical_case_id ? { clinicalCaseId: data.clinical_case_id } : {}
+        );
         return;
       }
 

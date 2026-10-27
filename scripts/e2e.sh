@@ -27,9 +27,15 @@ SUPABASE_ANON_KEY="$(grep -m1 '^EXPO_PUBLIC_SUPABASE_ANON_KEY=' "$APP_ENV" | cut
 PANEL_CREDENTIALS="${E2E_PANEL_CREDENTIALS:-${HOME}/.config/losresis/e2e-panel.env}"
 PANEL_OWNER_EMAIL=""
 PANEL_OWNER_PASSWORD=""
+# Tutor (speciality_manager de MFyC) del mismo hospital, para los flujos que
+# revisan como tutor (p. ej. la revisión de casos clínicos).
+PANEL_TUTOR_EMAIL=""
+PANEL_TUTOR_PASSWORD=""
 if [[ -f "$PANEL_CREDENTIALS" ]]; then
   PANEL_OWNER_EMAIL="$(grep -m1 '^PANEL_OWNER_EMAIL=' "$PANEL_CREDENTIALS" | cut -d= -f2-)"
   PANEL_OWNER_PASSWORD="$(grep -m1 '^PANEL_OWNER_PASSWORD=' "$PANEL_CREDENTIALS" | cut -d= -f2-)"
+  PANEL_TUTOR_EMAIL="$(grep -m1 '^PANEL_TUTOR_EMAIL=' "$PANEL_CREDENTIALS" | cut -d= -f2- || true)"
+  PANEL_TUTOR_PASSWORD="$(grep -m1 '^PANEL_TUTOR_PASSWORD=' "$PANEL_CREDENTIALS" | cut -d= -f2- || true)"
 fi
 
 MAESTRO="${MAESTRO:-$HOME/.maestro/bin/maestro}"
@@ -50,6 +56,8 @@ cd "$OUTPUT_DIR"
   -e SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
   -e PANEL_OWNER_EMAIL="$PANEL_OWNER_EMAIL" \
   -e PANEL_OWNER_PASSWORD="$PANEL_OWNER_PASSWORD" \
+  -e PANEL_TUTOR_EMAIL="$PANEL_TUTOR_EMAIL" \
+  -e PANEL_TUTOR_PASSWORD="$PANEL_TUTOR_PASSWORD" \
   --test-output-dir "$OUTPUT_DIR" \
   "${FLOWS[@]}"
 echo "Capturas y logs en $OUTPUT_DIR"

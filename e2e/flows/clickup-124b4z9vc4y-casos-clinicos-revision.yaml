@@ -1,0 +1,150 @@
+# ClickUp 124b4z9vc4y · Análisis de casos clínicos (fase 2, revisión del tutor)
+# https://app.clickup.com/t/124b4z9vc4y
+#
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-r1.env scripts/e2e.sh e2e/flows/clickup-124b4z9vc4y-casos-clinicos-revision.yaml
+# Necesita ~/.config/losresis/e2e-panel.env con el owner y el tutor del Hospital E2E.
+#
+# El hospital (owner, por API) activa «Revisión tutor» en EPOC (R1 MFyC) y el
+# residente R1 lo tiene completado (por API: la ficha a mano la prueba la fase 1):
+#   - En su Libro, EPOC sale «Pendiente de revisión» y cuenta en «1 de 3».
+#   - El tutor (por API, como el panel) pide modificaciones → en la app sale
+#     «Modificaciones solicitadas», con los comentarios; el residente corrige y
+#     lo vuelve a enviar → «Pendiente de revisión».
+#   - El tutor lo marca como revisado → «Revisado», la ficha queda en solo
+#     lectura con la valoración y la revisión anterior en el historial.
+# Al final se comprueba por API el historial (dos revisiones), el bloqueo y los
+# dos avisos; la plantilla vuelve a quedar como estaba.
+# Repetible: el seed borra los casos del residente de pruebas (solo los suyos; el
+# revisado se puede borrar porque el Hospital E2E es de pruebas).
+appId: com.losresis.app
+name: "124b4z9vc4y Casos clínicos · revisión del tutor"
+---
+- runScript: ../scripts/seed-124b4z9vc4y-clinical-case-review.js
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- tapOn: "Libro de[\\s\\S]*residentes"
+- extendedWaitUntil:
+    visible: "Tu progreso general"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Casos clínicos[\\s\\S]*"
+    centerElement: true
+- tapOn: "Casos clínicos[\\s\\S]*"
+- extendedWaitUntil:
+    visible: "Progreso de mi portafolio"
+    timeout: 15000
+
+# Completado con revisión: pendiente de revisión, y cuenta en el progreso.
+- assertVisible:
+    id: "clinical-cases-progress"
+    text: "1 de 3 completados"
+- assertVisible: "EPOC[\\s\\S]*Pendiente de revisión[\\s\\S]*Ver"
+- takeScreenshot: vc4y-review-pending
+- tapOn:
+    id: "clinical-case-requirement-EPOC"
+- extendedWaitUntil:
+    visible: "Enviado a tu tutor para que lo revise[\\s\\S]*"
+    timeout: 10000
+- assertNotVisible:
+    id: "clinical-case-tutor-review"
+
+# El tutor pide modificaciones.
+- runScript:
+    file: ../scripts/review-124b4z9vc4y-clinical-case.js
+    env:
+      OUTCOME: changes_requested
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+- tapOn: "Libro de[\\s\\S]*residentes"
+- extendedWaitUntil:
+    visible: "Tu progreso general"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Casos clínicos[\\s\\S]*"
+    centerElement: true
+- tapOn: "Casos clínicos[\\s\\S]*"
+- extendedWaitUntil:
+    visible: "Progreso de mi portafolio"
+    timeout: 15000
+- assertVisible: "EPOC[\\s\\S]*Modificaciones solicitadas[\\s\\S]*Corregir"
+- assertVisible:
+    id: "clinical-cases-progress"
+    text: "0 de 3 completados"
+- takeScreenshot: vc4y-review-changes-list
+- tapOn:
+    id: "clinical-case-requirement-EPOC"
+- extendedWaitUntil:
+    visible:
+      id: "clinical-case-changes-requested"
+    timeout: 10000
+- assertVisible:
+    id: "clinical-case-tutor-review"
+- assertVisible: "Amplía la reflexión y vuelve a enviarlo."
+- assertVisible: "Volver a enviar"
+- takeScreenshot: vc4y-review-changes-form
+
+# Corrige y lo vuelve a enviar.
+# La reflexión, y no un campo de en medio: con la revisión arriba, Maestro se
+# pasa de largo al centrar los campos intermedios y el toque no les da el foco.
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-reflection
+      VALUE: "He aprendido a valorar la VMNI y a retirarla a tiempo.\nHaría antes la gasometría."
+      DISMISS_TEXT: "¿Qué he aprendido de este caso\\?"
+- assertVisible: ".*retirarla a tiempo.*"
+- takeScreenshot: vc4y-review-corrected
+- tapOn:
+    id: "clinical-case-complete"
+- extendedWaitUntil:
+    visible: "Progreso de mi portafolio"
+    timeout: 15000
+- assertVisible: "EPOC[\\s\\S]*Pendiente de revisión[\\s\\S]*Ver"
+- assertVisible:
+    id: "clinical-cases-progress"
+    text: "1 de 3 completados"
+
+# El tutor lo marca como revisado.
+- runScript:
+    file: ../scripts/review-124b4z9vc4y-clinical-case.js
+    env:
+      OUTCOME: reviewed
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+- tapOn: "Libro de[\\s\\S]*residentes"
+- extendedWaitUntil:
+    visible: "Tu progreso general"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Casos clínicos[\\s\\S]*"
+    centerElement: true
+- tapOn: "Casos clínicos[\\s\\S]*"
+- extendedWaitUntil:
+    visible: "Progreso de mi portafolio"
+    timeout: 15000
+- assertVisible: "EPOC[\\s\\S]*Revisado[\\s\\S]*Ver"
+- takeScreenshot: vc4y-review-reviewed-list
+- tapOn:
+    id: "clinical-case-requirement-EPOC"
+- extendedWaitUntil:
+    visible:
+      id: "clinical-case-locked"
+    timeout: 10000
+- assertVisible:
+    id: "clinical-case-tutor-review"
+- assertVisible: "Revisión del tutor"
+- assertVisible: "Buen análisis del caso. Adecuada interpretación de pruebas."
+# Solo lectura: ni campos editables ni borrar.
+- assertNotVisible:
+    id: "clinical-case-field-title"
+- assertNotVisible: "Eliminar caso"
+- takeScreenshot: vc4y-review-reviewed-form
+- tapOn: "Ver revisiones anteriores \\(1\\)"
+- assertVisible: "Amplía la reflexión y vuelve a enviarlo."
+- takeScreenshot: vc4y-review-history
+
+- runScript: ../scripts/assert-124b4z9vc4y-clinical-case-review.js

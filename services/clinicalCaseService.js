@@ -14,7 +14,11 @@ import { portfolioGoals, portfolioRows } from "../utils/clinicalCases";
 const CASE_SELECT =
   "id, requirement_id, residency_year, title, case_date, service, rotation, " +
   "chief_complaint, relevant_history, physical_exam, complementary_tests, clinical_course, " +
-  "final_diagnosis, treatment_and_outcome, reflection, status, completed_at, created_at, updated_at";
+  "final_diagnosis, treatment_and_outcome, reflection, status, review_status, completed_at, " +
+  "created_at, updated_at, " +
+  // Las revisiones del tutor (RLS: solo las de sus casos). utils/reviewsOf las ordena.
+  "reviews:libro_clinical_case_review(id, reviewer_name, overall_assessment, strengths, " +
+  "improvements, comments_for_resident, outcome, created_at)";
 
 /**
  * Los requisitos de la plantilla (todos los años, también los retirados: hacen
@@ -82,7 +86,9 @@ export const getClinicalCases = async (userId) => {
 
 /**
  * Crea o actualiza una ficha. Lanza con el mensaje de la base, que ya viene en
- * castellano cuando es una regla del caso («Tu hospital ya no pide el caso …»).
+ * castellano cuando es una regla del caso («Tu hospital ya no pide el caso …»,
+ * «Tu tutor ya ha revisado este caso: no se puede editar»). `review_status` no
+ * viaja: lo calcula la base.
  * El índice único (un caso por requisito) llega como 23505.
  */
 export const saveClinicalCase = async ({ caseId = null, payload }) => {

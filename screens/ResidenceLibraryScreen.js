@@ -403,6 +403,9 @@ export default function ResidenceLibraryScreen({
   onBack,
   residentHasReview = true,
   residentReviewGateStatus = "soft",
+  // Push de la revisión del tutor de un caso clínico: se abre ese caso.
+  initialClinicalCaseId = null,
+  onInitialClinicalCaseHandled,
 }) {
   const userId = userProfile?.id;
   const userResidencyYear = userProfile?.resident_year || null;
@@ -1257,6 +1260,40 @@ export default function ResidenceLibraryScreen({
     setOpenClinicalCase(null);
     setClinicalTab("portfolio");
   }, [openSection]);
+
+  // Abrir el caso del push (revisión del tutor) en cuanto el Libro ha cargado: su
+  // año, el apartado «Casos clínicos» y la ficha. Va después del efecto de arriba
+  // a propósito: al abrir el apartado, ese efecto cierra la ficha y este la abre.
+  useEffect(() => {
+    if (!initialClinicalCaseId || !sectionsResolved || !selectedYear) return;
+    const finish = () => onInitialClinicalCaseHandled?.();
+    const target = clinicalCases.find((item) => item.id === initialClinicalCaseId);
+    if (!target) {
+      finish();
+      return;
+    }
+    if (target.residency_year !== selectedYear) {
+      if (availableYears.includes(target.residency_year)) {
+        setSelectedYear(target.residency_year);
+      } else {
+        finish();
+      }
+      return;
+    }
+    if (openSection?.archetype !== CLINICAL_CASES_CODE) {
+      const item = indexOverview.sections.find((entry) => entry.archetype === CLINICAL_CASES_CODE);
+      if (item) handleOpenSection(item);
+      else finish();
+      return;
+    }
+    setOpenClinicalCase({
+      clinicalCase: target,
+      requirement:
+        clinicalRequirements.find((requirement) => requirement.id === target.requirement_id) || null,
+    });
+    finish();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialClinicalCaseId, sectionsResolved, selectedYear, clinicalCases, openSection]);
 
   // ---------------------------------------------------------------------------
   // Los datos del apartado abierto, según su arquetipo. El de `tree` lo sigue

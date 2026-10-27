@@ -47,6 +47,13 @@ const caseSubtitle = (clinicalCase) => {
   return edited ? `Última edición: ${edited}` : null;
 };
 
+const actionLabelFor = (status, readOnly) => {
+  if (status === "pending") return readOnly ? "" : "Completar";
+  if (status === "in_progress") return "Continuar";
+  if (status === "changes_requested") return readOnly ? "Ver" : "Corregir";
+  return "Ver";
+};
+
 export const ClinicalCasesView = ({
   residencyYear,
   rows = [],
@@ -182,7 +189,7 @@ export const ClinicalCasesView = ({
                   ) : null}
                 </View>
                 <Text style={styles.cardAction}>
-                  {row.status === "completed" ? "Ver" : row.status === "in_progress" ? "Continuar" : readOnly ? "" : "Completar"}
+                  {actionLabelFor(row.status, readOnly)}
                 </Text>
               </TouchableOpacity>
             );

@@ -12,6 +12,13 @@
  * progreso») o `completed`. Completar exige la ficha entera salvo servicio y
  * rotación; la base lo comprueba igual (CHECK libro_clinical_case_completed_fields).
  *
+ * Revisión del tutor (fase 2, losresis-db 20261029120000): si el caso pedido
+ * tiene «Revisión tutor», al completarlo queda pendiente de revisión
+ * (`review_status = pending`; lo pone la base, la app nunca lo escribe). El
+ * tutor lo da por revisado (queda cerrado) o pide modificaciones (vuelve a
+ * borrador con `review_status = changes_requested` y el residente lo reenvía).
+ * El historial está en `libro_clinical_case_review`, el más reciente primero.
+ *
  * Contrato con el panel (losresis-panel/src/lib/libroClinicalCases.ts): los
  * nombres de campo y sus rótulos. Si cambian aquí, cambian allí.
  */
@@ -131,11 +138,60 @@ export const buildClinicalCasePayload = (
 export const CLINICAL_CASE_STATUS = {
   pending: { label: "Pendiente", color: "#E11D48", background: "#FFF1F2", icon: "ellipse-outline" },
   in_progress: { label: "En progreso", color: "#B45309", background: "#FEF3C7", icon: "time-outline" },
+  changes_requested: {
+    label: "Modificaciones solicitadas",
+    color: "#B45309",
+    background: "#FEF3C7",
+    icon: "alert-circle-outline",
+  },
   completed: { label: "Completado", color: "#047857", background: "#D1FAE5", icon: "checkmark-circle" },
+  pending_review: {
+    label: "Pendiente de revisión",
+    color: "#6D28D9",
+    background: "#EDE9FE",
+    icon: "hourglass-outline",
+  },
+  reviewed: { label: "Revisado", color: "#047857", background: "#D1FAE5", icon: "ribbon-outline" },
 };
 
-export const displayStatusOf = (clinicalCase) =>
-  !clinicalCase ? "pending" : clinicalCase.status === "completed" ? "completed" : "in_progress";
+/**
+ * El estado que se enseña. La revisión manda sobre `status`: un caso devuelto
+ * es un borrador, pero lo que importa es que el tutor pidió cambios.
+ */
+export const displayStatusOf = (clinicalCase) => {
+  if (!clinicalCase) return "pending";
+  if (clinicalCase.review_status === "reviewed") return "reviewed";
+  if (clinicalCase.status === "completed") {
+    return clinicalCase.review_status === "pending" ? "pending_review" : "completed";
+  }
+  return clinicalCase.review_status === "changes_requested" ? "changes_requested" : "in_progress";
+};
+
+/** Si el residente ya ha hecho su parte: cuenta en el progreso. */
+export const isDoneStatus = (status) =>
+  status === "completed" || status === "pending_review" || status === "reviewed";
+
+/** Un caso revisado por el tutor queda cerrado: ni se edita ni se borra. */
+export const isLockedByReview = (clinicalCase) => clinicalCase?.review_status === "reviewed";
+
+/** Las revisiones del tutor, la más reciente primero. */
+export const reviewsOf = (clinicalCase) =>
+  [...(clinicalCase?.reviews || [])].sort((a, b) =>
+    String(b.created_at || "").localeCompare(String(a.created_at || ""))
+  );
+
+/** Los textos de una revisión del tutor, con el copy de la tarea. */
+export const CLINICAL_CASE_REVIEW_FIELDS = [
+  { key: "overall_assessment", label: "Valoración general" },
+  { key: "strengths", label: "Aspectos positivos" },
+  { key: "improvements", label: "Aspectos a mejorar" },
+  { key: "comments_for_resident", label: "Comentarios" },
+];
+
+export const REVIEW_OUTCOME_LABELS = {
+  reviewed: "Revisado",
+  changes_requested: "Modificaciones solicitadas",
+};
 
 /**
  * Los requisitos que ve el residente en un año: los vivos de la plantilla para
@@ -176,7 +232,7 @@ export const portfolioProgress = (rows = []) => {
   const required = rows.filter((row) => row.requirement.is_required);
   const counted = required.length ? required : rows;
   if (!counted.length) return null;
-  const done = counted.filter((row) => row.status === "completed").length;
+  const done = counted.filter((row) => isDoneStatus(row.status)).length;
   return { done, total: counted.length, percent: Math.round((done / counted.length) * 100) };
 };
 
@@ -187,7 +243,7 @@ export const portfolioProgress = (rows = []) => {
 export const portfolioGoals = (rows = []) =>
   rows
     .filter((row) => row.requirement.is_required)
-    .map((row) => ({ done: row.status === "completed" }));
+    .map((row) => ({ done: isDoneStatus(row.status) }));
 
 /**
  * «Mis casos clínicos» de un año: los libres y los vinculados a un requisito que

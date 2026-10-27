@@ -4,12 +4,14 @@ import {
   formValuesFor,
   freeCasesForYear,
   indexCountFor,
+  isLockedByReview,
   linkableCases,
   missingFieldsFor,
   portfolioGoals,
   portfolioProgress,
   portfolioRows,
   requirementsForYear,
+  reviewsOf,
   templateYearFor,
 } from "../../utils/clinicalCases";
 
@@ -186,5 +188,63 @@ describe("portafolio", () => {
     expect(displayStatusOf(null)).toBe("pending");
     expect(displayStatusOf(caso("a"))).toBe("in_progress");
     expect(displayStatusOf(caso("a", { status: "completed" }))).toBe("completed");
+  });
+});
+
+describe("revisión del tutor", () => {
+  const REQS = [
+    requirement("epoc", "EPOC", { position: 0, tutor_review_enabled: true }),
+    requirement("ictus", "Ictus isquémico", { position: 1, tutor_review_enabled: true }),
+    requirement("fra", "Fracaso renal agudo", { position: 2 }),
+  ];
+
+  it("el estado que se enseña sigue a la revisión", () => {
+    expect(displayStatusOf(caso("a", { status: "completed", review_status: "pending" }))).toBe("pending_review");
+    expect(displayStatusOf(caso("a", { status: "completed", review_status: "reviewed" }))).toBe("reviewed");
+    expect(displayStatusOf(caso("a", { status: "draft", review_status: "changes_requested" }))).toBe(
+      "changes_requested"
+    );
+    expect(displayStatusOf(caso("a", { status: "completed", review_status: null }))).toBe("completed");
+    expect(displayStatusOf(caso("a", { status: "draft" }))).toBe("in_progress");
+  });
+
+  it("pendiente de revisión y revisado cuentan; devuelto no (1 de 3 → 2 de 3)", () => {
+    const cases = [
+      caso("c1", { requirement_id: "epoc", status: "completed", review_status: "reviewed" }),
+      caso("c2", { requirement_id: "ictus", status: "draft", review_status: "changes_requested" }),
+    ];
+    const rows = portfolioRows(REQS, cases, 1);
+    expect(portfolioProgress(rows)).toEqual({ done: 1, total: 3, percent: 33 });
+    expect(portfolioGoals(rows)).toEqual([{ done: true }, { done: false }, { done: false }]);
+
+    cases[1] = { ...cases[1], status: "completed", review_status: "pending" };
+    expect(portfolioProgress(portfolioRows(REQS, cases, 1))).toEqual({ done: 2, total: 3, percent: 67 });
+  });
+
+  it("solo un caso revisado queda bloqueado", () => {
+    expect(isLockedByReview(caso("a", { status: "completed", review_status: "reviewed" }))).toBe(true);
+    expect(isLockedByReview(caso("a", { status: "completed", review_status: "pending" }))).toBe(false);
+    expect(isLockedByReview(caso("a", { review_status: "changes_requested" }))).toBe(false);
+    expect(isLockedByReview(null)).toBe(false);
+  });
+
+  it("las revisiones, la más reciente primero, sin tocar las de la ficha", () => {
+    const reviews = [
+      { id: "r1", outcome: "changes_requested", created_at: "2026-10-01T10:00:00Z" },
+      { id: "r2", outcome: "reviewed", created_at: "2026-10-05T10:00:00Z" },
+    ];
+    const clinicalCase = caso("a", { reviews });
+    expect(reviewsOf(clinicalCase).map((review) => review.id)).toEqual(["r2", "r1"]);
+    expect(reviews[0].id).toBe("r1");
+    expect(reviewsOf(caso("b"))).toEqual([]);
+    expect(reviewsOf(null)).toEqual([]);
+  });
+
+  it("el payload del residente nunca lleva review_status", () => {
+    const payload = buildClinicalCasePayload(
+      { title: "EPOC", review_status: "reviewed" },
+      { userId: "u1", residencyYear: 1, requirementId: "epoc", complete: false }
+    );
+    expect(payload).not.toHaveProperty("review_status");
   });
 });
