@@ -10,6 +10,10 @@ export function addNotificationResponseListener(): () => void {
     .then((response) => {
       const data = response?.notification.request.content.data;
       if (data) {
+        // Se borra al usarla: si no, cada arranque volvería a abrir el último
+        // push tocado (el router ya no la pierde aunque llegue antes que el
+        // Dashboard).
+        Notifications.clearLastNotificationResponse();
         routeNotificationPayload(data);
       }
     })

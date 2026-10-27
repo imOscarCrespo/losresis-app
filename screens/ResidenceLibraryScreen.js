@@ -76,6 +76,8 @@ import { ConfirmationModal, LibroMigrationModal } from "../components";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLOR_TOKEN_MAP } from "../data/libroOnboardingTemplates";
 import { getSpecialtyById } from "../services/hospitalService";
+import { getShiftDebriefsByEvent } from "../services/shiftDebriefService";
+import ShiftDebriefScreen from "./ShiftDebriefScreen";
 import { updateAgendaEventNotes } from "../services/agendaService";
 import {
   ensureLibroForResident,
@@ -401,6 +403,9 @@ export default function ResidenceLibraryScreen({
   // al crear uno. Solo en el Libro propio: la lista del oficial es del tutor.
   const [openItineraryItem, setOpenItineraryItem] = useState(null);
   const [openShift, setOpenShift] = useState(null);
+  // Postguardia: la guardia abierta y el estado de las de la lista.
+  const [openDebriefShift, setOpenDebriefShift] = useState(null);
+  const [shiftDebriefs, setShiftDebriefs] = useState({});
   // La rotación publicada por Docencia cuya autoevaluación está abierta (su key).
   const [openRotationKey, setOpenRotationKey] = useState(null);
   const [selectedParentForChild, setSelectedParentForChild] = useState(null);
@@ -1211,8 +1216,18 @@ export default function ResidenceLibraryScreen({
       }
 
       if (openSection.archetype === "automatic") {
-        const rows = await getLibroShifts(userId, selectedYear, userResidencyYear);
-        if (isMounted) setShifts(rows);
+        const [rows, debriefs] = await Promise.all([
+          getLibroShifts(userId, selectedYear, userResidencyYear),
+          // Sin el estado de la postguardia la lista se sigue viendo.
+          getShiftDebriefsByEvent(userId).catch((error) => {
+            console.error("Error loading shift debriefs:", error);
+            return {};
+          }),
+        ]);
+        if (isMounted) {
+          setShifts(rows);
+          setShiftDebriefs(debriefs);
+        }
       }
     };
 
@@ -2294,6 +2309,21 @@ export default function ResidenceLibraryScreen({
     );
   }
 
+  if (openDebriefShift) {
+    return (
+      <ShiftDebriefScreen
+        key={openDebriefShift.id}
+        agendaEventId={openDebriefShift.id}
+        userProfile={userProfile}
+        onBack={() => {
+          setOpenDebriefShift(null);
+          // Relee la lista y los contadores del Libro que haya movido.
+          setLibroReloadKey((prev) => prev + 1);
+        }}
+      />
+    );
+  }
+
   if (openShift) {
     return (
       <LibroShiftNotesScreen
@@ -2616,6 +2646,8 @@ export default function ResidenceLibraryScreen({
                 residencyYear={selectedYear}
                 readOnly={!isOwnYear}
                 onOpenShift={setOpenShift}
+                debriefs={shiftDebriefs}
+                onOpenDebrief={setOpenDebriefShift}
               />
             ) : !displayTree.length ? (
               <View style={styles.emptyBookCard}>

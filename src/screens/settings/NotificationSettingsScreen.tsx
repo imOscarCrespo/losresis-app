@@ -74,6 +74,12 @@ const NOTIFICATION_OPTIONS: Array<{
     description: "Cuando se acerque un evento con recordatorio configurado.",
   },
   {
+    notification_type: "shift_debrief_reminder",
+    title: "Registro de mis guardias",
+    description:
+      "Al día siguiente de cada guardia, a las 20:00, para registrar lo que hiciste.",
+  },
+  {
     notification_type: "course_published",
     title: "Cursos de mi especialidad",
     description:

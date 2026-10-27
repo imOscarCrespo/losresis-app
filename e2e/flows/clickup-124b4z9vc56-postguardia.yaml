@@ -1,0 +1,190 @@
+# ClickUp 124b4z9vc56 · Postguardia interactiva
+# https://app.clickup.com/t/124b4z9vc56
+#
+#   scripts/e2e.sh e2e/flows/clickup-124b4z9vc56-postguardia.yaml
+#
+# El residente de pruebas (Libro propio) registra su guardia de 24 h del
+# 26/10/2026 desde Libro → Guardias:
+#   - la primera vez configura sus procedimientos frecuentes creando uno
+#     personalizado («Suturas E2E», que entra en su Libro);
+#   - las siguientes, la guardia ya está completada: abre el detalle y «Editar mi
+#     registro».
+# Deja el contador en 2, elige autonomía, un aprendizaje y valoración, guarda y
+# comprueba la pantalla final, la autoevaluación ampliada y, por API, que el
+# Libro tiene exactamente 2 (no se duplica al guardar otra vez).
+# Repetible sin limpiar datos.
+appId: com.losresis.app
+name: "124b4z9vc56 Postguardia"
+---
+- runScript:
+    file: ../scripts/seed-124b4z9vc56-shift.js
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- tapOn: "Libro de[\\s\\S]*residentes"
+- extendedWaitUntil:
+    visible: "Apartados del libro"
+    timeout: 20000
+# La tarjeta del apartado es un solo elemento: «Guardias, Registro…, N».
+- scrollUntilVisible:
+    element: "Guardias, Registro de guardias.*"
+    centerElement: true
+- tapOn: "Guardias, Registro de guardias.*"
+- extendedWaitUntil:
+    visible: "Mis autoevaluaciones de guardia.*"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "libro-shift-debrief-2026-10-26"
+    centerElement: true
+- takeScreenshot: vc56-libro-history
+- tapOn:
+    id: "libro-shift-debrief-2026-10-26"
+
+- extendedWaitUntil:
+    visible: "Cada especialidad y cada guardia.*|Detalle de guardia|🎯 ¿Qué has hecho en esta guardia\\?"
+    timeout: 20000
+
+# Primera vez: configurar los frecuentes con un procedimiento personalizado.
+- runFlow:
+    when:
+      visible: "Cada especialidad y cada guardia.*"
+    commands:
+      - takeScreenshot: vc56-setup-empty
+      - tapOn:
+          id: "frequent-add"
+      - extendedWaitUntil:
+          visible: "Añadir procedimiento"
+          timeout: 5000
+      - tapOn:
+          id: "procedure-custom-name"
+      - inputText: "Suturas E2E"
+      - tapOn: "Crear procedimiento personalizado"
+      - tapOn:
+          id: "procedure-create"
+      - extendedWaitUntil:
+          visible:
+            id: "frequent-Suturas E2E"
+          timeout: 10000
+      - takeScreenshot: vc56-setup-filled
+      - tapOn: "Guardar mis procedimientos frecuentes"
+
+# Ya completada: del detalle a editar.
+- runFlow:
+    when:
+      visible: "Detalle de guardia"
+    commands:
+      - takeScreenshot: vc56-detail-before
+      - tapOn: "Editar mi registro"
+
+# Paso 1: el contador a 2 (primero a cero, para que sea repetible).
+- extendedWaitUntil:
+    visible: "🎯 ¿Qué has hecho en esta guardia\\?"
+    timeout: 15000
+- assertVisible: "Paso 1 de 4"
+- repeat:
+    times: 4
+    commands:
+      - tapOn:
+          id: "counter-minus-Suturas E2E"
+- tapOn:
+    id: "counter-plus-Suturas E2E"
+- tapOn:
+    id: "counter-plus-Suturas E2E"
+- assertVisible:
+    id: "counter-value-Suturas E2E"
+    text: "2"
+- takeScreenshot: vc56-step1
+- tapOn: "Siguiente"
+
+# Paso 2: autonomía.
+- extendedWaitUntil:
+    visible: "Paso 2 de 4"
+    timeout: 15000
+- tapOn:
+    id: "autonomy-occasional_support"
+- takeScreenshot: vc56-step2
+- tapOn: "Siguiente"
+
+# Paso 3: aprendizajes (solo si no estaba ya marcado).
+- extendedWaitUntil:
+    visible: "Paso 3 de 4"
+    timeout: 15000
+- runFlow:
+    when:
+      notVisible:
+        id: "learning-checked-teamwork"
+    commands:
+      - tapOn:
+          id: "learning-teamwork"
+- assertVisible:
+    id: "learning-checked-teamwork"
+- takeScreenshot: vc56-step3
+- tapOn: "Siguiente"
+
+# Paso 4: valoración y guardar.
+- extendedWaitUntil:
+    visible: "Paso 4 de 4"
+    timeout: 15000
+- tapOn:
+    id: "rating-4"
+- takeScreenshot: vc56-step4
+- tapOn: "💜 Guardar mi guardia"
+
+- extendedWaitUntil:
+    visible: "¡Guardia registrada!"
+    timeout: 20000
+- assertVisible: "2 procedimientos registrados"
+- assertVisible: "🤝 Con apoyo puntual"
+- assertVisible: "🙂 Buena"
+- takeScreenshot: vc56-done
+- runScript:
+    file: ../scripts/assert-124b4z9vc56-debrief.js
+    env:
+      PROCEDURE: Suturas E2E
+      COUNT: "2"
+
+# Autoevaluación ampliada.
+- tapOn:
+    id: "debrief-open-reflection"
+- extendedWaitUntil:
+    visible: "Principales aprendizajes"
+    timeout: 10000
+- assertVisible: ".*No escribas nombres ni datos que permitan identificar a un paciente.*"
+- tapOn:
+    id: "reflection-learnings"
+- eraseText: 200
+- inputText: "Reflexion E2E"
+- tapOn: "Principales aprendizajes"
+- takeScreenshot: vc56-reflection
+- tapOn: "Guardar"
+- extendedWaitUntil:
+    visible: "Reflexion E2E"
+    timeout: 15000
+- assertVisible: "Solo la ves tú.*|Compartida con tu tutor."
+- takeScreenshot: vc56-detail-reflection
+- tapOn:
+    id: "detail-tab-summary"
+- assertVisible: "2 procedimientos registrados"
+- takeScreenshot: vc56-detail-summary
+
+# Desde la Agenda: la guardia ya acabada y completada ofrece su autoevaluación.
+- tapOn: "Agenda"
+- extendedWaitUntil:
+    visible: "26, Guardia"
+    timeout: 15000
+# Tocar el día de una guardia propia abre su editor.
+- tapOn: "26, Guardia"
+- extendedWaitUntil:
+    visible:
+      id: "agenda-open-debrief"
+    timeout: 10000
+- assertVisible: "Ver mi autoevaluación"
+- takeScreenshot: vc56-agenda-editor
+- tapOn:
+    id: "agenda-open-debrief"
+- extendedWaitUntil:
+    visible: "Detalle de guardia"
+    timeout: 15000
+- takeScreenshot: vc56-agenda-detail

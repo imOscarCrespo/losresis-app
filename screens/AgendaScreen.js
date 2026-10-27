@@ -32,6 +32,8 @@ import {
   getAgendaEventShareUserIds,
 } from "../services/agendaService";
 import { getMyConnections } from "../services/connectionsService";
+import { getShiftDebrief } from "../services/shiftDebriefService";
+import { isShiftFinished } from "../utils/shiftDebrief";
 
 LocaleConfig.locales.es = {
   monthNames: [
@@ -669,6 +671,9 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
   const [shareUserIds, setShareUserIds] = useState([]);
   const [sharePickerVisible, setSharePickerVisible] = useState(false);
   const [detailEvent, setDetailEvent] = useState(null);
+  // Postguardia de la guardia que se está editando: null (sin cargar), "pending"
+  // o "completed".
+  const [editingDebriefStatus, setEditingDebriefStatus] = useState(null);
 
   const {
     events,
@@ -897,6 +902,15 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
     setForm(formFromEvent(event));
     setShareUserIds([]);
     setEditorVisible(true);
+    setEditingDebriefStatus(null);
+
+    if (event.event_type === "shift" && isShiftFinished(event, todayString)) {
+      getShiftDebrief(event.id)
+        .then((debrief) =>
+          setEditingDebriefStatus(debrief?.status === "completed" ? "completed" : "pending")
+        )
+        .catch(() => setEditingDebriefStatus("pending"));
+    }
 
     if (event.event_type !== "shift") {
       getAgendaEventShareUserIds(event.id)
@@ -941,6 +955,17 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
         navigation?.navigate?.("residentsDirectory");
       }, 320);
     }, 280);
+  };
+
+  // Postguardia: se cierra el editor y se navega cuando ya no queda ningún Modal
+  // (ver handleAddConnection).
+  const handleOpenDebrief = () => {
+    const eventId = editingEvent?.id;
+    if (!eventId) return;
+    closeEditor();
+    setTimeout(() => {
+      navigation?.navigate?.("shiftDebrief", { agendaEventId: eventId });
+    }, 320);
   };
 
   const closeDeleteDialog = () => {
@@ -2113,6 +2138,21 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
               </View>
             ) : null}
 
+            {editingEvent?.event_type === "shift" && editingDebriefStatus ? (
+              <TouchableOpacity
+                style={styles.debriefButton}
+                onPress={handleOpenDebrief}
+                activeOpacity={0.9}
+                testID="agenda-open-debrief"
+              >
+                <Text style={styles.debriefButtonText}>
+                  {editingDebriefStatus === "completed"
+                    ? "Ver mi autoevaluación"
+                    : "Registrar mi guardia 🎯"}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
             <TouchableOpacity
               style={[styles.primaryButton, saving && styles.primaryButtonDisabled]}
               onPress={handleSave}
@@ -2845,6 +2885,21 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 16,
     color: "#0F172A",
+    fontWeight: "800",
+  },
+  debriefButton: {
+    marginTop: 22,
+    minHeight: 52,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1EBFF",
+    borderWidth: 1,
+    borderColor: "#D9C8FF",
+  },
+  debriefButtonText: {
+    color: "#670CF5",
+    fontSize: 15,
     fontWeight: "800",
   },
   primaryButton: {

@@ -44,6 +44,7 @@ import ContactScreen from "./ContactScreen";
 import AgendaScreen from "./AgendaScreen";
 import ServiceRemindersScreen from "./ServiceRemindersScreen";
 import OpenDayFeedbackScreen from "./OpenDayFeedbackScreen";
+import ShiftDebriefScreen from "./ShiftDebriefScreen";
 import { ExternalRotationsScreen } from "./ExternalRotationsScreen";
 import { LecturesScreen } from "./LecturesScreen";
 import LeisureScreen from "./LeisureScreen";
@@ -136,6 +137,7 @@ const GENERIC_BACK_SECTIONS = new Set([
   "residentPayoutExpenses",
   "mentalHealth",
   "valoracionJornada",
+  "shiftDebrief",
 ]);
 
 const DASHBOARD_NAVIGATION_STATE_VERSION = 1;
@@ -198,6 +200,8 @@ export default function DashboardScreen({
   const [selectedReviewId, setSelectedReviewId] = useState(null);
   // Jornada que se está valorando; llega en el push del hospital.
   const [selectedOpenDayId, setSelectedOpenDayId] = useState(null);
+  // Postguardia: la guardia (agenda_events) que se registra.
+  const [selectedShiftEventId, setSelectedShiftEventId] = useState(null);
   const [selectedArticleId, setSelectedArticleId] = useState(null);
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   // Código de fichaje llegado por deep link. No se persiste: caduca en menos
@@ -315,6 +319,7 @@ export default function DashboardScreen({
         setSelectedArticleId(snapshot?.selectedArticleId ?? null);
         setSelectedCourseId(snapshot?.selectedCourseId ?? null);
         setSelectedHousingAdId(snapshot?.selectedHousingAdId ?? null);
+        setSelectedShiftEventId(snapshot?.selectedShiftEventId ?? null);
         setCreatingHousingAd(Boolean(snapshot?.creatingHousingAd));
         setEditingHousingAdId(snapshot?.editingHousingAdId ?? null);
         setEditingRoommateProfile(Boolean(snapshot?.editingRoommateProfile));
@@ -376,6 +381,7 @@ export default function DashboardScreen({
           selectedArticleId,
           selectedCourseId,
           selectedHousingAdId,
+          selectedShiftEventId,
           creatingHousingAd,
           editingHousingAdId,
           editingRoommateProfile,
@@ -414,6 +420,7 @@ export default function DashboardScreen({
     selectedArticleId,
     selectedCourseId,
     selectedHousingAdId,
+    selectedShiftEventId,
     creatingHousingAd,
     editingHousingAdId,
     editingRoommateProfile,
@@ -452,123 +459,155 @@ export default function DashboardScreen({
     }
   }, [currentSection]);
 
+  // Adónde lleva cada push al tocarlo. Se reasigna en cada render para usar el
+  // perfil y el gate actuales; el listener de abajo solo encola.
+  const routeNotificationRef = useRef(null);
+  routeNotificationRef.current = (data) => {
+    // Solicitud de conexión: llevar a la bandeja, donde se acepta/rechaza inline.
+    if (data?.destination_section === "notifications") {
+      handleSectionChange("notifications");
+      return;
+    }
+
+    // Conexión aceptada: abrir el chat directo con el otro residente.
+    if (data?.destination_section === "directChat" && data?.other_user_id) {
+      openDirectChat({
+        otherUserId: data.other_user_id,
+        otherUserName: "",
+        onSectionChange: handleSectionChange,
+      });
+      return;
+    }
+
+    if (data?.destination_section === "groupChat" && data?.group_id) {
+      handleSectionChange("groupChat", {
+        groupId: data.group_id,
+        groupName: data.group_name || "Grupo",
+      });
+      return;
+    }
+
+    if (data?.destination_section === "myReview") {
+      handleSectionChange("myReview", {
+        focusQuestions: true,
+        questionId: data.question_id,
+      });
+      return;
+    }
+
+    if (data?.destination_section === "mentalHealth") {
+      handleSectionChange("mentalHealth");
+      return;
+    }
+
+    // Chapó del feed: abrir el inicio, donde vive el feed.
+    if (data?.destination_section === "inicio") {
+      handleSectionChange("inicio");
+      return;
+    }
+
+    // Eventos del servicio y recordatorios de agenda: abrir la Agenda.
+    if (data?.destination_section === "agenda") {
+      handleSectionChange("agenda");
+      return;
+    }
+
+    // Recordatorio del servicio asignado: abrir el tablón del residente.
+    if (data?.destination_section === "recordatoriosServicio") {
+      handleSectionChange("recordatoriosServicio");
+      return;
+    }
+
+    // Módulos de Docencia. Cada aviso abre su pantalla: una tutoría programada o
+    // compartida, una evaluación cerrada, una autoevaluación pedida o recordada.
+    if (
+      data?.destination_section === "tutorias" ||
+      data?.destination_section === "evaluaciones" ||
+      data?.destination_section === "autoevaluacion"
+    ) {
+      handleSectionChange(data.destination_section);
+      return;
+    }
+
+    // El tutor ha publicado o actualizado la plantilla del libro.
+    if (data?.destination_section === "residenceLibrary") {
+      handleSectionChange("residenceLibrary");
+      return;
+    }
+
+    // Avisos que se arreglan desde el perfil: rechazo del email corporativo
+    // (hay que corregirlo y volver a pedir revisión) y fin de la ventana de
+    // gracia MIR. Ambos ya enviaban destination_section "usuario", pero no
+    // había rama que lo enrutase y el push abría la app sin ir a ningún sitio.
+    if (data?.destination_section === "usuario") {
+      handleSectionChange("usuario");
+      return;
+    }
+
+    // Al día siguiente de una guardia: abrir su postguardia.
+    if (
+      data?.destination_section === "shiftDebrief" &&
+      data?.agenda_event_id
+    ) {
+      handleSectionChange("shiftDebrief", {
+        agendaEventId: data.agenda_event_id,
+      });
+      return;
+    }
+
+    // El hospital pide valoración de su jornada de puertas abiertas.
+    if (
+      data?.destination_section === "valoracionJornada" &&
+      data?.open_day_id
+    ) {
+      handleSectionChange("valoracionJornada", {
+        openDayId: data.open_day_id,
+      });
+      return;
+    }
+
+    if (data?.entity_type === "review" && data?.entity_id) {
+      handleSectionChange("reviewDetail", {
+        reviewId: data.entity_id,
+        questionId: data.question_id,
+      });
+      return;
+    }
+
+    if (data?.entity_type === "comment" && data?.entity_id) {
+      handleSectionChange("threadDetail", { threadId: data.entity_id });
+      return;
+    }
+
+    if (data?.entity_type === "roommate_match" && data?.entity_id) {
+      handleSectionChange("roomies", {
+        initialTab: "matches",
+        matchId: data.entity_id,
+      });
+      return;
+    }
+
+    if (data?.entity_type === "course" && data?.entity_id) {
+      handleSectionChange("courseDetail", { courseId: data.entity_id });
+    }
+  };
+
+  // El push que abre la app cerrada llega antes de que la navegación esté
+  // restaurada: se guarda y se lleva cuando lo está, o la restauración lo pisaría
+  // (igual que el enlace de fichaje).
+  const pendingNotificationRef = useRef(null);
+  const flushNotification = () => {
+    const data = pendingNotificationRef.current;
+    if (!data || !routeNotificationRef.current) return;
+    pendingNotificationRef.current = null;
+    routeNotificationRef.current(data);
+  };
+
   useEffect(() => {
     const cleanup = setNotificationNavigationHandler((data) => {
-      // Solicitud de conexión: llevar a la bandeja, donde se acepta/rechaza inline.
-      if (data?.destination_section === "notifications") {
-        handleSectionChange("notifications");
-        return;
-      }
-
-      // Conexión aceptada: abrir el chat directo con el otro residente.
-      if (data?.destination_section === "directChat" && data?.other_user_id) {
-        openDirectChat({
-          otherUserId: data.other_user_id,
-          otherUserName: "",
-          onSectionChange: handleSectionChange,
-        });
-        return;
-      }
-
-      if (data?.destination_section === "groupChat" && data?.group_id) {
-        handleSectionChange("groupChat", {
-          groupId: data.group_id,
-          groupName: data.group_name || "Grupo",
-        });
-        return;
-      }
-
-      if (data?.destination_section === "myReview") {
-        handleSectionChange("myReview", {
-          focusQuestions: true,
-          questionId: data.question_id,
-        });
-        return;
-      }
-
-      if (data?.destination_section === "mentalHealth") {
-        handleSectionChange("mentalHealth");
-        return;
-      }
-
-      // Chapó del feed: abrir el inicio, donde vive el feed.
-      if (data?.destination_section === "inicio") {
-        handleSectionChange("inicio");
-        return;
-      }
-
-      // Eventos del servicio y recordatorios de agenda: abrir la Agenda.
-      if (data?.destination_section === "agenda") {
-        handleSectionChange("agenda");
-        return;
-      }
-
-      // Recordatorio del servicio asignado: abrir el tablón del residente.
-      if (data?.destination_section === "recordatoriosServicio") {
-        handleSectionChange("recordatoriosServicio");
-        return;
-      }
-
-      // Módulos de Docencia. Cada aviso abre su pantalla: una tutoría programada o
-      // compartida, una evaluación cerrada, una autoevaluación pedida o recordada.
-      if (
-        data?.destination_section === "tutorias" ||
-        data?.destination_section === "evaluaciones" ||
-        data?.destination_section === "autoevaluacion"
-      ) {
-        handleSectionChange(data.destination_section);
-        return;
-      }
-
-      // El tutor ha publicado o actualizado la plantilla del libro.
-      if (data?.destination_section === "residenceLibrary") {
-        handleSectionChange("residenceLibrary");
-        return;
-      }
-
-      // Avisos que se arreglan desde el perfil: rechazo del email corporativo
-      // (hay que corregirlo y volver a pedir revisión) y fin de la ventana de
-      // gracia MIR. Ambos ya enviaban destination_section "usuario", pero no
-      // había rama que lo enrutase y el push abría la app sin ir a ningún sitio.
-      if (data?.destination_section === "usuario") {
-        handleSectionChange("usuario");
-        return;
-      }
-
-      // El hospital pide valoración de su jornada de puertas abiertas.
-      if (
-        data?.destination_section === "valoracionJornada" &&
-        data?.open_day_id
-      ) {
-        handleSectionChange("valoracionJornada", {
-          openDayId: data.open_day_id,
-        });
-        return;
-      }
-
-      if (data?.entity_type === "review" && data?.entity_id) {
-        handleSectionChange("reviewDetail", {
-          reviewId: data.entity_id,
-          questionId: data.question_id,
-        });
-        return;
-      }
-
-      if (data?.entity_type === "comment" && data?.entity_id) {
-        handleSectionChange("threadDetail", { threadId: data.entity_id });
-        return;
-      }
-
-      if (data?.entity_type === "roommate_match" && data?.entity_id) {
-        handleSectionChange("roomies", {
-          initialTab: "matches",
-          matchId: data.entity_id,
-        });
-        return;
-      }
-
-      if (data?.entity_type === "course" && data?.entity_id) {
-        handleSectionChange("courseDetail", { courseId: data.entity_id });
+      pendingNotificationRef.current = data;
+      if (isNavigationReadyRef.current) {
+        flushNotification();
       }
     });
 
@@ -621,6 +660,7 @@ export default function DashboardScreen({
     isNavigationReadyRef.current = isNavigationReady;
     if (isNavigationReady) {
       flushCheckinLink();
+      flushNotification();
     }
   }, [isNavigationReady]);
 
@@ -867,6 +907,10 @@ export default function DashboardScreen({
     // Valorar una jornada de puertas abiertas: la pantalla solo necesita el id.
     if (sectionId === "valoracionJornada" && params.openDayId) {
       setSelectedOpenDayId(params.openDayId);
+    }
+    // Postguardia: la pantalla solo necesita la guardia.
+    if (sectionId === "shiftDebrief" && params.agendaEventId) {
+      setSelectedShiftEventId(params.agendaEventId);
     }
     if (sectionId === "myReview") {
       setMyReviewAutoOpenCreate(Boolean(params.autoOpenCreateReview));
@@ -1719,6 +1763,10 @@ export default function DashboardScreen({
                 handleSectionChange("courseDetail", { courseId: entityId });
               } else if (screenId === "agenda") {
                 handleSectionChange("agenda");
+              } else if (screenId === "shiftDebrief" && entityId?.agendaEventId) {
+                handleSectionChange("shiftDebrief", {
+                  agendaEventId: entityId.agendaEventId,
+                });
               } else if (
                 screenId === "tutorias" ||
                 screenId === "evaluaciones" ||
@@ -1979,6 +2027,19 @@ export default function DashboardScreen({
             userProfile={userProfile}
             onBack={handleBackFromGenericSection}
           />
+        );
+
+      // Postguardia: registro rápido y autoevaluación de una guardia.
+      case "shiftDebrief":
+        return userProfile?.is_resident ? (
+          <ShiftDebriefScreen
+            key={selectedShiftEventId || "none"}
+            agendaEventId={selectedShiftEventId}
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+          />
+        ) : (
+          <PlaceholderScreen title="Mi guardia" />
         );
 
       // Secciones del menú (placeholder)

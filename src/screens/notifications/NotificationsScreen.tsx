@@ -44,6 +44,7 @@ export type NotificationDataPayload = {
   other_user_id?: string;
   requester_id?: string;
   open_day_id?: string;
+  agenda_event_id?: string;
 };
 
 export type NotificationNavigationPayload =
@@ -55,6 +56,7 @@ export type NotificationNavigationPayload =
       groupName?: string;
       focusQuestions?: boolean;
       openDayId?: string;
+      agendaEventId?: string;
       initialTab?: string;
       matchId?: string;
       courseId?: string;
@@ -252,6 +254,17 @@ export default function NotificationsScreen({
         data.destination_section === "residenceLibrary"
       ) {
         onNavigateToEntity(data.destination_section, {});
+        return;
+      }
+
+      // Al día siguiente de una guardia: abrir su postguardia.
+      if (
+        data.destination_section === "shiftDebrief" &&
+        data.agenda_event_id
+      ) {
+        onNavigateToEntity("shiftDebrief", {
+          agendaEventId: data.agenda_event_id,
+        });
         return;
       }
 

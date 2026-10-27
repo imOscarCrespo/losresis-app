@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import { Icon } from "../Icon";
+import { getDebriefStatus, todayIso } from "../../utils/shiftDebrief";
 
 /**
  * Arquetipo `automatic`: Guardias.
@@ -21,6 +22,10 @@ import { Icon } from "../Icon";
  *
  * La observación se escribe en una PANTALLA (LibroShiftNotesScreen), no en un modal:
  * aquí solo se listan las guardias y se avisa al Libro de cuál se ha abierto.
+ *
+ * Es también el historial de «Mis autoevaluaciones de guardia»: cada guardia ya
+ * acabada lleva el estado de su postguardia (Completada / Pendiente), que la abre
+ * para consultarla, completarla o editarla. Se puede también en años pasados.
  */
 
 const formatDate = (value) => {
@@ -40,7 +45,11 @@ export const LibroShiftsView = ({
   residencyYear,
   readOnly = false,
   onOpenShift,
+  debriefs = {},
+  onOpenDebrief,
 }) => {
+  const today = todayIso();
+
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -60,34 +69,77 @@ export const LibroShiftsView = ({
 
       {shifts.length ? (
         <>
-          <Text style={styles.count}>{`${shifts.length} guardias en R${residencyYear}`}</Text>
-          {shifts.map((shift) => (
-            <TouchableOpacity
-              key={shift.id}
-              style={styles.item}
-              onPress={() => (readOnly ? null : onOpenShift?.(shift))}
-              activeOpacity={readOnly ? 1 : 0.85}
-            >
-              <View style={styles.itemMark}>
-                <Icon name="moon-outline" size={14} color="#EA580C" />
-              </View>
-              <View style={styles.itemCopy}>
-                <Text style={styles.itemTitle}>{formatDate(shift.event_date)}</Text>
-                {shift.metadata?.shift_duration ? (
-                  <Text style={styles.itemMeta}>{shift.metadata.shift_duration}</Text>
+          <Text
+            style={styles.count}
+          >{`${shifts.length} guardias en R${residencyYear}`}</Text>
+          {onOpenDebrief ? (
+            <Text style={styles.debriefHint}>
+              Mis autoevaluaciones de guardia: toca el estado para verla o
+              completarla.
+            </Text>
+          ) : null}
+          {shifts.map((shift) => {
+            const debriefStatus = onOpenDebrief
+              ? getDebriefStatus(shift, debriefs[shift.id], today)
+              : null;
+            return (
+              <TouchableOpacity
+                key={shift.id}
+                style={styles.item}
+                onPress={() => (readOnly ? null : onOpenShift?.(shift))}
+                activeOpacity={readOnly ? 1 : 0.85}
+              >
+                <View style={styles.itemMark}>
+                  <Icon name="moon-outline" size={14} color="#EA580C" />
+                </View>
+                <View style={styles.itemCopy}>
+                  <Text style={styles.itemTitle}>
+                    {formatDate(shift.event_date)}
+                  </Text>
+                  {shift.metadata?.shift_duration ? (
+                    <Text style={styles.itemMeta}>
+                      {shift.metadata.shift_duration}
+                    </Text>
+                  ) : null}
+                  <Text
+                    style={[
+                      styles.itemNotes,
+                      !shift.notes && styles.itemNotesEmpty,
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {shift.notes ||
+                      (readOnly ? "Sin observaciones" : "Añadir observación")}
+                  </Text>
+                </View>
+                {debriefStatus ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.debriefPill,
+                      debriefStatus === "completed" && styles.debriefPillDone,
+                    ]}
+                    onPress={() => onOpenDebrief(shift)}
+                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                    testID={`libro-shift-debrief-${shift.event_date}`}
+                  >
+                    <Text
+                      style={[
+                        styles.debriefPillText,
+                        debriefStatus === "completed" &&
+                          styles.debriefPillTextDone,
+                      ]}
+                    >
+                      {debriefStatus === "completed"
+                        ? "Completada"
+                        : "Pendiente"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : !readOnly ? (
+                  <Icon name="create-outline" size={16} color="#94A3B8" />
                 ) : null}
-                <Text
-                  style={[styles.itemNotes, !shift.notes && styles.itemNotesEmpty]}
-                  numberOfLines={2}
-                >
-                  {shift.notes || (readOnly ? "Sin observaciones" : "Añadir observación")}
-                </Text>
-              </View>
-              {!readOnly ? (
-                <Icon name="create-outline" size={16} color="#94A3B8" />
-              ) : null}
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            );
+          })}
         </>
       ) : (
         <View style={styles.empty}>
@@ -147,6 +199,18 @@ const styles = StyleSheet.create({
   itemMeta: { fontSize: 12, fontWeight: "600", color: "#EA580C" },
   itemNotes: { fontSize: 12, color: "#64748B", lineHeight: 17 },
   itemNotesEmpty: { color: "#A78BFA", fontWeight: "600" },
+  debriefHint: { fontSize: 12, color: "#64748B", lineHeight: 17 },
+  debriefPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+  },
+  debriefPillDone: { backgroundColor: "#DCFCE7", borderColor: "#BBF7D0" },
+  debriefPillText: { fontSize: 11, fontWeight: "700", color: "#C2410C" },
+  debriefPillTextDone: { color: "#15803D" },
   empty: {
     alignItems: "center",
     gap: 8,
