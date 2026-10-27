@@ -197,6 +197,7 @@ const IONICON_TO_PHOSPHOR = {
   checkmark: Check,
   "checkmark-circle": CheckCircle,
   "checkmark-circle-outline": CheckCircle,
+  "ellipse-outline": Circle,
   "checkmark-done": Checks,
   "chevron-back": CaretLeft,
   "chevron-down": CaretDown,

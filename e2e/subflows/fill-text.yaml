@@ -1,0 +1,22 @@
+# Escribe en un campo de texto (también multilínea) y cierra el teclado.
+# Como fill-amount: centra el campo antes de tocarlo y cierra tocando un texto
+# fuera del input (el rótulo del campo siguiente,
+# que queda a la vista; el suyo se esconde bajo la cabecera al centrar). Parámetros: FIELD_ID, VALUE, DISMISS_TEXT.
+appId: com.losresis.app
+---
+- scrollUntilVisible:
+    element:
+      id: ${FIELD_ID}
+    direction: DOWN
+    centerElement: true
+# El centrado de Maestro es aproximado y un campo alto puede quedar con la mitad
+# de abajo detrás del pie de botones: el toque no le daría el foco.
+- swipe:
+    start: "50%, 60%"
+    end: "50%, 45%"
+    duration: 400
+- tapOn:
+    id: ${FIELD_ID}
+- eraseText: 200
+- inputText: ${VALUE}
+- tapOn: ${DISMISS_TEXT}

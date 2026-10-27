@@ -1,0 +1,197 @@
+# ClickUp 124b4z9vc4y · Análisis de casos clínicos (fase 1, lado del residente)
+# https://app.clickup.com/t/124b4z9vc4y
+#
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-r1.env scripts/e2e.sh e2e/flows/clickup-124b4z9vc4y-casos-clinicos.yaml
+# Necesita también ~/.config/losresis/e2e-panel.env (owner del Hospital E2E).
+#
+# El hospital (owner, por API) pide en R1 de MFyC los tres casos de Sant Pau. El
+# residente R1 los encuentra en Libro → Casos clínicos («0 de 3»):
+#   - EPOC: guarda un borrador (En progreso), intenta completarlo incompleto (el
+#     aviso lo para), lo rellena entero y lo marca como completado → «1 de 3».
+#   - Registra un caso libre «Ictus E2E» en «Mis casos clínicos» y lo vincula a
+#     «Ictus isquémico» desde el portafolio (sin duplicarlo).
+# Al final se comprueba por API lo guardado y que Docencia ve el completado y no
+# el contenido del borrador; la plantilla vuelve a quedar como estaba.
+# Repetible: el seed borra los casos del residente de pruebas (solo los suyos).
+# La plantilla MFyC del Hospital E2E está SIN publicar: el seed la publica y el
+# assert final la despublica. Si una pasada falla a medias se queda publicada;
+# despublícala a mano antes de repetir (si no, el seed la cree publicada de base).
+appId: com.losresis.app
+name: "124b4z9vc4y Casos clínicos"
+---
+- runScript: ../scripts/seed-124b4z9vc4y-clinical-cases.js
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- tapOn: "Libro de[\\s\\S]*residentes"
+- extendedWaitUntil:
+    visible: "Tu progreso general"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Casos clínicos[\\s\\S]*"
+    centerElement: true
+- assertVisible: "Casos clínicos[\\s\\S]*0 de 3"
+- takeScreenshot: vc4y-libro-index
+- tapOn: "Casos clínicos[\\s\\S]*"
+
+# Mi portafolio: los tres pendientes.
+- extendedWaitUntil:
+    visible: "Progreso de mi portafolio"
+    timeout: 15000
+- assertVisible:
+    id: "clinical-cases-progress"
+    text: "0 de 3 completados"
+- assertVisible:
+    id: "clinical-case-requirement-EPOC"
+- assertVisible:
+    id: "clinical-case-requirement-Ictus isquémico"
+- assertVisible:
+    id: "clinical-case-requirement-Fracaso renal agudo"
+- takeScreenshot: vc4y-portfolio-empty
+
+# EPOC: borrador.
+- tapOn:
+    id: "clinical-case-requirement-EPOC"
+- extendedWaitUntil:
+    visible: "Nuevo caso clínico"
+    timeout: 10000
+- assertVisible:
+    id: "clinical-case-privacy"
+- assertVisible:
+    id: "clinical-case-field-title"
+    text: "EPOC"
+- takeScreenshot: vc4y-form-new
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-chief_complaint
+      VALUE: "Disnea de 48 h con aumento de secreciones"
+      DISMISS_TEXT: "Antecedentes relevantes \\*"
+- tapOn:
+    id: "clinical-case-save-draft"
+- extendedWaitUntil:
+    visible: "Progreso de mi portafolio"
+    timeout: 15000
+# La tarjeta es un solo elemento: «EPOC, En progreso, Última edición…, Continuar».
+- assertVisible: "EPOC[\\s\\S]*En progreso[\\s\\S]*Continuar"
+
+# EPOC: completar sin rellenar todo → aviso.
+- tapOn:
+    id: "clinical-case-requirement-EPOC"
+- extendedWaitUntil:
+    visible: "Editar caso clínico"
+    timeout: 10000
+- tapOn:
+    id: "clinical-case-complete"
+- extendedWaitUntil:
+    visible: "Faltan campos por completar"
+    timeout: 5000
+- tapOn: "OK"
+
+# Rellenar el resto.
+- scrollUntilVisible:
+    element: "Fecha.*Sin fecha"
+    centerElement: true
+- tapOn: "Fecha.*Sin fecha"
+# El calendario se abre debajo: «Hoy» puede quedar detrás del pie.
+- scrollUntilVisible:
+    element: "Hoy"
+    centerElement: true
+- tapOn: "Hoy"
+- assertNotVisible: "Fecha.*Sin fecha"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-relevant_history
+      VALUE: "EPOC grave, exfumador"
+      DISMISS_TEXT: "Exploración física \\*"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-physical_exam
+      VALUE: "Tiraje, hipofonesis global, sibilantes"
+      DISMISS_TEXT: "Pruebas complementarias \\*"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-complementary_tests
+      VALUE: "Radiografía de tórax y gasometría arterial"
+      DISMISS_TEXT: "Evolución clínica \\*"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-clinical_course
+      VALUE: "Mejoría progresiva con VMNI"
+      DISMISS_TEXT: "Diagnóstico final \\*"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-final_diagnosis
+      VALUE: "Reagudización grave de EPOC"
+      DISMISS_TEXT: "Tratamiento y evolución \\*"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-treatment_and_outcome
+      VALUE: "Broncodilatadores, corticoides y VMNI. Alta a planta"
+      DISMISS_TEXT: "¿Qué he aprendido de este caso\\?"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-reflection
+      VALUE: "He aprendido a valorar la VMNI.\nHaría antes la gasometría."
+      DISMISS_TEXT: "¿Qué he aprendido de este caso\\?"
+- takeScreenshot: vc4y-form-reflection
+- tapOn:
+    id: "clinical-case-complete"
+- extendedWaitUntil:
+    visible: "Progreso de mi portafolio"
+    timeout: 15000
+- assertVisible:
+    id: "clinical-cases-progress"
+    text: "1 de 3 completados"
+
+# Caso libre en «Mis casos clínicos».
+- tapOn:
+    id: "clinical-cases-tab-free"
+- tapOn:
+    id: "clinical-case-add-free"
+- extendedWaitUntil:
+    visible: "Nuevo caso clínico"
+    timeout: 10000
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-title
+      VALUE: "Ictus E2E"
+      DISMISS_TEXT: "Fecha \\*"
+- tapOn:
+    id: "clinical-case-save-draft"
+- extendedWaitUntil:
+    visible:
+      id: "clinical-case-free-Ictus E2E"
+    timeout: 15000
+- takeScreenshot: vc4y-free-cases
+
+# Vincularlo a «Ictus isquémico».
+- tapOn:
+    id: "clinical-cases-tab-portfolio"
+- tapOn:
+    id: "clinical-case-requirement-Ictus isquémico"
+- tapOn: "Vincular un caso registrado"
+- tapOn:
+    id: "clinical-case-link-Ictus E2E"
+- extendedWaitUntil:
+    visible: "Ictus isquémico[\\s\\S]*En progreso[\\s\\S]*"
+    timeout: 15000
+- assertVisible:
+    id: "clinical-cases-progress"
+    text: "1 de 3 completados"
+- takeScreenshot: vc4y-portfolio-final
+- tapOn:
+    id: "clinical-cases-tab-free"
+- assertNotVisible:
+    id: "clinical-case-free-Ictus E2E"
+
+- runScript: ../scripts/assert-124b4z9vc4y-clinical-cases.js

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getLibroYearOverview } from "../services/libroYearService";
 import { getLibroCustomYearGoals } from "../services/libroCustomService";
+import { getClinicalCaseYearGoals } from "../services/clinicalCaseService";
 import { combineLibroProgress } from "../utils/libroCustom";
 import {
   getAssessments,
@@ -140,12 +141,14 @@ export const useResidentHomeSummary = ({
 
     const loadLibroProgress = async () => {
       if (!residentYear) return null;
-      // Las metas de los apartados personalizados cuentan igual que en el Libro.
-      const [{ progress }, customGoals] = await Promise.all([
+      // Las metas de los apartados personalizados y los casos clínicos
+      // obligatorios cuentan igual que en el Libro.
+      const [{ progress }, customGoals, clinicalGoals] = await Promise.all([
         getLibroYearOverview(userId, residentYear, residentYear),
         getLibroCustomYearGoals(userId, residentYear),
+        getClinicalCaseYearGoals(userId, residentYear),
       ]);
-      return combineLibroProgress(progress, customGoals);
+      return combineLibroProgress(progress, [...customGoals, ...clinicalGoals]);
     };
 
     const loadGross = async () => {

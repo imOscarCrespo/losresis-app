@@ -28,6 +28,10 @@ const countLabel = (item) => {
   if (item.archetype === "itinerary") {
     return `${item.count} de ${item.total ?? 0}`;
   }
+  // Casos clínicos: «1 de 3» con portafolio del hospital; si no, cuántos lleva.
+  if (item.archetype === "clinical_cases" && item.total !== null && item.total !== undefined) {
+    return `${item.count} de ${item.total}`;
+  }
   return `${item.count}`;
 };
 
@@ -70,8 +74,8 @@ export const LibroIndexView = ({
 
     {sections.length ? (
       sections.map((item) => {
-        // Un apartado personalizado trae su icono, color y descripción de la
-        // plantilla; los del catálogo, de data/libroSections.js.
+        // Un apartado personalizado (y los casos clínicos) trae su icono, color
+        // y descripción; los del catálogo, de data/libroSections.js.
         const color =
           COLOR_TOKEN_MAP[
             item.colorToken || LIBRO_SECTION_BY_CODE[item.section]?.color_token
@@ -96,7 +100,7 @@ export const LibroIndexView = ({
               <Text style={styles.cardSubtitle} numberOfLines={1}>
                 {item.isRetired
                   ? "Retirado por tu hospital"
-                  : item.customSectionId
+                  : item.customSectionId || item.archetype === "clinical_cases"
                     ? item.description
                     : getLibroSectionDescription(item.section)}
               </Text>

@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -32,7 +34,30 @@ export const LibroEditorScreen = ({
   saving = false,
   destructiveLabel = null,
   onDestructive = null,
-}) => (
+  // Una segunda acción al lado de la principal (p. ej. «Guardar borrador»).
+  secondaryLabel = null,
+  onSecondary = null,
+  primaryTestID,
+  secondaryTestID,
+  // Con dos botones el pie se come media pantalla cuando sale el teclado y tapa
+  // el campo que se está escribiendo: se esconde mientras está abierto.
+  hideFooterWithKeyboard = false,
+}) => {
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    if (!hideFooterWithKeyboard) return undefined;
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const shown = Keyboard.addListener(showEvent, () => setKeyboardOpen(true));
+    const hidden = Keyboard.addListener(hideEvent, () => setKeyboardOpen(false));
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
+  }, [hideFooterWithKeyboard]);
+
+  return (
   <HeroScreenLayout title={title} onBack={onClose} keyboardAvoiding>
     <View style={styles.surface}>
       <ScrollView
@@ -44,8 +69,22 @@ export const LibroEditorScreen = ({
         {children}
       </ScrollView>
 
+      {keyboardOpen ? null : (
       <View style={styles.footer}>
+        {secondaryLabel && onSecondary ? (
+          <TouchableOpacity
+            style={[styles.secondaryButton, saving && styles.primaryButtonDisabled]}
+            onPress={onSecondary}
+            disabled={saving}
+            activeOpacity={0.85}
+            testID={secondaryTestID}
+          >
+            <Text style={styles.secondaryButtonText}>{secondaryLabel}</Text>
+          </TouchableOpacity>
+        ) : null}
+
         <TouchableOpacity
+          testID={primaryTestID}
           style={[
             styles.primaryButton,
             (primaryDisabled || saving) && styles.primaryButtonDisabled,
@@ -72,9 +111,11 @@ export const LibroEditorScreen = ({
           </TouchableOpacity>
         ) : null}
       </View>
+      )}
     </View>
   </HeroScreenLayout>
-);
+  );
+};
 
 export default LibroEditorScreen;
 
@@ -115,6 +156,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     color: "#FFFFFF",
+  },
+  secondaryButton: {
+    minHeight: 50,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#670CF5",
+    backgroundColor: "#FFFFFF",
+    marginBottom: 6,
+  },
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#670CF5",
   },
   destructiveButton: {
     minHeight: 46,

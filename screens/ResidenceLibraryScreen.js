@@ -45,6 +45,25 @@ import { LibroItineraryItemScreen } from "../components/libro/LibroItineraryItem
 import { LibroShiftNotesScreen } from "../components/libro/LibroShiftNotesScreen";
 import { LibroCustomSectionView } from "../components/libro/custom/LibroCustomSectionView";
 import { LibroCustomEntryScreen } from "../components/libro/custom/LibroCustomEntryScreen";
+import { ClinicalCasesView } from "../components/libro/clinicalCases/ClinicalCasesView";
+import { ClinicalCaseFormScreen } from "../components/libro/clinicalCases/ClinicalCaseFormScreen";
+import {
+  deleteClinicalCase,
+  getClinicalCaseRequirements,
+  getClinicalCases,
+  linkClinicalCase,
+  saveClinicalCase,
+} from "../services/clinicalCaseService";
+import {
+  CLINICAL_CASES_CODE,
+  CLINICAL_CASES_SECTION,
+  buildClinicalCasePayload,
+  freeCasesForYear,
+  indexCountFor,
+  linkableCases,
+  portfolioGoals,
+  portfolioRows,
+} from "../utils/clinicalCases";
 import { RotationAssessmentSection } from "../components/libro/rotationAssessment/RotationAssessmentSection";
 import { RotationAssessmentFlow } from "../components/libro/rotationAssessment/RotationAssessmentFlow";
 import { useRotationAssessments } from "../hooks/useRotationAssessments";
@@ -471,6 +490,16 @@ export default function ResidenceLibraryScreen({
   const [openCustomEntry, setOpenCustomEntry] = useState(null);
   // La actividad cuyo contador está esperando al servidor ("section" sin actividad).
   const [busyCustomActivity, setBusyCustomActivity] = useState(null);
+  // Casos clínicos (utils/clinicalCases.js): los requisitos de la plantilla
+  // publicada (todos los años), dónde va la tarjeta en el índice de cada año, y
+  // las fichas del residente. Como los personalizados, se leen en vivo.
+  const [clinicalRequirements, setClinicalRequirements] = useState([]);
+  const [clinicalBlockPositions, setClinicalBlockPositions] = useState(() => new Map());
+  const [clinicalCases, setClinicalCases] = useState([]);
+  // { clinicalCase, requirement } con la ficha abierta (clinicalCase null = nueva).
+  const [openClinicalCase, setOpenClinicalCase] = useState(null);
+  // «Mi portafolio» o «Mis casos clínicos»; sobrevive a abrir y cerrar una ficha.
+  const [clinicalTab, setClinicalTab] = useState("portfolio");
   const [refreshing, setRefreshing] = useState(false);
   // Cuántos registros se lleva por delante migrar este año. Se cuenta al ofrecerlo,
   // no al confirmarlo, para poder decírselo antes de que decida.
@@ -490,6 +519,9 @@ export default function ResidenceLibraryScreen({
           setTemplateUpdatedAt(null);
           setCustomSections([]);
           setCustomEntries([]);
+          setClinicalRequirements([]);
+          setClinicalBlockPositions(new Map());
+          setClinicalCases([]);
           setSection(DEFAULT_LIBRO_SECTION);
           setSectionsResolved(true);
         }
@@ -519,11 +551,14 @@ export default function ResidenceLibraryScreen({
 
         // Los apartados personalizados no fallan el Libro: si no se pueden leer, se
         // abre con los de siempre (los servicios devuelven [] y lo registran).
-        const [outline, customSectionRows, customEntryRows] = await Promise.all([
-          template?.id ? getLibroTemplateOutline(template.id) : [],
-          template?.id ? getLibroCustomSections(template.id) : [],
-          getLibroCustomEntries(userId),
-        ]);
+        const [outline, customSectionRows, customEntryRows, clinicalStructure, clinicalRows] =
+          await Promise.all([
+            template?.id ? getLibroTemplateOutline(template.id) : [],
+            template?.id ? getLibroCustomSections(template.id) : [],
+            getLibroCustomEntries(userId),
+            getClinicalCaseRequirements(template?.id),
+            getClinicalCases(userId),
+          ]);
         if (!isMounted) return;
 
         setAllBooks(booksData || []);
@@ -532,6 +567,9 @@ export default function ResidenceLibraryScreen({
         setTemplateOutline(outline);
         setCustomSections(customSectionRows);
         setCustomEntries(customEntryRows);
+        setClinicalRequirements(clinicalStructure.requirements);
+        setClinicalBlockPositions(clinicalStructure.blockPositions);
+        setClinicalCases(clinicalRows);
       } catch (error) {
         console.error("Error resolving libro:", error);
         if (isMounted) {
@@ -541,6 +579,9 @@ export default function ResidenceLibraryScreen({
           setTemplateUpdatedAt(null);
           setCustomSections([]);
           setCustomEntries([]);
+          setClinicalRequirements([]);
+          setClinicalBlockPositions(new Map());
+          setClinicalCases([]);
         }
       } finally {
         if (isMounted) {
@@ -987,8 +1028,24 @@ export default function ResidenceLibraryScreen({
 
   // Las tarjetas del índice: las del catálogo como siempre, con las personalizadas
   // intercaladas donde el hospital las puso; y su meta suma al Progreso del año.
+  // Casos clínicos del año abierto: el portafolio que pide la plantilla y el
+  // registro libre. La tarjeta sale en el año en curso siempre (el registro libre
+  // es para todos) y en los demás solo si hay algo que enseñar.
+  const clinicalRows = useMemo(
+    () => (selectedYear ? portfolioRows(clinicalRequirements, clinicalCases, selectedYear) : []),
+    [clinicalRequirements, clinicalCases, selectedYear]
+  );
+  const yearFreeClinicalCases = useMemo(
+    () => (selectedYear ? freeCasesForYear(clinicalCases, clinicalRows, selectedYear) : []),
+    [clinicalCases, clinicalRows, selectedYear]
+  );
+  const showClinicalCases =
+    !!selectedYear &&
+    (isOwnYear || clinicalRows.length > 0 || yearFreeClinicalCases.length > 0);
+  const isClinicalReadOnly = !isOwnYear;
+
   const indexOverview = useMemo(() => {
-    if (!yearCustomSections.length) return yearOverview;
+    if (!yearCustomSections.length && !showClinicalCases) return yearOverview;
 
     const templateYear = templateYearFor(selectedYear);
     const blockPositions = new Map(
@@ -1024,6 +1081,31 @@ export default function ResidenceLibraryScreen({
       };
     });
 
+    // La tarjeta de casos clínicos va donde la puso el hospital en la plantilla;
+    // sin apartado en la plantilla, al final.
+    if (showClinicalCases) {
+      const clinicalPosition = clinicalBlockPositions.has(templateYear)
+        ? clinicalBlockPositions.get(templateYear)
+        : Number.MAX_SAFE_INTEGER;
+      blockPositions.set(CLINICAL_CASES_CODE, clinicalPosition);
+      goals.push(...portfolioGoals(clinicalRows));
+      customItems.push({
+        section: CLINICAL_CASES_CODE,
+        position: clinicalPosition,
+        label: CLINICAL_CASES_SECTION.label,
+        description: CLINICAL_CASES_SECTION.description,
+        iconName: CLINICAL_CASES_SECTION.iconName,
+        colorToken: CLINICAL_CASES_SECTION.colorToken,
+        archetype: CLINICAL_CASES_CODE,
+        bookId: null,
+        templateId,
+        isOfficial: clinicalRows.length > 0,
+        isArchived: false,
+        isRetired: false,
+        ...indexCountFor(clinicalRows, yearFreeClinicalCases),
+      });
+    }
+
     return {
       sections: mergeCustomIntoIndex(yearOverview.sections, customItems, blockPositions),
       progress: combineLibroProgress(yearOverview.progress, goals),
@@ -1035,6 +1117,10 @@ export default function ResidenceLibraryScreen({
     templateOutline,
     selectedYear,
     templateId,
+    showClinicalCases,
+    clinicalBlockPositions,
+    clinicalRows,
+    yearFreeClinicalCases,
   ]);
 
   const openCustomSection = openSection?.customSectionId
@@ -1168,6 +1254,8 @@ export default function ResidenceLibraryScreen({
   // año, flecha, botón atrás de Android), no puede reaparecer al abrir otro.
   useEffect(() => {
     setOpenCustomEntry(null);
+    setOpenClinicalCase(null);
+    setClinicalTab("portfolio");
   }, [openSection]);
 
   // ---------------------------------------------------------------------------
@@ -1181,7 +1269,8 @@ export default function ResidenceLibraryScreen({
     if (
       !openSection ||
       openSection.archetype === "tree" ||
-      openSection.archetype === CUSTOM_SECTION_CODE
+      openSection.archetype === CUSTOM_SECTION_CODE ||
+      openSection.archetype === CLINICAL_CASES_CODE
     ) {
       return () => {
         isMounted = false;
@@ -1258,7 +1347,7 @@ export default function ResidenceLibraryScreen({
   const handleOpenSection = (item) => {
     // Un personalizado no es un valor de libro_section_code: `section` (y con él
     // useLibroSection) se queda como estaba.
-    if (item.archetype !== CUSTOM_SECTION_CODE) {
+    if (item.archetype !== CUSTOM_SECTION_CODE && item.archetype !== CLINICAL_CASES_CODE) {
       setSection(item.section);
     }
     setOpenSection(item);
@@ -1335,6 +1424,83 @@ export default function ResidenceLibraryScreen({
       setSavingSection(false);
     }
   };
+
+  // ---------------------------------------------------------------------------
+  // Casos clínicos. Se escribe solo en el año en curso, con las reglas del Libro.
+  // ---------------------------------------------------------------------------
+  const guardClinicalWrite = (callback) =>
+    handleProtectedAction(() => {
+      if (isClinicalReadOnly) {
+        Alert.alert(
+          `Estás viendo R${selectedYear}`,
+          `Solo puedes registrar casos en el libro de tu año en curso${userResidencyYear ? ` (R${userResidencyYear})` : ""}.`
+        );
+        return;
+      }
+      callback();
+    });
+
+  const reloadClinicalCases = async () => {
+    setClinicalCases(await getClinicalCases(userId));
+  };
+
+  const handleSaveClinicalCase = async (values, { complete }) => {
+    if (!openClinicalCase) return false;
+    const { clinicalCase, requirement } = openClinicalCase;
+    setSavingSection(true);
+    try {
+      await saveClinicalCase({
+        caseId: clinicalCase?.id || null,
+        payload: buildClinicalCasePayload(values, {
+          userId,
+          // Una ficha conserva su año; una nueva va al año abierto (el en curso).
+          residencyYear: clinicalCase?.residency_year || selectedYear,
+          requirementId: clinicalCase ? clinicalCase.requirement_id : requirement?.id || null,
+          complete,
+        }),
+      });
+      posthogLogger.capture("resident_clinical_case_saved", {
+        status: complete ? "completed" : "draft",
+        from_requirement: !!(requirement || clinicalCase?.requirement_id),
+        is_edit: !!clinicalCase,
+      });
+      await reloadClinicalCases();
+      return true;
+    } catch (error) {
+      console.error("Error saving clinical case:", error);
+      Alert.alert("No se pudo guardar", error?.message || "Inténtalo de nuevo.");
+      return false;
+    } finally {
+      setSavingSection(false);
+    }
+  };
+
+  const handleDeleteClinicalCase = async (clinicalCase) => {
+    setSavingSection(true);
+    try {
+      await deleteClinicalCase({ caseId: clinicalCase.id, userId });
+      await reloadClinicalCases();
+      return true;
+    } catch (error) {
+      console.error("Error deleting clinical case:", error);
+      Alert.alert("No se pudo eliminar", error?.message || "Inténtalo de nuevo.");
+      return false;
+    } finally {
+      setSavingSection(false);
+    }
+  };
+
+  const handleLinkClinicalCase = (clinicalCase, requirement) =>
+    guardClinicalWrite(async () => {
+      try {
+        await linkClinicalCase({ caseId: clinicalCase.id, userId, requirementId: requirement.id });
+        posthogLogger.capture("resident_clinical_case_linked", {});
+        await reloadClinicalCases();
+      } catch (error) {
+        console.error("Error linking clinical case:", error);
+        Alert.alert("No se pudo vincular", error?.message || "Inténtalo de nuevo.");
+      }
+    });
 
   // Registro cuantitativo: el + suma uno al momento si no hay nada obligatorio que
   // pedir; si lo hay, abre el formulario.
@@ -1853,6 +2019,10 @@ export default function ResidenceLibraryScreen({
         setOpenCustomEntry(null);
         return true;
       }
+      if (openClinicalCase) {
+        setOpenClinicalCase(null);
+        return true;
+      }
       if (openFichaNode) {
         setOpenFichaNode(null);
         return true;
@@ -1874,6 +2044,7 @@ export default function ResidenceLibraryScreen({
     showQuickRegister,
     openFormEntry,
     openCustomEntry,
+    openClinicalCase,
     openFichaNode,
     openShift,
     openSection,
@@ -2213,6 +2384,27 @@ export default function ResidenceLibraryScreen({
     );
   }
 
+  if (openClinicalCase && openSection?.archetype === CLINICAL_CASES_CODE) {
+    return (
+      <ClinicalCaseFormScreen
+        key={openClinicalCase.clinicalCase?.id || `new:${openClinicalCase.requirement?.id || ""}`}
+        clinicalCase={openClinicalCase.clinicalCase}
+        requirement={openClinicalCase.requirement}
+        readOnly={isClinicalReadOnly}
+        saving={savingSection}
+        onClose={() => setOpenClinicalCase(null)}
+        onSave={async (values, options) => {
+          const ok = await handleSaveClinicalCase(values, options);
+          if (ok !== false) setOpenClinicalCase(null);
+        }}
+        onDelete={async (clinicalCase) => {
+          const ok = await handleDeleteClinicalCase(clinicalCase);
+          if (ok !== false) setOpenClinicalCase(null);
+        }}
+      />
+    );
+  }
+
   if (openFormEntry) {
     return (
       <LibroFormEntryScreen
@@ -2516,7 +2708,8 @@ export default function ResidenceLibraryScreen({
             {/* En el índice el aviso mira solo el AÑO: isSelectedBookReadOnly
                 depende del apartado, y en el índice no hay ninguno abierto. */}
             {(openSection
-              ? openSection.archetype === CUSTOM_SECTION_CODE
+              ? openSection.archetype === CUSTOM_SECTION_CODE ||
+                openSection.archetype === CLINICAL_CASES_CODE
                 ? !isOwnYear
                 : isSelectedBookReadOnly
               : !isSelectedYearWritable) &&
@@ -2524,7 +2717,9 @@ export default function ResidenceLibraryScreen({
               <View style={styles.readOnlyNotice}>
                 <Icon name="lock-closed-outline" size={16} color="#92400E" />
                 <Text style={styles.readOnlyNoticeText}>
-                  {isSelectedBookArchived && openSection?.archetype !== CUSTOM_SECTION_CODE
+                  {isSelectedBookArchived &&
+                  openSection?.archetype !== CUSTOM_SECTION_CODE &&
+                  openSection?.archetype !== CLINICAL_CASES_CODE
                     ? "Este libro está archivado. Puedes consultarlo y exportarlo, pero no editarlo."
                     : `Estás viendo R${selectedYear}: es el plan de tu tutor. Solo registras en el libro de tu año en curso.`}
                 </Text>
@@ -2549,6 +2744,38 @@ export default function ResidenceLibraryScreen({
                   isOfficial={isSelectedYearOfficial}
                 />
               )
+            ) : openSection.archetype === CLINICAL_CASES_CODE ? (
+              <ClinicalCasesView
+                residencyYear={selectedYear}
+                tab={clinicalTab}
+                onTabChange={setClinicalTab}
+                rows={clinicalRows}
+                freeCases={yearFreeClinicalCases}
+                linkableCases={linkableCases(yearFreeClinicalCases)}
+                readOnly={isClinicalReadOnly}
+                onOpenRequirement={(requirement) =>
+                  guardClinicalWrite(() =>
+                    setOpenClinicalCase({ clinicalCase: null, requirement })
+                  )
+                }
+                onOpenCase={(clinicalCase, requirement) =>
+                  setOpenClinicalCase({
+                    clinicalCase,
+                    requirement:
+                      requirement ||
+                      clinicalRequirements.find(
+                        (item) => item.id === clinicalCase.requirement_id
+                      ) ||
+                      null,
+                  })
+                }
+                onCreateCase={() =>
+                  guardClinicalWrite(() =>
+                    setOpenClinicalCase({ clinicalCase: null, requirement: null })
+                  )
+                }
+                onLinkCase={handleLinkClinicalCase}
+              />
             ) : openSection.archetype === CUSTOM_SECTION_CODE ? (
               openCustomSection ? (
                 <LibroCustomSectionView
