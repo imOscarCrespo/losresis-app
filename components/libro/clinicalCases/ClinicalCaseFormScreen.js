@@ -97,8 +97,10 @@ export const ClinicalCaseFormScreen = ({
   onClose,
   onSave,
   onDelete,
+  onExportPdf,
 }) => {
   const [values, setValues] = useState(() => formValuesFor(clinicalCase, requirement));
+  const [exporting, setExporting] = useState(false);
   const [missing, setMissing] = useState([]);
   const completed = clinicalCase?.status === "completed";
   const displayStatus = displayStatusOf(clinicalCase);
@@ -130,6 +132,30 @@ export const ClinicalCaseFormScreen = ({
       return;
     }
     onSave?.(values, { complete });
+  };
+
+  // Solo un caso completado: de un borrador no hay ficha que exportar. Sale lo
+  // guardado, no lo que se esté editando.
+  const canExport = completed && !!onExportPdf;
+
+  const exportPdf = () => {
+    const run = async (includeReview) => {
+      setExporting(true);
+      try {
+        await onExportPdf(clinicalCase, { includeReview });
+      } finally {
+        setExporting(false);
+      }
+    };
+    if (!reviews.length) {
+      run(false);
+      return;
+    }
+    Alert.alert("Exportar PDF", "¿Incluir la revisión del tutor?", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "No", onPress: () => run(false) },
+      { text: "Sí, incluirla", onPress: () => run(true) },
+    ]);
   };
 
   const title = readOnly
@@ -236,6 +262,22 @@ export const ClinicalCaseFormScreen = ({
           <Text style={styles.requirementTag} numberOfLines={1}>
             Requerido por tu hospital
           </Text>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
+        {canExport ? (
+          <TouchableOpacity
+            style={[styles.exportButton, exporting && styles.exportButtonDisabled]}
+            onPress={exportPdf}
+            disabled={exporting}
+            accessibilityRole="button"
+            testID="clinical-case-export-pdf"
+          >
+            <Icon name="download-outline" size={14} color="#6D28D9" />
+            <Text style={styles.exportButtonText}>
+              {exporting ? "Generando…" : "Exportar PDF"}
+            </Text>
+          </TouchableOpacity>
         ) : null}
       </View>
 
@@ -324,6 +366,20 @@ const styles = StyleSheet.create({
   },
   statusText: { fontSize: 12, fontWeight: "700" },
   requirementTag: { flex: 1, fontSize: 12, fontWeight: "600", color: "#6D28D9" },
+  headerSpacer: { flex: 1 },
+  exportButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+    backgroundColor: "#F5F3FF",
+  },
+  exportButtonDisabled: { opacity: 0.6 },
+  exportButtonText: { fontSize: 12, fontWeight: "700", color: "#6D28D9" },
   instructions: { gap: 2, padding: 12, borderRadius: 14, backgroundColor: "#F5F3FF" },
   instructionsLabel: { fontSize: 11, fontWeight: "700", color: "#6D28D9", textTransform: "uppercase" },
   instructionsText: { fontSize: 13, color: "#1B0977", lineHeight: 19 },

@@ -1,0 +1,12 @@
+# Espera la hoja de compartir de iOS (la abre expo-sharing al exportar un PDF) y
+# la cierra. En iOS 26 no tiene botón de cerrar: se toca fuera, arriba.
+appId: com.losresis.app
+---
+- extendedWaitUntil:
+    visible: "PDF Document.*|Documento PDF.*"
+    timeout: 30000
+- tapOn:
+    point: "50%,15%"
+- extendedWaitUntil:
+    notVisible: "PDF Document.*|Documento PDF.*"
+    timeout: 10000

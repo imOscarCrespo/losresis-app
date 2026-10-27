@@ -6,6 +6,9 @@ import {
 } from "../data/libroSections";
 import { isInResidencyYear } from "../utils/residencyYear";
 import { CUSTOM_SECTION_CODE } from "../utils/libroCustom";
+import { freeCasesForYear, portfolioRows } from "../utils/clinicalCases";
+import { getClinicalCaseRequirements, getClinicalCases } from "./clinicalCaseService";
+import { getPublishedLibroTemplateForUser } from "./libroTemplateService";
 
 /**
  * Los registros del residente en apartados personalizados, agrupados como «libros»
@@ -64,6 +67,36 @@ const getCustomArchiveBooks = async (userId) => {
 };
 
 /**
+ * Los casos clínicos del residente y los que pide su plantilla (todos los años),
+ * para pintarlos por año en el PDF. Un fallo no se traga: el PDF saldría sin
+ * ellos sin decirlo.
+ */
+const getClinicalCasesArchive = async (userId) => {
+  const template = await getPublishedLibroTemplateForUser(userId);
+  const [{ requirements }, cases] = await Promise.all([
+    getClinicalCaseRequirements(template?.id, { throwOnError: true }),
+    getClinicalCases(userId, { throwOnError: true }),
+  ]);
+  return { requirements, cases };
+};
+
+/**
+ * Los casos clínicos de un año del Libro: el portafolio en el orden de la
+ * plantilla (los pendientes, sin ficha) y los demás casos de ese año, cada uno
+ * con su requisito si lo tenía (retirado por el hospital).
+ */
+export const clinicalCasesForArchiveYear = ({ requirements, cases }, year) => {
+  const rows = portfolioRows(requirements, cases, year);
+  const freeCases = freeCasesForYear(cases, rows, year).map((clinicalCase) => ({
+    clinicalCase,
+    requirement: clinicalCase.requirement_id
+      ? requirements.find((item) => item.id === clinicalCase.requirement_id) || null
+      : null,
+  }));
+  return { rows, freeCases };
+};
+
+/**
  * Todo el Libro del Residente de un usuario, de todos sus años y apartados.
  *
  * Existe porque Migrar a la plantilla es destructivo (borra el libro propio del año
@@ -118,7 +151,10 @@ export const getLibroArchive = async (userId, currentResidencyYear = null) => {
 
   // Un fallo aquí no se traga: el PDF es el archivo del residente y sin estos
   // registros estaría incompleto sin decirlo.
-  const custom = await getCustomArchiveBooks(userId);
+  const [custom, clinical] = await Promise.all([
+    getCustomArchiveBooks(userId),
+    getClinicalCasesArchive(userId),
+  ]);
 
   const books = booksResult.data || [];
   const nodes = nodesResult.data || [];
@@ -206,6 +242,8 @@ export const getLibroArchive = async (userId, currentResidencyYear = null) => {
     ...new Set([
       ...hydrated.map((book) => book.residency_year),
       ...custom.books.map((book) => book.residency_year),
+      // Un año con casos clínicos sale aunque no tenga libro.
+      ...clinical.cases.map((item) => item.residency_year),
     ]),
   ]
     .filter(Boolean)
@@ -247,6 +285,7 @@ export const getLibroArchive = async (userId, currentResidencyYear = null) => {
         ...custom.books.filter((book) => book.residency_year === year),
       ],
       shifts,
+      clinicalCases: clinicalCasesForArchiveYear(clinical, year),
     };
   });
 
@@ -258,6 +297,7 @@ export const getLibroArchive = async (userId, currentResidencyYear = null) => {
     totalBooks: hydrated.length + custom.books.length,
     totalEntries: entries.length + custom.entryCount,
     totalShifts: allShifts.length,
+    totalClinicalCases: clinical.cases.length,
   };
 };
 

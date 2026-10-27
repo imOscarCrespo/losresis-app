@@ -27,7 +27,7 @@ const CASE_SELECT =
  *
  * @returns {{ requirements: Array, blockPositions: Map<number, number> }}
  */
-export const getClinicalCaseRequirements = async (templateId) => {
+export const getClinicalCaseRequirements = async (templateId, { throwOnError = false } = {}) => {
   const empty = { requirements: [], blockPositions: new Map() };
   if (!templateId) return empty;
 
@@ -40,8 +40,10 @@ export const getClinicalCaseRequirements = async (templateId) => {
     .eq("template_id", templateId);
 
   if (error) {
-    // Un fallo de red no impide abrir el Libro: los casos libres siguen ahí.
     console.error("Error fetching clinical case requirements:", error);
+    // El PDF del Libro no puede salir incompleto sin decirlo.
+    if (throwOnError) throw error;
+    // Un fallo de red no impide abrir el Libro: los casos libres siguen ahí.
     return empty;
   }
 
@@ -67,7 +69,7 @@ export const getClinicalCaseRequirements = async (templateId) => {
 };
 
 /** Las fichas del residente, de todos los años. */
-export const getClinicalCases = async (userId) => {
+export const getClinicalCases = async (userId, { throwOnError = false } = {}) => {
   if (!userId) return [];
 
   const { data, error } = await supabase
@@ -78,6 +80,7 @@ export const getClinicalCases = async (userId) => {
 
   if (error) {
     console.error("Error fetching clinical cases:", error);
+    if (throwOnError) throw error;
     return [];
   }
 

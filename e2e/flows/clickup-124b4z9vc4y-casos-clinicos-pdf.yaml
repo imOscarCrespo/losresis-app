@@ -1,0 +1,80 @@
+# ClickUp 124b4z9vc4y · Análisis de casos clínicos (fase 3, exportación a PDF)
+# https://app.clickup.com/t/124b4z9vc4y
+#
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-r1.env scripts/e2e.sh e2e/flows/clickup-124b4z9vc4y-casos-clinicos-pdf.yaml
+# Necesita ~/.config/losresis/e2e-panel.env con el owner y el tutor del Hospital E2E.
+#
+# El residente R1 tiene EPOC completado y el tutor lo ha revisado (por API, con
+# los scripts de la fase 2); Ictus y FRA siguen pendientes:
+#   - En la ficha de EPOC, «Exportar PDF» pregunta si incluir la revisión del
+#     tutor y abre la hoja de compartir de iOS.
+#   - «Exportar el Libro en PDF» (cabecera del Libro) también la abre.
+# El contenido de los PDF (bloques, pendientes sin contenido, la última revisión)
+# lo comprueba Jest sobre el HTML: __tests__/utils/clinicalCaseHtml.test.js y
+# __tests__/services/libroPdfService.test.js. Maestro no puede abrir el PDF.
+# Repetible: el seed borra los casos del residente de pruebas (solo los suyos).
+appId: com.losresis.app
+name: "124b4z9vc4y Casos clínicos · PDF"
+---
+- runScript: ../scripts/seed-124b4z9vc4y-clinical-case-review.js
+- runScript:
+    file: ../scripts/review-124b4z9vc4y-clinical-case.js
+    env:
+      OUTCOME: reviewed
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- tapOn: "Libro de[\\s\\S]*residentes"
+- extendedWaitUntil:
+    visible: "Tu progreso general"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Casos clínicos[\\s\\S]*"
+    centerElement: true
+- tapOn: "Casos clínicos[\\s\\S]*"
+- extendedWaitUntil:
+    visible: "Progreso de mi portafolio"
+    timeout: 15000
+- assertVisible: "EPOC[\\s\\S]*Revisado[\\s\\S]*Ver"
+
+# PDF de un caso, con la revisión del tutor.
+- tapOn:
+    id: "clinical-case-requirement-EPOC"
+- extendedWaitUntil:
+    visible:
+      id: "clinical-case-export-pdf"
+    timeout: 10000
+- takeScreenshot: vc4y-pdf-case-button
+- tapOn:
+    id: "clinical-case-export-pdf"
+- extendedWaitUntil:
+    visible: "¿Incluir la revisión del tutor\\?"
+    timeout: 5000
+- tapOn: "Sí, incluirla"
+# La hoja de compartir de iOS con el PDF.
+- extendedWaitUntil:
+    visible: "PDF Document.*|Documento PDF.*"
+    timeout: 30000
+- takeScreenshot: vc4y-pdf-case-share
+- runFlow: ../subflows/close-share-sheet.yaml
+- extendedWaitUntil:
+    visible:
+      id: "clinical-case-export-pdf"
+    timeout: 10000
+- tapOn: "Volver"
+
+- extendedWaitUntil:
+    visible: "Progreso de mi portafolio"
+    timeout: 10000
+
+# PDF del Libro entero, con el apartado de casos clínicos.
+- tapOn:
+    id: "libro-export-pdf"
+- extendedWaitUntil:
+    visible: "PDF Document.*|Documento PDF.*"
+    timeout: 30000
+- takeScreenshot: vc4y-pdf-libro-share
+- runFlow: ../subflows/close-share-sheet.yaml
+
+- runScript: ../scripts/restore-124b4z9vc4y-clinical-cases-template.js

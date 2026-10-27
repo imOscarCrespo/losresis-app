@@ -1446,3 +1446,32 @@ export const getHospitalEmailDomains = async (hospitalId) => {
 
   return { found: false, domains: [], source: "db" };
 };
+
+/**
+ * El nombre del hospital del usuario, para la cabecera de los PDF. hospital_id
+ * no viaja en userProfile. Si falla, null: el PDF sale igual, sin el nombre.
+ */
+export const getHospitalNameForUser = async (userId) => {
+  if (!userId) return null;
+  try {
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select("hospital_id")
+      .eq("id", userId)
+      .maybeSingle();
+    if (userError) throw userError;
+    if (!user?.hospital_id) return null;
+
+    const { data, error } = await supabase
+      .from("hospitals")
+      .select("name")
+      .eq("id", user.hospital_id)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.name || null;
+  } catch (error) {
+    console.warn("No se pudo leer el nombre del hospital:", error);
+    return null;
+  }
+};
+

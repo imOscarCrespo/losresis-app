@@ -81,6 +81,13 @@ describe("getClinicalCaseRequirements", () => {
     respond({ data: null, error: { message: "boom" } });
     expect((await getClinicalCaseRequirements("t")).requirements).toEqual([]);
   });
+
+  it("para el PDF del Libro, un fallo lanza", async () => {
+    respond({ data: null, error: { message: "boom" } });
+    await expect(getClinicalCaseRequirements("t", { throwOnError: true })).rejects.toEqual({
+      message: "boom",
+    });
+  });
 });
 
 describe("getClinicalCases", () => {
@@ -91,6 +98,9 @@ describe("getClinicalCases", () => {
 
     respond({ data: null, error: { message: "boom" } });
     expect(await getClinicalCases("u")).toEqual([]);
+    await expect(getClinicalCases("u", { throwOnError: true })).rejects.toEqual({
+      message: "boom",
+    });
   });
 });
 

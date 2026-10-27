@@ -94,7 +94,8 @@ import { toIsoDate } from "../components/libro/LibroDateField";
 import { ConfirmationModal, LibroMigrationModal } from "../components";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { COLOR_TOKEN_MAP } from "../data/libroOnboardingTemplates";
-import { getSpecialtyById } from "../services/hospitalService";
+import { getHospitalNameForUser, getSpecialtyById } from "../services/hospitalService";
+import { exportClinicalCaseToPdf } from "../services/clinicalCasePdfService";
 import { getShiftDebriefsByEvent } from "../services/shiftDebriefService";
 import ShiftDebriefScreen from "./ShiftDebriefScreen";
 import { updateAgendaEventNotes } from "../services/agendaService";
@@ -1876,7 +1877,7 @@ export default function ResidenceLibraryScreen({
     try {
       const archive = await getLibroArchive(userId, userResidencyYear);
 
-      if (!archive.totalBooks) {
+      if (!archive.totalBooks && !archive.totalClinicalCases) {
         Alert.alert(
           "Sin contenido",
           "Todavía no hay nada en tu libro para exportar."
@@ -1902,6 +1903,33 @@ export default function ResidenceLibraryScreen({
       console.error("Error exporting libro archive PDF:", error);
       Alert.alert("Error", "No se pudo generar el PDF.");
       return false;
+    }
+  };
+
+  // El nombre del hospital, para la cabecera del PDF de un caso clínico. Se lee
+  // una vez por pantalla.
+  const hospitalNameRef = useRef(undefined);
+
+  const handleExportClinicalCasePdf = async (clinicalCase, { includeReview }) => {
+    try {
+      if (hospitalNameRef.current === undefined) {
+        hospitalNameRef.current = await getHospitalNameForUser(userId);
+      }
+      await exportClinicalCaseToPdf({
+        clinicalCase,
+        requirement: openClinicalCase?.requirement || null,
+        hospitalName: hospitalNameRef.current,
+        residentName: userProfile?.full_name || userProfile?.name || "",
+        specialtyName,
+        includeReview,
+      });
+      posthogLogger.capture("resident_clinical_case_pdf_exported", {
+        include_review: includeReview,
+        from_requirement: !!clinicalCase?.requirement_id,
+      });
+    } catch (error) {
+      console.error("Error exporting clinical case PDF:", error);
+      Alert.alert("Error", "No se pudo generar el PDF.");
     }
   };
 
@@ -2438,6 +2466,7 @@ export default function ResidenceLibraryScreen({
           const ok = await handleDeleteClinicalCase(clinicalCase);
           if (ok !== false) setOpenClinicalCase(null);
         }}
+        onExportPdf={handleExportClinicalCasePdf}
       />
     );
   }
@@ -2596,6 +2625,8 @@ export default function ResidenceLibraryScreen({
             style={[styles.headerIcon, exportingPdf && styles.headerIconDisabled]}
             onPress={() => handleProtectedAction(handleExportPdf)}
             disabled={exportingPdf}
+            accessibilityLabel="Exportar el Libro en PDF"
+            testID="libro-export-pdf"
           >
             <Icon
               name={exportingPdf ? "hourglass-outline" : "document-text-outline"}

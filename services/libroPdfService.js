@@ -9,6 +9,11 @@ import {
 } from "../data/libroSections";
 import { getResidencyYearWindow } from "../utils/residencyYear";
 import { formatCustomValue } from "../utils/libroCustom";
+import { escapeHtml } from "../utils/html";
+import {
+  CLINICAL_CASE_CSS,
+  renderClinicalCasesForYear,
+} from "../utils/clinicalCaseHtml";
 
 /**
  * El archivo completo del Libro del Residente en PDF.
@@ -22,13 +27,6 @@ import { formatCustomValue } from "../utils/libroCustom";
  * aplicarlo a itinerary o form daría tablas vacías (ADR 0025 del panel).
  */
 
-const escapeHtml = (value = "") =>
-  String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 
 const formatDate = (value) => {
   if (!value) return "—";
@@ -424,7 +422,7 @@ const renderBook = (book, shifts) => {
   `;
 };
 
-const buildHtml = ({
+export const buildLibroArchiveHtml = ({
   archive,
   specialtyName,
   residentName,
@@ -445,6 +443,8 @@ const buildHtml = ({
       const books = year.books
         .map((book) => renderBook(book, year.shifts))
         .join("");
+      // Al final del año: van fuera de libro_book (tablas propias).
+      const clinicalCases = renderClinicalCasesForYear(year.clinicalCases);
 
       const loose =
         !hasShiftsBook && year.shifts.length
@@ -464,8 +464,9 @@ const buildHtml = ({
           <h2 class="year-title">${escapeHtml(
             yearHeading(year.residencyYear, currentResidencyYear)
           )}</h2>
-          ${books || '<p class="muted">Este año no tiene apartados.</p>'}
+          ${books || clinicalCases ? books : '<p class="muted">Este año no tiene apartados.</p>'}
           ${loose}
+          ${clinicalCases}
         </section>
       `;
     })
@@ -522,7 +523,6 @@ const buildHtml = ({
           .meta { color: #475569; margin-top: 8px; }
           .stats { width: 100%; margin: 18px 0 24px; }
           .stats td {
-            width: 25%;
             padding: 14px;
             border: 1px solid #e2e8f0;
             border-radius: 12px;
@@ -600,6 +600,7 @@ const buildHtml = ({
           .muted { color: #64748b; }
           ul.pairs { margin: 0; padding-left: 14px; }
           .pair-label { color: #64748b; }
+          ${CLINICAL_CASE_CSS}
         </style>
       </head>
       <body>
@@ -630,6 +631,14 @@ const buildHtml = ({
               <span class="stat-label">Guardias</span>
               <span class="stat-value">${archive?.totalShifts || 0}</span>
             </td>
+            ${
+              archive?.totalClinicalCases
+                ? `<td>
+                    <span class="stat-label">Casos clínicos</span>
+                    <span class="stat-value">${archive.totalClinicalCases}</span>
+                  </td>`
+                : ""
+            }
           </tr>
         </table>
 
@@ -652,7 +661,7 @@ export const exportLibroArchiveToPdf = async ({
   residentName,
   currentResidencyYear,
 }) => {
-  const html = buildHtml({
+  const html = buildLibroArchiveHtml({
     archive,
     specialtyName,
     residentName,
