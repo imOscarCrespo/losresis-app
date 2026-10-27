@@ -13,6 +13,7 @@ import {
   displayStatusOf,
   formValuesFor,
   formatCaseDate,
+  isCategoryRequirement,
   isLockedByReview,
   missingFieldsFor,
   reviewsOf,
@@ -214,7 +215,9 @@ export const ClinicalCaseFormScreen = ({
             placeholderTextColor="#94A3B8"
             multiline={!!field.multiline}
             maxLength={field.multiline ? 20000 : 200}
-            editable={!(field.key === "title" && requirement)}
+            // El título de un caso pedido es el del hospital; en una categoría
+            // cada caso lleva el suyo.
+            editable={!(field.key === "title" && requirement && !isCategoryRequirement(requirement))}
             testID={`clinical-case-field-${field.key}`}
           />
         )}
@@ -260,7 +263,9 @@ export const ClinicalCaseFormScreen = ({
         </View>
         {requirement ? (
           <Text style={styles.requirementTag} numberOfLines={1}>
-            Requerido por tu hospital
+            {isCategoryRequirement(requirement)
+              ? `Categoría: ${requirement.title}`
+              : "Requerido por tu hospital"}
           </Text>
         ) : (
           <View style={styles.headerSpacer} />

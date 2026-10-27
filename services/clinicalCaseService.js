@@ -1,6 +1,6 @@
 import { supabase } from "../config/supabase";
 import { getPublishedLibroTemplateForUser } from "./libroTemplateService";
-import { portfolioGoals, portfolioRows } from "../utils/clinicalCases";
+import { yearPortfolio, yearPortfolioGoals } from "../utils/clinicalCases";
 
 /**
  * Lectura y escritura de los casos clínicos del Libro (utils/clinicalCases.js
@@ -22,20 +22,22 @@ const CASE_SELECT =
 
 /**
  * Los requisitos de la plantilla (todos los años, también los retirados: hacen
- * falta para leer las fichas vinculadas a ellos) y la posición del apartado en
- * el índice de cada año.
+ * falta para leer las fichas vinculadas a ellos), la posición del apartado en
+ * el índice de cada año y su modo (fase 4). Cada requisito lleva el modo de su
+ * año: el formulario necesita saber si es una categoría.
  *
- * @returns {{ requirements: Array, blockPositions: Map<number, number> }}
+ * @returns {{ requirements: Array, blockPositions: Map<number, number>,
+ *   blockModes: Map<number, { mode: string, minimum: number|null }> }}
  */
 export const getClinicalCaseRequirements = async (templateId, { throwOnError = false } = {}) => {
-  const empty = { requirements: [], blockPositions: new Map() };
+  const empty = { requirements: [], blockPositions: new Map(), blockModes: new Map() };
   if (!templateId) return empty;
 
   const { data, error } = await supabase
     .from("libro_clinical_case_block")
     .select(
-      "id, residency_year, position, archived_at, " +
-        "requirements:libro_clinical_case_requirement(id, title, description, is_required, tutor_review_enabled, position, archived_at)"
+      "id, residency_year, position, archived_at, requirement_mode, minimum_cases, " +
+        "requirements:libro_clinical_case_requirement(id, title, description, is_required, tutor_review_enabled, minimum_cases, position, archived_at)"
     )
     .eq("template_id", templateId);
 
@@ -48,9 +50,14 @@ export const getClinicalCaseRequirements = async (templateId, { throwOnError = f
   }
 
   const blockPositions = new Map();
+  const blockModes = new Map();
   const requirements = [];
   (data || []).forEach((block) => {
-    if (!block.archived_at) blockPositions.set(block.residency_year, block.position);
+    const mode = block.requirement_mode || "specific";
+    if (!block.archived_at) {
+      blockPositions.set(block.residency_year, block.position);
+      blockModes.set(block.residency_year, { mode, minimum: block.minimum_cases ?? null });
+    }
     (block.requirements || []).forEach((requirement) => {
       requirements.push({
         id: requirement.id,
@@ -58,6 +65,8 @@ export const getClinicalCaseRequirements = async (templateId, { throwOnError = f
         description: requirement.description,
         is_required: requirement.is_required,
         tutor_review_enabled: requirement.tutor_review_enabled,
+        minimum_cases: requirement.minimum_cases ?? 1,
+        requirement_mode: mode,
         position: requirement.position,
         residency_year: block.residency_year,
         archived: !!(requirement.archived_at || block.archived_at),
@@ -65,7 +74,7 @@ export const getClinicalCaseRequirements = async (templateId, { throwOnError = f
     });
   });
 
-  return { requirements, blockPositions };
+  return { requirements, blockPositions, blockModes };
 };
 
 /** Las fichas del residente, de todos los años. */
@@ -92,7 +101,7 @@ export const getClinicalCases = async (userId, { throwOnError = false } = {}) =>
  * castellano cuando es una regla del caso («Tu hospital ya no pide el caso …»,
  * «Tu tutor ya ha revisado este caso: no se puede editar»). `review_status` no
  * viaja: lo calcula la base.
- * El índice único (un caso por requisito) llega como 23505.
+ * «Un caso por requisito» (casos específicos; lo comprueba el guard) llega como 23505.
  */
 export const saveClinicalCase = async ({ caseId = null, payload }) => {
   if (!payload?.user_id || !payload?.residency_year) {
@@ -164,12 +173,12 @@ export const getClinicalCaseYearGoals = async (userId, residencyYear) => {
   const template = await getPublishedLibroTemplateForUser(userId);
   if (!template?.id) return [];
 
-  const [{ requirements }, cases] = await Promise.all([
+  const [{ requirements, blockModes }, cases] = await Promise.all([
     getClinicalCaseRequirements(template.id),
     getClinicalCases(userId),
   ]);
 
-  return portfolioGoals(portfolioRows(requirements, cases, residencyYear));
+  return yearPortfolioGoals(yearPortfolio(requirements, cases, blockModes, residencyYear));
 };
 
 export default {

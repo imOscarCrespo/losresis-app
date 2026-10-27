@@ -58,11 +58,10 @@ import {
   CLINICAL_CASES_CODE,
   CLINICAL_CASES_SECTION,
   buildClinicalCasePayload,
-  freeCasesForYear,
-  indexCountFor,
   linkableCases,
-  portfolioGoals,
-  portfolioRows,
+  yearIndexCount,
+  yearPortfolio,
+  yearPortfolioGoals,
 } from "../utils/clinicalCases";
 import { RotationAssessmentSection } from "../components/libro/rotationAssessment/RotationAssessmentSection";
 import { RotationAssessmentFlow } from "../components/libro/rotationAssessment/RotationAssessmentFlow";
@@ -125,6 +124,9 @@ import {
   isResidentLockedMissingCorporateEmail,
   shouldBypassResidentReviewGate,
 } from "../utils/residentAccess";
+
+// Referencia estable para los useMemo que dependen de «no hay casos».
+const EMPTY_LIST = [];
 
 // El día de hoy en HORA LOCAL y calculado al pulsar, no al importar el módulo:
 // toISOString() da el día en UTC (una guardia registrada a la 01:00 en España
@@ -499,6 +501,7 @@ export default function ResidenceLibraryScreen({
   // las fichas del residente. Como los personalizados, se leen en vivo.
   const [clinicalRequirements, setClinicalRequirements] = useState([]);
   const [clinicalBlockPositions, setClinicalBlockPositions] = useState(() => new Map());
+  const [clinicalBlockModes, setClinicalBlockModes] = useState(() => new Map());
   const [clinicalCases, setClinicalCases] = useState([]);
   // { clinicalCase, requirement } con la ficha abierta (clinicalCase null = nueva).
   const [openClinicalCase, setOpenClinicalCase] = useState(null);
@@ -525,6 +528,7 @@ export default function ResidenceLibraryScreen({
           setCustomEntries([]);
           setClinicalRequirements([]);
           setClinicalBlockPositions(new Map());
+          setClinicalBlockModes(new Map());
           setClinicalCases([]);
           setSection(DEFAULT_LIBRO_SECTION);
           setSectionsResolved(true);
@@ -573,6 +577,7 @@ export default function ResidenceLibraryScreen({
         setCustomEntries(customEntryRows);
         setClinicalRequirements(clinicalStructure.requirements);
         setClinicalBlockPositions(clinicalStructure.blockPositions);
+        setClinicalBlockModes(clinicalStructure.blockModes || new Map());
         setClinicalCases(clinicalRows);
       } catch (error) {
         console.error("Error resolving libro:", error);
@@ -585,6 +590,7 @@ export default function ResidenceLibraryScreen({
           setCustomEntries([]);
           setClinicalRequirements([]);
           setClinicalBlockPositions(new Map());
+          setClinicalBlockModes(new Map());
           setClinicalCases([]);
         }
       } finally {
@@ -1035,17 +1041,18 @@ export default function ResidenceLibraryScreen({
   // Casos clínicos del año abierto: el portafolio que pide la plantilla y el
   // registro libre. La tarjeta sale en el año en curso siempre (el registro libre
   // es para todos) y en los demás solo si hay algo que enseñar.
-  const clinicalRows = useMemo(
-    () => (selectedYear ? portfolioRows(clinicalRequirements, clinicalCases, selectedYear) : []),
-    [clinicalRequirements, clinicalCases, selectedYear]
+  // El modo del año (fase 4) decide si son casos pedidos, categorías o un mínimo.
+  const clinicalPortfolio = useMemo(
+    () =>
+      selectedYear
+        ? yearPortfolio(clinicalRequirements, clinicalCases, clinicalBlockModes, selectedYear)
+        : null,
+    [clinicalRequirements, clinicalCases, clinicalBlockModes, selectedYear]
   );
-  const yearFreeClinicalCases = useMemo(
-    () => (selectedYear ? freeCasesForYear(clinicalCases, clinicalRows, selectedYear) : []),
-    [clinicalCases, clinicalRows, selectedYear]
-  );
+  const yearFreeClinicalCases = clinicalPortfolio?.freeCases || EMPTY_LIST;
   const showClinicalCases =
     !!selectedYear &&
-    (isOwnYear || clinicalRows.length > 0 || yearFreeClinicalCases.length > 0);
+    (isOwnYear || !!clinicalPortfolio?.progress || yearFreeClinicalCases.length > 0);
   const isClinicalReadOnly = !isOwnYear;
 
   const indexOverview = useMemo(() => {
@@ -1092,7 +1099,7 @@ export default function ResidenceLibraryScreen({
         ? clinicalBlockPositions.get(templateYear)
         : Number.MAX_SAFE_INTEGER;
       blockPositions.set(CLINICAL_CASES_CODE, clinicalPosition);
-      goals.push(...portfolioGoals(clinicalRows));
+      goals.push(...yearPortfolioGoals(clinicalPortfolio));
       customItems.push({
         section: CLINICAL_CASES_CODE,
         position: clinicalPosition,
@@ -1103,10 +1110,10 @@ export default function ResidenceLibraryScreen({
         archetype: CLINICAL_CASES_CODE,
         bookId: null,
         templateId,
-        isOfficial: clinicalRows.length > 0,
+        isOfficial: !!clinicalPortfolio?.progress,
         isArchived: false,
         isRetired: false,
-        ...indexCountFor(clinicalRows, yearFreeClinicalCases),
+        ...yearIndexCount(clinicalPortfolio),
       });
     }
 
@@ -1123,8 +1130,7 @@ export default function ResidenceLibraryScreen({
     templateId,
     showClinicalCases,
     clinicalBlockPositions,
-    clinicalRows,
-    yearFreeClinicalCases,
+    clinicalPortfolio,
   ]);
 
   const openCustomSection = openSection?.customSectionId
@@ -2817,8 +2823,7 @@ export default function ResidenceLibraryScreen({
                 residencyYear={selectedYear}
                 tab={clinicalTab}
                 onTabChange={setClinicalTab}
-                rows={clinicalRows}
-                freeCases={yearFreeClinicalCases}
+                portfolio={clinicalPortfolio}
                 linkableCases={linkableCases(yearFreeClinicalCases)}
                 readOnly={isClinicalReadOnly}
                 onOpenRequirement={(requirement) =>

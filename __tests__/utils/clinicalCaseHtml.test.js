@@ -184,3 +184,36 @@ describe("casos clínicos de un año en el PDF del Libro", () => {
     expect(renderClinicalCasesForYear(undefined)).toBe("");
   });
 });
+
+describe("modos en el PDF del Libro (fase 4)", () => {
+  it("category: cada categoría con «X de N», su estado y sus casos; el progreso arriba", () => {
+    const out = renderClinicalCasesForYear({
+      mode: "category",
+      progress: "1 de 3 casos completados",
+      rows: [],
+      categories: [
+        {
+          requirement: { ...EPOC, title: "Respiratorio" },
+          cases: [completedCase({ title: "Neumonía", review_status: null })],
+          done: 1,
+          minimum: 2,
+          status: "in_progress",
+        },
+        { requirement: { ...EPOC, id: "neuro", title: "Neurología" }, cases: [], done: 0, minimum: 1, status: "pending" },
+      ],
+      freeCases: [],
+    });
+    expect(out).toContain("Progreso: 1 de 3 casos completados");
+    expect(out).toContain("Respiratorio");
+    expect(out).toContain("1 de 2 · En progreso");
+    expect(out).toContain("Neumonía</h4>");
+    expect(out.indexOf("Neurología")).toBeGreaterThan(out.indexOf("Neumonía"));
+    expect(out).toContain("0 de 1 · Pendiente");
+  });
+
+  it("minimum: el progreso y la lista, aunque esté vacía", () => {
+    const out = renderClinicalCasesForYear({ mode: "minimum", progress: "0 de 4 casos completados", rows: [], categories: [], freeCases: [] });
+    expect(out).toContain("Progreso: 0 de 4 casos completados");
+    expect(out).toContain("Todavía no hay casos clínicos registrados este año.");
+  });
+});

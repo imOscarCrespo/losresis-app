@@ -125,6 +125,7 @@ import {
   Question,
   Newspaper,
   Pulse,
+  LinkSimple,
   // OJO: en phosphor-react-native 3.x el icono "circle" se exporta SOLO como
   // `CircleIcon` (no tiene el alias plano `Circle` que sí tienen los demás).
   // Importarlo como `Circle` daba `undefined` y hacía que el fallback de abajo
@@ -252,6 +253,7 @@ const IONICON_TO_PHOSPHOR = {
   "information-circle-outline": Info,
   link: Link,
   list: ListBullets,
+  "link-outline": LinkSimple,
   "list-outline": ListBullets,
   location: MapPin,
   "location-outline": MapPin,

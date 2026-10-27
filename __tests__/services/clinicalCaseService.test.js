@@ -74,6 +74,37 @@ describe("getClinicalCaseRequirements", () => {
     expect(Array.from(blockPositions.entries())).toEqual([[1, 3]]);
   });
 
+  it("devuelve el modo de cada año y lo pega a sus requisitos (fase 4)", async () => {
+    respond({
+      data: [
+        {
+          id: "b1",
+          residency_year: 1,
+          position: 0,
+          archived_at: null,
+          requirement_mode: "category",
+          minimum_cases: null,
+          requirements: [
+            { id: "resp", title: "Respiratorio", is_required: true, minimum_cases: 2, position: 0, archived_at: null },
+          ],
+        },
+        { id: "b2", residency_year: 2, position: 0, archived_at: null, requirement_mode: "minimum", minimum_cases: 4, requirements: [] },
+        // Una base anterior a la fase 4 no trae el modo: specific.
+        { id: "b3", residency_year: 3, position: 0, archived_at: null, requirements: [] },
+      ],
+      error: null,
+    });
+
+    const { requirements, blockModes } = await getClinicalCaseRequirements("t");
+
+    expect(Array.from(blockModes.entries())).toEqual([
+      [1, { mode: "category", minimum: null }],
+      [2, { mode: "minimum", minimum: 4 }],
+      [3, { mode: "specific", minimum: null }],
+    ]);
+    expect(requirements[0]).toMatchObject({ requirement_mode: "category", minimum_cases: 2 });
+  });
+
   it("sin plantilla no pregunta, y si la base falla el Libro se abre sin requisitos", async () => {
     expect((await getClinicalCaseRequirements(null)).requirements).toEqual([]);
     expect(mockBuilder.from).not.toHaveBeenCalled();

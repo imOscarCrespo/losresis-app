@@ -1,0 +1,222 @@
+# ClickUp 124b4z9vc4y · Análisis de casos clínicos (fase 4, modos de requisito)
+# https://app.clickup.com/t/124b4z9vc4y
+#
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-r1.env scripts/e2e.sh e2e/flows/clickup-124b4z9vc4y-casos-clinicos-modos.yaml
+# Necesita ~/.config/losresis/e2e-panel.env con el owner y el tutor del Hospital E2E.
+#
+# El hospital (owner, por API) pone R1 de MFyC en «Casos por categoría»:
+# Respiratorio (mínimo 2) y Neurología (mínimo 1). El residente R1 tiene dos casos
+# libres completados («Asma E2E» y «Migraña E2E», por API):
+#   - Libro → Casos clínicos: «0 de 3 casos completados», las dos categorías.
+#   - En Respiratorio crea un caso nuevo (título propio, no el de la categoría)
+#     y lo completa → «1 de 3»; vincula «Asma E2E» → «2 de 3» (Respiratorio
+#     completada); en Neurología vincula «Migraña E2E» → «3 de 3».
+#   - El hospital pasa R1 a «Número mínimo de casos» con N = 4 → sin pestaña de
+#     portafolio, «3 de 4 casos completados» encima de «Mis casos clínicos».
+# Al final se comprueba por API lo que ve el tutor y que volver a casos
+# específicos se rechaza; la plantilla vuelve a quedar como estaba.
+# Repetible: el seed borra los casos del residente de pruebas (solo los suyos).
+appId: com.losresis.app
+name: "124b4z9vc4y Casos clínicos · modos"
+---
+- runScript: ../scripts/seed-124b4z9vc4y-clinical-case-modes.js
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- tapOn: "Libro de[\\s\\S]*residentes"
+- extendedWaitUntil:
+    visible: "Tu progreso general"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Casos clínicos[\\s\\S]*"
+    centerElement: true
+- assertVisible: "Casos clínicos[\\s\\S]*0 de 3"
+- tapOn: "Casos clínicos[\\s\\S]*"
+
+# Mi portafolio: las dos categorías, sin casos.
+- extendedWaitUntil:
+    visible: "Progreso de mi portafolio"
+    timeout: 15000
+- assertVisible:
+    id: "clinical-cases-progress"
+    text: "0 de 3 casos completados"
+- assertVisible: "Respiratorio · 0 de 2"
+- assertVisible: "Neurología · 0 de 1"
+- takeScreenshot: vc4y-modes-categories-empty
+
+# Respiratorio: un caso nuevo, con su propio título.
+- tapOn:
+    id: "clinical-case-category-add-Respiratorio"
+- extendedWaitUntil:
+    visible: "Nuevo caso clínico"
+    timeout: 10000
+- assertVisible: "Categoría: Respiratorio"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-chief_complaint
+      VALUE: "Fiebre y tos productiva"
+      DISMISS_TEXT: "Antecedentes relevantes \\*"
+# El título después: escrito antes, el campo siguiente no se queda con el texto.
+- scrollUntilVisible:
+    element:
+      id: clinical-case-field-title
+    direction: UP
+    centerElement: true
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-title
+      VALUE: "Neumonía E2E"
+      # No «Fecha»: el toque abriría el calendario.
+      DISMISS_TEXT: "Descripción clínica"
+- takeScreenshot: vc4y-modes-form-category
+- tapOn:
+    id: "clinical-case-save-draft"
+- extendedWaitUntil:
+    visible: "Progreso de mi portafolio"
+    timeout: 15000
+# El borrador queda dentro de su categoría y no cuenta.
+- assertVisible: "Respiratorio · 0 de 2"
+- assertVisible: "Neumonía E2E[\\s\\S]*En progreso[\\s\\S]*"
+- tapOn:
+    id: "clinical-case-category-Neumonía E2E"
+- extendedWaitUntil:
+    visible: "Editar caso clínico"
+    timeout: 10000
+- scrollUntilVisible:
+    element: "Fecha.*Sin fecha"
+    centerElement: true
+- tapOn: "Fecha.*Sin fecha"
+- scrollUntilVisible:
+    element: "Hoy"
+    centerElement: true
+- tapOn: "Hoy"
+- assertNotVisible: "Fecha.*Sin fecha"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-relevant_history
+      VALUE: "Sin antecedentes"
+      DISMISS_TEXT: "Exploración física \\*"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-physical_exam
+      VALUE: "Crepitantes en base derecha"
+      DISMISS_TEXT: "Pruebas complementarias \\*"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-complementary_tests
+      VALUE: "Radiografía de tórax"
+      DISMISS_TEXT: "Evolución clínica \\*"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-clinical_course
+      VALUE: "Mejoría con antibiótico"
+      DISMISS_TEXT: "Diagnóstico final \\*"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-final_diagnosis
+      VALUE: "Neumonía adquirida en la comunidad"
+      DISMISS_TEXT: "Tratamiento y evolución \\*"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-treatment_and_outcome
+      VALUE: "Amoxicilina-clavulánico. Alta"
+      DISMISS_TEXT: "¿Qué he aprendido de este caso\\?"
+- runFlow:
+    file: ../subflows/fill-text.yaml
+    env:
+      FIELD_ID: clinical-case-field-reflection
+      VALUE: "He aprendido a usar las escalas de gravedad."
+      DISMISS_TEXT: "¿Qué he aprendido de este caso\\?"
+- tapOn:
+    id: "clinical-case-complete"
+- extendedWaitUntil:
+    visible: "Progreso de mi portafolio"
+    timeout: 15000
+- assertVisible:
+    id: "clinical-cases-progress"
+    text: "1 de 3 casos completados"
+- assertVisible: "Respiratorio · 1 de 2"
+
+# Respiratorio: vincular «Asma E2E».
+- scrollUntilVisible:
+    element:
+      id: "clinical-case-category-link-Respiratorio"
+    centerElement: true
+- tapOn:
+    id: "clinical-case-category-link-Respiratorio"
+- tapOn:
+    id: "clinical-case-link-Asma E2E"
+- extendedWaitUntil:
+    visible: "Respiratorio · 2 de 2"
+    timeout: 15000
+- assertVisible:
+    id: "clinical-cases-progress"
+    text: "2 de 3 casos completados"
+
+# Neurología: vincular «Migraña E2E».
+- scrollUntilVisible:
+    element:
+      id: "clinical-case-category-link-Neurología"
+    centerElement: true
+- tapOn:
+    id: "clinical-case-category-link-Neurología"
+- tapOn:
+    id: "clinical-case-link-Migraña E2E"
+- extendedWaitUntil:
+    visible: "Neurología · 1 de 1"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "clinical-cases-progress"
+    direction: UP
+- assertVisible:
+    id: "clinical-cases-progress"
+    text: "3 de 3 casos completados"
+- takeScreenshot: vc4y-modes-categories-done
+# Ya no quedan casos libres que vincular.
+- tapOn:
+    id: "clinical-cases-tab-free"
+- assertNotVisible:
+    id: "clinical-case-free-Asma E2E"
+
+# El hospital pasa R1 a número mínimo de 4.
+- runScript: ../scripts/minimum-124b4z9vc4y-clinical-case-modes.js
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+- tapOn: "Libro de[\\s\\S]*residentes"
+- extendedWaitUntil:
+    visible: "Tu progreso general"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Casos clínicos[\\s\\S]*"
+    centerElement: true
+- assertVisible: "Casos clínicos[\\s\\S]*3 de 4"
+- tapOn: "Casos clínicos[\\s\\S]*"
+- extendedWaitUntil:
+    visible:
+      id: "clinical-cases-progress"
+    timeout: 15000
+- assertVisible:
+    id: "clinical-cases-progress"
+    text: "3 de 4 casos completados"
+- assertNotVisible:
+    id: "clinical-cases-tab-portfolio"
+- assertVisible:
+    id: "clinical-case-free-Neumonía E2E"
+# Los vinculados a una categoría ya retirada también son «Mis casos» y cuentan.
+- assertVisible:
+    id: "clinical-case-free-Asma E2E"
+- takeScreenshot: vc4y-modes-minimum
+
+- runScript: ../scripts/assert-124b4z9vc4y-clinical-case-modes.js
+- runScript: ../scripts/restore-124b4z9vc4y-clinical-cases-template.js

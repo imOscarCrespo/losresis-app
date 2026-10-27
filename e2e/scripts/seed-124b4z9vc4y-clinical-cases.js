@@ -42,6 +42,7 @@ var saved = http.post(SUPABASE_URL + "/rest/v1/rpc/save_libro_clinical_case_bloc
     p_block: {
       id: "c4a5e000-0000-4000-8000-000000000001",
       position: 99,
+      requirement_mode: "specific",
       requirements: [
         { id: "c4a5e000-0000-4000-8000-0000000000e1", title: "EPOC", description: "Caso de reagudización de EPOC en paciente ingresado.", is_required: true, position: 0 },
         { id: "c4a5e000-0000-4000-8000-0000000000e2", title: "Ictus isquémico", description: "Caso de ictus isquémico en fase aguda.", is_required: true, position: 1 },

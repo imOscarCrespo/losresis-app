@@ -11,10 +11,12 @@ import {
 import { Icon } from "../../Icon";
 import { LibroProgressRing } from "../LibroProgressRing";
 import {
+  CATEGORY_STATUS,
   CLINICAL_CASE_STATUS,
   displayStatusOf,
   formatCaseDate,
-  portfolioProgress,
+  hasPortfolioTab,
+  progressLabel,
 } from "../../../utils/clinicalCases";
 
 /**
@@ -27,10 +29,18 @@ import {
  *
  * Un caso pendiente se puede empezar de cero o vincular a uno que el residente
  * ya registró como libre (no se duplica: el libre pasa al portafolio).
+ *
+ * Modos del año (fase 4, `portfolio` de utils/yearPortfolio):
+ *   specific   un renglón por caso pedido (Sant Pau).
+ *   category   cada categoría con «X de N» y sus casos; en cada una se añaden
+ *              o vinculan varios.
+ *   minimum    sin portafolio: una tarjeta «X de N casos» encima de «Mis casos
+ *              clínicos», que son los que cuentan.
+ *   free       solo «Mis casos clínicos».
  */
 
-const StatusChip = ({ status }) => {
-  const config = CLINICAL_CASE_STATUS[status];
+const StatusChip = ({ status, statuses = CLINICAL_CASE_STATUS }) => {
+  const config = statuses[status];
   return (
     <View style={[styles.statusChip, { backgroundColor: config.background }]}>
       <Text style={[styles.statusText, { color: config.color }]}>{config.label}</Text>
@@ -54,10 +64,21 @@ const actionLabelFor = (status, readOnly) => {
   return "Ver";
 };
 
+const ProgressCard = ({ title, label, percent }) => (
+  <View style={styles.progressCard}>
+    <View style={styles.progressCopy}>
+      <Text style={styles.progressTitle}>{title}</Text>
+      <Text style={styles.progressSubtitle} testID="clinical-cases-progress">
+        {label || "Sin casos obligatorios"}
+      </Text>
+    </View>
+    {label ? <LibroProgressRing percent={percent} /> : null}
+  </View>
+);
+
 export const ClinicalCasesView = ({
   residencyYear,
-  rows = [],
-  freeCases = [],
+  portfolio = null,
   linkableCases = [],
   readOnly = false,
   onOpenRequirement,
@@ -69,12 +90,16 @@ export const ClinicalCasesView = ({
   tab: controlledTab,
   onTabChange,
 }) => {
-  const hasPortfolio = rows.length > 0;
+  const rows = portfolio?.rows || [];
+  const categories = portfolio?.categories || [];
+  const freeCases = portfolio?.freeCases || [];
+  const hasPortfolio = hasPortfolioTab(portfolio);
   const [ownTab, setOwnTab] = useState("portfolio");
   const tab = controlledTab || ownTab;
   const setTab = onTabChange || setOwnTab;
   const [linkingRow, setLinkingRow] = useState(null);
-  const progress = portfolioProgress(rows);
+  const progress = portfolio?.progress || null;
+  const progressText = progressLabel(portfolio);
   const activeTab = hasPortfolio ? tab : "free";
 
   const handleRequirementPress = (row) => {
@@ -94,15 +119,15 @@ export const ClinicalCasesView = ({
     ]);
   };
 
-  const renderCaseCard = (clinicalCase) => {
+  const renderCaseCard = (clinicalCase, requirement = null) => {
     const status = displayStatusOf(clinicalCase);
     return (
       <TouchableOpacity
         key={clinicalCase.id}
-        style={styles.card}
-        onPress={() => onOpenCase?.(clinicalCase, null)}
+        style={[styles.card, requirement && styles.nestedCard]}
+        onPress={() => onOpenCase?.(clinicalCase, requirement)}
         activeOpacity={0.85}
-        testID={`clinical-case-free-${clinicalCase.title}`}
+        testID={`clinical-case-${requirement ? "category" : "free"}-${clinicalCase.title}`}
       >
         <View style={styles.cardCopy}>
           <Text style={styles.cardTitle}>{clinicalCase.title}</Text>
@@ -145,19 +170,74 @@ export const ClinicalCasesView = ({
 
       {activeTab === "portfolio" ? (
         <>
-          <View style={styles.progressCard}>
-            <View style={styles.progressCopy}>
-              <Text style={styles.progressTitle}>Progreso de mi portafolio</Text>
-              <Text style={styles.progressSubtitle} testID="clinical-cases-progress">
-                {progress
-                  ? `${progress.done} de ${progress.total} completados`
-                  : "Sin casos obligatorios"}
-              </Text>
-            </View>
-            {progress ? <LibroProgressRing percent={progress.percent} /> : null}
-          </View>
+          <ProgressCard
+            title="Progreso de mi portafolio"
+            label={progressText}
+            percent={progress?.percent || 0}
+          />
 
           <Text style={styles.sectionLabel}>{`Análisis de casos clínicos · R${residencyYear}`}</Text>
+
+          {categories.map((category) => {
+            const statusConfig = CATEGORY_STATUS[category.status];
+            const count = `${Math.min(category.done, category.minimum)} de ${category.minimum}`;
+            return (
+              <View
+                key={category.requirement.id}
+                style={styles.category}
+                testID={`clinical-case-category-${category.requirement.title}`}
+              >
+                <View style={styles.categoryHeader}>
+                  <View style={[styles.statusIcon, { backgroundColor: statusConfig.background }]}>
+                    <Icon name={statusConfig.icon} size={18} color={statusConfig.color} />
+                  </View>
+                  <View style={styles.cardCopy}>
+                    <Text style={styles.cardTitle}>{`${category.requirement.title} · ${count}`}</Text>
+                    <View style={styles.cardMeta}>
+                      <StatusChip status={category.status} statuses={CATEGORY_STATUS} />
+                      {!category.requirement.is_required ? (
+                        <Text style={styles.cardSubtitle}>Opcional</Text>
+                      ) : null}
+                    </View>
+                    {category.requirement.description ? (
+                      <Text style={styles.cardDescription} numberOfLines={2}>
+                        {category.requirement.description}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+
+                {category.cases.map((clinicalCase) =>
+                  renderCaseCard(clinicalCase, category.requirement)
+                )}
+
+                {!readOnly ? (
+                  <View style={styles.categoryActions}>
+                    <TouchableOpacity
+                      style={styles.categoryAction}
+                      onPress={() => onOpenRequirement?.(category.requirement)}
+                      activeOpacity={0.85}
+                      testID={`clinical-case-category-add-${category.requirement.title}`}
+                    >
+                      <Icon name="add-circle-outline" size={16} color="#670CF5" />
+                      <Text style={styles.categoryActionText}>Añadir caso</Text>
+                    </TouchableOpacity>
+                    {linkableCases.length ? (
+                      <TouchableOpacity
+                        style={styles.categoryAction}
+                        onPress={() => setLinkingRow({ requirement: category.requirement })}
+                        activeOpacity={0.85}
+                        testID={`clinical-case-category-link-${category.requirement.title}`}
+                      >
+                        <Icon name="link-outline" size={16} color="#670CF5" />
+                        <Text style={styles.categoryActionText}>Vincular caso</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
 
           {rows.map((row) => {
             const subtitle = caseSubtitle(row.clinicalCase);
@@ -197,6 +277,14 @@ export const ClinicalCasesView = ({
         </>
       ) : (
         <>
+          {portfolio?.mode === "minimum" ? (
+            <ProgressCard
+              title={`Casos clínicos de R${residencyYear}`}
+              label={progressText}
+              percent={progress?.percent || 0}
+            />
+          ) : null}
+
           {!readOnly ? (
             <TouchableOpacity
               style={styles.addButton}
@@ -210,7 +298,7 @@ export const ClinicalCasesView = ({
           ) : null}
 
           {freeCases.length ? (
-            freeCases.map(renderCaseCard)
+            freeCases.map((clinicalCase) => renderCaseCard(clinicalCase))
           ) : (
             <View style={styles.empty}>
               <Icon name="clipboard-outline" size={22} color="#670CF5" />
@@ -331,6 +419,30 @@ const styles = StyleSheet.create({
   cardSubtitle: { fontSize: 12, color: "#64748B" },
   cardDescription: { fontSize: 12, color: "#94A3B8" },
   cardAction: { fontSize: 13, fontWeight: "700", color: "#670CF5" },
+  nestedCard: { marginLeft: 12 },
+  category: {
+    gap: 8,
+    padding: 12,
+    borderRadius: 20,
+    backgroundColor: "#FAFAFF",
+    borderWidth: 1,
+    borderColor: "#E8EAF3",
+  },
+  categoryHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  categoryActions: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  categoryAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#C4B5FD",
+    backgroundColor: "#FFFFFF",
+  },
+  categoryActionText: { fontSize: 13, fontWeight: "700", color: "#670CF5" },
   statusChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   statusText: { fontSize: 11, fontWeight: "700" },
   addButton: {

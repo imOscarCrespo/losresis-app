@@ -1,5 +1,6 @@
 import { escapeHtml } from "./html";
 import {
+  CATEGORY_STATUS,
   CLINICAL_CASE_BLOCKS,
   CLINICAL_CASE_REVIEW_FIELDS,
   CLINICAL_CASE_STATUS,
@@ -256,17 +257,35 @@ const renderYearCase = (title, clinicalCase, requirement) => {
  */
 export const renderClinicalCasesForYear = (clinicalCases) => {
   const rows = clinicalCases?.rows || [];
+  const categories = clinicalCases?.categories || [];
   const freeCases = clinicalCases?.freeCases || [];
-  if (!rows.length && !freeCases.length) return "";
+  const isMinimum = clinicalCases?.mode === "minimum";
+  if (!rows.length && !categories.length && !freeCases.length && !isMinimum) return "";
+  const asked = rows.length || categories.length;
   return `
     <section class="book cc-book">
       <div class="book-header">
         <h3>Casos clínicos</h3>
       </div>
+      ${clinicalCases?.progress ? `<p class="meta">Progreso: ${escapeHtml(clinicalCases.progress)}</p>` : ""}
       ${rows
         .map((row) => renderYearCase(row.requirement.title, row.clinicalCase, row.requirement))
         .join("")}
-      ${freeCases.length && rows.length ? '<h4 class="detail-title">Otros casos clínicos</h4>' : ""}
+      ${categories
+        .map(
+          (row) => `
+        <div class="cc-case-header">
+          <h4 class="detail-title">${escapeHtml(row.requirement.title)}</h4>
+          <span class="cc-status${row.cases.length ? "" : " cc-pending"}">${escapeHtml(
+            `${Math.min(row.done, row.minimum)} de ${row.minimum} · ${CATEGORY_STATUS[row.status].label}`
+          )}</span>
+        </div>
+        ${row.cases.map((item) => renderYearCase(item.title, item, row.requirement)).join("")}
+      `
+        )
+        .join("")}
+      ${isMinimum && !freeCases.length ? '<p class="meta">Todavía no hay casos clínicos registrados este año.</p>' : ""}
+      ${freeCases.length && asked ? '<h4 class="detail-title">Otros casos clínicos</h4>' : ""}
       ${freeCases
         .map(({ clinicalCase, requirement }) =>
           renderYearCase(clinicalCase.title, clinicalCase, requirement)

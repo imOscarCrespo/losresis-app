@@ -1,5 +1,11 @@
 import {
   buildClinicalCasePayload,
+  hasPortfolioTab,
+  modeForYear,
+  progressLabel,
+  yearIndexCount,
+  yearPortfolio,
+  yearPortfolioGoals,
   displayStatusOf,
   formValuesFor,
   freeCasesForYear,
@@ -246,5 +252,116 @@ describe("revisión del tutor", () => {
       { userId: "u1", residencyYear: 1, requirementId: "epoc", complete: false }
     );
     expect(payload).not.toHaveProperty("review_status");
+  });
+});
+
+describe("modos del año (fase 4)", () => {
+  const completado = (id, overrides = {}) => caso(id, { status: "completed", ...overrides });
+  const modes = (entries) => new Map(entries);
+  // Respiratorio pide 2 y Neurología 1.
+  const CATEGORIAS = [
+    requirement("resp", "Respiratorio", { position: 0, minimum_cases: 2, requirement_mode: "category" }),
+    requirement("neuro", "Neurología", { position: 1, minimum_cases: 1, requirement_mode: "category" }),
+  ];
+  const CATEGORY = modes([[1, { mode: "category", minimum: null }]]);
+
+  it("sin modo (o sin bloque) es specific, como hasta ahora", () => {
+    expect(modeForYear(new Map(), 1)).toEqual({ mode: "specific", minimum: null });
+    expect(modeForYear(undefined, 1)).toEqual({ mode: "specific", minimum: null });
+    const portfolio = yearPortfolio(SANT_PAU, [completado("c", { requirement_id: "epoc" })], undefined, 1);
+    expect(portfolio.mode).toBe("specific");
+    expect(progressLabel(portfolio)).toBe("1 de 3 completados");
+    expect(yearPortfolioGoals(portfolio)).toEqual([{ done: true }, { done: false }, { done: false }]);
+  });
+
+  it("category: dos casos en la primera y uno en la segunda → 3 de 3", () => {
+    const cases = [
+      completado("a", { requirement_id: "resp", case_date: "2026-10-01" }),
+      completado("b", { requirement_id: "resp", review_status: "pending", case_date: "2026-10-03" }),
+      completado("c", { requirement_id: "neuro" }),
+      caso("libre", { title: "Libre" }),
+    ];
+    const portfolio = yearPortfolio(CATEGORIAS, cases, CATEGORY, 1);
+    expect(portfolio.categories.map((row) => [row.requirement.id, row.done, row.minimum, row.status])).toEqual([
+      ["resp", 2, 2, "completed"],
+      ["neuro", 1, 1, "completed"],
+    ]);
+    expect(portfolio.categories[0].cases.map((item) => item.id)).toEqual(["b", "a"]);
+    expect(progressLabel(portfolio)).toBe("3 de 3 casos completados");
+    expect(portfolio.freeCases.map((item) => item.id)).toEqual(["libre"]);
+    expect(hasPortfolioTab(portfolio)).toBe(true);
+    expect(yearPortfolioGoals(portfolio)).toEqual([{ done: true }, { done: true }, { done: true }]);
+    expect(yearIndexCount(portfolio)).toEqual({ count: 3, total: 3 });
+  });
+
+  it("category: estados, exceso aparte y no obligatorias solo sin obligatorias", () => {
+    const cases = [
+      caso("a", { requirement_id: "resp" }),
+      completado("b", { requirement_id: "neuro" }),
+      completado("c", { requirement_id: "neuro" }),
+    ];
+    const portfolio = yearPortfolio(CATEGORIAS, cases, CATEGORY, 1);
+    expect(portfolio.categories.map((row) => row.status)).toEqual(["in_progress", "completed"]);
+    expect(portfolio.progress).toMatchObject({ done: 1, total: 3, extra: 1 });
+    expect(progressLabel(portfolio)).toBe("1 de 3 casos completados (+1)");
+    expect(yearPortfolio(CATEGORIAS, [], CATEGORY, 1).categories[0].status).toBe("pending");
+
+    const optional = [CATEGORIAS[0], { ...CATEGORIAS[1], is_required: false }];
+    expect(yearPortfolio(optional, [completado("x", { requirement_id: "neuro" })], CATEGORY, 1).progress)
+      .toMatchObject({ done: 0, total: 2 });
+    // Al Progreso del Libro solo suman las obligatorias (como en specific).
+    expect(yearPortfolioGoals(yearPortfolio(optional, [], CATEGORY, 1))).toHaveLength(2);
+    const none = CATEGORIAS.map((row) => ({ ...row, is_required: false }));
+    expect(yearPortfolioGoals(yearPortfolio(none, [], CATEGORY, 1))).toEqual([]);
+  });
+
+  it("category: un caso ya vinculado a otra categoría no se puede vincular", () => {
+    const cases = [completado("a", { requirement_id: "resp" }), caso("libre")];
+    const portfolio = yearPortfolio(CATEGORIAS, cases, CATEGORY, 1);
+    expect(linkableCases(portfolio.freeCases).map((item) => item.id)).toEqual(["libre"]);
+  });
+
+  it("minimum: N casos completados del año, libres y vinculados → 3 de 4", () => {
+    const MIN4 = modes([[1, { mode: "minimum", minimum: 4 }]]);
+    const cases = [
+      completado("a", { requirement_id: "old" }),
+      completado("b", { review_status: "pending" }),
+      completado("c"),
+      caso("borrador"),
+      completado("r2", { residency_year: 2 }),
+    ];
+    const portfolio = yearPortfolio([requirement("old", "Retirado", { archived: true })], cases, MIN4, 1);
+    expect(portfolio.mode).toBe("minimum");
+    expect(hasPortfolioTab(portfolio)).toBe(false);
+    expect(portfolio.progress).toMatchObject({ done: 3, total: 4, extra: 0 });
+    expect(progressLabel(portfolio)).toBe("3 de 4 casos completados");
+    expect(portfolio.freeCases.map((item) => item.id).sort()).toEqual(["a", "b", "borrador", "c"]);
+    expect(yearPortfolioGoals(portfolio).filter((goal) => goal.done)).toHaveLength(3);
+    expect(yearPortfolioGoals(portfolio)).toHaveLength(4);
+    expect(yearIndexCount(portfolio)).toEqual({ count: 3, total: 4 });
+  });
+
+  it("minimum: con más de N, N/N y «+K» aparte", () => {
+    const MIN2 = modes([[1, { mode: "minimum", minimum: 2 }]]);
+    const portfolio = yearPortfolio([], [completado("a"), completado("b"), completado("c")], MIN2, 1);
+    expect(portfolio.progress).toMatchObject({ done: 2, total: 2, percent: 100, extra: 1 });
+    expect(progressLabel(portfolio)).toBe("2 de 2 casos completados (+1)");
+  });
+
+  it("free: sin progreso ni objetivos; el índice cuenta los casos", () => {
+    const FREE = modes([[1, { mode: "free", minimum: null }]]);
+    const portfolio = yearPortfolio([], [caso("x")], FREE, 1);
+    expect(portfolio.progress).toBeNull();
+    expect(yearPortfolioGoals(portfolio)).toEqual([]);
+    expect(yearIndexCount(portfolio)).toEqual({ count: 1, total: null });
+  });
+
+  it("un R6 usa el modo de R5", () => {
+    expect(modeForYear(modes([[5, { mode: "minimum", minimum: 3 }]]), 6)).toEqual({ mode: "minimum", minimum: 3 });
+  });
+
+  it("de una categoría el formulario no copia el título", () => {
+    expect(formValuesFor(null, CATEGORIAS[0]).title).toBe("");
+    expect(formValuesFor(null, SANT_PAU[0]).title).toBe("EPOC");
   });
 });

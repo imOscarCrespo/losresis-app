@@ -19,6 +19,12 @@
  * borrador con `review_status = changes_requested` y el residente lo reenvía).
  * El historial está en `libro_clinical_case_review`, el más reciente primero.
  *
+ * Modos (fase 4, losresis-db 20261031120000): cada año de la plantilla pide
+ * casos concretos (`specific`, Sant Pau: una ficha por requisito), un número
+ * mínimo de casos de cualquier tipo (`minimum`), varios casos por categoría con
+ * su mínimo (`category`) o nada (`free`). El modo vive en el bloque del año;
+ * yearPortfolio lo resuelve para las pantallas, el Progreso y el PDF.
+ *
  * Contrato con el panel (losresis-panel/src/lib/libroClinicalCases.ts): los
  * nombres de campo y sus rótulos. Si cambian aquí, cambian allí.
  */
@@ -91,13 +97,19 @@ export const templateYearFor = (residencyYear) =>
 
 const isBlank = (value) => value === null || value === undefined || !String(value).trim();
 
-/** Los valores del formulario a partir de una ficha (o vacíos, con el título del requisito). */
+/** Si el requisito es una categoría (modo category): caben varios casos y cada uno tiene su título. */
+export const isCategoryRequirement = (requirement) => requirement?.requirement_mode === "category";
+
+/**
+ * Los valores del formulario a partir de una ficha (o vacíos, con el título del
+ * requisito; de una categoría no: «Respiratorio» no es el título de un caso).
+ */
 export const formValuesFor = (clinicalCase, requirement = null) => {
   const values = {};
   CLINICAL_CASE_FIELDS.forEach((field) => {
     values[field.key] = clinicalCase?.[field.key] ?? "";
   });
-  if (!clinicalCase && requirement?.title) {
+  if (!clinicalCase && requirement?.title && !isCategoryRequirement(requirement)) {
     values.title = requirement.title;
   }
   return values;
@@ -248,10 +260,13 @@ export const portfolioGoals = (rows = []) =>
 /**
  * «Mis casos clínicos» de un año: los libres y los vinculados a un requisito que
  * ya no está en su portafolio (retirado por el hospital). Más recientes primero.
+ * `rows` pueden ser renglones de specific (`clinicalCase`) o categorías (`cases`).
  */
 export const freeCasesForYear = (cases = [], rows = [], residencyYear) => {
   const inPortfolio = new Set(
-    rows.flatMap((row) => (row.clinicalCase ? [row.clinicalCase.id] : []))
+    rows.flatMap((row) =>
+      row.cases ? row.cases.map((item) => item.id) : row.clinicalCase ? [row.clinicalCase.id] : []
+    )
   );
   return cases
     .filter((item) => item.residency_year === residencyYear && !inPortfolio.has(item.id))
@@ -270,6 +285,162 @@ export const indexCountFor = (rows = [], freeCases = []) => {
     ? { count: progress.done, total: progress.total }
     : { count: freeCases.length, total: null };
 };
+
+// ---------------------------------------------------------------------------
+// Modos (fase 4)
+// ---------------------------------------------------------------------------
+
+export const CLINICAL_CASE_MODES = ["specific", "minimum", "category", "free"];
+
+/**
+ * El modo de un año: el de su bloque de la plantilla (R6+ usa el de R5). Sin
+ * bloque, specific, que sin requisitos se pinta igual que free.
+ *
+ * @param {Map<number, { mode: string, minimum: number|null }>} blockModes
+ */
+export const modeForYear = (blockModes, residencyYear) => {
+  const block = blockModes?.get?.(templateYearFor(residencyYear));
+  if (!block || !CLINICAL_CASE_MODES.includes(block.mode)) {
+    return { mode: "specific", minimum: null };
+  }
+  return { mode: block.mode, minimum: block.mode === "minimum" ? block.minimum || null : null };
+};
+
+const byMostRecent = (a, b) =>
+  String(b.case_date || b.updated_at || "").localeCompare(String(a.case_date || a.updated_at || ""));
+
+const progressOf = (done, total, extra = 0) => ({
+  done,
+  total,
+  percent: total ? Math.round((done / total) * 100) : 0,
+  extra,
+});
+
+export const CATEGORY_STATUS = {
+  pending: { label: "Pendiente", color: "#E11D48", background: "#FFF1F2", icon: "ellipse-outline" },
+  in_progress: { label: "En progreso", color: "#B45309", background: "#FEF3C7", icon: "time-outline" },
+  completed: { label: "Completada", color: "#047857", background: "#D1FAE5", icon: "checkmark-circle" },
+};
+
+/**
+ * Las categorías de un año (modo category), en el orden del hospital, con sus
+ * casos (de cualquier año, como en specific), cuántos completados y su estado:
+ * «Completada» al llegar al mínimo, «En progreso» con alguno, «Pendiente» sin
+ * ninguno.
+ */
+export const categoryRows = (requirements = [], cases = [], residencyYear) =>
+  requirementsForYear(requirements, cases, residencyYear)
+    .filter((requirement) => !requirement.archived)
+    .map((requirement) => {
+      const linked = cases.filter((item) => item.requirement_id === requirement.id).sort(byMostRecent);
+      const done = linked.filter((item) => isDoneStatus(displayStatusOf(item))).length;
+      const minimum = Math.max(Number(requirement.minimum_cases) || 1, 1);
+      const status = done >= minimum ? "completed" : linked.length ? "in_progress" : "pending";
+      return { requirement, cases: linked, done, minimum, status };
+    });
+
+/**
+ * Suma de min(completados, mínimo) entre la suma de mínimos. Cuentan las
+ * obligatorias; sin ninguna, todas. El exceso va aparte (`extra`).
+ */
+export const categoryProgress = (categories = []) => {
+  const required = categories.filter((row) => row.requirement.is_required);
+  const counted = required.length ? required : categories;
+  if (!counted.length) return null;
+  const total = counted.reduce((sum, row) => sum + row.minimum, 0);
+  const done = counted.reduce((sum, row) => sum + Math.min(row.done, row.minimum), 0);
+  const extra = counted.reduce((sum, row) => sum + Math.max(row.done - row.minimum, 0), 0);
+  return progressOf(done, total, extra);
+};
+
+/**
+ * Lo que pide la plantilla en un año y cómo va el residente, en los cuatro
+ * modos. Es lo que pintan «Casos clínicos», el índice, el Progreso y el PDF.
+ *
+ *   rows        specific: un renglón por caso pedido
+ *   categories  category: las categorías con sus casos
+ *   progress    { done, total, percent, extra } o null si no pide nada
+ *   freeCases   «Mis casos clínicos» del año; en minimum, los que cuentan
+ */
+export const yearPortfolio = (requirements = [], cases = [], blockModes, residencyYear) => {
+  const { mode, minimum } = modeForYear(blockModes, residencyYear);
+  if (mode === "category") {
+    const categories = categoryRows(requirements, cases, residencyYear);
+    return {
+      mode,
+      minimum: null,
+      rows: [],
+      categories,
+      progress: categoryProgress(categories),
+      freeCases: freeCasesForYear(cases, categories, residencyYear),
+    };
+  }
+  if (mode === "minimum" && minimum) {
+    const freeCases = freeCasesForYear(cases, [], residencyYear);
+    const done = freeCases.filter((item) => isDoneStatus(displayStatusOf(item))).length;
+    return {
+      mode,
+      minimum,
+      rows: [],
+      categories: [],
+      progress: progressOf(Math.min(done, minimum), minimum, Math.max(done - minimum, 0)),
+      freeCases,
+    };
+  }
+  const rows = mode === "free" ? [] : portfolioRows(requirements, cases, residencyYear);
+  const progress = portfolioProgress(rows);
+  return {
+    mode: mode === "free" ? "free" : "specific",
+    minimum: null,
+    rows,
+    categories: [],
+    progress: progress ? { ...progress, extra: 0 } : null,
+    freeCases: freeCasesForYear(cases, rows, residencyYear),
+  };
+};
+
+/** Si el año tiene pestaña «Mi portafolio»: casos pedidos o categorías. */
+export const hasPortfolioTab = (portfolio) =>
+  !!(portfolio?.rows?.length || portfolio?.categories?.length);
+
+/** «2 de 3 completados» o, en minimum y category, «3 de 4 casos completados» (+K aparte). */
+export const progressLabel = (portfolio) => {
+  const progress = portfolio?.progress;
+  if (!progress) return null;
+  const completed = progress.total === 1 ? "completado" : "completados";
+  const base =
+    portfolio.mode === "specific"
+      ? `${progress.done} de ${progress.total} ${completed}`
+      : `${progress.done} de ${progress.total} ${progress.total === 1 ? "caso" : "casos"} ${completed}`;
+  return progress.extra > 0 ? `${base} (+${progress.extra})` : base;
+};
+
+/**
+ * Los objetivos que suma el año al Progreso del Libro (ADR 0008): specific, uno
+ * por caso obligatorio; category, el mínimo de cada categoría obligatoria;
+ * minimum, N.
+ */
+export const yearPortfolioGoals = (portfolio) => {
+  if (!portfolio) return [];
+  if (portfolio.mode === "specific") return portfolioGoals(portfolio.rows);
+  if (portfolio.mode === "category") {
+    // Como en specific: solo lo obligatorio suma al Progreso del Libro.
+    return portfolio.categories
+      .filter((row) => row.requirement.is_required)
+      .flatMap((row) =>
+        Array.from({ length: row.minimum }, (_, index) => ({ done: index < row.done }))
+      );
+  }
+  const progress = portfolio.progress;
+  if (!progress) return [];
+  return Array.from({ length: progress.total }, (_, index) => ({ done: index < progress.done }));
+};
+
+/** El contador de la tarjeta del índice: «3 de 4» si el año pide algo, o cuántos casos. */
+export const yearIndexCount = (portfolio) =>
+  portfolio?.progress
+    ? { count: portfolio.progress.done, total: portfolio.progress.total }
+    : { count: portfolio?.freeCases?.length || 0, total: null };
 
 /** «15/09/2026». */
 export const formatCaseDate = (value) => {

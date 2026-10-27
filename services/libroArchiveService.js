@@ -6,7 +6,7 @@ import {
 } from "../data/libroSections";
 import { isInResidencyYear } from "../utils/residencyYear";
 import { CUSTOM_SECTION_CODE } from "../utils/libroCustom";
-import { freeCasesForYear, portfolioRows } from "../utils/clinicalCases";
+import { progressLabel, yearPortfolio } from "../utils/clinicalCases";
 import { getClinicalCaseRequirements, getClinicalCases } from "./clinicalCaseService";
 import { getPublishedLibroTemplateForUser } from "./libroTemplateService";
 
@@ -73,27 +73,34 @@ const getCustomArchiveBooks = async (userId) => {
  */
 const getClinicalCasesArchive = async (userId) => {
   const template = await getPublishedLibroTemplateForUser(userId);
-  const [{ requirements }, cases] = await Promise.all([
+  const [{ requirements, blockModes }, cases] = await Promise.all([
     getClinicalCaseRequirements(template?.id, { throwOnError: true }),
     getClinicalCases(userId, { throwOnError: true }),
   ]);
-  return { requirements, cases };
+  return { requirements, cases, blockModes };
 };
 
 /**
  * Los casos clínicos de un año del Libro: el portafolio en el orden de la
- * plantilla (los pendientes, sin ficha) y los demás casos de ese año, cada uno
- * con su requisito si lo tenía (retirado por el hospital).
+ * plantilla (los pendientes, sin ficha; o las categorías con sus casos), el
+ * progreso con el modo de ESE año y los demás casos de ese año, cada uno con su
+ * requisito si lo tenía (retirado por el hospital).
  */
-export const clinicalCasesForArchiveYear = ({ requirements, cases }, year) => {
-  const rows = portfolioRows(requirements, cases, year);
-  const freeCases = freeCasesForYear(cases, rows, year).map((clinicalCase) => ({
+export const clinicalCasesForArchiveYear = ({ requirements, cases, blockModes }, year) => {
+  const portfolio = yearPortfolio(requirements, cases, blockModes, year);
+  const freeCases = portfolio.freeCases.map((clinicalCase) => ({
     clinicalCase,
     requirement: clinicalCase.requirement_id
       ? requirements.find((item) => item.id === clinicalCase.requirement_id) || null
       : null,
   }));
-  return { rows, freeCases };
+  return {
+    mode: portfolio.mode,
+    progress: progressLabel(portfolio),
+    rows: portfolio.rows,
+    categories: portfolio.categories,
+    freeCases,
+  };
 };
 
 /**
