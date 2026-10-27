@@ -113,7 +113,10 @@ export const getResidentTutoring = async (userId) => {
 };
 
 /**
- * Los campos que el residente aporta a una tutoría (§13 del documento).
+ * Los cuatro campos que el residente aportaba a una tutoría (§13 del documento)
+ * antes de «Preparación de mi tutoría» (utils/tutoringPreparation.js). Ya no se
+ * editan: quedan para enseñar en solo lectura lo que escribió con ellos, y la app
+ * publicada (1.0.94 y anteriores) los sigue escribiendo.
  *
  * Son fijos y no configurables a propósito: el interruptor «si el hospital lo
  * permite» solo existía como config del apartado retirado `tutoring_sessions`, y
@@ -132,22 +135,44 @@ export const TUTORING_RESIDENT_FIELDS = [
 ];
 
 /**
- * Guarda la parte del residente. Va por RPC porque la tabla es de solo lectura para
- * él: escribir pasa siempre por una función que comprueba que la tutoría es suya.
- *
- * Su tutor lo ve en cuanto se guarda, sin esperar a `shared_at`: es su preparación
- * para la reunión, esconderla no tendría sentido.
+ * La preparación de cada tutoría («Preparación de mi tutoría»). La RLS solo
+ * devuelve las suyas, borradores incluidos.
  */
-export const saveTutoringResidentAnswers = async (id, answers) => {
-  const { error } = await supabase.rpc(
-    "save_hospital_tutoring_resident_answers",
-    { p_id: id, p_answers: answers || {} }
-  );
+export const getTutoringPreparations = async (tutoringIds) => {
+  if (!tutoringIds?.length) return [];
+
+  const { data, error } = await supabase
+    .from("hospital_tutoring_preparation")
+    .select("tutoring_id, answers, proposed_goals, status, sent_at, updated_at")
+    .in("tutoring_id", tutoringIds);
 
   if (error) {
-    console.error("Error saving tutoring resident answers:", error);
+    console.error("Error fetching tutoring preparations:", error);
     throw error;
   }
+
+  return data || [];
+};
+
+/**
+ * Guarda la preparación como borrador o la envía al tutor (`send`). Una vez
+ * enviada no vuelve a borrador: guardar después actualiza lo que ve el tutor.
+ * La RPC comprueba que la tutoría es suya y sigue programada.
+ */
+export const saveTutoringPreparation = async (tutoringId, answers, proposedGoals, send) => {
+  const { data, error } = await supabase.rpc("save_hospital_tutoring_preparation", {
+    p_tutoring_id: tutoringId,
+    p_answers: answers || {},
+    p_proposed_goals: proposedGoals || [],
+    p_send: !!send,
+  });
+
+  if (error) {
+    console.error("Error saving tutoring preparation:", error);
+    throw error;
+  }
+
+  return data;
 };
 
 // ---------------------------------------------------------------------------
@@ -374,7 +399,8 @@ export default {
   getResidentAnnouncements,
   markAnnouncementRead,
   getResidentTutoring,
-  saveTutoringResidentAnswers,
+  getTutoringPreparations,
+  saveTutoringPreparation,
   emptyTeachingModules,
   tutoringStateOf,
   getResidentEvaluations,

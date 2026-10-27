@@ -1,0 +1,139 @@
+# ClickUp 124b4z9vc4q · Tutorías fase 2: «Preparación de mi tutoría» (residente)
+# https://app.clickup.com/t/124b4z9vc4q
+#
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-r1.env scripts/e2e.sh e2e/flows/clickup-124b4z9vc4q-preparacion-tutoria.yaml
+# Necesita también ~/.config/losresis/e2e-panel.env (owner del Hospital E2E).
+#
+# El residente R1 del Hospital E2E abre su tutoría programada del 10/11/2026,
+# rellena la preparación (una pregunta de A y otra de B y un objetivo propuesto) y:
+#   - si todavía no la ha enviado: guarda borrador, comprueba por API que el
+#     owner del panel NO lo ve, la reabre, ve su borrador y la envía con
+#     confirmación;
+#   - si ya está enviada (pasadas siguientes; enviada no vuelve a borrador):
+#     «Guardar cambios».
+# Al final el detalle enseña «Enviada el dd/mm» y el owner la ve por API.
+# Repetible sin limpiar datos. Para volver a probar el borrador hay que borrar la
+# fila de hospital_tutoring_preparation de esa tutoría.
+appId: com.losresis.app
+name: "124b4z9vc4q Preparación de la tutoría"
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- scrollUntilVisible:
+    element: "Tutorías.*"
+    centerElement: true
+- tapOn: "Tutorías.*"
+- extendedWaitUntil:
+    visible:
+      id: "tutoring-card-1b9691d0-8234-4ee5-910f-a3c4fd9963b2"
+    timeout: 20000
+- takeScreenshot: vc4q-list
+- tapOn:
+    id: "tutoring-card-1b9691d0-8234-4ee5-910f-a3c4fd9963b2"
+- extendedWaitUntil:
+    visible: "Preparación de mi tutoría"
+    timeout: 10000
+- takeScreenshot: vc4q-detail-before
+- tapOn:
+    id: "tutoring-open-preparation"
+
+- extendedWaitUntil:
+    visible: "A. Evolución formativa"
+    timeout: 10000
+- assertVisible: "¿Cuáles han sido tus principales aprendizajes durante este período?"
+- tapOn:
+    id: "tutoring-preparation-learnings"
+- eraseText: 200
+- inputText: "Aprendizajes E2E"
+- tapOn: "A. Evolución formativa"
+
+- scrollUntilVisible:
+    element:
+      id: "tutoring-preparation-difficulties"
+    centerElement: true
+- tapOn:
+    id: "tutoring-preparation-difficulties"
+- eraseText: 200
+- inputText: "Dificultades E2E"
+- tapOn: "B. Rotaciones realizadas"
+
+- scrollUntilVisible:
+    element:
+      id: "tutoring-preparation-goal-0"
+    centerElement: true
+- tapOn:
+    id: "tutoring-preparation-goal-0"
+- eraseText: 200
+- inputText: "Objetivo propuesto E2E"
+- tapOn: "E. Objetivos para el siguiente período"
+- assertVisible: "Son propuestas: tu tutor decidirá contigo los objetivos de mejora."
+- scrollUntilVisible:
+    element:
+      id: "tutoring-preparation-send|tutoring-preparation-save-changes"
+- takeScreenshot: vc4q-form
+
+# Primera vez: borrador → reabrir → enviar.
+- runFlow:
+    when:
+      visible:
+        id: "tutoring-preparation-save-draft"
+    commands:
+      - tapOn:
+          id: "tutoring-preparation-save-draft"
+      - extendedWaitUntil:
+          visible: "Preparación: Borrador"
+          timeout: 15000
+      - takeScreenshot: vc4q-detail-draft
+      - runScript:
+          file: ../scripts/assert-124b4z9vc4q-preparation.js
+          env:
+            EXPECT: draft
+            LEARNINGS: Aprendizajes E2E
+      - assertVisible: "Continuar preparación"
+      - tapOn:
+          id: "tutoring-open-preparation"
+      - extendedWaitUntil:
+          visible: "Aprendizajes E2E"
+          timeout: 10000
+      - assertVisible: "Mientras sea un borrador solo la ves tú.*"
+      # Es lo último de la pantalla: no se puede centrar.
+      - scrollUntilVisible:
+          element:
+            id: "tutoring-preparation-send"
+      - tapOn:
+          id: "tutoring-preparation-send"
+      - extendedWaitUntil:
+          visible: "¿Enviar la preparación a tu tutor?"
+          timeout: 5000
+      - tapOn: "Enviar"
+
+# Pasadas siguientes: ya enviada, se guardan los cambios.
+- runFlow:
+    when:
+      visible:
+        id: "tutoring-preparation-save-changes"
+    commands:
+      - tapOn:
+          id: "tutoring-preparation-save-changes"
+
+- extendedWaitUntil:
+    visible: "Preparación: Enviada el \\d\\d/\\d\\d"
+    timeout: 15000
+- assertVisible: "Ver o editar mi preparación"
+- takeScreenshot: vc4q-detail-sent
+- runScript:
+    file: ../scripts/assert-124b4z9vc4q-preparation.js
+    env:
+      EXPECT: sent
+      LEARNINGS: Aprendizajes E2E
+
+# Reabrir: sigue enviada y con lo escrito.
+- tapOn:
+    id: "tutoring-open-preparation"
+- extendedWaitUntil:
+    visible: "Ya la has enviado. Tu tutor ve la última versión que guardes."
+    timeout: 10000
+- assertVisible: "Aprendizajes E2E"
+- takeScreenshot: vc4q-form-sent

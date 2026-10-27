@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -9,20 +8,28 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
+import TutoringPreparationView from "../components/tutoring/TutoringPreparationView";
 import posthogLogger from "../services/posthogService";
 import {
   TUTORING_RESIDENT_FIELDS,
   TUTORING_STATE,
   getResidentTutoring,
-  saveTutoringResidentAnswers,
+  getTutoringPreparations,
+  saveTutoringPreparation,
   tutoringStateOf,
 } from "../services/docenciaService";
+import {
+  PREPARATION_STATUS,
+  buildPreparationPayload,
+  canEditPreparation,
+  preparationCounts,
+  preparationStatusOf,
+} from "../utils/tutoringPreparation";
 
 /**
  * Las tutorías del residente.
@@ -34,6 +41,10 @@ import {
  * escribe el tutor solo cuando lo comparte. Eso lo aplica la vista
  * hospital_tutoring_for_resident, no esta pantalla: aquí los campos llegan ya en
  * blanco si no toca verlos.
+ *
+ * Lo del residente es su «Preparación de mi tutoría» (hospital_tutoring_preparation):
+ * un borrador privado hasta que la envía. Los cuatro textos antiguos
+ * (resident_answers) ya no se editan aquí; si los tiene, se enseñan en solo lectura.
  */
 
 const STATE_COPY = {
@@ -60,6 +71,28 @@ const formatDateTime = (value) => {
   }).format(date);
 };
 
+const formatShortDate = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "2-digit" }).format(date);
+};
+
+const PREPARATION_COPY = {
+  [PREPARATION_STATUS.NONE]: { label: "Sin iniciar", color: "#64748B", bg: "#F1F5F9" },
+  [PREPARATION_STATUS.DRAFT]: { label: "Borrador", color: "#B45309", bg: "#FFFBEB" },
+  [PREPARATION_STATUS.SENT]: { label: "Enviada", color: "#047857", bg: "#ECFDF5" },
+};
+
+const preparationLabel = (status, preparation) =>
+  status === PREPARATION_STATUS.SENT && preparation?.sent_at
+    ? `Enviada el ${formatShortDate(preparation.sent_at)}`
+    : PREPARATION_COPY[status].label;
+
+const hasLegacyAnswers = (tutoring) =>
+  TUTORING_RESIDENT_FIELDS.some((field) =>
+    String(tutoring?.resident_answers?.[field.key] || "").trim()
+  );
+
 const CONTENT_FIELDS = [
   { key: "topics", label: "Temas tratados" },
   { key: "competencies_reviewed", label: "Competencias revisadas" },
@@ -74,21 +107,41 @@ export default function TutoringScreen({ userProfile, onBack }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [openItem, setOpenItem] = useState(null);
-  // Lo que el residente aporta. Se edita en el mismo detalle donde lee lo del tutor.
-  const [answers, setAnswers] = useState({});
-  const [saving, setSaving] = useState(false);
+  // Por id y no la fila: tras guardar se recarga y el detalle enseña lo nuevo.
+  const [openId, setOpenId] = useState(null);
+  const [preparingId, setPreparingId] = useState(null);
+  // tutoring_id → su preparación. null = no se pudo cargar: sin ella no se deja
+  // editar, porque guardar encima de un borrador que no se ha leído lo borraría.
+  const [preparations, setPreparations] = useState({});
 
   const load = useCallback(async () => {
     if (!userId) return;
+    let rows = [];
     try {
-      const rows = await getResidentTutoring(userId);
+      rows = await getResidentTutoring(userId);
       setItems(rows);
     } catch (error) {
       console.error("Error loading tutoring:", error);
       setItems([]);
+      return;
+    }
+    try {
+      const preps = await getTutoringPreparations(rows.map((row) => row.id));
+      setPreparations(Object.fromEntries(preps.map((prep) => [prep.tutoring_id, prep])));
+    } catch (error) {
+      console.error("Error loading tutoring preparations:", error);
+      setPreparations(null);
     }
   }, [userId]);
+
+  const openItem = useMemo(
+    () => items.find((item) => item.id === openId) || null,
+    [items, openId]
+  );
+  const preparingItem = useMemo(
+    () => items.find((item) => item.id === preparingId) || null,
+    [items, preparingId]
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -105,26 +158,30 @@ export default function TutoringScreen({ userProfile, onBack }) {
     };
   }, [load]);
 
-  useEffect(() => {
-    if (!openItem) return;
-    setAnswers(openItem.resident_answers || {});
-  }, [openItem]);
-
-  const handleSaveAnswers = async () => {
-    setSaving(true);
-    try {
-      await saveTutoringResidentAnswers(openItem.id, answers);
-      posthogLogger.capture("resident_tutoring_answers_saved", {
-        campos: Object.values(answers).filter((v) => String(v || "").trim()).length,
-      });
-      await load();
-      setOpenItem(null);
-    } catch (error) {
-      Alert.alert("No se pudo guardar", "Inténtalo de nuevo en un momento.");
-    } finally {
-      setSaving(false);
-    }
+  // Lanza si falla: el formulario se queda abierto con lo escrito y avisa.
+  const handleSavePreparation = async (answers, goals, send) => {
+    const payload = buildPreparationPayload(answers, goals);
+    const saved = await saveTutoringPreparation(
+      preparingId,
+      payload.answers,
+      payload.proposedGoals,
+      send
+    );
+    posthogLogger.capture("resident_tutoring_preparation_saved", {
+      sent: saved?.status === "sent",
+      ...preparationCounts(answers, goals),
+    });
+    await load();
+    closePreparation();
   };
+
+  // Al salir del formulario se vuelve al detalle de la tutoría, no a la lista.
+  const closePreparation = () => {
+    setOpenId(preparingId);
+    setPreparingId(null);
+  };
+
+  const preparationOf = (id) => (preparations ? preparations[id] || null : null);
 
   const groups = useMemo(() => {
     const now = new Date();
@@ -144,14 +201,33 @@ export default function TutoringScreen({ userProfile, onBack }) {
     };
   }, [items]);
 
+  const renderPreparationChip = (item, testID) => {
+    const preparation = preparationOf(item.id);
+    const status = preparationStatusOf(preparation);
+    // En las cerradas solo se enseña si llegó a prepararla.
+    if (!canEditPreparation(item) && status === PREPARATION_STATUS.NONE) return null;
+    if (!preparations) return null;
+    const copy = PREPARATION_COPY[status];
+
+    return (
+      <View testID={testID} style={[styles.prepChip, { backgroundColor: copy.bg }]}>
+        <Icon name="document-text-outline" size={13} color={copy.color} />
+        <Text style={[styles.prepChipText, { color: copy.color }]}>
+          Preparación: {preparationLabel(status, preparation)}
+        </Text>
+      </View>
+    );
+  };
+
   const renderCard = ({ item, state }) => {
     const copy = STATE_COPY[state];
 
     return (
       <TouchableOpacity
         key={item.id}
+        testID={`tutoring-card-${item.id}`}
         style={styles.card}
-        onPress={() => setOpenItem(item)}
+        onPress={() => setOpenId(item.id)}
         activeOpacity={0.85}
       >
         <View style={styles.cardTop}>
@@ -169,6 +245,7 @@ export default function TutoringScreen({ userProfile, onBack }) {
             Tu tutor todavía no ha compartido el contenido.
           </Text>
         ) : null}
+        {renderPreparationChip(item)}
       </TouchableOpacity>
     );
   };
@@ -180,6 +257,21 @@ export default function TutoringScreen({ userProfile, onBack }) {
         {rows.map(renderCard)}
       </View>
     ) : null;
+
+  if (preparingItem) {
+    return (
+      <TutoringPreparationView
+        tutoring={preparingItem}
+        preparation={preparationOf(preparingItem.id)}
+        subtitle={formatDateTime(preparingItem.scheduled_at)}
+        onSave={handleSavePreparation}
+        onClose={closePreparation}
+      />
+    );
+  }
+
+  const openPreparation = openItem ? preparationOf(openItem.id) : null;
+  const openPreparationStatus = preparationStatusOf(openPreparation);
 
   return (
     <HeroScreenLayout
@@ -228,7 +320,7 @@ export default function TutoringScreen({ userProfile, onBack }) {
         visible={!!openItem}
         transparent
         animationType="slide"
-        onRequestClose={() => setOpenItem(null)}
+        onRequestClose={() => setOpenId(null)}
       >
         <KeyboardAvoidingView
           style={styles.overlay}
@@ -237,7 +329,7 @@ export default function TutoringScreen({ userProfile, onBack }) {
           <TouchableOpacity
             style={styles.overlayTouchable}
             activeOpacity={1}
-            onPress={() => setOpenItem(null)}
+            onPress={() => setOpenId(null)}
           />
           <View style={styles.sheet}>
             <View style={styles.sheetHeader}>
@@ -252,7 +344,7 @@ export default function TutoringScreen({ userProfile, onBack }) {
               </View>
               <TouchableOpacity
                 style={styles.closeButton}
-                onPress={() => setOpenItem(null)}
+                onPress={() => setOpenId(null)}
               >
                 <Icon name="close" size={18} color="#475569" />
               </TouchableOpacity>
@@ -282,44 +374,80 @@ export default function TutoringScreen({ userProfile, onBack }) {
                 </View>
               )}
 
-              {/* Su parte. Va aparte de la del tutor a propósito: son el mismo
-                  registro, pero cada uno escribe en lo suyo. Y su tutor lo ve en
-                  cuanto lo guarda, sin esperar a que comparta la tutoría. */}
-              {openItem?.status !== "cancelled" ? (
+              {/* Su parte: la preparación. Va aparte de lo del tutor a propósito:
+                  cada uno escribe en lo suyo, y la suya es un borrador privado
+                  hasta que la envía. */}
+              {openItem && openItem.status !== "cancelled" ? (
                 <View style={styles.residentBlock}>
-                  <Text style={styles.residentTitle}>Tu parte</Text>
-                  <Text style={styles.residentHint}>
-                    Lo que escribas aquí lo ve tu tutor en cuanto lo guardes.
-                  </Text>
+                  <View style={styles.residentHeader}>
+                    <Text style={styles.residentTitle}>Preparación de mi tutoría</Text>
+                    {renderPreparationChip(openItem, "tutoring-detail-preparation-status")}
+                  </View>
+                  {!preparations ? (
+                    <Text style={styles.residentHint}>
+                      No se ha podido cargar tu preparación. Desliza hacia abajo en la
+                      lista para recargar.
+                    </Text>
+                  ) : canEditPreparation(openItem) ? (
+                    <>
+                      <Text style={styles.residentHint}>
+                        {openPreparationStatus === PREPARATION_STATUS.SENT
+                          ? "Tu tutor ya la tiene. Puedes seguir editándola hasta la tutoría."
+                          : "Reflexiona sobre este período antes de la reunión. Tu tutor la verá cuando la envíes."}
+                      </Text>
+                      <TouchableOpacity
+                        testID="tutoring-open-preparation"
+                        style={styles.saveButton}
+                        onPress={() => {
+                          setPreparingId(openItem.id);
+                          setOpenId(null);
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.saveButtonText}>
+                          {openPreparationStatus === PREPARATION_STATUS.NONE
+                            ? "Preparar mi tutoría"
+                            : openPreparationStatus === PREPARATION_STATUS.DRAFT
+                            ? "Continuar preparación"
+                            : "Ver o editar mi preparación"}
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : openPreparationStatus !== PREPARATION_STATUS.NONE ? (
+                    <TouchableOpacity
+                      testID="tutoring-open-preparation"
+                      style={styles.secondaryButton}
+                      onPress={() => {
+                        setPreparingId(openItem.id);
+                        setOpenId(null);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.secondaryButtonText}>Ver mi preparación</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.residentHint}>
+                      No preparaste esta tutoría.
+                    </Text>
+                  )}
+                </View>
+              ) : null}
 
-                  {TUTORING_RESIDENT_FIELDS.map((field) => (
+              {/* Los cuatro textos de antes de la preparación guiada: no se migran
+                  ni se editan, pero son suyos y se siguen viendo. */}
+              {openItem && hasLegacyAnswers(openItem) ? (
+                <View style={styles.residentBlock}>
+                  <Text style={styles.residentTitle}>Lo que escribiste antes</Text>
+                  {TUTORING_RESIDENT_FIELDS.filter((field) =>
+                    String(openItem.resident_answers?.[field.key] || "").trim()
+                  ).map((field) => (
                     <View key={field.key} style={styles.block}>
                       <Text style={styles.blockLabel}>{field.label}</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={answers[field.key] || ""}
-                        onChangeText={(text) =>
-                          setAnswers((prev) => ({ ...prev, [field.key]: text }))
-                        }
-                        placeholder="Escribe lo que quieras dejar anotado"
-                        placeholderTextColor="#94A3B8"
-                        multiline
-                      />
+                      <Text style={styles.blockText}>
+                        {openItem.resident_answers[field.key]}
+                      </Text>
                     </View>
                   ))}
-
-                  <TouchableOpacity
-                    style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-                    onPress={handleSaveAnswers}
-                    disabled={saving}
-                    activeOpacity={0.85}
-                  >
-                    {saving ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Text style={styles.saveButtonText}>Guardar mi parte</Text>
-                    )}
-                  </TouchableOpacity>
                 </View>
               ) : null}
             </ScrollView>
@@ -441,20 +569,19 @@ const styles = StyleSheet.create({
     borderTopColor: "#E2E8F0",
     gap: 12,
   },
+  residentHeader: { gap: 8, alignItems: "flex-start" },
   residentTitle: { fontSize: 15, fontWeight: "800", color: "#1B0977" },
-  residentHint: { fontSize: 12, color: "#64748B", lineHeight: 17, marginTop: -8 },
-  input: {
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: "#0F172A",
-    backgroundColor: "#F8FAFC",
-    minHeight: 80,
-    textAlignVertical: "top",
+  residentHint: { fontSize: 12, color: "#64748B", lineHeight: 17 },
+  prepChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
+  prepChipText: { fontSize: 11, fontWeight: "700" },
   saveButton: {
     height: 50,
     borderRadius: 25,
@@ -463,6 +590,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#670CF5",
     marginTop: 4,
   },
-  saveButtonDisabled: { opacity: 0.6 },
   saveButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+  secondaryButton: {
+    height: 50,
+    borderRadius: 25,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#670CF5",
+  },
+  secondaryButtonText: { color: "#670CF5", fontSize: 15, fontWeight: "700" },
 });
