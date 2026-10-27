@@ -63,9 +63,14 @@ name: "124b4z9vc4q Preparación de la tutoría"
     element:
       id: "tutoring-preparation-goal-0"
     centerElement: true
+# Quitar y volver a añadir: tocar el centro del campo deja el cursor a mitad
+# del texto si ya tenía uno, y eraseText solo borra hacia atrás.
+- tapOn:
+    id: "tutoring-preparation-goal-remove-0"
+- tapOn:
+    id: "tutoring-preparation-add-goal"
 - tapOn:
     id: "tutoring-preparation-goal-0"
-- eraseText: 200
 - inputText: "Objetivo propuesto E2E"
 - tapOn: "E. Objetivos para el siguiente período"
 - assertVisible: "Son propuestas: tu tutor decidirá contigo los objetivos de mejora."
