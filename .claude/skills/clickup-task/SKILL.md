@@ -30,6 +30,17 @@ node .claude/skills/clickup-task/scripts/fetch_task.mjs "<url>" "<scratchpad>/cl
   `OAUTH_` en el cuerpo, el token no tiene acceso a ese workspace: díselo.
 - Si la tarea tiene **subtareas**, lístalas en el plan y pregunta si entran en esta pasada
   (cada una puede leerse con el mismo script).
+- **Al empezar, pasa la tarea a `in progress`** (petición del usuario, 2026-10-30), para que en
+  ClickUp se vea que alguien la está haciendo:
+
+  ```bash
+  node .claude/skills/clickup-task/scripts/set_status.mjs "<url>" "in progress"
+  ```
+
+  Solo si su estado es `to do`. Si ya está `in progress`, no hace falta tocarla. Si está en
+  `complete` o `duplicate`, no la muevas: díselo al usuario en el plan, porque quizá no haya
+  que hacerla. Si sale `UNKNOWN_STATUS` (otra lista con otros nombres), enseña los estados
+  disponibles y pregunta; no elijas otro.
 
 Después:
 
@@ -230,6 +241,11 @@ Cada versión de la app tiene un fichero `docs/releases/<version>.md` con las ta
 `task.json`, p. ej. `"1.0.93"`; acepta también `v1.0.93`). No la deduzcas de `app.json`.
 
 - Sin tag de versión, o con más de uno: pregunta al usuario a qué versión va. No adivines.
+  Cuando conteste, **pon ese tag en la tarea de ClickUp** (petición del usuario, 2026-10-27),
+  para que en ClickUp se vea en qué release va:
+  `node .claude/skills/clickup-task/scripts/add_tag.mjs "<url>" <versión>` (crea el tag en
+  el espacio si no existe y no toca nada más). Solo para tareas que tocan `losresis-app`: las
+  de panel/BD no llevan versión.
 - Existe `docs/releases/<tag>.md` con `Estado: en desarrollo`: añade la tarea ahí y no toques
   `app.json`.
 - Existe con `Estado: publicada`: para y avisa; la tarea apunta a una versión que ya salió
@@ -323,7 +339,7 @@ pendientes que no bloquean (p. ej. probar en un móvil físico), apúntalos en e
 
 ## Lo que esta skill no hace
 
-- No escribe en ClickUp más allá de pasar a `complete` las tareas terminadas (paso 6): ni comenta
+- No escribe en ClickUp más allá de pasar a `in progress` las tareas que empieza (paso 1) y a `complete` las terminadas (paso 6), y de poner el tag de versión a las que llegan sin él (paso 5): ni comenta
   ni cambia otros campos, salvo que el usuario lo pida.
 - No hace builds de EAS ni EAS Update, ni crea el tag de la versión.
 
@@ -340,4 +356,4 @@ El workspace es privado, así que el script necesita un token personal de ClickU
    ```
 
 El token hereda los permisos del usuario en todos sus workspaces (no hay modo solo lectura), así
-que esta skill solo hace `GET`, salvo el `PUT` de estado de `set_status.mjs` (paso 6). Nunca pegues el token en el chat ni lo guardes dentro del repo.
+que esta skill solo hace `GET`, salvo el `PUT` de estado de `set_status.mjs` (pasos 1 y 6) y el tag de versión de `add_tag.mjs` (paso 5). Nunca pegues el token en el chat ni lo guardes dentro del repo.
