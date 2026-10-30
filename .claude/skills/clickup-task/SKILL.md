@@ -1,6 +1,6 @@
 ---
 name: clickup-task
-description: Implementa en LosResis una o varias tareas de ClickUp del equipo de producto. Lee la tarea (descripción preparada por un agente de IA, checklists, comentarios e imágenes PNG de diseño si las hay), diseña la solución óptima como desarrollador senior contra el código real, la implementa tras validar el plan y apunta la tarea en el histórico de la versión que marca su tag de ClickUp (docs/releases/<versión>.md), abriendo esa versión en app.json si aún no existe. Al terminar con todo en verde sube los cambios a main (app, losresis-db y panel con su vercel --prod) y pasa la tarea de ClickUp a complete. Úsalo cuando el usuario pegue una URL app.clickup.com/t/..., diga "implementa esta tarea", "haz esta tarea de ClickUp", "/clickup-task" o similar.
+description: Implementa en LosResis una o varias tareas de ClickUp del equipo de producto. Lee la tarea (descripción preparada por un agente de IA, checklists, comentarios e imágenes PNG de diseño si las hay), diseña la solución óptima como desarrollador senior contra el código real, la implementa tras validar el plan y apunta la tarea en el histórico de la versión que marca su tag de ClickUp (docs/releases/<versión>.md), abriendo esa versión en app.json si aún no existe. Si toca el panel, lo prueba obligatoriamente en un navegador (Playwright, con datos mock si hace falta) en local y en producción. Al terminar con todo en verde sube los cambios a main (app, losresis-db y panel con su vercel --prod), adjunta las capturas de la prueba a la tarea de ClickUp y la pasa a complete. Úsalo cuando el usuario pegue una URL app.clickup.com/t/..., diga "implementa esta tarea", "haz esta tarea de ClickUp", "/clickup-task" o similar.
 ---
 
 # clickup-task — de tarea de ClickUp a código en LosResis
@@ -149,7 +149,7 @@ inventando una regla de producto. Si el plan es grande o toca dominio delicado, 
   tarea y di cuáles has verificado y cómo (test, prueba manual, lectura de código). Lo que no
   hayas podido verificar, dilo.
 
-## Paso 4b — Verificar (tres niveles, siempre)
+## Paso 4b — Verificar (tres niveles, siempre; cuatro si toca el panel)
 
 1. **Lógica — Jest** (`npm test`). Tests en `__tests__/` espejando la ruta del código
    (`__tests__/utils/...`, `__tests__/services/...`). Cada regla de negocio y caso límite con
@@ -194,6 +194,36 @@ inventando una regla de producto. Si el plan es grande o toca dominio delicado, 
    - El residente de pruebas es `e2e-resident@losresis.test` (MFyC, H. Ramón y Cajal) y vive en la
      BD de producción: solo crear datos propios suyos, nunca tocar los de otros usuarios.
 
+4. **Panel — navegador, OBLIGATORIO si la tarea toca `losresis-panel`** (petición del usuario,
+   2026-10-30). Tests, `tsc` y `next build` en verde no bastan: la pantalla se abre en un
+   navegador y se recorre. Sin esta prueba el panel no se despliega (paso 4d) ni la tarea pasa
+   a `complete` (paso 6).
+   - Herramienta: `scripts/panel_browser.mjs` (Playwright). Entra con una cuenta de pruebas del
+     Hospital E2E leyendo la contraseña de `~/.config/losresis/e2e-panel.env` (`--rol TUTOR` =
+     Responsable de especialidad, por defecto; `--rol OWNER`), y ejecuta el recorrido de la tarea.
+     Playwright no está en el repo: `npm i --prefix <scratchpad>/pw playwright@1.56.1` y
+     `PW_DIR=<scratchpad>/pw`.
+   - El recorrido es un módulo en el scratchpad, `recorrido-<número>.mjs`, escrito a partir de
+     los **criterios de aceptación y casos límite**:
+     `export default async ({ page, base, shot, check, mock }) => { ... }`. `check` asserta
+     textos visibles (las cifras de los criterios se copian tal cual); `shot` saca la captura.
+   - **Datos mock cuando los reales no cubren los casos** (el Hospital E2E tiene un residente):
+     `mock(handler)` intercepta `/rest/v1/**` en el navegador y responde por tabla y `select`;
+     lo demás va a la base real. Así se ven estados vacíos, errores («No disponible»), varios
+     residentes o vencidos sin escribir nada en producción. Para un listado con
+     `count: "exact"`, devuelve la cabecera `content-range: 0-<n-1>/<n>`. Las pantallas con
+     filas deben tener `data-testid` estables para poder assertarlas.
+   - Dos pasadas: primero en local (`npx next dev -p 3100` en segundo plano; el primer `/login`
+     compila en frío, así que haz un `curl` antes) y, **tras el `vercel --prod`**, la misma contra
+     `https://panel.losresis.com`. La segunda es la prueba en producción y la que da las capturas.
+   - Abre con Read **todas** las capturas antes de darlas por buenas y compáralas con el diseño de
+     la tarea. Nunca captures la pantalla de login ya rellenada: el script empieza el recorrido
+     después del login.
+   - Si el usuario quiere verlo a mano: `--abierto` deja el navegador visible con el escenario
+     cargado hasta que lo cierre.
+   - Ejemplo completo (mock por escenarios, comprobaciones, salto a los módulos filtrados):
+     `scripts/recorrido-ejemplo-86cbm0wun.mjs`.
+
 Si un nivel no se puede ejecutar (simulador roto, CLI de Supabase sin sesión…), dilo en el informe; no lo
 des por verificado.
 
@@ -203,7 +233,7 @@ Al terminar la implementación y la verificación, **sin esperar a que el usuari
 el skill `bug-review` (herramienta Skill) y ejecútalo en modo **GATE** sobre los cambios locales.
 
 - Si el veredicto es `🚫 BLOCK`, arregla lo bloqueante, vuelve a pasar los tests afectados
-  (Jest y el flujo de Maestro si tocaste pantallas) y repite el bug review hasta que dé `✅ PASS`.
+  (Jest, el flujo de Maestro si tocaste pantallas de la app y el recorrido en navegador si tocaste el panel) y repite el bug review hasta que dé `✅ PASS`.
   Si un bloqueo necesita una decisión de producto, para y pregúntalo.
 - Los avisos 🟡/🔵 no se arreglan solos: van en el informe final para que el usuario decida.
 - Apunta el veredicto y los avisos en el «Verificado» de la tarea del histórico (paso 5).
@@ -219,7 +249,8 @@ esperar a que salga la app** (autorización del usuario, 2026-10-20). El proyect
 antes de desplegar.
 
 1. Requisitos: la migración de la tarea, si la hay, ya está aplicada en producción (el panel
-   no puede ir por delante de la BD); `npx tsc --noEmit`, lint y `npx vitest run` en verde.
+   no puede ir por delante de la BD); `npx tsc --noEmit`, lint y `npx vitest run` en verde, y
+   la prueba en navegador **en local** (paso 4b.4) con `TODO_OK`.
 2. `git fetch` y comprueba que `main` local no va por detrás de `origin/main`. Si va por detrás
    y el árbol tiene otros cambios, `git pull --rebase` solo si es fast-forward limpio; si no,
    para y avisa. Nunca stash, reset ni force.
@@ -231,7 +262,9 @@ antes de desplegar.
 5. Desde `losresis-panel`: `vercel --prod --yes`. Comprueba con `vercel ls losresis-panel --prod`
    que el más reciente está `● Ready` (si sale `Error`, `vercel inspect <url> --logs` y avisa).
    El dominio es `panel.losresis.com`.
-6. Apunta en el histórico: «Panel desplegado en producción el <fecha> (commit `<sha>`)».
+6. Repite el recorrido del paso 4b.4 contra `https://panel.losresis.com`. Si falla, avisa: el
+   despliegue no está verificado. Si da `TODO_OK`, sus capturas son la evidencia del paso 6.
+7. Apunta en el histórico: «Panel desplegado en producción el <fecha> (commit `<sha>`)».
 
 ## Paso 5 — Histórico de la versión
 
@@ -303,7 +336,7 @@ Cuando la tarea está terminada y **todo está bien**, la subes tú sin esperar 
 pida (autorización del usuario, 2026-10-21). «Todo está bien» quiere decir:
 - el bug review dio `✅ PASS`;
 - Jest (y vitest, `tsc` y lint del panel si lo tocas) están en verde, igual que el flujo de
-  Maestro de la tarea;
+  Maestro de la tarea y, si toca el panel, la prueba en navegador en local y en producción;
 - la migración, si la hay, ya está aplicada en producción.
 
 Si algo de eso falla o no se ha podido ejecutar, no subas nada: dilo en el informe. Si quedan
@@ -324,7 +357,18 @@ pendientes que no bloquean (p. ej. probar en un móvil físico), apúntalos en e
    - El resto de cambios sin commitear del árbol son del usuario o de otra sesión: no los añadas,
      y nómbralos en el informe.
    - Subir a `main` no publica la app: sale con el build de EAS de su versión, que hace el usuario.
-5. **ClickUp:** con todo subido (y el panel `● Ready` si aplica), pasa la tarea a `complete`:
+5. **Capturas a ClickUp:** si la tarea toca el panel, sube como adjuntos las capturas de la
+   pasada en producción (paso 4d.6), ya revisadas con Read (petición del usuario, 2026-10-30):
+
+   ```bash
+   node .claude/skills/clickup-task/scripts/attach_files.mjs "<url>" <scratchpad>/evidencias/*.png
+   ```
+
+   Nómbralas `<número>-<n>-<qué-enseña>.png`, en el orden del recorrido. El script no vuelve a
+   subir un nombre que ya está adjunto. Antes de subirlas, comprueba que solo salen cuentas y
+   datos de prueba (Hospital E2E o mock), nunca datos de otros hospitales ni la contraseña.
+   Si la tarea solo toca la app, sube del mismo modo las capturas de Maestro.
+6. **ClickUp:** con todo subido (y el panel `● Ready` si aplica), pasa la tarea a `complete`:
 
    ```bash
    node .claude/skills/clickup-task/scripts/set_status.mjs "<url>"
@@ -333,13 +377,13 @@ pendientes que no bloquean (p. ej. probar en un móvil físico), apúntalos en e
    El script comprueba que el estado existe en la lista de la tarea y solo cambia el estado. Si
    sale `UNKNOWN_STATUS`, enseña los estados disponibles al usuario y pregunta; no elijas otro.
    Si la tarea tiene subtareas que entraron en esta pasada, pásalas también.
-6. Apunta en la entrada del histórico: «Subido a `main` el <fecha> (commit `<sha>`). Tarea en
+7. Apunta en la entrada del histórico: «Subido a `main` el <fecha> (commit `<sha>`). Tarea en
    ClickUp: complete.» El commit no puede llevar su propio sha. Por eso esta línea va en un
    segundo commit pequeño (`#<número> docs: histórico`) que también se sube.
 
 ## Lo que esta skill no hace
 
-- No escribe en ClickUp más allá de pasar a `in progress` las tareas que empieza (paso 1) y a `complete` las terminadas (paso 6), y de poner el tag de versión a las que llegan sin él (paso 5): ni comenta
+- No escribe en ClickUp más allá de pasar a `in progress` las tareas que empieza (paso 1) y a `complete` las terminadas (paso 6), de poner el tag de versión a las que llegan sin él (paso 5) y de adjuntar las capturas de la prueba (paso 6): ni comenta
   ni cambia otros campos, salvo que el usuario lo pida.
 - No hace builds de EAS ni EAS Update, ni crea el tag de la versión.
 
@@ -356,4 +400,4 @@ El workspace es privado, así que el script necesita un token personal de ClickU
    ```
 
 El token hereda los permisos del usuario en todos sus workspaces (no hay modo solo lectura), así
-que esta skill solo hace `GET`, salvo el `PUT` de estado de `set_status.mjs` (pasos 1 y 6) y el tag de versión de `add_tag.mjs` (paso 5). Nunca pegues el token en el chat ni lo guardes dentro del repo.
+que esta skill solo hace `GET`, salvo el `PUT` de estado de `set_status.mjs` (pasos 1 y 6), el tag de versión de `add_tag.mjs` (paso 5) y los adjuntos de `attach_files.mjs` (paso 6). Nunca pegues el token en el chat ni lo guardes dentro del repo.
