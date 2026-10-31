@@ -6,43 +6,7 @@ import {
   getSpecialtyCounts,
 } from "../services/hospitalService";
 import { usePersistedFilters } from "./usePersistedFilters";
-
-const compareByRankingMetadata = (a, b, rankingByHospitalId) => {
-  const aRanking = rankingByHospitalId[a.id] || a;
-  const bRanking = rankingByHospitalId[b.id] || b;
-  const aRanked =
-    aRanking &&
-    (aRanking.final_score !== null ||
-      aRanking.organic_score !== null ||
-      aRanking.blended_rank !== null);
-  const bRanked =
-    bRanking &&
-    (bRanking.final_score !== null ||
-      bRanking.organic_score !== null ||
-      bRanking.blended_rank !== null);
-
-  if (aRanked && bRanked) {
-    if ((bRanking.final_score ?? -1) !== (aRanking.final_score ?? -1)) {
-      return (bRanking.final_score ?? -1) - (aRanking.final_score ?? -1);
-    }
-    if ((bRanking.organic_score ?? -1) !== (aRanking.organic_score ?? -1)) {
-      return (bRanking.organic_score ?? -1) - (aRanking.organic_score ?? -1);
-    }
-    if (
-      (bRanking.approved_review_count ?? 0) !==
-      (aRanking.approved_review_count ?? 0)
-    ) {
-      return (
-        (bRanking.approved_review_count ?? 0) -
-        (aRanking.approved_review_count ?? 0)
-      );
-    }
-  } else if (aRanked !== bRanked) {
-    return aRanked ? -1 : 1;
-  }
-
-  return (a.catalog_order ?? 0) - (b.catalog_order ?? 0);
-};
+import { compareByRankingMetadata } from "../utils/homeHospitalSections";
 
 /**
  * Hook para obtener y filtrar hospitales

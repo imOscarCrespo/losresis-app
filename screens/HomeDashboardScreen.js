@@ -40,6 +40,7 @@ import {
 } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHospitals } from "../hooks/useHospitals";
+import { getHomeHospitalSections } from "../utils/homeHospitalSections";
 import { useAgendaEvents } from "../hooks/useAgendaEvents";
 import { useEmailReviewStatus } from "../hooks/useEmailReviewStatus";
 import { agendaEventTypeLabels } from "../services/agendaService";
@@ -255,7 +256,6 @@ export default function HomeDashboardScreen({
   const {
     hospitals,
     specialties,
-    filteredHospitals,
     loadingHospitals,
   } = useHospitals();
   const { events: agendaEvents, loading: loadingAgendaEvents } = useAgendaEvents(
@@ -852,21 +852,15 @@ export default function HomeDashboardScreen({
     userProfile?.id,
   ]);
 
-  const bestMatchHospitals = useMemo(
-    () =>
-      [...filteredHospitals]
-        .sort((a, b) => {
-          const rA = hospitalRatings[a.id]?.avgRating ?? 0;
-          const rB = hospitalRatings[b.id]?.avgRating ?? 0;
-          return rB - rA;
-        })
-        .slice(0, 3),
-    [filteredHospitals, hospitalRatings]
-  );
-  const alsoInterestedHospitals = useMemo(
-    () => filteredHospitals.slice(3, 7),
-    [filteredHospitals]
-  );
+  const { bestMatch: bestMatchHospitals, alsoInterested: alsoInterestedHospitals } =
+    useMemo(
+      () => getHomeHospitalSections(hospitals, hospitalRatings),
+      [hospitals, hospitalRatings]
+    );
+  // Sin contenido (catálogo vacío o error al cargar) la sección no se pinta.
+  const showBestMatchSection = loadingHospitals || bestMatchHospitals.length > 0;
+  const showAlsoInterestedSection =
+    loadingHospitals || alsoInterestedHospitals.length > 0;
   const carouselCardWidth = Math.max(width - 32, 280);
   const carouselHasAds = dashboardAds.length > 0;
   const carouselItems = dashboardAds;
@@ -1597,69 +1591,71 @@ export default function HomeDashboardScreen({
 
       {userProfile?.is_student && (
         <>
-          <View style={styles.section}>
-            <View style={styles.sectionTitleRow}>
-              <View style={styles.sectionBarGreen} />
-              <View style={styles.sectionTitleBlock}>
-                <Text style={styles.sectionTitle}>Mejor match para ti</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Basado en tu puntuación y especialidad
-                </Text>
+          {showBestMatchSection && (
+            <View style={styles.section}>
+              <View style={styles.sectionTitleRow}>
+                <View style={styles.sectionBarGreen} />
+                <View style={styles.sectionTitleBlock}>
+                  <Text style={styles.sectionTitle}>Mejor match para ti</Text>
+                  <Text style={styles.sectionSubtitle}>
+                    Basado en tu puntuación y especialidad
+                  </Text>
+                </View>
               </View>
+              {loadingHospitals ? (
+                <ActivityIndicator size="small" color={PRIMARY} style={styles.loader} />
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.horizontalCards}
+                >
+                  {bestMatchHospitals.map((hospital, idx) => {
+                    const rating = hospitalRatings[hospital.id];
+                    return (
+                      <TouchableOpacity
+                        key={hospital.id}
+                        style={[
+                          styles.hospitalCard,
+                          idx % 2 === 1 && styles.hospitalCardPurple,
+                        ]}
+                        onPress={() => onHospitalSelect?.(hospital, null, "inicio")}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.hospitalCardName} numberOfLines={2}>
+                          {hospital.name}
+                        </Text>
+                        <View style={styles.hospitalCardRow}>
+                          <Icon name="location" size={12} color="#6B7280" />
+                          <Text style={styles.hospitalCardMeta}>
+                            {hospital.city}, {hospital.region}
+                          </Text>
+                        </View>
+                        <View style={styles.hospitalCardRow}>
+                          <Icon name="school" size={12} color={SECONDARY} />
+                          <Text style={styles.hospitalCardSpecialty}>
+                            {hospital.specialtyCount ?? 0} especialidades MIR
+                          </Text>
+                        </View>
+                        <View style={styles.hospitalCardDivider} />
+                        <View style={styles.hospitalCardRow}>
+                          <Icon name="star" size={14} color="#FBBF24" />
+                          <Text style={styles.hospitalCardRating}>
+                            {rating ? rating.avgRating.toFixed(1) : "–"}
+                          </Text>
+                          <Text style={styles.hospitalCardReviews}>
+                            {rating
+                              ? `· ${rating.reviewCount} reseña${rating.reviewCount !== 1 ? "s" : ""}`
+                              : "· Sin reseñas"}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
             </View>
-            {loadingHospitals ? (
-              <ActivityIndicator size="small" color={PRIMARY} style={styles.loader} />
-            ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.horizontalCards}
-              >
-                {bestMatchHospitals.map((hospital, idx) => {
-                  const rating = hospitalRatings[hospital.id];
-                  return (
-                    <TouchableOpacity
-                      key={hospital.id}
-                      style={[
-                        styles.hospitalCard,
-                        idx % 2 === 1 && styles.hospitalCardPurple,
-                      ]}
-                      onPress={() => onHospitalSelect?.(hospital, null, "inicio")}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.hospitalCardName} numberOfLines={2}>
-                        {hospital.name}
-                      </Text>
-                      <View style={styles.hospitalCardRow}>
-                        <Icon name="location" size={12} color="#6B7280" />
-                        <Text style={styles.hospitalCardMeta}>
-                          {hospital.city}, {hospital.region}
-                        </Text>
-                      </View>
-                      <View style={styles.hospitalCardRow}>
-                        <Icon name="school" size={12} color={SECONDARY} />
-                        <Text style={styles.hospitalCardSpecialty}>
-                          {hospital.specialtyCount ?? 0} especialidades MIR
-                        </Text>
-                      </View>
-                      <View style={styles.hospitalCardDivider} />
-                      <View style={styles.hospitalCardRow}>
-                        <Icon name="star" size={14} color="#FBBF24" />
-                        <Text style={styles.hospitalCardRating}>
-                          {rating ? rating.avgRating.toFixed(1) : "–"}
-                        </Text>
-                        <Text style={styles.hospitalCardReviews}>
-                          {rating
-                            ? `· ${rating.reviewCount} reseña${rating.reviewCount !== 1 ? "s" : ""}`
-                            : "· Sin reseñas"}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            )}
-          </View>
+          )}
 
           <TouchableOpacity
             style={styles.housingBanner}
@@ -1683,45 +1679,51 @@ export default function HomeDashboardScreen({
             </View>
           </TouchableOpacity>
 
-          <View style={styles.section}>
-            <View style={styles.sectionTitleRow}>
-              <View style={styles.sectionBarPurple} />
-              <Text style={[styles.sectionTitle, styles.sectionTitleOnly]}>
-                También te puede interesar
-              </Text>
-            </View>
-            {loadingHospitals ? (
-              <ActivityIndicator size="small" color={PRIMARY} style={styles.loader} />
-            ) : (
-              <View style={styles.verticalCards}>
-                {alsoInterestedHospitals.map((hospital, idx) => (
-                  <TouchableOpacity
-                    key={hospital.id}
-                    style={[
-                      styles.alsoCard,
-                      idx % 2 === 1 && styles.alsoCardPurple,
-                    ]}
-                    onPress={() => onHospitalSelect?.(hospital, null, "inicio")}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.alsoCardName}>{hospital.name}</Text>
-                    <Text style={styles.alsoCardLocation}>
-                      {hospital.city}, {hospital.region}
-                    </Text>
-                    <View style={styles.alsoCardRow}>
-                      <View style={styles.alsoCardStars}>
-                        <Icon name="star" size={14} color="#FBBF24" />
-                        <Text style={styles.alsoCardRating}>4.7</Text>
-                      </View>
-                      <Text style={styles.alsoCardSpecialty}>
-                        {hospital.specialtyCount ?? 0} especialidades
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
+          {showAlsoInterestedSection && (
+            <View style={styles.section} testID="home-also-interested">
+              <View style={styles.sectionTitleRow}>
+                <View style={styles.sectionBarPurple} />
+                <Text style={[styles.sectionTitle, styles.sectionTitleOnly]}>
+                  También te puede interesar
+                </Text>
               </View>
-            )}
-          </View>
+              {loadingHospitals ? (
+                <ActivityIndicator size="small" color={PRIMARY} style={styles.loader} />
+              ) : (
+                <View style={styles.verticalCards}>
+                  {alsoInterestedHospitals.map((hospital, idx) => (
+                    <TouchableOpacity
+                      key={hospital.id}
+                      style={[
+                        styles.alsoCard,
+                        idx % 2 === 1 && styles.alsoCardPurple,
+                      ]}
+                      onPress={() => onHospitalSelect?.(hospital, null, "inicio")}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.alsoCardName}>{hospital.name}</Text>
+                      <Text style={styles.alsoCardLocation}>
+                        {hospital.city}, {hospital.region}
+                      </Text>
+                      <View style={styles.alsoCardRow}>
+                        <View style={styles.alsoCardStars}>
+                          <Icon name="star" size={14} color="#FBBF24" />
+                          <Text style={styles.alsoCardRating}>
+                            {hospitalRatings[hospital.id]
+                              ? hospitalRatings[hospital.id].avgRating.toFixed(1)
+                              : "–"}
+                          </Text>
+                        </View>
+                        <Text style={styles.alsoCardSpecialty}>
+                          {hospital.specialtyCount ?? 0} especialidades
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
         </>
       )}
     </ScrollView>

@@ -1,0 +1,59 @@
+# ClickUp 124b4z9vn91 · «También te puede interesar» de Inicio aparecía vacía
+# https://app.clickup.com/t/90151808476/124b4z9vn91
+#
+# Causa: Inicio usaba los filtros guardados del buscador de Hospitales. Con una
+# búsqueda de un solo hospital, «Mejor match» se quedaba con él y «También te
+# puede interesar» salía con el título y sin tarjetas.
+#
+# Solo lectura: no crea datos. Necesita una cuenta de ESTUDIANTE (las secciones no
+# salen al residente):
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-student.env scripts/e2e.sh e2e/flows/clickup-124b4z9vn91-home-also-interested.yaml
+appId: com.losresis.app
+name: "124b4z9vn91 También te puede interesar"
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+- extendedWaitUntil:
+    visible: "TU ACTIVIDAD"
+    timeout: 20000
+
+# Sin filtros: la sección tiene tarjetas. iOS junta el texto de cada tarjeta en
+# una etiqueta: "<nombre>, <ciudad>, <región>, <nota>, N especialidades".
+- scrollUntilVisible:
+    element: "También te puede interesar"
+    centerElement: true
+- scrollUntilVisible:
+    element: ".*, \\d+ especialidades"
+    centerElement: true
+- takeScreenshot: clickup-124b4z9vn91-1-sin-filtros
+
+# Filtro en Hospitales que deja 3 o menos resultados (antes vaciaba la sección)
+- tapOn: "Hospitales"
+- tapOn: "Buscar hospital por nombre"
+- inputText: "Punta De Europa"
+- extendedWaitUntil:
+    visible: "[1-3] hospital(es)?"
+    timeout: 10000
+# El filtro se guarda con debounce de 500 ms
+- waitForAnimationToEnd:
+    timeout: 1500
+# El teclado tapa la barra inferior: se cierra tocando un texto
+- tapOn: "[1-3] hospital(es)?"
+- takeScreenshot: clickup-124b4z9vn91-2-filtro-hospitales
+
+# De vuelta en Inicio: la sección sigue con tarjetas, nunca solo el título
+- tapOn: "Inicio"
+- extendedWaitUntil:
+    visible: "TU ACTIVIDAD"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "Mejor match para ti"
+    centerElement: true
+- scrollUntilVisible:
+    element: "También te puede interesar"
+    centerElement: true
+- scrollUntilVisible:
+    element: ".*, \\d+ especialidades"
+    centerElement: true
+- takeScreenshot: clickup-124b4z9vn91-3-inicio-con-filtro
