@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
@@ -28,6 +29,10 @@ import {
   enrollInCourse,
   getCourseEnrollmentSummary,
 } from "../services/courseEnrollmentService";
+import {
+  getCourseDocumentUrl,
+  getCourseDocuments,
+} from "../services/courseDocumentService";
 import { formatDateOnly, formatShortDate } from "../utils/dateUtils";
 import { openURL } from "../utils/courseUtils";
 import posthogLogger from "../services/posthogService";
@@ -136,6 +141,10 @@ export default function CourseDetailScreen({
   const [checkingIn, setCheckingIn] = useState(false);
   const [checkinError, setCheckinError] = useState(null);
   const [enrollmentMessage, setEnrollmentMessage] = useState(null);
+  // PDFs del organizador. Si no se pueden cargar (sin conexión) se queda vacío:
+  // nunca se enseña un PDF como disponible sin haberlo leído.
+  const [documents, setDocuments] = useState([]);
+  const [openingDocumentId, setOpeningDocumentId] = useState(null);
   const consumedCheckinCodeRef = useRef(null);
 
   const isInApp = course?.enrollment_mode === "in_app";
@@ -182,6 +191,44 @@ export default function CourseDetailScreen({
 
     loadCourse();
   }, [courseId, currentUserId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDocuments([]);
+    getCourseDocuments(courseId).then((result) => {
+      if (!cancelled) setDocuments(result.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId]);
+
+  // La URL se firma en el momento: caduca enseguida y apunta siempre al PDF vigente.
+  const handleOpenDocument = useCallback(
+    async (document) => {
+      setOpeningDocumentId(document.id);
+      const url = await getCourseDocumentUrl(document.storage_path);
+      setOpeningDocumentId(null);
+      if (!url) {
+        Alert.alert(
+          "No se ha podido abrir el PDF",
+          "Comprueba tu conexión e inténtalo de nuevo."
+        );
+        return;
+      }
+      posthogLogger.capture("course_document_opened", {
+        course_id: courseId,
+        kind: document.kind,
+      });
+      try {
+        await WebBrowser.openBrowserAsync(url);
+      } catch (err) {
+        console.error("Error opening course document:", err);
+        Alert.alert("No se ha podido abrir el PDF", "Inténtalo de nuevo.");
+      }
+    },
+    [courseId]
+  );
 
   const loadSummary = useCallback(async () => {
     if (!courseId) return null;
@@ -845,6 +892,41 @@ export default function CourseDetailScreen({
             </SectionCard>
           ) : null}
 
+          {documents.length > 0 ? (
+            <SectionCard title="Documentos">
+              {documents.map((document, index) => (
+                <TouchableOpacity
+                  key={document.id}
+                  testID={`course-document-${document.kind}`}
+                  style={[
+                    styles.documentRow,
+                    index < documents.length - 1 && styles.documentRowDivider,
+                  ]}
+                  onPress={() => handleOpenDocument(document)}
+                  disabled={openingDocumentId !== null}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Abrir ${document.label}`}
+                >
+                  <View style={styles.infoIconWrap}>
+                    <Icon name="document-text-outline" size={15} color={PRIMARY} />
+                  </View>
+                  <View style={styles.infoCopy}>
+                    <Text style={styles.infoLabel}>{document.label}</Text>
+                    <Text style={styles.documentName} numberOfLines={1}>
+                      {document.file_name}
+                    </Text>
+                  </View>
+                  {openingDocumentId === document.id ? (
+                    <ActivityIndicator size="small" color={PRIMARY} />
+                  ) : (
+                    <Icon name="chevron-forward" size={18} color={MUTED_LIGHT} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </SectionCard>
+          ) : null}
+
           {!isInApp && course.registration_url ? (
             <SectionCard title="Inscripción">
               <Text style={styles.cardBody}>
@@ -1306,6 +1388,21 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 15,
     lineHeight: 22,
+    color: ACCENT,
+    fontWeight: "600",
+  },
+  documentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+  },
+  documentRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: CARD_BORDER,
+  },
+  documentName: {
+    fontSize: 15,
     color: ACCENT,
     fontWeight: "600",
   },

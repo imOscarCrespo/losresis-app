@@ -1,0 +1,56 @@
+# ClickUp 124b4z9vn8r · Cursos: PDFs de información, programa y material para revisar
+# https://app.clickup.com/t/124b4z9vn8r
+#
+#   scripts/e2e.sh e2e/flows/clickup-124b4z9vn8r-course-documents.yaml
+#
+# Curso de pruebas «E2E · Curso con documentos» del Hospital E2E
+# (3bde8e20-ad1e-4b33-9e40-17a61b0aa813). Tiene fechas pasadas para que no salga
+# en ningún listado de residentes reales, así que se abre con el enlace de
+# fichaje (losresis://course-checkin), que lleva al detalle del curso. El código
+# 000000 no ficha: el curso es de inscripción externa.
+#
+# Los tres PDFs los sube el recorrido del panel (programa sustituido por la v2).
+# Comprueba que el residente ve los tres en orden y que «Programa» abre la
+# versión vigente. Repetible sin limpiar datos: solo lee.
+appId: com.losresis.app
+name: "124b4z9vn8r Documentos del curso"
+---
+# Un aviso «Open in LosResis?» de una pasada anterior sobrevive al relanzar la app.
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Cancel"
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- openLink: "losresis://course-checkin?c=3bde8e20-ad1e-4b33-9e40-17a61b0aa813&k=000000"
+# iOS pregunta antes de abrir un esquema propio desde fuera de la app.
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "E2E · Curso con documentos"
+    timeout: 30000
+
+- scrollUntilVisible:
+    element:
+      id: "course-document-review_material"
+    centerElement: true
+# Cada fila es un botón con accessibilityLabel «Abrir <hueco>»: Maestro ve esa
+# etiqueta, no los textos de dentro (el nombre del fichero se ve en la captura).
+- assertVisible: "Documentos"
+- assertVisible: "Abrir Información del curso"
+- assertVisible: "Abrir Programa"
+- assertVisible: "Abrir Material para revisar"
+- takeScreenshot: 124b4z9vn8r-app-1-documentos
+
+- tapOn:
+    id: "course-document-program"
+- extendedWaitUntil:
+    visible: "Programa E2E - version 2"
+    timeout: 30000
+- takeScreenshot: 124b4z9vn8r-app-2-programa-vigente
