@@ -1,0 +1,51 @@
+# ClickUp 124b4z9vn92 · Agenda: quién hizo la inscripción a un curso
+# https://app.clickup.com/t/124b4z9vn92
+#
+#   scripts/e2e.sh e2e/flows/clickup-124b4z9vn92-agenda-enrollment-origin.yaml
+#
+# El residente de pruebas está inscrito en dos cursos en borrador del Hospital
+# E2E: uno lo inscribió Docencia desde el panel (add_course_enrollment_by_email)
+# y en el otro se inscribió él. El seed los pone en hoy. En la Agenda, la hoja
+# de cada uno dice quién hizo la inscripción. Repetible sin limpiar datos.
+appId: com.losresis.app
+name: "124b4z9vn92 Origen de la inscripción"
+---
+- runScript:
+    file: ../scripts/seed-124b4z9vn92-courses.js
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- tapOn: "Agenda"
+- extendedWaitUntil:
+    visible: ".*E2E · Curso inscrito por Docencia.*"
+    timeout: 20000
+- takeScreenshot: vn92-agenda-day
+
+# La celda del día lleva los dos cursos y abre el primero: se toca cada uno en
+# la lista del día, más abajo (cada fila: «<fecha>, <título>, Curso»).
+- scrollUntilVisible:
+    element: ".*, E2E · Curso inscrito por Docencia, Curso"
+    centerElement: true
+- tapOn: ".*, E2E · Curso inscrito por Docencia, Curso"
+- extendedWaitUntil:
+    visible: ".*Te ha inscrito Hospital E2E LosResis.*"
+    timeout: 10000
+- assertNotVisible: ".*Te inscribiste en este curso desde LosResis.*"
+- takeScreenshot: vn92-detail-hospital
+
+# La hoja es un solo elemento de accesibilidad (su X no tiene id visible): se
+# toca la X por posición.
+- tapOn:
+    point: "91%,73%"
+- waitForAnimationToEnd
+
+- scrollUntilVisible:
+    element: ".*, E2E · Curso inscrito por mí, Curso"
+    centerElement: true
+- tapOn: ".*, E2E · Curso inscrito por mí, Curso"
+- extendedWaitUntil:
+    visible: ".*Te inscribiste en este curso desde LosResis.*"
+    timeout: 10000
+- assertNotVisible: ".*Te ha inscrito.*"
+- takeScreenshot: vn92-detail-self

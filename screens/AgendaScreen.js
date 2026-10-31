@@ -34,6 +34,7 @@ import {
 import { getMyConnections } from "../services/connectionsService";
 import { getShiftDebrief } from "../services/shiftDebriefService";
 import { isShiftFinished } from "../utils/shiftDebrief";
+import { describeCourseEnrollmentOrigin } from "../utils/courseEnrollmentOrigin";
 
 LocaleConfig.locales.es = {
   monthNames: [
@@ -348,7 +349,7 @@ const buildSharedEventDetailRows = (event) => {
       key: "owner",
       icon: "school-outline",
       label: "Inscripción",
-      value: "Te inscribiste en este curso desde LosResis",
+      value: describeCourseEnrollmentOrigin(metadata),
     });
   } else if (isServiceEvent(event)) {
     // Copia proyectada desde el panel: lo convoca el servicio, no una Conexión.
