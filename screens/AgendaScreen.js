@@ -35,6 +35,7 @@ import { getMyConnections } from "../services/connectionsService";
 import { getShiftDebrief } from "../services/shiftDebriefService";
 import { isShiftFinished } from "../utils/shiftDebrief";
 import { describeCourseEnrollmentOrigin } from "../utils/courseEnrollmentOrigin";
+import { getAgendaEventCourseId } from "../utils/agendaCourseLink";
 
 LocaleConfig.locales.es = {
   monthNames: [
@@ -652,13 +653,25 @@ const EventChip = ({ label, selected, onPress, color }) => (
   </TouchableOpacity>
 );
 
-export const AgendaScreen = ({ userProfile, navigation }) => {
+// `initialDate` (YYYY-MM-DD): día con el que se abre, para volver de la ficha de
+// un curso al día que se estaba mirando.
+const parseInitialDate = (value) => {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  return normalizeDate(new Date(year, month - 1, day));
+};
+
+export const AgendaScreen = ({ userProfile, navigation, initialDate = null }) => {
   const insets = useSafeAreaInsets();
   const userId = userProfile?.id;
   const today = normalizeDate();
   const todayString = formatDateKey(today);
-  const [selectedDate, setSelectedDate] = useState(todayString);
-  const [visibleMonth, setVisibleMonth] = useState(today);
+  const [selectedDate, setSelectedDate] = useState(
+    () => (parseInitialDate(initialDate) ? initialDate : todayString)
+  );
+  const [visibleMonth, setVisibleMonth] = useState(
+    () => parseInitialDate(initialDate) || today
+  );
   const [typeModalVisible, setTypeModalVisible] = useState(false);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
@@ -924,7 +937,18 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
 
   // Los eventos compartidos por una Conexión son de solo lectura: el residente
   // puede abrir su detalle pero solo el creador (owner) puede editarlos.
+  // Un día de curso con inscripción no abre hoja: lleva a la ficha del curso,
+  // que es donde se gestiona (y se ficha). Al volver, la Agenda sigue en el día.
   const openSharedDetail = (event) => {
+    const courseId = getAgendaEventCourseId(event, userId);
+    if (courseId && navigation?.navigate) {
+      navigation.navigate("courseDetail", {
+        courseId,
+        fromSection: "agenda",
+        agendaDate: selectedDate,
+      });
+      return;
+    }
     setDetailEvent(event);
   };
 
@@ -1305,6 +1329,7 @@ export const AgendaScreen = ({ userProfile, navigation }) => {
                     onPress={() => setSelectedDate(dateString)}
                   >
                     <View
+                      testID={isOtherMonth ? undefined : `agenda-day-${dateString}`}
                       style={[
                         styles.dayNumberWrap,
                         isSelected && styles.dayNumberSelected,

@@ -1,0 +1,94 @@
+# ClickUp 124b4z9vn93 · Agenda: al pulsar un curso, abrir la ficha del curso
+# https://app.clickup.com/t/124b4z9vn93
+#
+#   scripts/e2e.sh e2e/flows/clickup-124b4z9vn93-agenda-abre-curso.yaml
+#
+# El residente de pruebas está inscrito en dos cursos en borrador del Hospital
+# E2E. El seed pone uno en hoy y el otro en otro día del mes. Pulsar un curso en
+# la Agenda abre su ficha (no una hoja): con «Asistencia de hoy» y «Fichar» el
+# día del curso, y al volver la Agenda sigue en el día que se miraba. Un curso
+# que ya no existe dice «Este curso ya no está disponible». Repetible sin
+# limpiar datos: no ficha ni escribe nada del residente.
+appId: com.losresis.app
+name: "124b4z9vn93 Agenda abre la ficha del curso"
+---
+- runScript:
+    file: ../scripts/seed-124b4z9vn93-courses.js
+# Un aviso «Open in LosResis?» de una pasada anterior sobrevive al relanzar la app.
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Cancel"
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+# 1. Curso de hoy: pulsar el evento abre la ficha, con «Fichar».
+- tapOn: "Agenda"
+- extendedWaitUntil:
+    visible: ".*E2E · Curso inscrito por Docencia.*"
+    timeout: 20000
+- scrollUntilVisible:
+    element: ".*, E2E · Curso inscrito por Docencia, Curso"
+    centerElement: true
+- tapOn: ".*, E2E · Curso inscrito por Docencia, Curso"
+- extendedWaitUntil:
+    visible: "Asistencia de hoy"
+    timeout: 15000
+- assertNotVisible: ".*Solo lectura.*"
+- assertVisible: "Inscrito"
+- takeScreenshot: vn93-1-ficha-desde-agenda
+- scrollUntilVisible:
+    element: "Fichar"
+    centerElement: true
+- tapOn: "Fichar"
+- extendedWaitUntil:
+    visible: "Fichar asistencia"
+    timeout: 5000
+- takeScreenshot: vn93-2-fichar
+# Se cierra sin fichar.
+- tapOn: "Cerrar"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element: "Tus días del curso"
+    centerElement: true
+
+# 2. Curso de otro día: al volver de la ficha, la Agenda sigue en ese día.
+- tapOn: "Agenda"
+- extendedWaitUntil:
+    visible:
+      id: "agenda-day-${output.otherDate}"
+    timeout: 15000
+- tapOn:
+    id: "agenda-day-${output.otherDate}"
+- scrollUntilVisible:
+    element: "(.*, )?E2E · Curso inscrito por mí, Curso"
+    centerElement: true
+- tapOn: "(.*, )?E2E · Curso inscrito por mí, Curso"
+- extendedWaitUntil:
+    visible: "Tus días del curso"
+    timeout: 15000
+- assertNotVisible: "Asistencia de hoy"
+- takeScreenshot: vn93-3-ficha-otro-dia
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Agenda de residencia"
+    timeout: 10000
+- scrollUntilVisible:
+    element: "(?i).*${output.otherDayTitle}.*"
+    centerElement: true
+- assertVisible: "(.*, )?E2E · Curso inscrito por mí, Curso"
+- takeScreenshot: vn93-4-vuelta-mismo-dia
+
+# 3. Curso que ya no existe: la ficha lo dice, sin pantalla en blanco.
+- openLink: "losresis://course-checkin?c=e2e0b93d-0000-4000-8000-00000000dead&k=000000"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "Este curso ya no está disponible"
+    timeout: 15000
+- takeScreenshot: vn93-5-curso-no-disponible

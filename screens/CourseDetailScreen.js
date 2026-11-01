@@ -35,6 +35,7 @@ import {
 } from "../services/courseDocumentService";
 import { formatDateOnly, formatShortDate } from "../utils/dateUtils";
 import { openURL } from "../utils/courseUtils";
+import { classifyCourseLoadError } from "../utils/agendaCourseLink";
 import posthogLogger from "../services/posthogService";
 
 const PRIMARY = "#670CF5";
@@ -122,6 +123,8 @@ export default function CourseDetailScreen({
   onBack,
   onEdit,
   onDelete,
+  // Texto del botón de volver en los estados de error (p. ej. desde la Agenda).
+  backLabel = "Volver a cursos",
   // Código de fichaje que llega por deep link (losresis://course-checkin).
   checkinCode = null,
   onCheckinCodeConsumed,
@@ -129,7 +132,9 @@ export default function CourseDetailScreen({
   const insets = useSafeAreaInsets();
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
+  // null, "unavailable" (borrado o ya no visible) o "failed" (sin conexión…).
   const [error, setError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [summary, setSummary] = useState(null);
@@ -171,7 +176,7 @@ export default function CourseDetailScreen({
   useEffect(() => {
     const loadCourse = async () => {
       if (!courseId) {
-        setError("ID de curso requerido");
+        setError("unavailable");
         setLoading(false);
         return;
       }
@@ -183,14 +188,15 @@ export default function CourseDetailScreen({
         setCourse(fetchedCourse);
       } catch (err) {
         console.error("Error fetching course:", err);
-        setError("No se pudo cargar el curso");
+        setCourse(null);
+        setError(classifyCourseLoadError(err));
       } finally {
         setLoading(false);
       }
     };
 
     loadCourse();
-  }, [courseId, currentUserId]);
+  }, [courseId, currentUserId, reloadKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -490,17 +496,32 @@ export default function CourseDetailScreen({
   }
 
   if (error || !course) {
+    const canRetry = error === "failed";
     return (
-      <View style={styles.stateContainer}>
+      <View style={styles.stateContainer} testID="course-detail-error">
         <View style={styles.stateIconWrap}>
           <Icon name="alert-circle-outline" size={32} color={DANGER} />
         </View>
-        <Text style={styles.stateTitle}>{error || "Curso no encontrado"}</Text>
-        <Text style={styles.stateText}>
-          Revisa el identificador o vuelve al listado para seguir explorando.
+        <Text style={styles.stateTitle}>
+          {canRetry
+            ? "No se ha podido cargar el curso"
+            : "Este curso ya no está disponible"}
         </Text>
+        <Text style={styles.stateText}>
+          {canRetry
+            ? "Comprueba tu conexión e inténtalo de nuevo."
+            : "Puede que se haya eliminado o que ya no esté publicado."}
+        </Text>
+        {canRetry ? (
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => setReloadKey((key) => key + 1)}
+          >
+            <Text style={styles.secondaryButtonText}>Reintentar</Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity style={styles.secondaryButton} onPress={onBack}>
-          <Text style={styles.secondaryButtonText}>Volver a cursos</Text>
+          <Text style={styles.secondaryButtonText}>{backLabel}</Text>
         </TouchableOpacity>
       </View>
     );

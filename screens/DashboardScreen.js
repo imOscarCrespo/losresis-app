@@ -208,6 +208,9 @@ export default function DashboardScreen({
   // Código de fichaje llegado por deep link. No se persiste: caduca en menos
   // de un minuto y no debe relanzarse al reabrir la app.
   const [pendingCheckinCode, setPendingCheckinCode] = useState(null);
+  // Día que miraba la Agenda al abrir la ficha de un curso: al volver, la Agenda
+  // se monta otra vez en ese día. Entrar a la Agenda por el menú lo olvida.
+  const [agendaReturnDate, setAgendaReturnDate] = useState(null);
   const [selectedHousingAdId, setSelectedHousingAdId] = useState(null);
   const [creatingHousingAd, setCreatingHousingAd] = useState(false);
   const [editingHousingAdId, setEditingHousingAdId] = useState(null);
@@ -947,6 +950,10 @@ export default function DashboardScreen({
       setPreviousSection(params.fromSection || currentSection);
       setSelectedCourseId(params.courseId);
       setPendingCheckinCode(params.checkinCode || null);
+      setAgendaReturnDate(params.agendaDate || null);
+    }
+    if (sectionId === "agenda" || sectionId === "guardias") {
+      setAgendaReturnDate(null);
     }
     // Si es housingDetail, guardar el adId
     if (sectionId === "housingDetail" && params.adId) {
@@ -1444,6 +1451,9 @@ export default function DashboardScreen({
             checkinCode={pendingCheckinCode}
             onCheckinCodeConsumed={() => setPendingCheckinCode(null)}
             onBack={handleBackFromCourse}
+            backLabel={
+              previousSection === "agenda" ? "Volver a la agenda" : undefined
+            }
             onEdit={(courseId) => {
               setSelectedCourseId(null);
               setEditingCourseId(courseId);
@@ -1965,6 +1975,7 @@ export default function DashboardScreen({
         return (
           <AgendaScreen
             userProfile={userProfile}
+            initialDate={agendaReturnDate}
             navigation={{ navigate: handleSectionChange }}
             onNavigateToSection={handleSectionChange}
           />
