@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -66,9 +66,19 @@ const InfoChip = ({ text }) => (
   </View>
 );
 
-export default function HospitalInfoScreen({ hospital, onBack }) {
+export default function HospitalInfoScreen({
+  hospital,
+  onBack,
+  // Desde la ficha del hospital se entra a por el plan de UNA especialidad:
+  // la pantalla se abre filtrada, desplegada y con el plan a la vista.
+  initialSpecialityId = null,
+}) {
   const [hospitalProfile, setHospitalProfile] = useState(getEmptyHospitalProfile());
   const [profileLoading, setProfileLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const scrollRef = useRef(null);
+  const plansLayout = useRef({ stackY: null, cardY: null });
+  const pendingScrollToPlans = useRef(false);
   const [expandedPlanId, setExpandedPlanId] = useState(null);
   const [planSpecialityFilter, setPlanSpecialityFilter] = useState("");
   const [downloadingDocumentId, setDownloadingDocumentId] = useState(null);
@@ -82,26 +92,51 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
   useEffect(() => {
     setExpandedPlanId(null);
     setPlanSpecialityFilter("");
-  }, [hospital?.id]);
+  }, [hospital?.id, initialSpecialityId]);
 
   useEffect(() => {
     if (!hospital?.id) return;
     fetchHospitalProfile();
-  }, [hospital?.id]);
+  }, [hospital?.id, initialSpecialityId]);
+
+  // La tarjeta de planes va al final (tras el resumen, vídeo y galería): si se
+  // ha entrado a por un plan, se baja hasta ella en cuanto se conoce su posición.
+  const scrollToPlansIfPending = () => {
+    const { stackY, cardY } = plansLayout.current;
+    // onLayout del contenedor y de la tarjeta llegan sin orden garantizado.
+    if (!pendingScrollToPlans.current || stackY === null || cardY === null) return;
+    pendingScrollToPlans.current = false;
+    scrollRef.current?.scrollTo({ y: Math.max(0, stackY + cardY - 8), animated: true });
+  };
 
   const fetchHospitalProfile = async () => {
     setProfileLoading(true);
+    setLoadError(false);
     try {
       const { success, profile, error } = await getHospitalProfileContent(hospital.id);
       if (success && profile) {
         setHospitalProfile(profile);
+        // Solo se filtra si esa especialidad tiene plan: un filtro sin plan
+        // dejaría la tarjeta vacía.
+        const hasInitialPlan =
+          initialSpecialityId &&
+          (profile.plans || []).some(
+            (plan) => plan.speciality_id === initialSpecialityId
+          );
+        if (hasInitialPlan) {
+          setPlanSpecialityFilter(initialSpecialityId);
+          setExpandedPlanId(initialSpecialityId);
+          pendingScrollToPlans.current = true;
+        }
       } else {
         console.error("Error loading hospital profile:", error);
         setHospitalProfile(getEmptyHospitalProfile());
+        setLoadError(true);
       }
     } catch (error) {
       console.error("Exception fetching hospital profile:", error);
       setHospitalProfile(getEmptyHospitalProfile());
+      setLoadError(true);
     } finally {
       setProfileLoading(false);
     }
@@ -354,6 +389,7 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
   return (
     <HeroScreenLayout title="Información del hospital" onBack={onBack}>
       <ScrollView
+        ref={scrollRef}
         style={styles.container}
         showsVerticalScrollIndicator={false}
         nestedScrollEnabled
@@ -364,11 +400,43 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
             <ActivityIndicator size="small" color={PRIMARY} />
             <Text style={styles.loadingText}>Cargando información del hospital...</Text>
           </View>
+        ) : loadError ? (
+          <View style={styles.loadingContainer} testID="hospital-info-error">
+            <Icon name="alert-circle-outline" size={32} color={ERROR} />
+            <Text style={styles.errorTitle}>
+              {initialSpecialityId
+                ? "No se pudo cargar el plan formativo"
+                : "No se pudo cargar la información del hospital"}
+            </Text>
+            <Text style={styles.loadingText}>
+              Comprueba tu conexión e inténtalo de nuevo.
+            </Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              activeOpacity={0.85}
+              onPress={fetchHospitalProfile}
+              accessibilityRole="button"
+            >
+              <Text style={styles.retryButtonText}>Reintentar</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <>
+            {hospital?.name ? (
+              <Text style={styles.hospitalNameCaption} numberOfLines={2}>
+                {hospital.name}
+              </Text>
+            ) : null}
+
             <SectionTitle title="Información del hospital" />
 
-            <View style={styles.infoSectionStack}>
+            <View
+              style={styles.infoSectionStack}
+              onLayout={(event) => {
+                plansLayout.current.stackY = event.nativeEvent.layout.y;
+                scrollToPlansIfPending();
+              }}
+            >
               {(hospitalProfile?.about ||
                 (hospitalProfile?.differential_points || []).length > 0) && (
                 <View style={styles.infoCard}>
@@ -430,12 +498,20 @@ export default function HospitalInfoScreen({ hospital, onBack }) {
                 </View>
               ) : null}
 
-              <View style={styles.infoCard}>
+              <View
+                style={styles.infoCard}
+                onLayout={(event) => {
+                  plansLayout.current.cardY = event.nativeEvent.layout.y;
+                  scrollToPlansIfPending();
+                }}
+              >
                 <View style={styles.infoCardHeaderRow}>
                   <View style={styles.infoCardHeaderContent}>
                     <Text style={styles.infoCardTitle}>Planes formativos</Text>
                     <Text style={styles.infoCardCaption}>
-                      Explora las especialidades publicadas por el hospital
+                      {hospital?.name
+                        ? `Publicados por ${hospital.name}`
+                        : "Explora las especialidades publicadas por el hospital"}
                     </Text>
                   </View>
                   {plans.length > 0 ? (
@@ -539,6 +615,27 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 17, fontWeight: "700", color: ACCENT },
   sectionCount: { fontSize: 10, fontWeight: "700", color: PRIMARY, letterSpacing: 0.8 },
   infoSectionStack: { gap: 14, marginBottom: 8 },
+  hospitalNameCaption: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: TEXT_MEDIUM,
+    marginBottom: 4,
+  },
+  errorTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: ACCENT,
+    textAlign: "center",
+    marginTop: 4,
+  },
+  retryButton: {
+    marginTop: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: PRIMARY,
+  },
+  retryButtonText: { fontSize: 14, fontWeight: "700", color: WHITE },
   infoCard: {
     backgroundColor: WHITE,
     borderRadius: 18,

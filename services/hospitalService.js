@@ -774,6 +774,77 @@ export const getHospitalProfileContent = async (hospitalId) => {
 };
 
 /**
+ * Especialidades de un hospital con plan formativo publicado desde
+ * losresis-panel: al menos un PDF propio o, en filas antiguas, el PDF único
+ * de `plan_formativo_url`. Mismo criterio que `documents` en
+ * getHospitalProfileContent, que es lo que enseña la pantalla del plan.
+ * Ligera a propósito: la ficha del hospital solo necesita saber si pinta el
+ * botón "Plan formativo", no el contenido.
+ * @param {string} hospitalId - ID del hospital
+ * @returns {Promise<{success: boolean, specialityIds: Set<string>, error: string|null}>}
+ */
+export const getHospitalFormativePlanSpecialityIds = async (hospitalId) => {
+  try {
+    if (!hospitalId) {
+      return { success: false, specialityIds: new Set(), error: "Hospital ID is required" };
+    }
+
+    const { data: orgRow, error: orgError } = await supabase
+      .from("employer_org")
+      .select("id")
+      .eq("hospital_id", hospitalId)
+      .maybeSingle();
+
+    if (orgError) {
+      throw new Error(orgError.message);
+    }
+
+    if (!orgRow?.id) {
+      return { success: true, specialityIds: new Set(), error: null };
+    }
+
+    const [
+      { data: documentRows, error: documentError },
+      { data: legacyRows, error: legacyError },
+    ] = await Promise.all([
+      supabase
+        .from("employer_org_profile_speciality_plan")
+        .select("speciality_id")
+        .eq("org_id", orgRow.id),
+      supabase
+        .from("employer_org_profile_speciality")
+        .select("speciality_id, plan_formativo_url")
+        .eq("org_id", orgRow.id),
+    ]);
+
+    if (documentError) {
+      throw new Error(documentError.message);
+    }
+    if (legacyError) {
+      throw new Error(legacyError.message);
+    }
+
+    // La pantalla del plan parte de las filas de employer_org_profile_speciality:
+    // un PDF sin esa fila no se vería allí, así que tampoco cuenta aquí.
+    const withDocuments = new Set(
+      (documentRows || []).map((row) => row.speciality_id).filter(Boolean)
+    );
+    const specialityIds = new Set();
+    for (const row of legacyRows || []) {
+      if (!row.speciality_id) continue;
+      if (withDocuments.has(row.speciality_id) || row.plan_formativo_url?.trim()) {
+        specialityIds.add(row.speciality_id);
+      }
+    }
+
+    return { success: true, specialityIds, error: null };
+  } catch (error) {
+    console.error("❌ Error fetching formative plan specialities:", error);
+    return { success: false, specialityIds: new Set(), error: error.message };
+  }
+};
+
+/**
  * Una unidad docente (UDM) no es un hospital que se navegue: el catálogo las
  * mezcla con los hospitales reales y hay que sacarlas de cualquier listado.
  * Mismo criterio que losresis-panel (src/lib/hospitalSignup.ts).

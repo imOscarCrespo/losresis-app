@@ -11,6 +11,7 @@ import { Icon } from "../components/Icon";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import {
   getDetailedGrades,
+  getHospitalFormativePlanSpecialityIds,
   getHospitalNextOpenDay,
   getHospitalSpecialties,
   getSpecialtyById,
@@ -43,6 +44,7 @@ export default function HospitalDetailScreen({
   selectedSpecialtyId,
   onBack,
   onOpenDaysPress,
+  onFormativePlanPress,
 }) {
   const [specialties, setSpecialties] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,6 +52,7 @@ export default function HospitalDetailScreen({
   const [detailedGrades, setDetailedGrades] = useState({});
   const [loadingDetails, setLoadingDetails] = useState({});
   const [nextOpenDay, setNextOpenDay] = useState(null);
+  const [planSpecialityIds, setPlanSpecialityIds] = useState(() => new Set());
 
   useEffect(() => {
     posthogLogger.logScreen("HospitalDetailScreen", {
@@ -91,6 +94,38 @@ export default function HospitalDetailScreen({
       cancelled = true;
     };
   }, [hospital?.id]);
+
+  // Qué especialidades tienen plan formativo publicado desde el panel. Si la
+  // consulta falla (p. ej. sin conexión) no se pinta ningún botón: mejor no
+  // ofrecer un plan que no se ha podido comprobar.
+  useEffect(() => {
+    let cancelled = false;
+    setPlanSpecialityIds(new Set());
+
+    const fetchPlanSpecialities = async () => {
+      if (!hospital?.id) return;
+      const { success, specialityIds } =
+        await getHospitalFormativePlanSpecialityIds(hospital.id);
+      if (!cancelled && success) {
+        setPlanSpecialityIds(specialityIds);
+      }
+    };
+
+    fetchPlanSpecialities();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hospital?.id]);
+
+  const handleFormativePlanPress = (specialty) => {
+    posthogLogger.capture("hospital_formative_plan_entry_clicked", {
+      hospital_id: hospital?.id,
+      speciality_id: specialty.id,
+      source: "hospital_detail",
+    });
+    onFormativePlanPress?.(specialty.id);
+  };
 
   const handleOpenDaysPress = () => {
     posthogLogger.capture("hospital_open_day_entry_clicked", {
@@ -261,6 +296,21 @@ export default function HospitalDetailScreen({
         </View>
 
         {item.info_note ? <Text style={styles.infoNote}>{item.info_note}</Text> : null}
+
+        {onFormativePlanPress && planSpecialityIds.has(item.id) ? (
+          <TouchableOpacity
+            style={styles.planBtn}
+            onPress={() => handleFormativePlanPress(item)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`Ver el plan formativo de ${item.name} en ${hospital.name}`}
+            testID={`formative-plan-btn-${item.id}`}
+          >
+            <Icon name="document-text-outline" size={14} color={PRIMARY} />
+            <Text style={styles.planBtnText}>Plan formativo</Text>
+            <Icon name="chevron-forward" size={13} color={PRIMARY} />
+          </TouchableOpacity>
+        ) : null}
 
         <View style={styles.cutOffSection}>
           <View style={styles.cutOffHeader}>
@@ -635,6 +685,20 @@ const styles = StyleSheet.create({
     borderColor: `${PRIMARY}30`,
     backgroundColor: `${PRIMARY}10`,
   },
+  planBtn: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    marginBottom: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: `${PRIMARY}30`,
+    backgroundColor: `${PRIMARY}10`,
+  },
+  planBtnText: { fontSize: 12, fontWeight: "700", color: PRIMARY },
   moreInfoBtnActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
   moreInfoBtnText: { fontSize: 12, fontWeight: "700", color: PRIMARY },
   moreInfoBtnTextActive: { color: WHITE },

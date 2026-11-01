@@ -193,6 +193,9 @@ export default function DashboardScreen({
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [showHospitalInfoScreen, setShowHospitalInfoScreen] = useState(false);
+  // Especialidad con la que se abre el plan formativo desde la ficha del
+  // hospital. No se persiste: al restaurar, la pantalla sale sin filtrar.
+  const [infoScreenSpecialityId, setInfoScreenSpecialityId] = useState(null);
   // Las jornadas de un hospital se abren por encima de su detalle, como la
   // pantalla de información: así atrás devuelve al detalle y no al listado.
   const [showOpenDaysScreen, setShowOpenDaysScreen] = useState(false);
@@ -1133,6 +1136,7 @@ export default function DashboardScreen({
   ) => {
     setSelectedHospital(hospital);
     setShowHospitalInfoScreen(openInfoScreen);
+    setInfoScreenSpecialityId(null);
     setShowOpenDaysScreen(false);
     setSelectedSpecialtyId(specialtyId || null);
     // Guardar la sección de origen para poder volver a ella
@@ -1146,8 +1150,15 @@ export default function DashboardScreen({
     return footerConfig[0]?.screen || "inicio";
   };
 
+  // Desde la ficha del hospital: cerrar la información vuelve a la ficha.
+  const closeHospitalInfoScreen = () => {
+    setShowHospitalInfoScreen(false);
+    setInfoScreenSpecialityId(null);
+  };
+
   const handleBackFromDetail = () => {
     setShowHospitalInfoScreen(false);
+    setInfoScreenSpecialityId(null);
     setShowOpenDaysScreen(false);
     setSelectedHospital(null);
     setSelectedSpecialtyId(null);
@@ -1252,7 +1263,9 @@ export default function DashboardScreen({
           onSwipeBack={
             showOpenDaysScreen
               ? () => setShowOpenDaysScreen(false)
-              : handleBackFromDetail
+              : showHospitalInfoScreen && previousSection !== "planes-formativos"
+                ? closeHospitalInfoScreen
+                : handleBackFromDetail
           }
         >
           {showOpenDaysScreen ? (
@@ -1265,13 +1278,14 @@ export default function DashboardScreen({
           ) : showHospitalInfoScreen ? (
             <HospitalInfoScreen
               hospital={selectedHospital}
+              initialSpecialityId={infoScreenSpecialityId}
               // Desde "Planes formativos" se entra directo aquí: el hospital
               // nunca se ha abierto en detalle, así que volver tiene que
               // devolver al listado de planes, no a una pantalla no visitada.
               onBack={
                 previousSection === "planes-formativos"
                   ? handleBackFromDetail
-                  : () => setShowHospitalInfoScreen(false)
+                  : closeHospitalInfoScreen
               }
             />
           ) : (
@@ -1280,6 +1294,10 @@ export default function DashboardScreen({
               selectedSpecialtyId={selectedSpecialtyId}
               onBack={handleBackFromDetail}
               onOpenDaysPress={() => setShowOpenDaysScreen(true)}
+              onFormativePlanPress={(specialityId) => {
+                setInfoScreenSpecialityId(specialityId);
+                setShowHospitalInfoScreen(true);
+              }}
             />
           )}
         </SwipeBackWrapper>

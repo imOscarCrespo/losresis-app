@@ -1,0 +1,72 @@
+# ClickUp 124b4z9vn90 · Ficha del hospital: botón «Plan formativo» por especialidad
+# https://app.clickup.com/t/90151808476/124b4z9vn90
+#
+# H. Virgen De La Luz tiene publicado el plan de Anestesiología y Reanimación (y de
+# ninguna otra de sus especialidades). Solo lectura: no crea datos. Cuenta de ESTUDIANTE:
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-student.env scripts/e2e.sh e2e/flows/clickup-124b4z9vn90-plan-formativo.yaml
+appId: com.losresis.app
+name: "124b4z9vn90 Plan formativo desde la ficha del hospital"
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+- extendedWaitUntil:
+    visible: "TU ACTIVIDAD"
+    timeout: 20000
+
+- tapOn: "Hospitales"
+- tapOn: "Buscar hospital por nombre"
+- inputText: "Virgen De La Luz"
+- extendedWaitUntil:
+    visible: "\\d+ hospital(es)?"
+    timeout: 10000
+# El teclado tapa la lista: se cierra tocando un texto
+- tapOn: "\\d+ hospital(es)?"
+- tapOn: "H\\. Virgen De La Luz.*"
+- extendedWaitUntil:
+    visible: "Especialidades disponibles"
+    timeout: 15000
+
+# Con plan: botón en la tarjeta de Anestesiología, junto a sus notas de corte
+- scrollUntilVisible:
+    element:
+      id: "formative-plan-btn-53ad2a88-7552-432e-9972-69e45f7ee350"
+    centerElement: true
+    timeout: 30000
+- assertVisible: "ANESTESIOLOGIA Y REANIMACION"
+# iOS expone la etiqueta de accesibilidad del botón, no su texto
+- assertVisible: "Ver el plan formativo de ANESTESIOLOGIA Y REANIMACION en H. Virgen De La Luz"
+- takeScreenshot: clickup-124b4z9vn90-1-tarjeta-con-plan
+
+# Sin plan: Aparato Digestivo, la tarjeta siguiente, no lleva botón
+- scrollUntilVisible:
+    element: "APARATO DIGESTIVO"
+    centerElement: true
+- assertNotVisible:
+    id: "formative-plan-btn-8438d08a-c607-4e46-b16d-ced1fa8bf2c0"
+- takeScreenshot: clickup-124b4z9vn90-2-tarjeta-sin-plan
+
+# Al pulsar: el plan de ESA especialidad en ESE hospital
+- scrollUntilVisible:
+    element:
+      id: "formative-plan-btn-53ad2a88-7552-432e-9972-69e45f7ee350"
+    direction: UP
+    centerElement: true
+- tapOn:
+    id: "formative-plan-btn-53ad2a88-7552-432e-9972-69e45f7ee350"
+- extendedWaitUntil:
+    visible: "Planes formativos"
+    timeout: 15000
+- assertVisible: "Publicados por H. Virgen De La Luz"
+- extendedWaitUntil:
+    visible: "Ver documento"
+    timeout: 10000
+- assertVisible: "ANESTESIOLOGIA Y REANIMACION"
+- takeScreenshot: clickup-124b4z9vn90-3-plan-abierto
+
+# Volver lleva a la ficha del hospital, no fuera de ella
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Especialidades disponibles"
+    timeout: 10000
+- takeScreenshot: clickup-124b4z9vn90-4-vuelta-a-la-ficha
