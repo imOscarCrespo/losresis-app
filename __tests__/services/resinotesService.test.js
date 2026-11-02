@@ -3,7 +3,7 @@
 jest.mock("../../config/supabase", () => {
   const builder = { queue: [], calls: [] };
   const next = () => Promise.resolve(builder.queue.length ? builder.queue.shift() : { data: null, error: null });
-  ["from", "select", "eq", "is", "not", "order", "limit", "insert", "update", "delete"].forEach((m) => {
+  ["from", "select", "eq", "is", "not", "in", "order", "limit", "insert", "update", "delete"].forEach((m) => {
     builder[m] = jest.fn((...args) => {
       builder.calls.push([m, ...args]);
       return builder;
@@ -43,6 +43,13 @@ import {
   trashFolder,
   uploadFileItem,
   createLink,
+  moveItems,
+  setItemsFavorite,
+  trashItems,
+  trashFolders,
+  reorder,
+  saveLastPage,
+  loadExportData,
 } from "../../services/resinotesService";
 
 const queue = (...responses) => mock.queue.push(...responses);
@@ -169,5 +176,76 @@ describe("utilidades", () => {
   it("traduce el ciclo de carpetas a un mensaje claro", () => {
     expect(friendlyError(new Error("resinotes_folder_cycle"))).toMatch(/dentro de sí misma/);
     expect(friendlyError(new Error("Network request failed"))).toMatch(/Sin conexión/);
+  });
+});
+
+describe("varios a la vez", () => {
+  it("mueve, marca favoritos y manda a la papelera en una llamada", async () => {
+    queue({ error: null }, { error: null }, { error: null });
+    await moveItems(["a", "b", "a"], "obs");
+    await setItemsFavorite(["a"], true);
+    await trashItems(["b"]);
+    const updates = callsOf("update").map((c) => c[1]);
+    expect(updates[0]).toEqual({ folder_id: "obs" });
+    expect(updates[1]).toEqual({ is_favorite: true });
+    expect(updates[2].deleted_at).toEqual(expect.any(String));
+    expect(callsOf("in")[0]).toEqual(["in", "id", ["a", "b"]]);
+  });
+
+  it("si falla, lanza el error", async () => {
+    queue({ error: { message: "boom" } });
+    await expect(moveItems(["a"], null)).rejects.toThrow("boom");
+  });
+
+  it("las carpetas van de una en una y un fallo no corta el lote", async () => {
+    queue({ error: { message: "x" } }, { error: null });
+    const result = await trashFolders(["f1", "f2"]);
+    expect(callsOf("rpc").map((c) => c[2])).toEqual([{ p_folder_id: "f1" }, { p_folder_id: "f2" }]);
+    expect(result.ok).toBe(1);
+    expect(result.error.message).toBe("x");
+  });
+});
+
+describe("orden manual y última página", () => {
+  it("guarda el orden con su RPC", async () => {
+    queue({ error: null });
+    await reorder("item", ["a", "b"]);
+    expect(callsOf("rpc")[0].slice(1)).toEqual(["resinotes_reorder", { p_kind: "item", p_ids: ["a", "b"] }]);
+  });
+
+  it("no llama sin ids y lanza si falla", async () => {
+    await reorder("item", []);
+    expect(callsOf("rpc")).toHaveLength(0);
+    queue({ error: { message: "nope" } });
+    await expect(reorder("folder", ["x"])).rejects.toThrow("nope");
+  });
+
+  it("la última página se guarda entera y un fallo no molesta", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    queue({ error: null });
+    await saveLastPage("p1", 12.7);
+    expect(callsOf("update")[0][1]).toEqual({ last_page: 12 });
+    await saveLastPage("p1", 0);
+    expect(callsOf("update")).toHaveLength(1);
+    queue({ error: { message: "x" } });
+    await expect(saveLastPage("p1", 3)).resolves.toBeUndefined();
+    warn.mockRestore();
+  });
+});
+
+describe("datos para exportar", () => {
+  it("una carpeta pide sus elementos por trozos de 100 carpetas", async () => {
+    const ids = Array.from({ length: 150 }, (_, i) => `f${i}`);
+    queue({ data: [{ id: "f0" }], error: null }, { data: [{ id: "n1" }], error: null }, { data: [{ id: "n2" }], error: null });
+    const data = await loadExportData("u1", { folderIds: ids });
+    expect(data.items.map((i) => i.id)).toEqual(["n1", "n2"]);
+    const ins = callsOf("in");
+    expect(ins[0][2]).toHaveLength(100);
+    expect(ins[1][2]).toHaveLength(50);
+  });
+
+  it("si falla, lanza el error", async () => {
+    queue({ data: [], error: null }, { data: null, error: { message: "down" } });
+    await expect(loadExportData("u1")).rejects.toThrow("down");
   });
 });

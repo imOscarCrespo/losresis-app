@@ -37,6 +37,8 @@ export const FolderPickerSheet = ({
   folders,
   currentId = null,
   movingFolderId = null,
+  // Selección múltiple: varias carpetas a la vez (ninguna puede acabar dentro de sí misma).
+  movingFolderIds = null,
   rootLabel = "Mis carpetas",
   onSelect,
   onClose,
@@ -54,6 +56,7 @@ export const FolderPickerSheet = ({
         accessibilityRole="button"
         accessibilityState={{ disabled, selected }}
         accessibilityLabel={label}
+        testID={`resinotes-pick-${id ? label : "root"}`}
       >
         <Icon
           name={id ? "folder-outline" : "file-tray-outline"}
@@ -79,7 +82,8 @@ export const FolderPickerSheet = ({
           depth + 1,
           folder.emoji,
           folder.color,
-          Boolean(movingFolderId) && !canMoveFolder(folders, movingFolderId, folder.id)
+          (Boolean(movingFolderId) && !canMoveFolder(folders, movingFolderId, folder.id)) ||
+            (movingFolderIds || []).some((id) => !canMoveFolder(folders, id, folder.id))
         )
       )}
     </ResiNotesSheet>

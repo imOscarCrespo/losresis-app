@@ -7,6 +7,13 @@
 #   - nota con autoguardado, enlace normalizado y favorito,
 #   - búsqueda sin acentos con filtro por tipo, que llega también al PDF por su título,
 #   - papelera: enviar la carpeta con su contenido y restaurarla.
+# Pasada B:
+#   - selección múltiple: mover, marcar favoritos y mandar a la papelera varios a la vez,
+#   - orden manual con ↑ ↓ (elementos y carpetas),
+#   - bloque 💡 Perla clínica y tabla con una fila añadida en el editor,
+#   - visor de PDF que vuelve a la última página,
+#   - papelera con la purga a los 30 días («se elimina en 20 días»),
+#   - exportar una carpeta (abre el menú de compartir con el ZIP).
 #
 # Repetible: el script borra la biblioteca del residente de pruebas y deja «Urgencias» con un
 # PDF. Solo toca datos del residente de pruebas.
@@ -186,8 +193,9 @@ name: "124b4z9w0qg ResiNotes"
 - tapOn:
     id: "resinotes-restore-🤰 Obstetricia"
 - tapOn: "OK"
+# (la papelera no queda vacía: el seed deja «Apunte antiguo» para la pasada B)
 - extendedWaitUntil:
-    visible: "La papelera está vacía"
+    notVisible: "🤰 Obstetricia"
     timeout: 10000
 - tapOn: "Volver"
 - extendedWaitUntil:
@@ -199,3 +207,184 @@ name: "124b4z9w0qg ResiNotes"
     file: ../scripts/seed-124b4z9w0qg-resinotes.js
     env:
       MODE: assert
+
+# ══════════════════════════════ Pasada B ══════════════════════════════
+
+# ── Selección múltiple: mover la nota y el enlace de Paritorio a Obstetricia ──
+- tapOn:
+    id: "resinotes-folder-Obstetricia"
+- tapOn:
+    id: "resinotes-folder-Paritorio"
+- extendedWaitUntil:
+    visible: "Nota Monitorización fetal"
+    timeout: 10000
+- tapOn:
+    id: "resinotes-select-mode"
+- assertVisible: "Selecciona"
+- tapOn: "Nota Monitorización fetal"
+- tapOn: "Enlace sego.es"
+- assertVisible: "2 seleccionados"
+- takeScreenshot: 124b4z9w0qg-8-seleccion
+- tapOn:
+    id: "resinotes-bulk-move"
+- tapOn:
+    id: "resinotes-pick-Obstetricia"
+- extendedWaitUntil:
+    visible: "Carpeta vacía"
+    timeout: 10000
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Enlace sego.es"
+    timeout: 10000
+
+# ── Favorito en lote: la nota ya lo era, el enlace pasa a serlo ──
+- longPressOn: "Enlace sego.es"
+- tapOn: "Nota Monitorización fetal"
+- assertVisible: "2 seleccionados"
+- tapOn:
+    id: "resinotes-bulk-favorite"
+- extendedWaitUntil:
+    notVisible:
+      id: "resinotes-bulk-bar"
+    timeout: 10000
+
+# ── Orden manual: bajar el primer apunte ──
+- tapOn:
+    id: "resinotes-order-mode"
+- extendedWaitUntil:
+    visible: "Usa ↑ y ↓ para ordenar. Los fijados siempre van arriba."
+    timeout: 5000
+- tapOn:
+    id: "resinotes-item-.*-down"
+    index: 0
+- takeScreenshot: 124b4z9w0qg-9-ordenar
+- tapOn:
+    id: "resinotes-order-done"
+
+# ── Editor: bloque 💡 Perla clínica y tabla, con una fila añadida ──
+- tapOn: "Nota Monitorización fetal"
+- extendedWaitUntil:
+    visible:
+      id: "resinotes-note-callout"
+    timeout: 15000
+- tapOn:
+    id: "resinotes-note-callout"
+- tapOn:
+    id: "resinotes-callout-pearl"
+- tapOn:
+    id: "resinotes-note-table"
+- tapOn:
+    id: "resinotes-table-insert"
+- extendedWaitUntil:
+    visible: "Guardado"
+    timeout: 15000
+- tapOn:
+    id: "resinotes-note-table"
+- assertVisible: "Añadir fila debajo"
+- tapOn:
+    id: "resinotes-table-addRowAfter"
+- extendedWaitUntil:
+    visible: "Guardado"
+    timeout: 15000
+# (el teclado del WebView no se cierra con hideKeyboard; «Volver» sigue visible)
+- takeScreenshot: 124b4z9w0qg-10-bloques-tabla
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Enlace sego.es"
+    timeout: 10000
+
+# ── Papelera en lote: el enlace, con su cuenta atrás ──
+- longPressOn: "Enlace sego.es"
+- tapOn:
+    id: "resinotes-bulk-trash"
+- tapOn: "Enviar a la papelera"
+- extendedWaitUntil:
+    notVisible: "Enlace sego.es"
+    timeout: 10000
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Mis carpetas"
+    timeout: 10000
+
+# ── Orden de las carpetas de Inicio ──
+- tapOn:
+    id: "resinotes-order-folders"
+- tapOn:
+    id: "resinotes-folder-.*-down"
+    index: 0
+- tapOn:
+    id: "resinotes-order-folders"
+
+- tapOn:
+    id: "resinotes-quick-trash"
+- extendedWaitUntil:
+    visible:
+      id: "resinotes-trash-retention"
+    timeout: 10000
+- assertVisible: ".*se elimina para siempre a los 30 días.*"
+- assertVisible: ".*se elimina en 20 días.*"
+- assertVisible: ".*se elimina en 30 días.*"
+- takeScreenshot: 124b4z9w0qg-11-papelera-purga
+- tapOn: "Volver"
+
+# ── Visor de PDF: vuelve a la última página ──
+- tapOn:
+    id: "resinotes-folder-Urgencias"
+- tapOn: "PDF Guía de sepsis"
+- extendedWaitUntil:
+    visible: "Página 1 de 3"
+    timeout: 20000
+# (los swipes rápidos no desplazan el WebView en el simulador: van lentos)
+- swipe:
+    start: "50%, 80%"
+    end: "50%, 25%"
+    duration: 1200
+- swipe:
+    start: "50%, 80%"
+    end: "50%, 25%"
+    duration: 1200
+- swipe:
+    start: "50%, 80%"
+    end: "50%, 25%"
+    duration: 1200
+- swipe:
+    start: "50%, 80%"
+    end: "50%, 25%"
+    duration: 1200
+- extendedWaitUntil:
+    visible: "Página 3 de 3"
+    timeout: 10000
+- takeScreenshot: 124b4z9w0qg-12-pdf
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "PDF Guía de sepsis"
+    timeout: 10000
+- tapOn: "PDF Guía de sepsis"
+- extendedWaitUntil:
+    visible: "Página 3 de 3"
+    timeout: 20000
+- tapOn: "Volver"
+
+# ── Exportar la carpeta: el ZIP llega al menú de compartir ──
+- extendedWaitUntil:
+    visible:
+      id: "resinotes-folder-options"
+    timeout: 10000
+- tapOn:
+    id: "resinotes-folder-options"
+- tapOn:
+    id: "resinotes-folder-export"
+- extendedWaitUntil:
+    visible: ".*ResiNotes - Urgencias.*"
+    timeout: 20000
+- takeScreenshot: 124b4z9w0qg-13-exportar
+- tapOn:
+    point: "50%,8%"
+- extendedWaitUntil:
+    notVisible: ".*ResiNotes - Urgencias.*"
+    timeout: 10000
+
+- runScript:
+    file: ../scripts/seed-124b4z9w0qg-resinotes.js
+    env:
+      MODE: assert_b

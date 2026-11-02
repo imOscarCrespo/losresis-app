@@ -135,6 +135,10 @@ import {
   // Importarlo como `Circle` daba `undefined` y hacía que el fallback de abajo
   // reventara con "Element type is invalid". Lo aliaseamos aquí.
   CircleIcon as Circle,
+  Export,
+  CheckSquare,
+  Square,
+  Table,
 } from "phosphor-react-native";
 
 // ============================================================================
@@ -347,6 +351,10 @@ const IONICON_TO_PHOSPHOR = {
   "file-tray-outline": Tray,
   "document-attach-outline": FilePdf,
   "move-outline": ArrowsOutCardinal,
+  "share-outline": Export,
+  "checkbox-outline": CheckSquare,
+  "square-outline": Square,
+  "table-outline": Table,
 };
 
 // Nombres de Ionicons "sólidos" (sin `-outline`) cuyo relleno tiene significado

@@ -16,8 +16,11 @@ import {
   RichText,
   TenTapStartKit,
   Toolbar,
+  useBridgeState,
   useEditorBridge,
 } from "@10play/tentap-editor";
+import { editorHtml } from "./editor/editorHtml";
+import { CalloutBridge, TableBridge } from "./editor/bridges";
 import { HeroScreenLayout } from "../HeroScreenLayout";
 import { Icon } from "../Icon";
 import { COLORS } from "../../constants/colors";
@@ -30,7 +33,15 @@ import {
   saveNote,
   uploadNoteImage,
 } from "../../services/resinotesService";
-import { MAX_ITEM_TITLE, storedImageKeys, toEditorHtml, toStoredHtml } from "../../utils/resinotes";
+import {
+  CALLOUT_KINDS,
+  CALLOUT_KIND_KEYS,
+  MAX_ITEM_TITLE,
+  NOTE_BLOCKS_CSS,
+  storedImageKeys,
+  toEditorHtml,
+  toStoredHtml,
+} from "../../utils/resinotes";
 
 const AUTOSAVE_MS = 1200;
 // El borrador local se apunta antes que el guardado: si se sale de golpe (otra pestaña,
@@ -45,7 +56,17 @@ const EDITOR_CSS = `
   blockquote { border-left: 3px solid #C4B5FD; margin-left: 0; padding-left: 12px; color: #334155; }
   img { max-width: 100%; height: auto; border-radius: 12px; }
   a { color: #670CF5; }
+${NOTE_BLOCKS_CSS}
 `;
+
+// Tablas: lo que se puede hacer con el cursor dentro de una.
+const TABLE_OPTIONS = [
+  { action: "addRowAfter", icon: "add", label: "Añadir fila debajo" },
+  { action: "deleteRow", icon: "remove", label: "Quitar esta fila" },
+  { action: "addColumnAfter", icon: "add", label: "Añadir columna a la derecha" },
+  { action: "deleteColumn", icon: "remove", label: "Quitar esta columna" },
+  { action: "toggleHeaderRow", icon: "list-outline", label: "Poner o quitar la fila de títulos" },
+];
 const draftKey = (itemId) => `@losresis:resinotes:draft:${itemId}`;
 
 const STATUS_LABEL = {
@@ -93,6 +114,8 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
   const [title, setTitle] = useState(initialTitle);
   const [status, setStatus] = useState(recovered ? "dirty" : "idle");
   const [imageSheet, setImageSheet] = useState(false);
+  const [tableSheet, setTableSheet] = useState(false);
+  const [calloutSheet, setCalloutSheet] = useState(false);
   const [uploading, setUploading] = useState(false);
   const titleRef = useRef(initialTitle);
   const timerRef = useRef(null);
@@ -108,12 +131,26 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
     autofocus: false,
     avoidIosKeyboard: true,
     initialContent: initialHtml || "",
-    bridgeExtensions: [...TenTapStartKit, CoreBridge.configureCSS(EDITOR_CSS)],
+    // Editor propio (editor-web/): el de TenTap más tablas y bloques especiales.
+    customSource: editorHtml,
+    bridgeExtensions: [...TenTapStartKit, TableBridge, CalloutBridge, CoreBridge.configureCSS(EDITOR_CSS)],
     onChange: () => scheduleSave(),
     theme: {
       webview: { backgroundColor: COLORS.WHITE },
     },
   });
+
+  const editorState = useBridgeState(editor);
+
+  const runTable = (action) => {
+    setTableSheet(false);
+    editor.tableCommand(action);
+  };
+
+  const runCallout = (action, kind) => {
+    setCalloutSheet(false);
+    editor.calloutCommand(action, kind);
+  };
 
   const flush = useCallback(async () => {
     if (timerRef.current) {
@@ -280,10 +317,83 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
         </TouchableOpacity>
       }
       overlay={
-        <ResiNotesSheet visible={imageSheet} title="Insertar imagen" onClose={() => setImageSheet(false)}>
-          <SheetOption icon="camera-outline" label="Hacer una foto" onPress={() => insertImages("camera")} />
-          <SheetOption icon="images-outline" label="Elegir de la galería" onPress={() => insertImages("library")} />
-        </ResiNotesSheet>
+        <>
+          <ResiNotesSheet visible={imageSheet} title="Insertar imagen" onClose={() => setImageSheet(false)}>
+            <SheetOption icon="camera-outline" label="Hacer una foto" onPress={() => insertImages("camera")} />
+            <SheetOption icon="images-outline" label="Elegir de la galería" onPress={() => insertImages("library")} />
+          </ResiNotesSheet>
+
+          <ResiNotesSheet
+            visible={tableSheet}
+            title={editorState.isTableActive ? "Tabla" : "Insertar tabla"}
+            onClose={() => setTableSheet(false)}
+            testID="resinotes-table-sheet"
+          >
+            {editorState.isTableActive ? (
+              <>
+                {TABLE_OPTIONS.map((o) => (
+                  <SheetOption
+                    key={o.action}
+                    icon={o.icon}
+                    label={o.label}
+                    onPress={() => runTable(o.action)}
+                    testID={`resinotes-table-${o.action}`}
+                  />
+                ))}
+                <SheetOption
+                  icon="trash-outline"
+                  label="Eliminar la tabla"
+                  danger
+                  onPress={() => runTable("deleteTable")}
+                  testID="resinotes-table-deleteTable"
+                />
+              </>
+            ) : (
+              <SheetOption
+                icon="table-outline"
+                label="Tabla de 3 × 3"
+                description="Con fila de títulos. Luego puedes añadir o quitar filas y columnas."
+                onPress={() => runTable("insert")}
+                testID="resinotes-table-insert"
+              />
+            )}
+          </ResiNotesSheet>
+
+          <ResiNotesSheet
+            visible={calloutSheet}
+            title={editorState.activeCallout ? "Cambiar el bloque" : "Insertar bloque"}
+            onClose={() => setCalloutSheet(false)}
+            testID="resinotes-callout-sheet"
+          >
+            {CALLOUT_KIND_KEYS.map((kind) => (
+              <SheetOption
+                key={kind}
+                emoji={CALLOUT_KINDS[kind].emoji}
+                label={CALLOUT_KINDS[kind].label}
+                description={editorState.activeCallout === kind ? "Este es el bloque actual" : undefined}
+                onPress={() => runCallout("set", kind)}
+                testID={`resinotes-callout-${kind}`}
+              />
+            ))}
+            {editorState.activeCallout ? (
+              <>
+                <SheetOption
+                  icon="remove"
+                  label="Quitar el bloque y conservar el texto"
+                  onPress={() => runCallout("unset")}
+                  testID="resinotes-callout-unset"
+                />
+                <SheetOption
+                  icon="trash-outline"
+                  label="Eliminar el bloque con su texto"
+                  danger
+                  onPress={() => runCallout("delete")}
+                  testID="resinotes-callout-delete"
+                />
+              </>
+            ) : null}
+          </ResiNotesSheet>
+        </>
       }
     >
       <EditorKeyboardAvoidingView style={styles.flex}>
@@ -310,6 +420,30 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
           <View style={styles.flex} testID="resinotes-note-editor">
             <RichText editor={editor} />
           </View>
+        </View>
+        <View style={styles.blocksRow}>
+          <TouchableOpacity
+            style={[styles.blockButton, editorState.isTableActive && styles.blockButtonActive]}
+            onPress={() => setTableSheet(true)}
+            accessibilityRole="button"
+            accessibilityLabel={editorState.isTableActive ? "Opciones de la tabla" : "Insertar tabla"}
+            testID="resinotes-note-table"
+          >
+            <Icon name="table-outline" size={18} color={COLORS.PRIMARY} />
+            <Text style={styles.blockButtonText}>Tabla</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.blockButton, editorState.activeCallout && styles.blockButtonActive]}
+            onPress={() => setCalloutSheet(true)}
+            accessibilityRole="button"
+            accessibilityLabel={editorState.activeCallout ? "Cambiar el bloque" : "Insertar bloque especial"}
+            testID="resinotes-note-callout"
+          >
+            <Text style={styles.blockEmoji}>
+              {editorState.activeCallout ? CALLOUT_KINDS[editorState.activeCallout].emoji : "💡"}
+            </Text>
+            <Text style={styles.blockButtonText}>Bloque</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.toolbarRow}>
           <Toolbar editor={editor} />
@@ -393,6 +527,19 @@ export const NoteEditor = ({ userId, itemId, onBack, onSaved }) => {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   toolbarRow: { flexDirection: "row" },
+  blocksRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 6 },
+  blockButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+  },
+  blockButtonActive: { borderWidth: 1, borderColor: COLORS.PRIMARY },
+  blockEmoji: { fontSize: 15 },
+  blockButtonText: { color: COLORS.PRIMARY, fontWeight: "700", fontSize: 13 },
   paper: {
     flex: 1,
     backgroundColor: COLORS.WHITE,

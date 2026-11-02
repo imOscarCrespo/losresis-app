@@ -30,7 +30,7 @@ export const BUCKET = "resinotes";
 const LIST_LIMIT = 2000;
 
 const ITEM_LIST_COLUMNS =
-  "id, folder_id, type, title, url, is_favorite, is_pinned, last_opened_at, created_at, updated_at, deleted_at";
+  "id, folder_id, type, title, url, is_favorite, is_pinned, sort_order, last_page, last_opened_at, created_at, updated_at, deleted_at";
 const FOLDER_COLUMNS = "id, parent_id, name, emoji, color, sort_order, created_at, updated_at, deleted_at";
 
 const raise = (error, context) => {
@@ -273,6 +273,107 @@ export const deleteItemForever = async (itemId) => {
 };
 
 // ---------------------------------------------------------------------------
+// Varios a la vez (selección múltiple) y orden manual
+// ---------------------------------------------------------------------------
+
+const BATCH = 200;
+const chunks = (ids) => {
+  const unique = Array.from(new Set((ids || []).filter(Boolean)));
+  const out = [];
+  for (let i = 0; i < unique.length; i += BATCH) out.push(unique.slice(i, i + BATCH));
+  return out;
+};
+
+const updateItems = async (ids, payload, context) => {
+  for (const part of chunks(ids)) {
+    const { error } = await supabase.from("resinotes_items").update(payload).in("id", part);
+    if (error) raise(error, context);
+  }
+};
+
+export const moveItems = (ids, folderId) => updateItems(ids, { folder_id: folderId || null }, "moveItems");
+
+export const setItemsFavorite = (ids, isFavorite) =>
+  updateItems(ids, { is_favorite: Boolean(isFavorite) }, "setItemsFavorite");
+
+export const trashItems = (ids) => updateItems(ids, { deleted_at: new Date().toISOString() }, "trashItems");
+
+/**
+ * Carpetas de una en una (cada una pasa por su RPC o por la comprobación de
+ * ciclos). Devuelve cuántas han ido bien y el primer error, sin cortar el lote.
+ */
+const eachFolder = async (ids, fn) => {
+  let ok = 0;
+  let firstError = null;
+  for (const id of Array.from(new Set(ids || []))) {
+    try {
+      await fn(id);
+      ok += 1;
+    } catch (error) {
+      firstError = firstError || error;
+    }
+  }
+  return { ok, error: firstError };
+};
+
+export const moveFolders = (ids, parentId) => eachFolder(ids, (id) => moveFolder(id, parentId));
+export const trashFolders = (ids) => eachFolder(ids, (id) => trashFolder(id));
+
+/** Guarda el orden manual: sort_order = posición (desde 1) de cada id. */
+export const reorder = async (kind, ids) => {
+  if (!ids?.length) return;
+  const { error } = await supabase.rpc("resinotes_reorder", { p_kind: kind, p_ids: ids });
+  if (error) raise(error, "reorder");
+};
+
+/** Última página leída de un PDF. Si falla no molesta al usuario. */
+export const saveLastPage = async (itemId, page) => {
+  const value = Math.floor(Number(page));
+  if (!itemId || !Number.isFinite(value) || value < 1) return;
+  const { error } = await supabase.from("resinotes_items").update({ last_page: value }).eq("id", itemId);
+  if (error) console.warn("ResiNotes · saveLastPage:", error);
+};
+
+// ---------------------------------------------------------------------------
+// Exportación
+// ---------------------------------------------------------------------------
+
+/**
+ * Todo lo vivo con el contenido de las notas y sus adjuntos, para exportar.
+ * Con folderIds, solo los elementos de esas carpetas.
+ */
+export const loadExportData = async (userId, { folderIds = null, itemIds = null } = {}) => {
+  const columns = `${ITEM_LIST_COLUMNS}, content, resinotes_attachments(id, storage_key, filename, mime_type, size_bytes)`;
+  const folders = await supabase
+    .from("resinotes_folders")
+    .select(FOLDER_COLUMNS)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .limit(LIST_LIMIT);
+  if (folders.error) raise(folders.error, "loadExportData folders");
+
+  const base = () =>
+    supabase.from("resinotes_items").select(columns).eq("user_id", userId).is("deleted_at", null).limit(LIST_LIMIT);
+
+  // Con ids, por trozos: una URL con cientos de uuids se pasa de largo.
+  const filters = itemIds ? ["id", itemIds] : folderIds ? ["folder_id", folderIds] : null;
+  const rows = [];
+  if (!filters) {
+    const { data, error } = await base();
+    if (error) raise(error, "loadExportData items");
+    rows.push(...(data || []));
+  } else {
+    for (let i = 0; i < filters[1].length; i += 100) {
+      const { data, error } = await base().in(filters[0], filters[1].slice(i, i + 100));
+      if (error) raise(error, "loadExportData items");
+      rows.push(...(data || []));
+    }
+  }
+
+  return { folders: folders.data || [], items: rows };
+};
+
+// ---------------------------------------------------------------------------
 // Ficheros
 // ---------------------------------------------------------------------------
 
@@ -450,6 +551,14 @@ export default {
   trashItem,
   restoreItem,
   deleteItemForever,
+  moveItems,
+  setItemsFavorite,
+  trashItems,
+  moveFolders,
+  trashFolders,
+  reorder,
+  saveLastPage,
+  loadExportData,
   uploadFileItem,
   uploadNoteImage,
   getSignedUrl,

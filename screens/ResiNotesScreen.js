@@ -25,6 +25,7 @@ import {
   RenameSheet,
 } from "../components/resinotes/FolderForms";
 import { NoteEditor } from "../components/resinotes/NoteEditor";
+import { PdfViewer } from "../components/resinotes/PdfViewer";
 import { pickDocuments, pickImagesFromLibrary, takePhoto } from "../components/resinotes/pickers";
 import {
   createFolder,
@@ -39,28 +40,45 @@ import {
   loadTrash,
   markItemOpened,
   moveFolder,
+  moveFolders,
   moveItem,
+  moveItems,
+  reorder,
   restoreFolder,
   restoreItem,
   searchLibrary,
+  setItemsFavorite,
   trashFolder,
+  trashFolders,
   trashItem,
+  trashItems,
   updateFolder,
   updateItem,
   uploadFileItem,
 } from "../services/resinotesService";
+import { exportFolderZip, exportNoteHtml } from "../services/resinotesExport";
 import {
   ITEM_TYPE_ICONS,
   ITEM_TYPE_LABELS,
+  TRASH_RETENTION_DAYS,
+  applyOrder,
   childFolders,
   countItemsByFolder,
   favoriteItems,
   folderColor,
   folderPath,
   formatElementCount,
+  daysUntilPurge,
+  formatPurgeCountdown,
+  formatSelectionCount,
   formatShortDate,
+  moveInOrder,
+  orderIds,
   recentItems,
+  selectionKey,
   sortFolderItems,
+  splitSelection,
+  toggleSelection,
   unclassifiedItems,
 } from "../utils/resinotes";
 
@@ -122,15 +140,38 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
   const [moveTarget, setMoveTarget] = useState(null); // {kind:'item'|'folder', entity}
   const [renameTarget, setRenameTarget] = useState(null);
 
+  // Pasada B: selección múltiple (Set de «kind:id», null = apagada), modo ordenar
+  // y el selector de carpeta del lote.
+  const [selection, setSelection] = useState(null);
+  const [ordering, setOrdering] = useState(false);
+  const [bulkMove, setBulkMove] = useState(false);
+  // Los cambios de orden se mandan de uno en uno, en el orden en que se tocan.
+  const orderQueueRef = useRef(Promise.resolve());
+
   const push = useCallback((next) => setStack((prev) => [...prev, next]), []);
   const pop = useCallback(() => {
     setStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
   }, []);
 
   const goBack = useCallback(() => {
+    if (selection) {
+      setSelection(null);
+      return;
+    }
+    if (ordering) {
+      setOrdering(false);
+      return;
+    }
     if (stack.length > 1) pop();
     else onBack?.();
-  }, [stack.length, pop, onBack]);
+  }, [selection, ordering, stack.length, pop, onBack]);
+
+  // Al cambiar de vista se sale de la selección y del modo ordenar.
+  const routeKey = `${route.name}:${route.id || route.kind || ""}`;
+  useEffect(() => {
+    setSelection(null);
+    setOrdering(false);
+  }, [routeKey]);
 
   const refresh = useCallback(
     async ({ silent = false } = {}) => {
@@ -201,6 +242,10 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
       push({ name: "note", id: item.id });
       return;
     }
+    if (item.type === "pdf") {
+      push({ name: "pdf", id: item.id });
+      return;
+    }
     if (item.type === "link") {
       try {
         // Los resultados de búsqueda no traen la URL.
@@ -229,9 +274,9 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
     }
   };
 
-  const downloadItem = async (item) => {
+  const downloadItem = async (item, { silent = false } = {}) => {
     setItemActions(null);
-    setBusy("Preparando descarga…");
+    if (!silent) setBusy("Preparando descarga…");
     try {
       const full = await getItem(item.id);
       const attachment = full?.resinotes_attachments?.[0];
@@ -375,33 +420,233 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
   };
 
   // -------------------------------------------------------------------------
+  // Selección múltiple
+  // -------------------------------------------------------------------------
+
+  const selectable = route.name === "folder" || (route.name === "list" && route.kind === "unclassified");
+  const selected = selection ? splitSelection(selection) : { folderIds: [], itemIds: [] };
+  const selectedCount = selection ? selection.size : 0;
+
+  const startSelection = (key) => {
+    setOrdering(false);
+    setSelection(new Set(key ? [key] : []));
+  };
+  const toggleSelected = (key) => setSelection((prev) => toggleSelection(prev || new Set(), key));
+
+  /** Lo que se ve en la vista actual (para «Seleccionar todo»). */
+  const visibleKeys = () => {
+    if (route.name === "folder") {
+      return [
+        ...childFolders(library.folders, route.id).map((f) => selectionKey("folder", f.id)),
+        ...library.items.filter((i) => i.folder_id === route.id).map((i) => selectionKey("item", i.id)),
+      ];
+    }
+    return unclassifiedItems(library.items).map((i) => selectionKey("item", i.id));
+  };
+
+  const partialAlert = (title, error, ok, total) =>
+    Alert.alert(title, `${ok} de ${total} hechos. ${friendlyError(error, "Inténtalo de nuevo.")}`);
+
+  const bulkFavorite = async () => {
+    const items = library.items.filter((i) => selected.itemIds.includes(i.id));
+    if (!items.length) return;
+    const value = !items.every((i) => i.is_favorite);
+    const done = await run(value ? "Añadiendo a favoritos…" : "Quitando de favoritos…", async () => {
+      await setItemsFavorite(selected.itemIds, value);
+      return true;
+    });
+    if (done) setSelection(null);
+  };
+
+  const bulkTrash = () => {
+    const { folderIds, itemIds } = selected;
+    const total = folderIds.length + itemIds.length;
+    if (!total) return;
+    const inside = folderIds.reduce((n, id) => n + (counts[id] || 0), 0);
+    Alert.alert(
+      total === 1 ? "¿Enviar 1 elemento a la papelera?" : `¿Enviar ${total} elementos a la papelera?`,
+      `${folderIds.length ? `Las carpetas se irán con todo lo que tienen dentro${inside ? ` (${formatElementCount(inside)})` : ""}. ` : ""}Podrás restaurarlos desde la papelera durante ${TRASH_RETENTION_DAYS} días.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Enviar a la papelera",
+          style: "destructive",
+          onPress: async () => {
+            const result = await run("Enviando a la papelera…", async () => {
+              await trashItems(itemIds);
+              return trashFolders(folderIds);
+            });
+            if (!result) return;
+            setSelection(null);
+            if (result.error) partialAlert("Algunas carpetas no se han enviado", result.error, itemIds.length + result.ok, total);
+          },
+        },
+      ]
+    );
+  };
+
+  const bulkMoveTo = async (targetId) => {
+    setBulkMove(false);
+    const { folderIds, itemIds } = selected;
+    const total = folderIds.length + itemIds.length;
+    const result = await run("Moviendo…", async () => {
+      await moveItems(itemIds, targetId);
+      return moveFolders(folderIds, targetId);
+    });
+    if (!result) return;
+    setSelection(null);
+    if (result.error) partialAlert("Algunas carpetas no se han movido", result.error, itemIds.length + result.ok, total);
+  };
+
+  // -------------------------------------------------------------------------
+  // Orden manual
+  // -------------------------------------------------------------------------
+
+  const anyGroup = () => true;
+
+  const moveEntity = (kind, ordered, id, delta) => {
+    const next = moveInOrder(ordered, id, delta, kind === "folder" ? anyGroup : undefined);
+    if (!next) return;
+    const ids = orderIds(next);
+    const key = kind === "folder" ? "folders" : "items";
+    setLibrary((prev) => ({ ...prev, [key]: applyOrder(prev[key], ids) }));
+    orderQueueRef.current = orderQueueRef.current
+      .then(() => reorder(kind, ids))
+      .catch(() => {
+        Alert.alert("No se ha podido guardar el orden", "Revisa tu conexión e inténtalo de nuevo.");
+        refresh({ silent: true });
+      });
+  };
+
+  const orderFor = (kind, ordered, id) =>
+    ordering
+      ? {
+          onUp: moveInOrder(ordered, id, -1, kind === "folder" ? anyGroup : undefined)
+            ? () => moveEntity(kind, ordered, id, -1)
+            : null,
+          onDown: moveInOrder(ordered, id, 1, kind === "folder" ? anyGroup : undefined)
+            ? () => moveEntity(kind, ordered, id, 1)
+            : null,
+        }
+      : undefined;
+
+  // -------------------------------------------------------------------------
+  // Exportar
+  // -------------------------------------------------------------------------
+
+  const reportExport = (failed) => {
+    if (failed?.length) {
+      Alert.alert(
+        "Exportado con avisos",
+        `No se han podido incluir ${failed.length === 1 ? "este archivo" : "estos archivos"}:\n${failed.slice(0, 8).join("\n")}${failed.length > 8 ? "\n…" : ""}`
+      );
+    }
+  };
+
+  const exportFailed = (error) =>
+    Alert.alert("No se ha podido exportar", error?.userMessage || "Revisa tu conexión e inténtalo de nuevo.");
+
+  const exportFolder = async (folder) => {
+    setFolderActions(null);
+    setBusy("Preparando la exportación…");
+    try {
+      const { failed } = await exportFolderZip(userId, {
+        folderId: folder?.id || null,
+        folders: library.folders,
+        onProgress: (done, total) => setBusy(`Exportando ${done} de ${total}…`),
+        beforeShare: () => setBusy(null),
+      });
+      reportExport(failed);
+    } catch (error) {
+      exportFailed(error);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const exportNote = async (item) => {
+    setItemActions(null);
+    setBusy("Preparando la exportación…");
+    try {
+      const { failed } = await exportNoteHtml(userId, item.id, { beforeShare: () => setBusy(null) });
+      reportExport(failed);
+    } catch (error) {
+      exportFailed(error);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // -------------------------------------------------------------------------
   // Vistas
   // -------------------------------------------------------------------------
 
-  const renderItems = (items, { showFolder = false, testPrefix = "resinotes-item" } = {}) =>
-    items.map((item) => (
-      <ItemRow
-        key={item.id}
-        item={item}
-        showFolder={showFolder}
-        folderName={item.folder_id ? folderById.get(item.folder_id)?.name : null}
-        onPress={() => openItem(item)}
-        onMore={() => setItemActions(item)}
-        testID={`${testPrefix}-${item.id}`}
-      />
-    ));
+  const renderItems = (items, { showFolder = false, testPrefix = "resinotes-item", orderable = false } = {}) =>
+    items.map((item) => {
+      const key = selectionKey("item", item.id);
+      return (
+        <ItemRow
+          key={item.id}
+          item={item}
+          showFolder={showFolder}
+          folderName={item.folder_id ? folderById.get(item.folder_id)?.name : null}
+          selected={selection ? selection.has(key) : undefined}
+          order={orderable ? orderFor("item", items, item.id) : undefined}
+          onPress={() => (selection ? toggleSelected(key) : openItem(item))}
+          onLongPress={() => (selection ? toggleSelected(key) : selectable ? startSelection(key) : setItemActions(item))}
+          onMore={selection || ordering ? undefined : () => setItemActions(item)}
+          testID={`${testPrefix}-${item.id}`}
+        />
+      );
+    });
 
-  const renderFolders = (folders) =>
-    folders.map((folder) => (
-      <FolderRow
-        key={folder.id}
-        folder={folder}
-        count={counts[folder.id] || 0}
-        onPress={() => push({ name: "folder", id: folder.id })}
-        onLongPress={() => setFolderActions(folder)}
-        testID={`resinotes-folder-${folder.name}`}
-      />
-    ));
+  const renderFolders = (folders, { orderable = false } = {}) =>
+    folders.map((folder) => {
+      const key = selectionKey("folder", folder.id);
+      return (
+        <FolderRow
+          key={folder.id}
+          folder={folder}
+          count={counts[folder.id] || 0}
+          selected={selection ? selection.has(key) : undefined}
+          order={orderable ? orderFor("folder", folders, folder.id) : undefined}
+          onPress={() => (selection ? toggleSelected(key) : push({ name: "folder", id: folder.id }))}
+          onLongPress={() => (selection ? toggleSelected(key) : selectable ? startSelection(key) : setFolderActions(folder))}
+          testID={`resinotes-folder-${folder.name}`}
+        />
+      );
+    });
+
+  /** «Seleccionar» y «Ordenar» encima de la lista. */
+  const renderModeBar = (count) =>
+    selection || ordering || !count ? null : (
+      <View style={styles.modeBar}>
+        <TouchableOpacity
+          style={styles.modeChip}
+          onPress={() => startSelection(null)}
+          accessibilityRole="button"
+          testID="resinotes-select-mode"
+        >
+          <Icon name="checkbox-outline" size={16} color={COLORS.PRIMARY} />
+          <Text style={styles.modeChipText}>Seleccionar</Text>
+        </TouchableOpacity>
+        {count > 1 ? (
+          <TouchableOpacity
+            style={styles.modeChip}
+            onPress={() => setOrdering(true)}
+            accessibilityRole="button"
+            testID="resinotes-order-mode"
+          >
+            <Icon name="swap-vertical" size={16} color={COLORS.PRIMARY} />
+            <Text style={styles.modeChipText}>Ordenar</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+
+  const orderingHint = ordering ? (
+    <Text style={styles.hint}>Usa ↑ y ↓ para ordenar. Los fijados siempre van arriba.</Text>
+  ) : null;
 
   const refreshControl = (
     <RefreshControl
@@ -472,16 +717,32 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Mis carpetas</Text>
-          <TouchableOpacity
-            style={styles.roundButton}
-            onPress={() => setFolderForm({ parentId: null })}
-            accessibilityRole="button"
-            accessibilityLabel="Nueva carpeta"
-            testID="resinotes-new-folder"
-          >
-            <Icon name="add" size={22} color={COLORS.PRIMARY} />
-          </TouchableOpacity>
+          <View style={styles.sectionActions}>
+            {roots.length > 1 ? (
+              <TouchableOpacity
+                style={[styles.roundButton, ordering && styles.roundButtonActive]}
+                onPress={() => setOrdering((v) => !v)}
+                accessibilityRole="button"
+                accessibilityLabel={ordering ? "Terminar de ordenar" : "Ordenar carpetas"}
+                testID="resinotes-order-folders"
+              >
+                <Icon name={ordering ? "checkmark" : "swap-vertical"} size={20} color={ordering ? COLORS.WHITE : COLORS.PRIMARY} />
+              </TouchableOpacity>
+            ) : null}
+            {ordering ? null : (
+              <TouchableOpacity
+                style={styles.roundButton}
+                onPress={() => setFolderForm({ parentId: null })}
+                accessibilityRole="button"
+                accessibilityLabel="Nueva carpeta"
+                testID="resinotes-new-folder"
+              >
+                <Icon name="add" size={22} color={COLORS.PRIMARY} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
+        {orderingHint}
 
         {renderLoadState() ||
           (isEmpty ? (
@@ -493,10 +754,22 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
               onAction={() => setFolderForm({ parentId: null })}
             />
           ) : roots.length ? (
-            renderFolders(roots)
+            renderFolders(roots, { orderable: true })
           ) : (
             <Text style={styles.hint}>Aún no tienes carpetas. Pulsa + para crear la primera.</Text>
           ))}
+
+        {!loading && !loadError && !isEmpty && !ordering ? (
+          <TouchableOpacity
+            style={styles.exportLink}
+            onPress={() => exportFolder(null)}
+            accessibilityRole="button"
+            testID="resinotes-export-library"
+          >
+            <Icon name="share-outline" size={18} color={COLORS.PRIMARY} />
+            <Text style={styles.exportLinkText}>Exportar toda mi biblioteca</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
     );
   };
@@ -531,27 +804,32 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
           ))}
         </ScrollView>
 
+        {renderModeBar(subfolders.length + items.length)}
+        {orderingHint}
+
         {subfolders.length ? (
           <>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitleSmall}>Subcarpetas</Text>
-              <TouchableOpacity
-                style={styles.roundButton}
-                onPress={() => setFolderForm({ parentId: folder.id })}
-                accessibilityRole="button"
-                accessibilityLabel="Nueva subcarpeta"
-              >
-                <Icon name="add" size={20} color={COLORS.PRIMARY} />
-              </TouchableOpacity>
+              {selection || ordering ? null : (
+                <TouchableOpacity
+                  style={styles.roundButton}
+                  onPress={() => setFolderForm({ parentId: folder.id })}
+                  accessibilityRole="button"
+                  accessibilityLabel="Nueva subcarpeta"
+                >
+                  <Icon name="add" size={20} color={COLORS.PRIMARY} />
+                </TouchableOpacity>
+              )}
             </View>
-            {renderFolders(subfolders)}
+            {renderFolders(subfolders, { orderable: true })}
           </>
         ) : null}
 
         {items.length ? (
           <>
             {subfolders.length ? <Text style={styles.sectionTitleSmall}>Apuntes</Text> : null}
-            {renderItems(items)}
+            {renderItems(items, { orderable: true })}
           </>
         ) : null}
 
@@ -578,9 +856,11 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
           : unclassifiedItems(library.items);
     return (
       <ScrollView contentContainerStyle={styles.content} refreshControl={refreshControl}>
+        {route.kind === "unclassified" ? renderModeBar(items.length) : null}
+        {route.kind === "unclassified" ? orderingHint : null}
         {renderLoadState() ||
           (items.length ? (
-            renderItems(items, { showFolder: route.kind !== "unclassified" })
+            renderItems(items, { showFolder: route.kind !== "unclassified", orderable: route.kind === "unclassified" })
           ) : (
             <ResiNotesEmpty emoji={meta.emoji} title={`Nada en ${meta.title}`} message={meta.empty} />
           ))}
@@ -589,6 +869,40 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
   };
 
   const headerFor = () => {
+    if (selection) {
+      const keys = visibleKeys();
+      const all = keys.length > 0 && keys.every((k) => selection.has(k));
+      return {
+        title: selectedCount ? formatSelectionCount(selectedCount) : "Selecciona",
+        subtitle: "Toca para elegir. «Volver» sale de la selección.",
+        rightSlot: (
+          <TouchableOpacity
+            style={styles.headerTextButton}
+            onPress={() => setSelection(all ? new Set() : new Set(keys))}
+            accessibilityRole="button"
+            testID="resinotes-select-all"
+          >
+            <Text style={styles.headerTextButtonLabel}>{all ? "Ninguno" : "Todos"}</Text>
+          </TouchableOpacity>
+        ),
+      };
+    }
+    if (ordering && route.name !== "home") {
+      return {
+        title: "Ordenar",
+        subtitle: null,
+        rightSlot: (
+          <TouchableOpacity
+            style={styles.headerTextButton}
+            onPress={() => setOrdering(false)}
+            accessibilityRole="button"
+            testID="resinotes-order-done"
+          >
+            <Text style={styles.headerTextButtonLabel}>Hecho</Text>
+          </TouchableOpacity>
+        ),
+      };
+    }
     switch (route.name) {
       case "folder": {
         const folder = folderById.get(route.id);
@@ -645,6 +959,20 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
     );
   }
 
+  if (route.name === "pdf") {
+    return (
+      <PdfViewer
+        key={route.id}
+        itemId={route.id}
+        onBack={() => {
+          pop();
+          refresh({ silent: true });
+        }}
+        onDownload={(item) => downloadItem(item, { silent: true })}
+      />
+    );
+  }
+
   if (route.name === "search") {
     return <SearchView onBack={pop} onOpenFolder={(id) => push({ name: "folder", id })} onOpenItem={openItem} />;
   }
@@ -668,13 +996,49 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
       rightSlot={header.rightSlot}
       overlay={
         <>
-          {route.name !== "list" || route.kind === "unclassified" ? (
+          {!selection && !ordering && (route.name !== "list" || route.kind === "unclassified") ? (
             <FloatingActionButton
               onPress={() => setCreateMenu(true)}
               style={styles.fab}
               testID="resinotes-fab"
               accessibilityLabel="Añadir a ResiNotes"
             />
+          ) : null}
+
+          {selection ? (
+            <View style={styles.bulkBar} testID="resinotes-bulk-bar">
+              <TouchableOpacity
+                style={[styles.bulkButton, !selectedCount && styles.bulkButtonDisabled]}
+                disabled={!selectedCount}
+                onPress={() => setBulkMove(true)}
+                accessibilityRole="button"
+                testID="resinotes-bulk-move"
+              >
+                <Icon name="move-outline" size={22} color={COLORS.PRIMARY} />
+                <Text style={styles.bulkLabel}>Mover</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.bulkButton, !selected.itemIds.length && styles.bulkButtonDisabled]}
+                disabled={!selected.itemIds.length}
+                onPress={bulkFavorite}
+                accessibilityRole="button"
+                accessibilityHint="Las carpetas no se marcan como favoritas"
+                testID="resinotes-bulk-favorite"
+              >
+                <Icon name="star-outline" size={22} color={COLORS.PRIMARY} />
+                <Text style={styles.bulkLabel}>Favorito</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.bulkButton, !selectedCount && styles.bulkButtonDisabled]}
+                disabled={!selectedCount}
+                onPress={bulkTrash}
+                accessibilityRole="button"
+                testID="resinotes-bulk-trash"
+              >
+                <Icon name="trash-outline" size={22} color={COLORS.ERROR} />
+                <Text style={[styles.bulkLabel, { color: COLORS.ERROR }]}>Papelera</Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
 
           {busy ? (
@@ -785,6 +1149,15 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
                 {itemActions.type === "image" || itemActions.type === "pdf" ? (
                   <SheetOption icon="download-outline" label="Descargar o compartir" onPress={() => downloadItem(itemActions)} />
                 ) : null}
+                {itemActions.type === "note" ? (
+                  <SheetOption
+                    icon="share-outline"
+                    label="Exportar nota"
+                    description="Un archivo HTML con el texto y las imágenes"
+                    onPress={() => exportNote(itemActions)}
+                    testID="resinotes-action-export"
+                  />
+                ) : null}
                 <SheetOption
                   icon="trash-outline"
                   label="Enviar a la papelera"
@@ -829,6 +1202,13 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
                   }}
                 />
                 <SheetOption
+                  icon="share-outline"
+                  label="Exportar carpeta"
+                  description="Un ZIP con sus subcarpetas, notas y archivos"
+                  onPress={() => exportFolder(folderActions)}
+                  testID="resinotes-folder-export"
+                />
+                <SheetOption
                   icon="trash-outline"
                   label="Enviar a la papelera"
                   danger
@@ -848,6 +1228,23 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
             rootLabel={moveTarget?.kind === "item" ? "Sin clasificar" : "Mis carpetas (principal)"}
             onSelect={confirmMove}
             onClose={() => setMoveTarget(null)}
+          />
+
+          <FolderPickerSheet
+            visible={bulkMove}
+            title={`Mover ${selectedCount} ${selectedCount === 1 ? "elemento" : "elementos"}`}
+            folders={library.folders}
+            currentId={currentFolderId}
+            movingFolderIds={selected.folderIds}
+            rootLabel={
+              selected.folderIds.length && selected.itemIds.length
+                ? "Fuera de carpetas (principal / Sin clasificar)"
+                : selected.folderIds.length
+                  ? "Mis carpetas (principal)"
+                  : "Sin clasificar"
+            }
+            onSelect={bulkMoveTo}
+            onClose={() => setBulkMove(false)}
           />
 
           <RenameSheet
@@ -1105,7 +1502,11 @@ const TrashView = ({ userId, onBack, onChanged }) => {
   const empty = !state.folders.length && !state.items.length;
 
   return (
-    <HeroScreenLayout title="Papelera" subtitle="Restaura o elimina para siempre" onBack={onBack}>
+    <HeroScreenLayout
+      title="Papelera"
+      bottomContent={<Text style={styles.headerSubtitle}>Restaura o elimina para siempre</Text>}
+      onBack={onBack}
+    >
       <ScrollView contentContainerStyle={styles.content}>
         {state.loading ? (
           <View style={styles.center}>
@@ -1114,17 +1515,26 @@ const TrashView = ({ userId, onBack, onChanged }) => {
         ) : state.error ? (
           <ResiNotesEmpty emoji="📡" title="Sin conexión" message={state.error} actionLabel="Reintentar" onAction={load} />
         ) : empty ? (
-          <ResiNotesEmpty emoji="🗑️" title="La papelera está vacía" message="Lo que borres se queda aquí hasta que lo elimines." />
+          <ResiNotesEmpty
+            emoji="🗑️"
+            title="La papelera está vacía"
+            message={`Lo que borres se queda aquí ${TRASH_RETENTION_DAYS} días. Después se elimina para siempre.`}
+          />
         ) : (
           <>
-            <Text style={styles.hint}>Lo que borres se queda aquí hasta que lo elimines definitivamente.</Text>
+            <View style={styles.retentionNotice} testID="resinotes-trash-retention">
+              <Icon name="time-outline" size={18} color={COLORS.PRIMARY} />
+              <Text style={styles.retentionText}>
+                {`Lo que está en la papelera se elimina para siempre a los ${TRASH_RETENTION_DAYS} días. Hasta entonces puedes restaurarlo.`}
+              </Text>
+            </View>
             {state.folders.map((f) =>
               row(
                 `f-${f.id}`,
                 "folder-outline",
                 folderColor(f.color),
                 `${f.emoji ? `${f.emoji} ` : ""}${f.name}`,
-                `Carpeta · borrada ${formatShortDate(f.deleted_at)}`,
+                `Carpeta · borrada ${formatShortDate(f.deleted_at)} · ${formatPurgeCountdown(daysUntilPurge(f.deleted_at))}`,
                 () => act(() => restoreFolder(f.id), "Carpeta restaurada"),
                 () => confirmDelete(f.name, () => deleteFolderForever(f.id))
               )
@@ -1135,7 +1545,7 @@ const TrashView = ({ userId, onBack, onChanged }) => {
                 ITEM_TYPE_ICONS[i.type],
                 null,
                 i.title || "Sin título",
-                `${ITEM_TYPE_LABELS[i.type]} · borrado ${formatShortDate(i.deleted_at)}`,
+                `${ITEM_TYPE_LABELS[i.type]} · borrado ${formatShortDate(i.deleted_at)} · ${formatPurgeCountdown(daysUntilPurge(i.deleted_at))}`,
                 () => act(() => restoreItem(i.id), "Elemento restaurado"),
                 () => confirmDelete(i.title || "Sin título", () => deleteItemForever(i.id))
               )
@@ -1192,6 +1602,67 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   sectionTitle: { fontSize: 20, fontWeight: "700", color: COLORS.PRIMARY_DARK },
+  sectionActions: { flexDirection: "row", gap: 8 },
+  roundButtonActive: { backgroundColor: COLORS.PRIMARY },
+  modeBar: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  modeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+  },
+  modeChipText: { color: COLORS.PRIMARY, fontWeight: "700", fontSize: 13 },
+  headerTextButton: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 22,
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTextButtonLabel: { color: COLORS.PRIMARY, fontWeight: "700", fontSize: 15 },
+  bulkBar: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 24,
+    flexDirection: "row",
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+    paddingVertical: 8,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  bulkButton: { flex: 1, alignItems: "center", gap: 4, paddingVertical: 6, minHeight: 48 },
+  bulkButtonDisabled: { opacity: 0.4 },
+  bulkLabel: { fontSize: 13, fontWeight: "700", color: COLORS.PRIMARY },
+  exportLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 18,
+    paddingVertical: 12,
+  },
+  exportLinkText: { color: COLORS.PRIMARY, fontWeight: "700", fontSize: 15 },
+  retentionNotice: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    borderRadius: 14,
+    padding: 12,
+    marginVertical: 12,
+  },
+  retentionText: { flex: 1, color: COLORS.PRIMARY_DARK, fontSize: 14, lineHeight: 20 },
   sectionTitleSmall: {
     fontSize: 15,
     fontWeight: "700",

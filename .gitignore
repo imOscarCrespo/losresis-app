@@ -55,3 +55,5 @@ yarn-error.*
 
 # resultados generados por los scripts de scraping/upsert (derivados, no versionar)
 /scripts/output/
+editor-web/build/
+pdf-web/build/

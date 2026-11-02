@@ -1,8 +1,13 @@
 // ClickUp 124b4z9w0qg (ResiNotes): prepara la biblioteca del residente de pruebas (solo la suya).
 // MODE=reset  → borra todas sus carpetas, elementos y ficheros de ResiNotes y deja la carpeta
 //               «Urgencias» 🚨 (verde menta) con un PDF «Guía de sepsis».
+//               Pasada B: el PDF tiene 3 páginas (para recordar la última) y hay una nota
+//               «Apunte antiguo» en la papelera desde hace 10 días (le quedan 20).
 // MODE=assert → comprueba en la BD lo que ha hecho el flujo: «Paritorio» heredó el rosa de
 //               «Obstetricia», la nota guardó su texto y es favorita, y el enlace se normalizó.
+// MODE=assert_b → pasada B: el lote se movió a «Obstetricia», se ordenó a mano y se marcó
+//               favorito, el enlace está en la papelera, la nota tiene un bloque 💡 y una tabla
+//               con una fila añadida, el PDF recuerda la página 3 y las carpetas tienen orden.
 // Variables: E2E_EMAIL, E2E_PASSWORD, SUPABASE_URL, SUPABASE_ANON_KEY (scripts/e2e.sh).
 
 var res = http.post(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
@@ -57,12 +62,22 @@ if (MODE === "reset") {
   var folder = post("resinotes_folders", { user_id: userId, name: "Urgencias", emoji: "🚨", color: "mint" });
   var item = post("resinotes_items", { user_id: userId, folder_id: folder.id, type: "pdf", title: "Guía de sepsis" });
 
-  // Un PDF mínimo es texto ASCII: se puede subir sin binarios.
+  // Un PDF mínimo es texto ASCII: se puede subir sin binarios. Tres páginas altas, para
+  // que el visor tenga que desplazarse (pdf.js reconstruye la tabla xref que falta).
+  var page = function (n, contents) {
+    return n + " 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 520]/Contents " + contents +
+      " 0 R/Resources<</Font<</F1 9 0 R>>>>>>endobj\n";
+  };
+  var stream = function (n, text) {
+    var body = "BT /F1 18 Tf 30 460 Td (" + text + ") Tj ET";
+    return n + " 0 obj<</Length " + body.length + ">>stream\n" + body + "\nendstream endobj\n";
+  };
   var pdf =
-    "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n" +
-    "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 144]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n" +
-    "4 0 obj<</Length 44>>stream\nBT /F1 18 Tf 30 70 Td (Guia de sepsis) Tj ET\nendstream endobj\n" +
-    "5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n";
+    "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
+    "2 0 obj<</Type/Pages/Kids[3 0 R 4 0 R 5 0 R]/Count 3>>endobj\n" +
+    page(3, 6) + page(4, 7) + page(5, 8) +
+    stream(6, "Guia de sepsis - pagina 1") + stream(7, "Pagina 2: antibioterapia") + stream(8, "Pagina 3: shock septico") +
+    "9 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n";
   var key = userId + "/" + item.id + "/e2e-sepsis.pdf";
   var up = http.post(SUPABASE_URL + "/storage/v1/object/resinotes/" + key, {
     headers: { apikey: auth.apikey, Authorization: auth.Authorization, "Content-Type": "application/pdf", "x-upsert": "true" },
@@ -77,6 +92,22 @@ if (MODE === "reset") {
     mime_type: "application/pdf",
     size_bytes: pdf.length,
   });
+
+  // Pasada B: algo que lleva 10 días en la papelera.
+  var old = post("resinotes_items", {
+    user_id: userId,
+    type: "note",
+    title: "Apunte antiguo",
+    content: "<p>Viejo</p>",
+    content_text: "Viejo",
+  });
+  var tenDaysAgo = new Date(Date.now() - 10 * 86400000).toISOString();
+  var trashed = http.request(rest + "resinotes_items?id=eq." + old.id, {
+    method: "PATCH",
+    headers: headers,
+    body: JSON.stringify({ deleted_at: tenDaysAgo }),
+  });
+  if (trashed.status !== 200) throw new Error("Papelera del apunte antiguo falló: " + trashed.status + " " + trashed.body);
 } else if (MODE === "assert") {
   var folders = get("resinotes_folders" + own + "&deleted_at=is.null&select=id,name,color,parent_id");
   var obs = folders.filter(function (f) {
@@ -102,6 +133,37 @@ if (MODE === "reset") {
   if (!links.length || links[0].url !== "https://sego.es" || links[0].title !== "sego.es") {
     throw new Error("El enlace no se normalizó: " + JSON.stringify(links));
   }
+} else if (MODE === "assert_b") {
+  var fs = get("resinotes_folders" + own + "&deleted_at=is.null&select=id,name,parent_id,sort_order");
+  var obsB = fs.filter(function (f) {
+    return f.name === "Obstetricia";
+  })[0];
+  var roots = fs.filter(function (f) {
+    return !f.parent_id;
+  });
+  if (roots.some(function (f) { return !f.sort_order; })) throw new Error("Las carpetas no se ordenaron: " + JSON.stringify(roots));
+
+  var inObs = get("resinotes_items" + own + "&folder_id=eq." + obsB.id + "&select=id,type,title,sort_order,is_favorite,deleted_at,content");
+  var noteB = inObs.filter(function (i) {
+    return i.type === "note";
+  })[0];
+  var linkB = inObs.filter(function (i) {
+    return i.type === "link";
+  })[0];
+  if (!noteB || !linkB) throw new Error("El lote no se movió a Obstetricia: " + JSON.stringify(inObs));
+  if (!noteB.sort_order || !linkB.sort_order || noteB.sort_order === linkB.sort_order) {
+    throw new Error("No hay orden manual: " + noteB.sort_order + " / " + linkB.sort_order);
+  }
+  if (!linkB.is_favorite) throw new Error("El favorito en lote no marcó el enlace");
+  if (!linkB.deleted_at) throw new Error("El enlace no se fue a la papelera");
+  var html = String(noteB.content || "");
+  if (html.indexOf('data-callout="pearl"') < 0) throw new Error("La nota no tiene el bloque 💡: " + html);
+  if (html.indexOf("<table") < 0) throw new Error("La nota no tiene tabla: " + html);
+  var rows = html.split("<tr").length - 1;
+  if (rows !== 4) throw new Error("La tabla debería tener 4 filas y tiene " + rows);
+
+  var pdfs = get("resinotes_items" + own + "&type=eq.pdf&select=title,last_page");
+  if (!pdfs.length || pdfs[0].last_page !== 3) throw new Error("El PDF no recuerda la página 3: " + JSON.stringify(pdfs));
 } else {
   throw new Error("MODE desconocido: " + MODE);
 }
