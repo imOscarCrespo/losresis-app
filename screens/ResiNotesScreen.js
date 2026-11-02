@@ -57,6 +57,13 @@ import {
   uploadFileItem,
 } from "../services/resinotesService";
 import { exportFolderZip, exportNoteHtml } from "../services/resinotesExport";
+import { loadReviewData } from "../services/flashcardService";
+import { ReviewTodayCard } from "../components/resinotes/flashcards/ReviewTodayCard";
+import { CreateCardsView } from "../components/resinotes/flashcards/CreateCardsView";
+import { ReviewSessionView } from "../components/resinotes/flashcards/ReviewSessionView";
+import { MyCardsView } from "../components/resinotes/flashcards/MyCardsView";
+import { CardDetailView } from "../components/resinotes/flashcards/CardDetailView";
+import { DAILY_CARD_LIMIT, buildTodayQueue, localDateString } from "../utils/flashcards";
 import {
   ITEM_TYPE_ICONS,
   ITEM_TYPE_LABELS,
@@ -96,6 +103,8 @@ const QUICK_CARDS = [
   { key: "recents", label: "Recientes", icon: "time-outline", bg: "#F1EAFE", fg: "#7C3AED" },
   { key: "unclassified", label: "Sin clasificar", icon: "file-tray-outline", bg: "#E6F0FE", fg: "#2563EB" },
   { key: "trash", label: "Papelera", icon: "trash-outline", bg: "#E6F7F4", fg: "#0D9488" },
+  // Tarjetas de repaso (ClickUp 124b4z9w0z0).
+  { key: "cards", label: "Mis tarjetas", icon: "cards-outline", bg: "#FDECF4", fg: "#DB2777" },
 ];
 
 const LIST_TITLES = {
@@ -194,6 +203,30 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // «Tu repaso de hoy» (ClickUp 124b4z9w0z0): se recalcula cada vez que se vuelve
+  // a la portada. Si falla, la tarjeta no se enseña y la biblioteca sigue igual.
+  const [reviewSummary, setReviewSummary] = useState({ loading: true });
+  const refreshReview = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const today = localDateString();
+      const data = await loadReviewData(userId, today);
+      const { queue } = buildTodayQueue({
+        cards: data.cards,
+        reviewedTodayIds: data.reviewedTodayIds,
+        today,
+        limit: DAILY_CARD_LIMIT,
+      });
+      setReviewSummary({ loading: false, pending: queue.length, totalCards: data.totalCards });
+    } catch {
+      setReviewSummary({ loading: false, error: true });
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (route.name === "home") refreshReview();
+  }, [route.name, refreshReview]);
 
   // El editor gestiona su propio «volver» (guarda antes de salir).
   useEffect(() => {
@@ -697,12 +730,23 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
           <Text style={styles.searchPlaceholder}>Buscar en mis apuntes…</Text>
         </TouchableOpacity>
 
+        <ReviewTodayCard
+          summary={reviewSummary}
+          onStart={() => push({ name: "review", mode: "today" })}
+          onMore={() => push({ name: "review", mode: "more" })}
+          onCreate={() => push({ name: "cards-create" })}
+        />
+
         <View style={styles.quickRow}>
           {QUICK_CARDS.map((card) => (
             <TouchableOpacity
               key={card.key}
               style={[styles.quickCard, { backgroundColor: card.bg }]}
-              onPress={() => push(card.key === "trash" ? { name: "trash" } : { name: "list", kind: card.key })}
+              onPress={() =>
+                push(
+                  card.key === "trash" || card.key === "cards" ? { name: card.key } : { name: "list", kind: card.key }
+                )
+              }
               accessibilityRole="button"
               accessibilityLabel={card.label}
               testID={`resinotes-quick-${card.key}`}
@@ -758,6 +802,24 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
           ) : (
             <Text style={styles.hint}>Aún no tienes carpetas. Pulsa + para crear la primera.</Text>
           ))}
+
+        {!loading && !loadError && !ordering && library.items.some((i) => i.type === "note") ? (
+          <TouchableOpacity
+            style={styles.createCards}
+            onPress={() => push({ name: "cards-create" })}
+            accessibilityRole="button"
+            testID="resinotes-create-cards"
+          >
+            <View style={styles.createCardsIcon}>
+              <Icon name="sparkles-outline" size={22} color={COLORS.PRIMARY} />
+            </View>
+            <View style={styles.flex}>
+              <Text style={styles.createCardsTitle}>Crear tarjetas</Text>
+              <Text style={styles.createCardsText}>Tarjetas de repaso a partir de tus apuntes.</Text>
+            </View>
+            <Icon name="chevron-forward" size={18} color={COLORS.TEXT_LIGHT} />
+          </TouchableOpacity>
+        ) : null}
 
         {!loading && !loadError && !isEmpty && !ordering ? (
           <TouchableOpacity
@@ -955,6 +1017,71 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
           refresh({ silent: true });
         }}
         onSaved={patchItem}
+        onCreateCards={(id) => {
+          refresh({ silent: true });
+          push({ name: "cards-create", id });
+        }}
+      />
+    );
+  }
+
+  // ---- Tarjetas de repaso (ClickUp 124b4z9w0z0) ----
+
+  const folderName = (id) => (id ? folderById.get(id)?.name || null : null);
+  const toHome = () => setStack([{ name: "home" }]);
+  const replaceTop = (next) => setStack((prev) => [...prev.slice(0, -1), next]);
+
+  if (route.name === "cards-create") {
+    return (
+      <CreateCardsView
+        key={route.id || "pick"}
+        userId={userId}
+        itemId={route.id || null}
+        library={library}
+        onBack={pop}
+        onStartReview={() => replaceTop({ name: "review", mode: "today" })}
+        onCreated={refreshReview}
+      />
+    );
+  }
+
+  if (route.name === "review") {
+    return (
+      <ReviewSessionView
+        key={route.mode}
+        userId={userId}
+        mode={route.mode}
+        folderName={folderName}
+        onBack={pop}
+        onExit={toHome}
+        onMore={() => replaceTop({ name: "review", mode: "more" })}
+        onOpenNote={(id) => push({ name: "note", id })}
+      />
+    );
+  }
+
+  if (route.name === "cards") {
+    return (
+      <MyCardsView
+        userId={userId}
+        library={library}
+        onBack={pop}
+        onOpenCard={(id) => push({ name: "card", id })}
+        onCreateFromNotes={() => push({ name: "cards-create" })}
+      />
+    );
+  }
+
+  if (route.name === "card") {
+    return (
+      <CardDetailView
+        key={route.id}
+        cardId={route.id}
+        folderName={folderName}
+        onBack={pop}
+        onOpenNote={(id) => push({ name: "note", id })}
+        onRegenerate={(id) => push({ name: "cards-create", id })}
+        onChanged={() => refresh({ silent: true })}
       />
     );
   }
@@ -1117,6 +1244,18 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
           >
             {itemActions ? (
               <>
+                {itemActions.type === "note" ? (
+                  <SheetOption
+                    icon="brain-outline"
+                    label="Crear tarjetas de estudio"
+                    onPress={() => {
+                      const id = itemActions.id;
+                      setItemActions(null);
+                      push({ name: "cards-create", id });
+                    }}
+                    testID="resinotes-action-cards"
+                  />
+                ) : null}
                 <SheetOption
                   icon={itemActions.is_favorite ? "star" : "star-outline"}
                   label={itemActions.is_favorite ? "Quitar de favoritos" : "Añadir a favoritos"}
@@ -1754,6 +1893,27 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   trashButton: { padding: 8 },
+  createCards: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+    padding: 14,
+    marginTop: 14,
+  },
+  createCardsIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  createCardsTitle: { fontSize: 15, fontWeight: "700", color: COLORS.PRIMARY_DARK },
+  createCardsText: { fontSize: 13, color: COLORS.TEXT_LIGHT, marginTop: 2 },
 });
 
 export default ResiNotesScreen;

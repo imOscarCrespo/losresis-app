@@ -1,0 +1,245 @@
+# ClickUp 124b4z9w0z0 · Tarjetas de repaso de ResiNotes (pasada A).
+# https://app.clickup.com/t/90151808476/124b4z9w0z0
+#
+# Recorre los criterios de aceptación:
+#   - Creación: tarjetas desde un apunte, sin IA y con texto literal; revisión con la fuente;
+#     aprobar; un apunte sin estructura no genera nada.
+#   - Repaso: «Tu repaso de hoy» con 5 pendientes y el tiempo; tarjeta, «Mostrar respuesta»,
+#     «No lo sabía / Me costó / Lo sabía»; la fallada reaparece al final; «¡Repaso completado!»
+#     con el resumen; después, «Todo al día».
+#   - Mis tarjetas: pestañas, detalle, suspender; «Fuente modificada» al editar el apunte y
+#     «Mantener tarjeta»; crear una a mano.
+#   - El script final comprueba en la BD orígenes, repasos e intervalos (4 · 1 · 2 · 4 · 4 · 4).
+#
+# Repetible: el script borra las tarjetas del residente de pruebas y vuelve a crear sus dos
+# apuntes de «Obstetricia». Solo toca datos del residente de pruebas.
+appId: com.losresis.app
+name: "124b4z9w0z0 Tarjetas de repaso"
+---
+- runScript:
+    file: ../scripts/seed-124b4z9w0z0-flashcards.js
+    env:
+      MODE: reset
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+# ── Portada de ResiNotes sin tarjetas ──
+- waitForAnimationToEnd
+- tapOn: "ResiNotes"
+- extendedWaitUntil:
+    visible: "Tus apuntes también pueden ayudarte a repasar"
+    timeout: 20000
+- assertVisible: "Crea tus primeras tarjetas automáticamente."
+- assertVisible: "Mis tarjetas"
+- takeScreenshot: 124b4z9w0z0-1-inicio-sin-tarjetas
+
+# ── Apunte sin estructura: no se inventa nada ──
+- tapOn: "Carpeta Obstetricia.*"
+- extendedWaitUntil:
+    visible: "Opciones de Caso sin estructura"
+    timeout: 10000
+- tapOn: "Opciones de Caso sin estructura"
+- tapOn:
+    id: "resinotes-action-cards"
+- extendedWaitUntil:
+    visible: "No se ha podido generar ninguna tarjeta"
+    timeout: 10000
+- takeScreenshot: 124b4z9w0z0-2-sin-estructura
+- tapOn: "Volver"
+
+# ── Crear tarjetas desde «Eclampsia» ──
+- tapOn: "Opciones de Eclampsia"
+- takeScreenshot: 124b4z9w0z0-3-menu-apunte
+- tapOn:
+    id: "resinotes-action-cards"
+- extendedWaitUntil:
+    visible: "Hemos preparado 6 tarjetas a partir de «Eclampsia».*"
+    timeout: 10000
+- assertVisible: "6 de 6 seleccionadas"
+- assertVisible: "¿Cómo define tu apunte «Eclampsia»?"
+- assertVisible: "¿Qué incluye «Manejo inicial» en tu apunte de «Eclampsia»?"
+- assertVisible: "Solo se generan tarjetas con información que está en tu apunte, copiada tal cual."
+- tapOn:
+    id: "flashcards-proposal-1"
+- assertVisible: "Estabilización materna (ABC)."
+- takeScreenshot: 124b4z9w0z0-4-revisa-tus-tarjetas
+- tapOn:
+    id: "flashcards-approve"
+- extendedWaitUntil:
+    visible: "Tus tarjetas están listas"
+    timeout: 10000
+- assertVisible: "Has guardado 6 tarjetas.*"
+- takeScreenshot: 124b4z9w0z0-5-tarjetas-listas
+
+# ── Repaso de hoy ──
+- tapOn:
+    id: "flashcards-done-start"
+- extendedWaitUntil:
+    visible: "Tarjeta 1 de 5"
+    timeout: 10000
+- assertVisible: "Unos minutos para recordar lo aprendido."
+- assertVisible: "Mostrar respuesta"
+- takeScreenshot: 124b4z9w0z0-6-pregunta
+- tapOn:
+    id: "review-show-answer"
+- extendedWaitUntil:
+    visible:
+      id: "review-rate-good"
+    timeout: 5000
+- assertVisible: "No lo sabía"
+- assertVisible: "Me costó"
+- assertVisible: "Lo sabía"
+- takeScreenshot: 124b4z9w0z0-7-respuesta
+- tapOn:
+    id: "review-rate-good"
+- extendedWaitUntil:
+    visible: "Tarjeta 2 de 5"
+    timeout: 10000
+# Tocar la tarjeta también le da la vuelta.
+- tapOn:
+    id: "review-question"
+- extendedWaitUntil:
+    visible:
+      id: "review-rate-again"
+    timeout: 5000
+- tapOn:
+    id: "review-rate-again"
+- extendedWaitUntil:
+    visible: "Tarjeta 3 de 5"
+    timeout: 10000
+- tapOn:
+    id: "review-show-answer"
+- extendedWaitUntil:
+    visible:
+      id: "review-rate-hard"
+    timeout: 5000
+- tapOn:
+    id: "review-rate-hard"
+- extendedWaitUntil:
+    visible: "Tarjeta 4 de 5"
+    timeout: 10000
+- tapOn:
+    id: "review-show-answer"
+- extendedWaitUntil:
+    visible:
+      id: "review-rate-good"
+    timeout: 5000
+- tapOn:
+    id: "review-rate-good"
+- extendedWaitUntil:
+    visible: "Tarjeta 5 de 5"
+    timeout: 10000
+- tapOn:
+    id: "review-show-answer"
+- extendedWaitUntil:
+    visible:
+      id: "review-rate-good"
+    timeout: 5000
+- tapOn:
+    id: "review-rate-good"
+# La que no sabía vuelve una vez al final.
+- extendedWaitUntil:
+    visible: "Repaso de las que no sabías"
+    timeout: 10000
+- tapOn:
+    id: "review-show-answer"
+- extendedWaitUntil:
+    visible:
+      id: "review-rate-good"
+    timeout: 5000
+- tapOn:
+    id: "review-rate-good"
+- extendedWaitUntil:
+    visible: "¡Repaso completado!"
+    timeout: 10000
+- assertVisible: "Hoy has repasado 5 tarjetas."
+- assertVisible: "3 las sabías"
+- assertVisible: "1 te ha costado"
+- assertVisible: "1 necesitas reforzar"
+- takeScreenshot: 124b4z9w0z0-8-repaso-completado
+- tapOn:
+    id: "review-back-home"
+- extendedWaitUntil:
+    visible: "Todo al día"
+    timeout: 10000
+- assertVisible: "No tienes repasos pendientes por ahora."
+- takeScreenshot: 124b4z9w0z0-9-inicio-todo-al-dia
+
+# ── Mis tarjetas: detalle y suspender ──
+- tapOn: "Mis tarjetas"
+- extendedWaitUntil:
+    visible: "Todas \\(6\\)"
+    timeout: 10000
+- assertVisible: "Activas \\(6\\)"
+- takeScreenshot: 124b4z9w0z0-10-mis-tarjetas
+- tapOn: ".*para «Labetalol».*"
+- extendedWaitUntil:
+    visible: "Detalle de la tarjeta"
+    timeout: 10000
+- assertVisible: "20 mg"
+- assertVisible: "Creada desde tu apunte"
+- takeScreenshot: 124b4z9w0z0-11-detalle
+- tapOn:
+    id: "flashcard-toggle-suspend"
+- extendedWaitUntil:
+    visible: "Suspendida"
+    timeout: 10000
+- tapOn: "Volver"
+
+# ── El residente edita el apunte: «Fuente modificada» ──
+- runScript:
+    file: ../scripts/seed-124b4z9w0z0-flashcards.js
+    env:
+      MODE: modify
+- tapOn: "Volver"
+- tapOn: "Mis tarjetas"
+- extendedWaitUntil:
+    visible: "Suspendidas \\(1\\)"
+    timeout: 10000
+- tapOn:
+    id: "flashcards-search"
+- inputText: "Manejo inicial"
+- assertVisible: ".*Manejo inicial.*Fuente modificada.*"
+- takeScreenshot: 124b4z9w0z0-12-lista-fuente-modificada
+- tapOn: ".*«Manejo inicial» en tu apunte.*"
+- extendedWaitUntil:
+    visible: "Fuente modificada"
+    timeout: 10000
+- assertVisible: "¿Qué quieres hacer?"
+- assertVisible: "Mantener tarjeta"
+- takeScreenshot: 124b4z9w0z0-13-fuente-modificada
+- tapOn:
+    id: "flashcard-keep"
+- extendedWaitUntil:
+    visible: "Detalle de la tarjeta"
+    timeout: 10000
+- assertVisible: "Activa"
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible:
+      id: "flashcards-search"
+    timeout: 10000
+
+# ── Tarjeta a mano ──
+- tapOn:
+    id: "flashcards-new-manual"
+- tapOn:
+    id: "flashcard-editor-question"
+- inputText: "¿Qué escala valora el riesgo de úlceras por presión?"
+- tapOn:
+    id: "flashcard-editor-answer"
+- inputText: "Escala de Braden"
+- tapOn: "Nueva tarjeta"
+- tapOn:
+    id: "flashcard-editor-save"
+- extendedWaitUntil:
+    visible: "Todas \\(7\\)"
+    timeout: 10000
+- assertVisible: ".*escala valora el riesgo de úlceras.*"
+- takeScreenshot: 124b4z9w0z0-14-tarjeta-manual
+
+- runScript:
+    file: ../scripts/seed-124b4z9w0z0-flashcards.js
+    env:
+      MODE: assert

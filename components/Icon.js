@@ -1,6 +1,10 @@
 import React from "react";
 import {
   Plus,
+  Brain,
+  Cards,
+  PauseCircle,
+  PlayCircle,
   PushPin,
   Tray,
   FilePdf,
@@ -158,6 +162,11 @@ import {
 // con la prop `weight`, ver FILLED más abajo).
 const IONICON_TO_PHOSPHOR = {
   add: Plus,
+  // Tarjetas de repaso de ResiNotes (ClickUp 124b4z9w0z0).
+  "brain-outline": Brain,
+  "cards-outline": Cards,
+  "pause-circle-outline": PauseCircle,
+  "play-circle-outline": PlayCircle,
   "add-circle-outline": PlusCircle,
   "alert-circle": WarningCircle,
   "alert-circle-outline": WarningCircle,

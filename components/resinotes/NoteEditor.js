@@ -110,7 +110,7 @@ const clearDraft = async (itemId) => {
 };
 
 /** El editor ya montado con el contenido inicial. */
-const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack, onSaved }) => {
+const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack, onSaved, onCreateCards }) => {
   const [title, setTitle] = useState(initialTitle);
   const [status, setStatus] = useState(recovered ? "dirty" : "idle");
   const [imageSheet, setImageSheet] = useState(false);
@@ -270,6 +270,21 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
     return () => sub.remove();
   }, []);
 
+  // Tarjetas de repaso (ClickUp 124b4z9w0z0): se generan desde lo guardado, así
+  // que primero se guarda la nota.
+  const [preparingCards, setPreparingCards] = useState(false);
+  const createCards = async () => {
+    if (preparingCards) return;
+    setPreparingCards(true);
+    const ok = await flush();
+    setPreparingCards(false);
+    if (ok) {
+      onCreateCards?.(item.id);
+      return;
+    }
+    Alert.alert("No se ha podido guardar", "Guarda la nota antes de crear tarjetas. Revisa tu conexión e inténtalo de nuevo.");
+  };
+
   const insertImages = async (source) => {
     setImageSheet(false);
     let files = [];
@@ -301,20 +316,38 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
       title="Nota"
       onBack={handleBack}
       rightSlot={
-        <TouchableOpacity
-          onPress={() => setImageSheet(true)}
-          disabled={uploading}
-          style={styles.headerButton}
-          accessibilityRole="button"
-          accessibilityLabel="Insertar imagen"
-          testID="resinotes-note-insert-image"
-        >
-          {uploading ? (
-            <ActivityIndicator color={COLORS.PRIMARY} />
-          ) : (
-            <Icon name="image-outline" size={22} color={COLORS.PRIMARY} />
-          )}
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {onCreateCards ? (
+            <TouchableOpacity
+              onPress={createCards}
+              disabled={preparingCards}
+              style={styles.headerButton}
+              accessibilityRole="button"
+              accessibilityLabel="Crear tarjetas de estudio"
+              testID="resinotes-note-create-cards"
+            >
+              {preparingCards ? (
+                <ActivityIndicator color={COLORS.PRIMARY} />
+              ) : (
+                <Icon name="brain-outline" size={22} color={COLORS.PRIMARY} />
+              )}
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity
+            onPress={() => setImageSheet(true)}
+            disabled={uploading}
+            style={styles.headerButton}
+            accessibilityRole="button"
+            accessibilityLabel="Insertar imagen"
+            testID="resinotes-note-insert-image"
+          >
+            {uploading ? (
+              <ActivityIndicator color={COLORS.PRIMARY} />
+            ) : (
+              <Icon name="image-outline" size={22} color={COLORS.PRIMARY} />
+            )}
+          </TouchableOpacity>
+        </View>
       }
       overlay={
         <>
@@ -457,7 +490,7 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
  * Editor de una nota de ResiNotes. Carga la nota, firma las URLs de sus
  * imágenes, recupera un borrador local si lo hay y monta el editor.
  */
-export const NoteEditor = ({ userId, itemId, onBack, onSaved }) => {
+export const NoteEditor = ({ userId, itemId, onBack, onSaved, onCreateCards }) => {
   const [state, setState] = useState({ loading: true, error: null, data: null });
 
   const load = useCallback(async () => {
@@ -520,11 +553,13 @@ export const NoteEditor = ({ userId, itemId, onBack, onSaved }) => {
       recovered={state.data.recovered}
       onBack={onBack}
       onSaved={onSaved}
+      onCreateCards={onCreateCards}
     />
   );
 };
 
 const styles = StyleSheet.create({
+  headerActions: { flexDirection: "row", gap: 8 },
   flex: { flex: 1 },
   toolbarRow: { flexDirection: "row" },
   blocksRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 6 },

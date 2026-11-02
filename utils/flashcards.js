@@ -1,0 +1,491 @@
+import { htmlToPlainText } from "./resinotes";
+
+/**
+ * Tarjetas de repaso de ResiNotes (ClickUp 124b4z9w0z0).
+ *
+ * Generación SIN IA: las propuestas salen de la estructura del apunte
+ * (encabezados con su contenido, listas con una línea «Etiqueta:» delante,
+ * líneas «Término: definición» y filas de tabla). La respuesta es siempre texto
+ * literal del apunte y cada propuesta lleva el fragmento del que sale
+ * (excerpt), que la BD vuelve a comprobar al guardar
+ * (losresis-db 20261112120000_resinotes_flashcards.sql). Si el apunte no tiene
+ * estructura suficiente, no se inventa nada: no salen tarjetas.
+ *
+ * La programación (repetición espaciada) se calcula en la BD
+ * (resinotes_review_flashcard); aquí solo se decide qué toca repasar hoy.
+ */
+
+export const DAILY_CARD_LIMIT = 5;
+export const MORE_BATCH_SIZE = 5;
+export const SECONDS_PER_CARD = 36;
+export const MAX_PROPOSALS = 40;
+export const MAX_ANSWER_CHARS = 700;
+export const MAX_ANSWER_LINES = 15;
+export const MAX_LINE_CHARS = 300;
+export const MAX_QUESTION_CHARS = 500;
+
+export const RATINGS = {
+  again: { label: "No lo sabía", summary: "necesitas reforzar", icon: "close", bg: "#FDE8EF", fg: "#DB2777" },
+  hard: { label: "Me costó", summary: "te ha costado", icon: "remove", bg: "#FEF6DC", fg: "#D97706" },
+  good: { label: "Lo sabía", summary: "las sabías", icon: "checkmark", bg: "#E3F6EA", fg: "#16A34A" },
+};
+export const RATING_KEYS = ["again", "hard", "good"];
+
+export const ORIGIN_LABELS = {
+  generated: "Creada desde tu apunte",
+  generated_edited: "Creada desde tu apunte y editada por ti",
+  manual: "Creada a mano",
+};
+
+// ---------------------------------------------------------------------------
+// Texto
+// ---------------------------------------------------------------------------
+
+/** Igual que resinotes_normalize_text en la BD: cualquier espacio -> uno. */
+export const normalizeText = (value) =>
+  String(value ?? "")
+    .replace(/[ \t\n\r\f\v ]+/g, " ")
+    .replace(/^ +| +$/g, "");
+
+/** ¿Está `needle` dentro de `haystack`? Igual que resinotes_text_contains. */
+export const textContains = (haystack, needle) => {
+  const n = normalizeText(needle);
+  return n !== "" && normalizeText(haystack).includes(n);
+};
+
+export const fingerprint = (question, answer) =>
+  `${normalizeText(question).toLowerCase()}|${normalizeText(answer).toLowerCase()}`;
+
+/** Las líneas de una respuesta (una lista se pinta con viñetas). */
+export const answerLines = (answer) =>
+  String(answer || "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+// ---------------------------------------------------------------------------
+// HTML -> bloques
+// ---------------------------------------------------------------------------
+
+const VOID_TAGS = new Set(["br", "img", "hr", "input", "meta", "link", "col", "source", "wbr"]);
+const CONTAINER_TAGS = new Set(["div", "blockquote", "section", "article"]);
+const TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>|<!--[\s\S]*?-->/g;
+
+/** Trocea el HTML en sus elementos de primer nivel ({tag, html}). */
+export const topLevelElements = (html) => {
+  const source = String(html || "");
+  const out = [];
+  let depth = 0;
+  let start = 0;
+  let rootTag = null;
+  let textStart = 0;
+  TAG_RE.lastIndex = 0;
+  let m;
+  while ((m = TAG_RE.exec(source))) {
+    if (m[0].startsWith("<!--")) continue;
+    const closing = m[1] === "/";
+    const tag = m[2].toLowerCase();
+    const selfClosing = m[3] === "/" || VOID_TAGS.has(tag);
+    if (depth === 0) {
+      const loose = source.slice(textStart, m.index);
+      if (loose.trim()) out.push({ tag: "p", html: loose });
+      if (closing) {
+        textStart = TAG_RE.lastIndex;
+        continue;
+      }
+      if (selfClosing) {
+        out.push({ tag, html: m[0] });
+        textStart = TAG_RE.lastIndex;
+        continue;
+      }
+      rootTag = tag;
+      start = m.index;
+      depth = 1;
+      continue;
+    }
+    if (selfClosing) continue;
+    if (closing) {
+      depth -= 1;
+      if (depth === 0) {
+        out.push({ tag: rootTag, html: source.slice(start, TAG_RE.lastIndex) });
+        textStart = TAG_RE.lastIndex;
+      }
+    } else {
+      depth += 1;
+    }
+  }
+  if (depth > 0) {
+    out.push({ tag: rootTag, html: source.slice(start) });
+  } else {
+    const loose = source.slice(textStart);
+    if (loose.trim()) out.push({ tag: "p", html: loose });
+  }
+  return out;
+};
+
+const innerHtml = (html) => String(html).replace(/^<[^>]+>/, "").replace(/<\/[a-zA-Z0-9]+>\s*$/, "");
+
+const tableRows = (html) => {
+  const rows = [];
+  const rowRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+  let r;
+  while ((r = rowRe.exec(html))) {
+    const cells = [];
+    const cellRe = /<(t[hd])\b[^>]*>([\s\S]*?)<\/\1>/gi;
+    let c;
+    while ((c = cellRe.exec(r[1]))) {
+      cells.push(normalizeText(htmlToPlainText(c[2])));
+    }
+    rows.push(cells);
+  }
+  return rows;
+};
+
+/**
+ * Bloques del apunte en orden: heading | paragraph | list | table. Los bloques
+ * especiales (callouts) y las citas se abren y se leen como su contenido.
+ */
+export const noteBlocks = (html) => {
+  const blocks = [];
+  const walk = (elements) => {
+    elements.forEach(({ tag, html: el }) => {
+      if (CONTAINER_TAGS.has(tag)) {
+        walk(topLevelElements(innerHtml(el)));
+        return;
+      }
+      if (/^h[1-6]$/.test(tag)) {
+        const text = normalizeText(htmlToPlainText(el));
+        if (text) blocks.push({ type: "heading", level: Number(tag[1]), text });
+        return;
+      }
+      if (tag === "ul" || tag === "ol") {
+        const lines = htmlToPlainText(el)
+          .split("\n")
+          .map(normalizeText)
+          .filter(Boolean);
+        if (lines.length) blocks.push({ type: "list", lines });
+        return;
+      }
+      if (tag === "table") {
+        const rows = tableRows(el).filter((cells) => cells.some(Boolean));
+        if (rows.length) blocks.push({ type: "table", rows });
+        return;
+      }
+      if (VOID_TAGS.has(tag)) return;
+      const lines = htmlToPlainText(el)
+        .split("\n")
+        .map(normalizeText)
+        .filter(Boolean);
+      if (lines.length) blocks.push({ type: "paragraph", lines });
+    });
+  };
+  walk(topLevelElements(html));
+  return blocks;
+};
+
+// ---------------------------------------------------------------------------
+// Generación
+// ---------------------------------------------------------------------------
+
+const DEFINITION_RE = /^(definici[oó]n|concepto|qu[eé] es)\b/i;
+// «Término: definición» (con espacio tras los dos puntos: deja fuera horas y URLs).
+const TERM_RE = /^([^:]{2,60}?)\s*:\s+(\S[\s\S]*)$/;
+
+const cleanLabel = (text) =>
+  normalizeText(text)
+    .replace(/[\s:.;,·-]+$/u, "")
+    .replace(/^[•\-–·*\s]+/u, "");
+
+const sameText = (a, b) => normalizeText(a).toLowerCase() === normalizeText(b).toLowerCase();
+
+const truncate = (text, max) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
+
+const ofTitle = (title, label) => (title && !sameText(title, label) ? ` de «${title}»` : "");
+
+const questionForSection = (label, title, kind) => {
+  if (DEFINITION_RE.test(label)) {
+    return title ? `¿Cómo define tu apunte «${title}»?` : `¿Qué recoge tu apunte sobre «${label}»?`;
+  }
+  if (kind === "list") return `¿Qué incluye «${label}» en tu apunte${ofTitle(title, label)}?`;
+  return `¿Qué recoge tu apunte${ofTitle(title, label)} sobre «${label}»?`;
+};
+
+const questionForTerm = (term, title) => `Según tu apunte${ofTitle(title, term)}, ¿qué corresponde a «${term}»?`;
+
+const questionForRow = (label, headers, key) => {
+  const cols = headers.filter(Boolean).map((h) => `«${h}»`);
+  const what = cols.length ? cols.join(" y ") : "esta fila";
+  const where = label ? ` «${label}»` : "";
+  return `En tu tabla${where}, ¿qué pone en ${what} para «${key}»?`;
+};
+
+const answerFits = (lines) =>
+  lines.length > 0 &&
+  lines.length <= MAX_ANSWER_LINES &&
+  lines.join("\n").length <= MAX_ANSWER_CHARS &&
+  lines.every((l) => l.length <= MAX_LINE_CHARS);
+
+/** Una línea es «solo» una etiqueta si acaba en dos puntos. */
+const isLabelLine = (line) => /:\s*$/.test(line) && cleanLabel(line).length >= 2 && line.length <= 120;
+
+/**
+ * Propuestas de tarjetas para un apunte.
+ * Devuelve { proposals: [{question, answer, excerpt, locator}], reason }
+ * con reason = 'empty' | 'no_structure' | null.
+ */
+export const generateFlashcards = ({ html, title = "" } = {}) => {
+  const noteTitle = cleanLabel(title);
+  const blocks = noteBlocks(html);
+  const textBlocks = blocks.filter((b) => b.type !== "heading");
+  if (!textBlocks.length) return { proposals: [], reason: "empty" };
+
+  // Secciones: un encabezado y los bloques hasta el siguiente encabezado.
+  const sections = [];
+  let current = { heading: null, blocks: [] };
+  blocks.forEach((block) => {
+    if (block.type === "heading") {
+      sections.push(current);
+      current = { heading: block.text, blocks: [] };
+    } else {
+      current.blocks.push(block);
+    }
+  });
+  sections.push(current);
+
+  const proposals = [];
+  const seen = new Set();
+  const add = ({ question, answer, excerpt, locator }) => {
+    const q = normalizeText(question);
+    const a = String(answer)
+      .split("\n")
+      .map(normalizeText)
+      .filter(Boolean)
+      .join("\n");
+    if (!q || !a || q.length > MAX_QUESTION_CHARS || !textContains(excerpt, a)) return;
+    const key = fingerprint(q, a);
+    if (seen.has(key)) return;
+    seen.add(key);
+    proposals.push({ question: q, answer: a, excerpt: String(excerpt), locator: locator || null });
+  };
+
+  sections.forEach(({ heading, blocks: sectionBlocks }) => {
+    const label = heading ? cleanLabel(heading) : null;
+    const locatorBase = label || null;
+
+    // 1. La sección entera (párrafos y listas, sin tablas) si cabe en una tarjeta.
+    const prose = sectionBlocks.filter((b) => b.type !== "table");
+    const proseLines = prose.flatMap((b) => b.lines);
+    if (label && prose.length && prose.length === sectionBlocks.length && answerFits(proseLines)) {
+      const kind = prose.every((b) => b.type === "list") ? "list" : "text";
+      const answer = proseLines.join("\n");
+      add({
+        question: questionForSection(label, noteTitle, kind),
+        answer,
+        excerpt: answer,
+        locator: locatorBase,
+      });
+    }
+
+    sectionBlocks.forEach((block, idx) => {
+      // 2. Lista con una línea «Etiqueta:» justo delante.
+      if (block.type === "list") {
+        const prev = sectionBlocks[idx - 1];
+        const labelLine = prev && prev.type === "paragraph" ? prev.lines[prev.lines.length - 1] : null;
+        if (labelLine && isLabelLine(labelLine) && answerFits(block.lines)) {
+          const sub = cleanLabel(labelLine);
+          const answer = block.lines.join("\n");
+          add({
+            question: `¿Qué incluye «${sub}» en tu apunte${ofTitle(noteTitle, sub)}?`,
+            answer,
+            excerpt: `${labelLine}\n${answer}`,
+            locator: [locatorBase, sub].filter(Boolean).join(" › "),
+          });
+        }
+      }
+
+      // 3. Líneas «Término: definición».
+      if (block.type === "list" || block.type === "paragraph") {
+        block.lines.forEach((line) => {
+          if (line.length > MAX_LINE_CHARS) return;
+          const match = TERM_RE.exec(line);
+          if (!match) return;
+          const term = cleanLabel(match[1]);
+          const definition = normalizeText(match[2]);
+          if (!/\p{L}/u.test(term) || !/[\p{L}\p{N}]/u.test(definition)) return;
+          add({
+            question: questionForTerm(term, noteTitle),
+            answer: definition,
+            excerpt: line,
+            locator: [locatorBase, term].filter(Boolean).join(" › "),
+          });
+        });
+      }
+
+      // 4. Filas de tabla: la primera fila son los encabezados.
+      if (block.type === "table" && block.rows.length >= 2) {
+        const [headers, ...rows] = block.rows;
+        if (headers.length < 2) return;
+        rows.forEach((cells) => {
+          const key = cells[0];
+          const rest = cells.slice(1).filter(Boolean);
+          if (!key || !rest.length || cells.length < 2) return;
+          const answer = rest.join("\n");
+          if (!answerFits(rest)) return;
+          add({
+            question: questionForRow(label, headers.slice(1, cells.length), key),
+            answer,
+            excerpt: cells.join("\n"),
+            locator: [locatorBase, key].filter(Boolean).join(" › "),
+          });
+        });
+      }
+    });
+  });
+
+  const capped = proposals.slice(0, MAX_PROPOSALS).map((p) => ({ ...p, question: truncate(p.question, MAX_QUESTION_CHARS) }));
+  return { proposals: capped, reason: capped.length ? null : "no_structure" };
+};
+
+/**
+ * Marca las propuestas que ya existen como tarjeta (misma pregunta y
+ * respuesta). Las duplicadas no se aprueban en bloque.
+ */
+export const markDuplicates = (proposals = [], existing = []) => {
+  const known = new Set(existing.filter((c) => !c.deleted_at).map((c) => fingerprint(c.question, c.answer)));
+  return proposals.map((p) => ({ ...p, duplicate: known.has(fingerprint(p.question, p.answer)) }));
+};
+
+// ---------------------------------------------------------------------------
+// Fechas (días locales, 'YYYY-MM-DD')
+// ---------------------------------------------------------------------------
+
+const pad = (n) => String(n).padStart(2, "0");
+
+export const localDateString = (now = new Date()) =>
+  `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+const dayNumber = (ymd) => {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  return Math.round(Date.UTC(y, m - 1, d) / 86400000);
+};
+
+export const daysBetween = (fromYmd, toYmd) => dayNumber(toYmd) - dayNumber(fromYmd);
+
+export const formatNextReview = (dueOn, today) => {
+  if (!dueOn) return "Nueva";
+  const diff = daysBetween(today, dueOn);
+  if (diff <= 0) return "Hoy";
+  if (diff === 1) return "Mañana";
+  return `En ${diff} días`;
+};
+
+export const estimateMinutes = (cards, secondsPerCard = SECONDS_PER_CARD) =>
+  Math.max(1, Math.round((cards * secondsPerCard) / 60));
+
+export const formatPending = (n) => `${n} ${n === 1 ? "tarjeta pendiente" : "tarjetas pendientes"}`;
+export const formatCardCount = (n) => `${n} ${n === 1 ? "tarjeta" : "tarjetas"}`;
+
+// ---------------------------------------------------------------------------
+// Cola de repaso
+// ---------------------------------------------------------------------------
+
+/** Puede entrar en un repaso: activa, no borrada y con su fuente disponible. */
+export const isReviewable = (card) =>
+  Boolean(card) && !card.deleted_at && card.status === "active" && card.source_state === "ok";
+
+const byDue = (a, b) =>
+  String(a.due_on).localeCompare(String(b.due_on)) ||
+  (b.lapse_count || 0) - (a.lapse_count || 0) ||
+  String(a.last_reviewed_at || "").localeCompare(String(b.last_reviewed_at || ""));
+const byCreated = (a, b) => String(a.created_at || "").localeCompare(String(b.created_at || ""));
+
+const uniqueById = (cards) => {
+  const seen = new Set();
+  return cards.filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)));
+};
+
+/**
+ * El repaso de hoy: primero las vencidas (las más antiguas y las más falladas),
+ * después las nuevas, hasta el límite diario menos lo ya repasado hoy.
+ */
+export const buildTodayQueue = ({ cards = [], reviewedTodayIds = [], today, limit = DAILY_CARD_LIMIT }) => {
+  const reviewed = new Set(reviewedTodayIds);
+  const eligible = uniqueById(cards).filter((c) => isReviewable(c) && !reviewed.has(c.id));
+  const due = eligible.filter((c) => c.due_on && c.due_on <= today).sort(byDue);
+  const fresh = eligible.filter((c) => !c.due_on).sort(byCreated);
+  const remaining = Math.max(0, limit - reviewed.size);
+  return {
+    queue: [...due, ...fresh].slice(0, remaining),
+    reviewedToday: reviewed.size,
+    dueCount: due.length,
+    newCount: fresh.length,
+  };
+};
+
+/** «Repasar más»: lo vencido o nuevo que no ha entrado hoy y después lo más próximo. */
+export const buildMoreQueue = ({ cards = [], reviewedTodayIds = [], today, size = MORE_BATCH_SIZE }) => {
+  const reviewed = new Set(reviewedTodayIds);
+  const eligible = uniqueById(cards).filter((c) => isReviewable(c) && !reviewed.has(c.id));
+  const due = eligible.filter((c) => c.due_on && c.due_on <= today).sort(byDue);
+  const fresh = eligible.filter((c) => !c.due_on).sort(byCreated);
+  const future = eligible.filter((c) => c.due_on && c.due_on > today).sort(byDue);
+  return [...due, ...fresh, ...future].slice(0, size);
+};
+
+/** Resumen del día a partir de los repasos de hoy: cuenta la primera nota de cada tarjeta. */
+export const summarizeReviews = (reviews = []) => {
+  const first = new Map();
+  [...reviews]
+    .sort((a, b) => String(a.reviewed_at).localeCompare(String(b.reviewed_at)))
+    .forEach((r) => {
+      if (!first.has(r.flashcard_id)) first.set(r.flashcard_id, r.rating);
+    });
+  const counts = { total: first.size, again: 0, hard: 0, good: 0 };
+  first.forEach((rating) => {
+    if (counts[rating] !== undefined) counts[rating] += 1;
+  });
+  return counts;
+};
+
+// ---------------------------------------------------------------------------
+// Estados y textos
+// ---------------------------------------------------------------------------
+
+/** Estado que se enseña en Mis tarjetas. */
+export const cardDisplayState = (card) => {
+  if (card.source_state === "missing") return "missing";
+  if (card.source_state === "modified") return "modified";
+  return card.status === "suspended" ? "suspended" : "active";
+};
+
+export const CARD_STATES = {
+  active: { label: "Activa", bg: "#E3F6EA", fg: "#15803D" },
+  suspended: { label: "Suspendida", bg: "#EEF0F4", fg: "#475569" },
+  modified: { label: "Fuente modificada", bg: "#FEF3C7", fg: "#B45309" },
+  missing: { label: "Fuente no disponible", bg: "#FDE8EF", fg: "#BE185D" },
+};
+
+export const filterCards = (cards = [], { tab = "all", query = "", folderId = null } = {}) => {
+  const q = normalizeText(query).toLowerCase();
+  return cards.filter((card) => {
+    if (card.deleted_at) return false;
+    const state = cardDisplayState(card);
+    if (tab === "active" && state !== "active") return false;
+    if (tab === "suspended" && state !== "suspended") return false;
+    if (tab === "review" && state !== "modified" && state !== "missing") return false;
+    if (folderId !== null && (card.source?.folder_id || null) !== folderId) return false;
+    if (!q) return true;
+    return (
+      normalizeText(card.question).toLowerCase().includes(q) ||
+      normalizeText(card.answer).toLowerCase().includes(q) ||
+      normalizeText(card.source?.title).toLowerCase().includes(q)
+    );
+  });
+};
+
+/** Clave de idempotencia de una respuesta (UUID v4). */
+export const newClientReviewId = (random = Math.random) =>
+  "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (ch) => {
+    const r = Math.floor(random() * 16);
+    return (ch === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
