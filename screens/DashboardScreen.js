@@ -69,6 +69,7 @@ import ResidentPayoutDetailScreen from "./ResidentPayoutDetailScreen";
 import ResidentPayoutEntryScreen from "./ResidentPayoutEntryScreen";
 import ResidentPayoutExpensesScreen from "./ResidentPayoutExpensesScreen";
 import ResidentPayoutSavedScreen from "./ResidentPayoutSavedScreen";
+import ResiNotesScreen from "./ResiNotesScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
@@ -138,6 +139,7 @@ const GENERIC_BACK_SECTIONS = new Set([
   "residentPayoutExpenses",
   "residentPayoutSaved",
   "mentalHealth",
+  "resinotes",
   "valoracionJornada",
   "shiftDebrief",
 ]);
@@ -2221,6 +2223,14 @@ export default function DashboardScreen({
               initialMonth={residentPayoutRouteParams.initialMonth}
             />
           </SwipeBackWrapper>
+        );
+
+      case "resinotes":
+        return (
+          <ResiNotesScreen
+            userProfile={userProfile}
+            onBack={handleBackFromGenericSection}
+          />
         );
 
       case "mentalHealth":

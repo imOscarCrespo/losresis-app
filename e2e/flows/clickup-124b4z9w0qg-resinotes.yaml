@@ -1,0 +1,201 @@
+# ClickUp 124b4z9w0qg · ResiNotes (pasada A): biblioteca personal de apuntes.
+# https://app.clickup.com/t/90151808476/124b4z9w0qg
+#
+# Recorre los criterios del MVP:
+#   - acceso desde Inicio,
+#   - carpeta con emoji y color, y una subcarpeta que hereda el color, con su ruta,
+#   - nota con autoguardado, enlace normalizado y favorito,
+#   - búsqueda sin acentos con filtro por tipo, que llega también al PDF por su título,
+#   - papelera: enviar la carpeta con su contenido y restaurarla.
+#
+# Repetible: el script borra la biblioteca del residente de pruebas y deja «Urgencias» con un
+# PDF. Solo toca datos del residente de pruebas.
+appId: com.losresis.app
+name: "124b4z9w0qg ResiNotes"
+---
+- runScript:
+    file: ../scripts/seed-124b4z9w0qg-resinotes.js
+    env:
+      MODE: reset
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+# ── Acceso e inicio de ResiNotes ──
+- waitForAnimationToEnd
+- tapOn: "ResiNotes"
+- extendedWaitUntil:
+    visible: "Tu biblioteca personal de apuntes."
+    timeout: 20000
+- assertVisible:
+    id: "resinotes-search-open"
+- assertVisible: "Favoritos"
+- assertVisible: "Recientes"
+- assertVisible: "Sin clasificar"
+- assertVisible: "Papelera"
+- assertVisible: "Mis carpetas"
+- assertVisible: "Carpeta Urgencias, 1 elemento"
+- takeScreenshot: 124b4z9w0qg-1-inicio
+
+# ── Carpeta con emoji y color ──
+- tapOn:
+    id: "resinotes-new-folder"
+- tapOn:
+    id: "resinotes-folder-name"
+- inputText: "Obstetricia"
+- tapOn: "Emoji 🤰"
+- tapOn:
+    id: "resinotes-color-pink"
+- takeScreenshot: 124b4z9w0qg-2-nueva-carpeta
+- tapOn:
+    id: "resinotes-folder-save"
+- extendedWaitUntil:
+    visible: "Carpeta Obstetricia, 0 elementos"
+    timeout: 10000
+
+# ── Subcarpeta: hereda el rosa y enseña la ruta ──
+- tapOn:
+    id: "resinotes-folder-Obstetricia"
+- extendedWaitUntil:
+    visible: "Carpeta vacía"
+    timeout: 10000
+- tapOn:
+    id: "resinotes-fab"
+- tapOn:
+    id: "resinotes-create-folder"
+- tapOn:
+    id: "resinotes-folder-name"
+- inputText: "Paritorio"
+- assertVisible: "Carpeta principal: Obstetricia"
+- tapOn:
+    id: "resinotes-folder-save"
+- extendedWaitUntil:
+    visible: "Carpeta Paritorio, 0 elementos"
+    timeout: 10000
+- tapOn:
+    id: "resinotes-folder-Paritorio"
+- extendedWaitUntil:
+    visible: "Carpeta vacía"
+    timeout: 10000
+- assertVisible: "ResiNotes"
+- assertVisible: "Obstetricia"
+
+# ── Nota con autoguardado ──
+- tapOn:
+    id: "resinotes-fab"
+- tapOn:
+    id: "resinotes-create-note"
+- extendedWaitUntil:
+    visible:
+      id: "resinotes-note-title"
+    timeout: 15000
+- tapOn:
+    id: "resinotes-note-title"
+- inputText: "Monitorización fetal"
+- tapOn:
+    id: "resinotes-note-editor"
+- inputText: "Deceleraciones tardías indican hipoxia"
+- extendedWaitUntil:
+    visible: "Guardado"
+    timeout: 15000
+- takeScreenshot: 124b4z9w0qg-3-nota
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Nota Monitorización fetal"
+    timeout: 10000
+
+# ── Favorito ──
+- tapOn:
+    id: "resinotes-item-.*-more"
+- tapOn:
+    id: "resinotes-action-favorite"
+- waitForAnimationToEnd
+
+# ── Enlace web normalizado ──
+- tapOn:
+    id: "resinotes-fab"
+- tapOn:
+    id: "resinotes-create-link"
+- inputText: "sego.es"
+- tapOn: "Guardar enlace"
+- extendedWaitUntil:
+    visible: "Enlace sego.es"
+    timeout: 10000
+- takeScreenshot: 124b4z9w0qg-4-subcarpeta
+
+# ── Favoritos ──
+- tapOn: "Volver"
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Mis carpetas"
+    timeout: 10000
+- tapOn:
+    id: "resinotes-quick-favorites"
+- extendedWaitUntil:
+    visible: "Nota Monitorización fetal"
+    timeout: 10000
+- tapOn: "Volver"
+
+# ── Búsqueda sin acentos y filtros ──
+- tapOn:
+    id: "resinotes-search-open"
+- inputText: "TARDIAS"
+- extendedWaitUntil:
+    visible:
+      id: "resinotes-result-Monitorización fetal"
+    timeout: 10000
+- assertVisible: ".*Deceleraciones tardías indican hipoxia.*"
+- takeScreenshot: 124b4z9w0qg-5-busqueda
+- tapOn:
+    id: "resinotes-filter-pdf"
+- extendedWaitUntil:
+    visible: "Sin resultados"
+    timeout: 10000
+- tapOn:
+    id: "resinotes-filter-all"
+- tapOn:
+    id: "resinotes-search-input"
+- eraseText: 20
+- inputText: "sepsis"
+- extendedWaitUntil:
+    visible:
+      id: "resinotes-result-Guía de sepsis"
+    timeout: 10000
+- tapOn: "Volver"
+
+# ── Papelera: la carpeta se va con su contenido y vuelve entera ──
+- extendedWaitUntil:
+    visible: "Mis carpetas"
+    timeout: 10000
+- longPressOn:
+    id: "resinotes-folder-Obstetricia"
+- tapOn:
+    id: "resinotes-folder-trash"
+- tapOn: "Enviar a la papelera"
+- extendedWaitUntil:
+    notVisible:
+      id: "resinotes-folder-Obstetricia"
+    timeout: 10000
+- tapOn:
+    id: "resinotes-quick-trash"
+- extendedWaitUntil:
+    visible: "🤰 Obstetricia"
+    timeout: 10000
+- assertNotVisible: "Paritorio"
+- takeScreenshot: 124b4z9w0qg-6-papelera
+- tapOn:
+    id: "resinotes-restore-🤰 Obstetricia"
+- tapOn: "OK"
+- extendedWaitUntil:
+    visible: "La papelera está vacía"
+    timeout: 10000
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Carpeta Obstetricia, 2 elementos"
+    timeout: 10000
+- takeScreenshot: 124b4z9w0qg-7-restaurada
+
+- runScript:
+    file: ../scripts/seed-124b4z9w0qg-resinotes.js
+    env:
+      MODE: assert

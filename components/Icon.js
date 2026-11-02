@@ -1,6 +1,10 @@
 import React from "react";
 import {
   Plus,
+  PushPin,
+  Tray,
+  FilePdf,
+  ArrowsOutCardinal,
   PlusCircle,
   WarningCircle,
   Archive,
@@ -338,6 +342,11 @@ const IONICON_TO_PHOSPHOR = {
   "warning-outline": Warning,
   wine: Wine,
   "wine-outline": Wine,
+  pin: PushPin,
+  "pin-outline": PushPin,
+  "file-tray-outline": Tray,
+  "document-attach-outline": FilePdf,
+  "move-outline": ArrowsOutCardinal,
 };
 
 // Nombres de Ionicons "sólidos" (sin `-outline`) cuyo relleno tiene significado
@@ -353,6 +362,7 @@ const FILLED = new Set([
   "person",
   "person-circle",
   "notifications",
+  "pin",
 ]);
 
 /**

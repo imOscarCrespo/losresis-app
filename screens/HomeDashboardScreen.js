@@ -37,6 +37,7 @@ import {
   Camera,
   DoorOpen,
   ChartBar,
+  Notebook,
 } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHospitals } from "../hooks/useHospitals";
@@ -643,6 +644,15 @@ export default function HomeDashboardScreen({
           section: "residenceLibrary",
           tint: "#D1FAE5",
           color: "#059669",
+        },
+        {
+          // ResiNotes (ClickUp 124b4z9w0qg): la biblioteca personal de apuntes.
+          label: "ResiNotes",
+          icon: Notebook,
+          section: "resinotes",
+          tint: "#EDE9FE",
+          color: "#7C3AED",
+          badge: "NUEVO",
         },
         {
           label: "Comunidad",

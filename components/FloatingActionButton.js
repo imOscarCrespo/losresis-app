@@ -24,6 +24,8 @@ export const FloatingActionButton = ({
   bottom = 20,
   right = 20,
   style,
+  testID,
+  accessibilityLabel,
 }) => {
   return (
     <TouchableOpacity
@@ -42,6 +44,9 @@ export const FloatingActionButton = ({
       onPress={onPress}
       activeOpacity={0.8}
       hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
     >
       <View style={styles.iconContainer}>
         <Icon name={icon} size={size * 0.5} color={iconColor} />
