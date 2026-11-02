@@ -10,6 +10,7 @@ import { Icon } from "./Icon";
  * @param {number} size - Tamaño de las estrellas (por defecto 24)
  * @param {string} color - Color de las estrellas seleccionadas
  * @param {boolean} disabled - Si está deshabilitado
+ * @param {string} testIDPrefix - Si se pasa, cada estrella lleva testID `<prefijo>-<n>` (Maestro)
  */
 export const StarRating = ({
   rating = 0,
@@ -18,6 +19,7 @@ export const StarRating = ({
   size = 24,
   color = "#FFD700",
   disabled = false,
+  testIDPrefix,
 }) => {
   const handlePress = (value) => {
     if (!disabled && onRatingChange) {
@@ -38,6 +40,9 @@ export const StarRating = ({
             disabled={disabled}
             style={styles.starButton}
             activeOpacity={0.7}
+            testID={testIDPrefix ? `${testIDPrefix}-${starValue}` : undefined}
+            accessibilityRole="button"
+            accessibilityLabel={`${starValue} de ${maxRating}`}
           >
             <Icon
               name={isFilled ? "star" : "star-outline"}

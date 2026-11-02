@@ -22,13 +22,16 @@ import {
   getCourseById,
   toggleCourseLike,
 } from "../services/lectureService";
-import { getCurrentUser } from "../services/authService";
+import { getCurrentUser, getUserProfile } from "../services/authService";
 import {
   cancelCourseEnrollment,
   checkInCourse,
   enrollInCourse,
   getCourseEnrollmentSummary,
+  submitCourseSurvey,
 } from "../services/courseEnrollmentService";
+import { exportCourseCertificateToPdf } from "../services/courseCertificatePdfService";
+import { CourseSurveyModal } from "../components/courses/CourseSurveyModal";
 import {
   getCourseDocumentUrl,
   getCourseDocuments,
@@ -37,6 +40,7 @@ import { formatDateOnly, formatShortDate } from "../utils/dateUtils";
 import { openURL } from "../utils/courseUtils";
 import { classifyCourseLoadError } from "../utils/agendaCourseLink";
 import { describeCourseAttendance } from "../utils/courseMinAttendance";
+import { describeCourseSurvey } from "../utils/courseSurvey";
 import {
   checkinSuccessMessage,
   describeCourseSessions,
@@ -150,6 +154,8 @@ export default function CourseDetailScreen({
   const [documents, setDocuments] = useState([]);
   const [openingDocumentId, setOpeningDocumentId] = useState(null);
   const consumedCheckinCodeRef = useRef(null);
+  const [surveyVisible, setSurveyVisible] = useState(false);
+  const [downloadingCertificate, setDownloadingCertificate] = useState(false);
 
   const isInApp = course?.enrollment_mode === "in_app";
 
@@ -366,6 +372,7 @@ export default function CourseDetailScreen({
   );
   const attendedToday = Boolean(summary?.today && attendedSet.has(summary.today));
   const attendance = useMemo(() => describeCourseAttendance(summary), [summary]);
+  const survey = useMemo(() => describeCourseSurvey(summary), [summary]);
   const sessionRows = useMemo(() => describeCourseSessions(summary), [summary]);
   const sessionToday = useMemo(() => todaySession(summary), [summary]);
   const seatsLeft =
@@ -421,6 +428,57 @@ export default function CourseDetailScreen({
   const canEditCourse = Boolean(
     currentUserId && course?.created_by_id && currentUserId === course.created_by_id
   );
+
+  const handleSubmitSurvey = useCallback(
+    async (answers) => {
+      const result = await submitCourseSurvey(courseId, answers);
+      if (!result.success) {
+        // Puede haber cambiado algo (asistencia, fecha): se refresca el bloque.
+        await loadSummary();
+        return { ok: false, error: result.error };
+      }
+      if (result.data?.status === "submitted") {
+        posthogLogger.capture("course_survey_submitted", {
+          course_id: courseId,
+          overall_rating: answers.overall_rating,
+          would_recommend: answers.would_recommend,
+        });
+      }
+      setSurveyVisible(false);
+      setEnrollmentMessage({
+        kind: "success",
+        text: "Gracias por tu opinión. Ya puedes descargar tu certificado de asistencia.",
+      });
+      await loadSummary();
+      return { ok: true, error: null };
+    },
+    [courseId, loadSummary]
+  );
+
+  const handleDownloadCertificate = useCallback(async () => {
+    if (survey?.kind !== "certificate" || downloadingCertificate) return;
+    setDownloadingCertificate(true);
+    try {
+      const { profile } = currentUserId
+        ? await getUserProfile(currentUserId)
+        : { profile: null };
+      const residentName =
+        profile?.full_name ||
+        [profile?.name, profile?.surname].filter(Boolean).join(" ") ||
+        "";
+      await exportCourseCertificateToPdf({
+        certificate: survey.certificate,
+        course,
+        residentName,
+      });
+      posthogLogger.capture("course_certificate_downloaded", { course_id: courseId });
+    } catch (err) {
+      console.error("Error exporting course certificate:", err);
+      Alert.alert("No se ha podido generar el certificado", "Inténtalo de nuevo.");
+    } finally {
+      setDownloadingCertificate(false);
+    }
+  }, [course, courseId, currentUserId, downloadingCertificate, survey]);
 
   const handleRegister = useCallback(() => {
     if (course?.registration_url) {
@@ -540,6 +598,12 @@ export default function CourseDetailScreen({
             cancelText="Volver"
             onCancel={() => setCancelVisible(false)}
             onConfirm={handleConfirmCancel}
+          />
+          <CourseSurveyModal
+            visible={surveyVisible}
+            courseTitle={course.title}
+            onClose={() => setSurveyVisible(false)}
+            onSubmit={handleSubmitSurvey}
           />
           <Modal
             visible={checkinVisible}
@@ -861,7 +925,7 @@ export default function CourseDetailScreen({
                       />
                     </View>
                   ) : null}
-                  {attendance.message ? (
+                  {attendance.message && survey?.kind !== "locked" ? (
                     <Text
                       style={[
                         styles.attendanceMessage,
@@ -907,6 +971,67 @@ export default function CourseDetailScreen({
                   </View>
                 </View>
               ))}
+            </SectionCard>
+          ) : null}
+
+          {survey ? (
+            <SectionCard title="Encuesta y certificado">
+              <View testID={`course-survey-${survey.kind}`}>
+                {survey.kind === "certificate" ? (
+                  <>
+                    <View style={styles.attendedRow}>
+                      <Icon name="ribbon-outline" size={22} color={SECONDARY} />
+                      <Text style={styles.attendedText}>Certificado de asistencia emitido</Text>
+                    </View>
+                    <Text style={styles.cardBody}>
+                      {`Emitido el ${formatDateOnly(survey.certificate.issued_at)} · Código ${
+                        survey.certificate.code
+                      }`}
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.primaryButton, styles.checkinButton]}
+                      onPress={handleDownloadCertificate}
+                      disabled={downloadingCertificate}
+                      activeOpacity={0.88}
+                      testID="course-certificate-download"
+                    >
+                      {downloadingCertificate ? (
+                        <ActivityIndicator color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Icon name="download-outline" size={18} color="#FFFFFF" />
+                          <Text style={styles.primaryButtonText}>Descargar certificado</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                ) : survey.kind === "available" ? (
+                  <>
+                    <Text style={styles.cardBody}>
+                      Rellena la encuesta de satisfacción del curso para obtener tu
+                      certificado de asistencia.
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.primaryButton, styles.checkinButton]}
+                      onPress={() => setSurveyVisible(true)}
+                      activeOpacity={0.88}
+                      testID="course-survey-open"
+                    >
+                      <Icon name="clipboard-outline" size={18} color="#FFFFFF" />
+                      <Text style={styles.primaryButtonText}>Rellenar encuesta</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <Text
+                    style={[
+                      styles.cardBody,
+                      survey.kind === "locked" && styles.attendanceMessageDanger,
+                    ]}
+                  >
+                    {survey.message}
+                  </Text>
+                )}
+              </View>
             </SectionCard>
           ) : null}
 

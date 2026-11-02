@@ -1,0 +1,109 @@
+# ClickUp 124b4z9vjxf · Encuesta a los residentes tras realización de un curso
+# https://app.clickup.com/t/124b4z9vjxf
+# (y el caso «4 de 5 puede abrir la encuesta» de 124b4z9vn8w)
+#
+#   scripts/e2e.sh e2e/flows/clickup-124b4z9vjxf-course-survey.yaml
+#
+# Curso de pruebas «E2E · Curso con encuesta» del Hospital E2E
+# (e2e0b92a-0000-4000-8000-000000000004): inscripción en la app, 5 días
+# (19-23 de enero de 2026, ya terminado), mínimo del 80 % y avisos apagados.
+# El residente de pruebas está inscrito con 4 días fichados → 80 %, cumple.
+#
+# Primera pasada: rellena la encuesta y obtiene el certificado. La encuesta es
+# una por residente y curso, así que en las siguientes ya sale el certificado
+# (repetible sin limpiar datos). Para volver a probar el envío, borra su
+# respuesta: delete from course_survey_response where course_id =
+# 'e2e0b92a-0000-4000-8000-000000000004' and user_id = <residente de pruebas>.
+appId: com.losresis.app
+name: "124b4z9vjxf Encuesta del curso"
+---
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Cancel"
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- openLink: "losresis://course-checkin?c=e2e0b92a-0000-4000-8000-000000000004&k=000000"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "E2E · Curso con encuesta"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+
+- scrollUntilVisible:
+    element:
+      text: "Tus sesiones"
+    centerElement: true
+- assertVisible: "80 %"
+- assertVisible: "Cumples la asistencia mínima para obtener el certificado."
+
+- scrollUntilVisible:
+    element:
+      text: "Encuesta y certificado"
+    centerElement: true
+
+# Primera pasada: rellenar la encuesta.
+- runFlow:
+    when:
+      visible:
+        id: "course-survey-open"
+    commands:
+      - takeScreenshot: 124b4z9vjxf-app-1-encuesta-disponible
+      - tapOn:
+          id: "course-survey-open"
+      - extendedWaitUntil:
+          visible: "Encuesta del curso"
+          timeout: 10000
+      - tapOn:
+          id: "survey-overall_rating-5"
+      - tapOn:
+          id: "survey-content_rating-4"
+      - tapOn:
+          id: "survey-speakers_rating-4"
+      - tapOn:
+          id: "survey-organization_rating-3"
+      # Sin responder todo, no se puede enviar.
+      - scrollUntilVisible:
+          element:
+            id: "survey-submit"
+          centerElement: true
+      - assertVisible: "Valora las cuatro preguntas y dinos si lo recomendarías."
+      - tapOn:
+          id: "survey-recommend-yes"
+      - assertNotVisible: "Valora las cuatro preguntas y dinos si lo recomendarías."
+      - takeScreenshot: 124b4z9vjxf-app-2-encuesta-rellena
+      - scrollUntilVisible:
+          element:
+            id: "survey-submit"
+          centerElement: true
+      - tapOn:
+          id: "survey-submit"
+      - extendedWaitUntil:
+          visible: "Gracias por tu opinión. Ya puedes descargar tu certificado de asistencia."
+          timeout: 15000
+
+- scrollUntilVisible:
+    element:
+      id: "course-certificate-download"
+    centerElement: true
+- assertVisible: "Certificado de asistencia emitido"
+- assertNotVisible: "Rellenar encuesta"
+- takeScreenshot: 124b4z9vjxf-app-3-certificado
+- tapOn:
+    id: "course-certificate-download"
+# Hoja de compartir de iOS con el PDF.
+- extendedWaitUntil:
+    visible: "(Save to Files|Guardar en Archivos|Print|Imprimir|Copy|Copiar)"
+    timeout: 30000
+- takeScreenshot: 124b4z9vjxf-app-4-compartir-pdf

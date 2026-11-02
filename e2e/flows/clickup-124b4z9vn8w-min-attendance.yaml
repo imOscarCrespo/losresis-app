@@ -9,6 +9,9 @@
 # (notify_scope 'none'). El residente de pruebas está inscrito con 3 días
 # fichados → 60 %, no cumple. Se abre con el enlace de fichaje, que lleva al
 # detalle (el código 000000 no ficha: el curso ya no tiene sesiones).
+# Sin el mínimo no se puede abrir la encuesta (ClickUp 124b4z9vjxf): el motivo
+# sale en «Encuesta y certificado» y no hay botón. El caso 4 de 5 (sí puede)
+# está en clickup-124b4z9vjxf-course-survey.yaml.
 # Repetible sin limpiar datos: solo lee.
 appId: com.losresis.app
 name: "124b4z9vn8w Asistencia mínima"
@@ -46,5 +49,15 @@ name: "124b4z9vn8w Asistencia mínima"
 - assertVisible: "60 %"
 - assertVisible: "Mínimo para el certificado"
 - assertVisible: "80 %"
-- assertVisible: "Has asistido al 60 % de las sesiones. Para obtener el certificado necesitas un 80 %."
 - takeScreenshot: 124b4z9vn8w-app-1-no-cumple
+
+- scrollUntilVisible:
+    element:
+      text: "Encuesta y certificado"
+    centerElement: true
+- assertVisible:
+    id: "course-survey-locked"
+- assertVisible: "Has asistido al 60 % de las sesiones. Para obtener el certificado necesitas un 80 %."
+- assertNotVisible: "Rellenar encuesta"
+- assertNotVisible: "Descargar certificado"
+- takeScreenshot: 124b4z9vn8w-app-2-sin-encuesta
