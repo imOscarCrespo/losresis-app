@@ -1,0 +1,50 @@
+# ClickUp 124b4z9vn8w · Cursos: asistencia mínima para obtener el certificado
+# https://app.clickup.com/t/124b4z9vn8w
+#
+#   scripts/e2e.sh e2e/flows/clickup-124b4z9vn8w-min-attendance.yaml
+#
+# Curso de pruebas «E2E · Curso con asistencia mínima» del Hospital E2E
+# (9f74206f-6cc0-4fce-ada1-265c49dd638b): inscripción en la app, 5 días
+# (12-16 de enero de 2026, ya terminado), mínimo del 80 % y avisos apagados
+# (notify_scope 'none'). El residente de pruebas está inscrito con 3 días
+# fichados → 60 %, no cumple. Se abre con el enlace de fichaje, que lleva al
+# detalle (el código 000000 no ficha: el curso ya no tiene sesiones).
+# Repetible sin limpiar datos: solo lee.
+appId: com.losresis.app
+name: "124b4z9vn8w Asistencia mínima"
+---
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Cancel"
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- openLink: "losresis://course-checkin?c=9f74206f-6cc0-4fce-ada1-265c49dd638b&k=000000"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "E2E · Curso con asistencia mínima"
+    timeout: 30000
+# El fichaje con el código del enlace falla (no hay sesión hoy): cierra el aviso si sale.
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+
+- scrollUntilVisible:
+    element:
+      text: "Tus días del curso"
+    centerElement: true
+- assertVisible: "Tu asistencia"
+- assertVisible: "60 %"
+- assertVisible: "Mínimo para el certificado"
+- assertVisible: "80 %"
+- assertVisible: "Has asistido al 60 % de las sesiones. Para obtener el certificado necesitas un 80 %."
+- takeScreenshot: 124b4z9vn8w-app-1-no-cumple

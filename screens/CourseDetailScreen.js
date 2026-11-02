@@ -36,6 +36,7 @@ import {
 import { formatDateOnly, formatShortDate } from "../utils/dateUtils";
 import { openURL } from "../utils/courseUtils";
 import { classifyCourseLoadError } from "../utils/agendaCourseLink";
+import { describeCourseAttendance } from "../utils/courseMinAttendance";
 import posthogLogger from "../services/posthogService";
 
 const PRIMARY = "#670CF5";
@@ -369,6 +370,7 @@ export default function CourseDetailScreen({
     [summary?.attended_dates]
   );
   const attendedToday = Boolean(summary?.today && attendedSet.has(summary.today));
+  const attendance = useMemo(() => describeCourseAttendance(summary), [summary]);
   const seatsLeft =
     summary?.seats_available != null
       ? Math.max(0, summary.seats_available - (summary.enrolled_count ?? 0))
@@ -827,6 +829,47 @@ export default function CourseDetailScreen({
 
           {isInApp && summary?.is_enrolled && summary.session_dates?.length ? (
             <SectionCard title="Tus días del curso">
+              {attendance ? (
+                <View style={styles.attendanceSummary} testID="course-attendance-summary">
+                  <View style={styles.attendanceRow}>
+                    <View>
+                      <Text style={styles.attendanceLabel}>Tu asistencia</Text>
+                      <Text style={styles.attendanceValue}>{attendance.percent} %</Text>
+                    </View>
+                    {attendance.minPercent != null ? (
+                      <View style={styles.attendanceMin}>
+                        <Text style={styles.attendanceLabel}>Mínimo para el certificado</Text>
+                        <Text style={styles.attendanceMinValue}>{attendance.minPercent} %</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  {attendance.minPercent != null ? (
+                    <View style={styles.attendanceTrack}>
+                      <View
+                        style={[
+                          styles.attendanceFill,
+                          attendance.meets && styles.attendanceFillMet,
+                          { width: `${Math.min(100, attendance.percent)}%` },
+                        ]}
+                      />
+                      <View
+                        style={[styles.attendanceMark, { left: `${attendance.minPercent}%` }]}
+                      />
+                    </View>
+                  ) : null}
+                  {attendance.message ? (
+                    <Text
+                      style={[
+                        styles.attendanceMessage,
+                        attendance.tone === "success" && styles.attendanceMessageSuccess,
+                        attendance.tone === "danger" && styles.attendanceMessageDanger,
+                      ]}
+                    >
+                      {attendance.message}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
               {summary.session_dates.map((date) => {
                 const status = sessionStatus(date, summary.today, attendedSet);
                 return (
@@ -1258,6 +1301,72 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: SECONDARY,
+  },
+  attendanceSummary: {
+    paddingBottom: 14,
+    marginBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: CARD_BORDER,
+    gap: 10,
+  },
+  attendanceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: 12,
+  },
+  attendanceLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: MUTED,
+  },
+  attendanceValue: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: ACCENT,
+  },
+  attendanceMin: {
+    alignItems: "flex-end",
+  },
+  attendanceMinValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: ACCENT,
+  },
+  attendanceTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: BG_LIGHT,
+    overflow: "hidden",
+  },
+  attendanceFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: PRIMARY,
+  },
+  attendanceFillMet: {
+    backgroundColor: SECONDARY,
+  },
+  attendanceMark: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 2,
+    marginLeft: -1,
+    backgroundColor: ACCENT,
+  },
+  attendanceMessage: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: MUTED,
+  },
+  attendanceMessageSuccess: {
+    color: SECONDARY,
+    fontWeight: "600",
+  },
+  attendanceMessageDanger: {
+    color: DANGER,
+    fontWeight: "600",
   },
   sessionRow: {
     flexDirection: "row",
