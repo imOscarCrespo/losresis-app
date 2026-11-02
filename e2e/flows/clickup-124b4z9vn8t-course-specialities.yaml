@@ -1,0 +1,52 @@
+# ClickUp 124b4z9vn8t · Cursos: mostrar un curso a varias especialidades
+# https://app.clickup.com/t/124b4z9vn8t
+#
+#   scripts/e2e.sh e2e/flows/clickup-124b4z9vn8t-course-specialities.yaml
+#
+# Curso de pruebas «E2E · Curso con encuesta» del Hospital E2E
+# (e2e0b92a-0000-4000-8000-000000000004), dirigido a dos especialidades:
+#   update courses set speciality_ids = array['a34a6d80-a608-48bc-93a2-415fcbb7148e',
+#     '26d8f727-98c3-4764-b0fd-068dc4fce581']::uuid[]
+#   where id = 'e2e0b92a-0000-4000-8000-000000000004';
+# (MFyC, la del residente de pruebas, y Cardiología). La ficha enseña las dos.
+# El filtro del listado (curso con la especialidad o «Todas») está cubierto por
+# Jest y por la consulta REST del informe: el curso de pruebas ya terminó y no
+# sale en el listado de cursos activos.
+# Solo lee: repetible sin limpiar datos.
+appId: com.losresis.app
+name: "124b4z9vn8t Especialidades del curso"
+---
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Cancel"
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- openLink: "losresis://course-checkin?c=e2e0b92a-0000-4000-8000-000000000004&k=000000"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "E2E · Curso con encuesta"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+
+- scrollUntilVisible:
+    element:
+      text: "Ficha del curso"
+    centerElement: true
+- scrollUntilVisible:
+    element:
+      text: "MEDICINA FAMILIAR Y COMUNITARIA, CARDIOLOGIA"
+    centerElement: true
+- assertVisible: "Especialidades"
+- takeScreenshot: 124b4z9vn8t-app-1-ficha-especialidades

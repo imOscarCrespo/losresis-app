@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { courseSpecialityOrFilter } from "../utils/courseSpecialities";
 
 /**
  * Servicio para gestionar cursos y formaciones
@@ -251,7 +252,8 @@ const buildCoursesQuery = ({
     query = query.eq("hospital_id", hospitalId);
   }
   if (specialityId) {
-    query = query.eq("speciality_id", specialityId);
+    // #124b4z9vn8t: el curso incluye la especialidad o es para todas.
+    query = query.or(courseSpecialityOrFilter(specialityId));
   }
   if (createdById) {
     query = query.eq("created_by_id", createdById);

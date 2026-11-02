@@ -47,6 +47,8 @@ import {
   todaySession,
 } from "../utils/courseSessions";
 import posthogLogger from "../services/posthogService";
+import { getSpecialityByIdFromCatalog } from "../services/staticCatalogService";
+import { formatCourseSpecialities } from "../utils/courseSpecialities";
 
 const PRIMARY = "#670CF5";
 const SECONDARY = "#00BD7C";
@@ -584,6 +586,11 @@ export default function CourseDetailScreen({
     );
   }
 
+  const specialitiesText = formatCourseSpecialities(
+    course,
+    getSpecialityByIdFromCatalog
+  );
+
   return (
     <HeroScreenLayout
       title="Cursos"
@@ -1070,12 +1077,16 @@ export default function CourseDetailScreen({
             </SectionCard>
           ) : null}
 
-          {course.speciality || course.course_code || course.course_directors ? (
+          {specialitiesText || course.course_code || course.course_directors ? (
             <SectionCard title="Ficha del curso">
-              {course.speciality ? (
+              {specialitiesText ? (
                 <View style={styles.dataRow}>
-                  <Text style={styles.dataLabel}>Especialidad</Text>
-                  <Text style={styles.dataValue}>{course.speciality.name}</Text>
+                  <Text style={styles.dataLabel}>
+                    {course.all_specialities || (course.speciality_ids?.length ?? 0) <= 1
+                      ? "Especialidad"
+                      : "Especialidades"}
+                  </Text>
+                  <Text style={styles.dataValue}>{specialitiesText}</Text>
                 </View>
               ) : null}
               {course.course_code ? (

@@ -21,6 +21,8 @@ import { useHospitals } from "../hooks/useHospitals";
 import { formatShortDate } from "../utils/dateUtils";
 import { openURL } from "../utils/courseUtils";
 import posthogLogger from "../services/posthogService";
+import { getSpecialityByIdFromCatalog } from "../services/staticCatalogService";
+import { formatCourseSpecialityBadge } from "../utils/courseSpecialities";
 import { COLORS } from "../constants/colors";
 
 const PRIMARY = "#670CF5";
@@ -192,12 +194,16 @@ function CourseListCard({ course, isMine, onPress }) {
     )}`;
   }, [course.event_dates]);
 
+  const specialityBadge = formatCourseSpecialityBadge(
+    course,
+    getSpecialityByIdFromCatalog
+  );
   const metaBadges = [
-    course.speciality?.name
+    specialityBadge
       ? {
           key: "speciality",
           icon: "medkit-outline",
-          text: course.speciality.name,
+          text: specialityBadge,
           tone: "purple",
         }
       : null,
