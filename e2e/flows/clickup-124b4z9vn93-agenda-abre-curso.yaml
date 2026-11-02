@@ -51,7 +51,7 @@ name: "124b4z9vn93 Agenda abre la ficha del curso"
 - tapOn: "Cerrar"
 - waitForAnimationToEnd
 - scrollUntilVisible:
-    element: "Tus días del curso"
+    element: "Tus sesiones"
     centerElement: true
 
 # 2. Curso de otro día: al volver de la ficha, la Agenda sigue en ese día.
@@ -67,7 +67,7 @@ name: "124b4z9vn93 Agenda abre la ficha del curso"
     centerElement: true
 - tapOn: "(.*, )?E2E · Curso inscrito por mí, Curso"
 - extendedWaitUntil:
-    visible: "Tus días del curso"
+    visible: "Tus sesiones"
     timeout: 15000
 - assertNotVisible: "Asistencia de hoy"
 - takeScreenshot: vn93-3-ficha-otro-dia

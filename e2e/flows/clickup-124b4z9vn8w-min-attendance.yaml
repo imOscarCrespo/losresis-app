@@ -40,7 +40,7 @@ name: "124b4z9vn8w Asistencia mínima"
 
 - scrollUntilVisible:
     element:
-      text: "Tus días del curso"
+      text: "Tus sesiones"
     centerElement: true
 - assertVisible: "Tu asistencia"
 - assertVisible: "60 %"

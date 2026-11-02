@@ -1,0 +1,78 @@
+# ClickUp 124b4z9vn8v · Cursos: QR por sesión y control de asistencia
+# https://app.clickup.com/t/124b4z9vn8v
+#
+#   scripts/e2e.sh e2e/flows/clickup-124b4z9vn8v-course-sessions.yaml
+#
+# Curso de pruebas «E2E · Curso con sesiones» del Hospital E2E
+# (e2e0b92a-0000-4000-8000-000000000003, borrador, QR fijo). El script de
+# preparación lo deja con 4 sesiones (anteayer, ayer, hoy y mañana), el
+# residente inscrito con las 2 primeras marcadas y el fichaje de hoy abierto.
+# Repetible: el script vuelve a dejar la sesión de hoy sin fichar.
+appId: com.losresis.app
+name: "124b4z9vn8v Sesiones y QR por sesión"
+---
+- runScript: ../scripts/seed-124b4z9vn8v-sessions.js
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Cancel"
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+# El QR de otra sesión (mañana) no ficha hoy.
+- openLink: "losresis://course-checkin?c=e2e0b92a-0000-4000-8000-000000000003&k=${output.tomorrowCode}"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "E2E · Curso con sesiones"
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "Código incorrecto o caducado."
+    timeout: 15000
+- takeScreenshot: 124b4z9vn8v-app-1-qr-otra-sesion
+
+# El QR de la sesión de hoy registra la asistencia de esa sesión.
+- openLink: "losresis://course-checkin?c=e2e0b92a-0000-4000-8000-000000000003&k=${output.todayCode}"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "Asistencia registrada: E2E · Curso con sesiones · Sesión práctica."
+    timeout: 30000
+- takeScreenshot: 124b4z9vn8v-app-2-registrada
+
+# Escanear otra vez no duplica: confirma que ya estaba.
+- openLink: "losresis://course-checkin?c=e2e0b92a-0000-4000-8000-000000000003&k=${output.todayCode}"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "Ya tenías registrada tu asistencia: E2E · Curso con sesiones · Sesión práctica."
+    timeout: 30000
+
+# Mi asistencia: 3 de 4 sesiones = 75 %, con el nombre, horario y lugar de cada una.
+- assertVisible: "Sesión práctica · 16:00 – 20:00 · Sala de simulación"
+- scrollUntilVisible:
+    element:
+      text: "Tus sesiones"
+    centerElement: true
+- assertVisible: "Tu asistencia"
+- assertVisible: "75 %"
+- scrollUntilVisible:
+    element:
+      text: "Evaluación"
+    centerElement: true
+- assertVisible: "Teoría"
+- assertVisible: ".*09:00 – 14:00 · Aula 1"
+- assertVisible: "Casos clínicos"
+- assertVisible: "Pendiente"
+- takeScreenshot: 124b4z9vn8v-app-3-tus-sesiones

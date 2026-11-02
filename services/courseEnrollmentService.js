@@ -50,8 +50,9 @@ const callRpc = async (name, params) => {
 
 /**
  * { enrollment_mode, status, seats_available, enrolled_count, is_enrolled,
- *   is_full, is_finished, can_cancel, attended_dates[], session_dates[], today,
- *   is_session_today, checkin_open_now }
+ *   is_full, is_finished, can_cancel, attended_dates[], session_dates[],
+ *   sessions[] ({ session_date, title, starts_at, ends_at, location }), today,
+ *   is_session_today, checkin_open_now, attendance_percent, ... }
  */
 export const getCourseEnrollmentSummary = (courseId) =>
   callRpc("get_course_enrollment_summary", { p_course_id: courseId });
@@ -63,7 +64,7 @@ export const enrollInCourse = (courseId) =>
 export const cancelCourseEnrollment = (courseId) =>
   callRpc("cancel_course_enrollment", { p_course_id: courseId });
 
-/** data.status: 'checked_in' | 'already_checked_in' */
+/** data: { status: 'checked_in' | 'already_checked_in', session_date, course_title, session_title } */
 export const checkInCourse = (courseId, code) =>
   callRpc("check_in_course", {
     p_course_id: courseId,
