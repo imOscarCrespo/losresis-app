@@ -1,6 +1,9 @@
 import {
   PAYOUT_EXPENSE_CATEGORIES,
+  adaptPreviousExpenses,
   buildExpenseSummary,
+  getPayoutPendingToOrganize,
+  getPreviousPayoutPeriod,
   formatEuroAmount,
   formatEuroInput,
   parseEuroInputToCents,
@@ -79,5 +82,83 @@ describe("formatEuroInput", () => {
     expect(formatEuroInput(0)).toBe("");
     expect(formatEuroInput(700)).toBe("700");
     expect(formatEuroInput(700.5)).toBe("700,50");
+  });
+});
+
+// ClickUp 124b4z9w0da · Organizar nóminas
+const row = (...euros) =>
+  Object.fromEntries(PAYOUT_EXPENSE_CATEGORIES.map((c, i) => [c.key, euros[i] ?? 0]));
+const total = (centsByKey) => Object.values(centsByKey).reduce((a, b) => a + b, 0);
+
+describe("getPreviousPayoutPeriod", () => {
+  it("devuelve el mes anterior del mismo año", () => {
+    expect(getPreviousPayoutPeriod(2026, 11)).toEqual({ year: 2026, month: 10 });
+  });
+
+  it("de enero pasa a diciembre del año anterior", () => {
+    expect(getPreviousPayoutPeriod(2026, 1)).toEqual({ year: 2025, month: 12 });
+  });
+});
+
+describe("adaptPreviousExpenses", () => {
+  it("copia el reparto tal cual si cabe en la nueva nómina", () => {
+    const adapted = adaptPreviousExpenses(2900, row(700, 450, 120, 300, 542));
+    expect(adapted).toEqual(expenses(70000, 45000, 12000, 30000, 54200));
+  });
+
+  it("copia exacto cuando el reparto suma justo el ingreso", () => {
+    expect(total(adaptPreviousExpenses(2112, row(700, 450, 120, 300, 542)))).toBe(211200);
+  });
+
+  it("escala en proporción para no superar un ingreso menor", () => {
+    // 2.000 € repartidos el mes pasado, ahora se cobran 1.000 €: la mitad en cada apartado.
+    const adapted = adaptPreviousExpenses(1000, row(800, 600, 200, 300, 100));
+    expect(adapted).toEqual(expenses(40000, 30000, 10000, 15000, 5000));
+  });
+
+  it("al escalar con céntimos nunca se pasa del ingreso", () => {
+    const adapted = adaptPreviousExpenses(999.99, row(333.33, 333.33, 333.34, 500, 0.01));
+    expect(total(adapted)).toBeLessThanOrEqual(99999);
+    Object.values(adapted).forEach((cents) => expect(Number.isInteger(cents)).toBe(true));
+  });
+
+  it("no ofrece nada si el mes anterior no tenía importes o no hay ingreso", () => {
+    expect(adaptPreviousExpenses(2900, row(0, 0, 0, 0, 0))).toBeNull();
+    expect(adaptPreviousExpenses(0, row(700))).toBeNull();
+    expect(adaptPreviousExpenses(2900, null)).toBeNull();
+  });
+
+  it("no modifica la fila del mes anterior", () => {
+    const previous = row(800, 600, 200, 300, 100);
+    const copy = { ...previous };
+    adaptPreviousExpenses(1000, previous);
+    expect(previous).toEqual(copy);
+  });
+});
+
+describe("getPayoutPendingToOrganize", () => {
+  const payout = (overrides) => ({
+    period_year: 2026,
+    period_month: 10,
+    gross_total_eur: 2340,
+    is_expenses_organized: false,
+    ...overrides,
+  });
+
+  it("enseña el importe real de la última nómina sin organizar", () => {
+    expect(getPayoutPendingToOrganize(payout())).toEqual({
+      year: 2026,
+      month: 10,
+      amountEur: 2340,
+    });
+  });
+
+  it("no sale si la nómina ya está organizada (aunque sobre dinero)", () => {
+    expect(getPayoutPendingToOrganize(payout({ is_expenses_organized: true }))).toBeNull();
+  });
+
+  it("no sale sin nóminas ni con una nómina de 0 €", () => {
+    expect(getPayoutPendingToOrganize(null)).toBeNull();
+    expect(getPayoutPendingToOrganize(payout({ gross_total_eur: 0 }))).toBeNull();
   });
 });

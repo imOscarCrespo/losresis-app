@@ -99,3 +99,47 @@ export const formatEuroAmount = (value) => {
     maximumFractionDigits: fractionDigits,
   });
 };
+
+// Mes natural anterior a un periodo de nómina (enero → diciembre del año anterior).
+export const getPreviousPayoutPeriod = (year, month) => {
+  const y = Number(year);
+  const m = Number(month);
+  return m <= 1 ? { year: y - 1, month: 12 } : { year: y, month: m - 1 };
+};
+
+// «Usar el reparto del mes pasado» (ClickUp 124b4z9w0da): punto de partida con los importes de
+// otra nómina ya organizada. Si caben en el nuevo ingreso se copian tal cual; si lo superan, se
+// escalan en proporción hacia abajo para que el total nunca pase de lo cobrado.
+// Devuelve céntimos por apartado, o null si no hay nada que reutilizar.
+export const adaptPreviousExpenses = (incomeEur, previousRow) => {
+  if (!previousRow) return null;
+
+  const previousCents = PAYOUT_EXPENSE_CATEGORIES.reduce((acc, category) => {
+    acc[category.key] = Math.max(0, toCents(previousRow[category.key]));
+    return acc;
+  }, {});
+  const previousTotal = Object.values(previousCents).reduce((sum, cents) => sum + cents, 0);
+  const incomeCents = Math.max(0, toCents(incomeEur));
+
+  if (previousTotal === 0 || incomeCents === 0) return null;
+  if (previousTotal <= incomeCents) return previousCents;
+
+  return PAYOUT_EXPENSE_CATEGORIES.reduce((acc, category) => {
+    acc[category.key] = Math.floor((previousCents[category.key] * incomeCents) / previousTotal);
+    return acc;
+  }, {});
+};
+
+// Tarjeta «Tu dinero está esperando» de Nóminas: solo mira la última nómina registrada, para no
+// mezclar importes de meses distintos. Desaparece al guardar su reparto (aunque sobre dinero:
+// lo que queda es disponible, no pendiente) y no sale con una nómina de 0 €.
+export const getPayoutPendingToOrganize = (latestPayout) => {
+  if (!latestPayout || latestPayout.is_expenses_organized) return null;
+  const amountEur = centsToEuros(toCents(latestPayout.gross_total_eur));
+  if (amountEur <= 0) return null;
+  return {
+    year: Number(latestPayout.period_year),
+    month: Number(latestPayout.period_month),
+    amountEur,
+  };
+};

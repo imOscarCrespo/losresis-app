@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -97,6 +97,7 @@ export default function ResidentPayoutEntryScreen({
   userProfile,
   onBack,
   onOrganizeExpenses,
+  onSaved,
   initialYear = null,
   initialMonth = null,
   lockInitialPeriod = false,
@@ -107,6 +108,8 @@ export default function ResidentPayoutEntryScreen({
   const defaultMonth = initialMonth || currentMonth;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Bloquea un segundo guardado mientras el primero sigue en curso (doble pulsación).
+  const savingRef = useRef(false);
   const [periodLocked, setPeriodLocked] = useState(
     Boolean(lockInitialPeriod && initialYear && initialMonth)
   );
@@ -313,6 +316,8 @@ export default function ResidentPayoutEntryScreen({
     pendingOverride = null,
     afterSave = onBack
   ) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       await upsertResidentPayout({
@@ -340,6 +345,7 @@ export default function ResidentPayoutEntryScreen({
       console.error("Error saving resident payout:", error);
       Alert.alert("Error", "No se ha podido guardar la nómina.");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -434,6 +440,15 @@ export default function ResidentPayoutEntryScreen({
 
     persistPayout(parsedValues, null, afterSave);
   };
+
+  // Una nómina nueva continúa en «¡Nómina guardada!» (ClickUp 124b4z9w0da); editar una que ya
+  // existe mantiene el comportamiento de siempre y vuelve atrás.
+  const isNewPayout = !editingId && Boolean(onSaved);
+  const openSavedScreen = () =>
+    onSaved?.({
+      initialYear: formState.periodYear,
+      initialMonth: formState.periodMonth,
+    });
 
   const hasUnsavedChanges =
     Boolean(savedFormState) &&
@@ -671,12 +686,24 @@ export default function ResidentPayoutEntryScreen({
                 ) : null}
 
                 <Button
-                  title={saving ? "Guardando..." : "Guardar nómina"}
-                  onPress={() => handleSave()}
+                  title={
+                    saving
+                      ? "Guardando..."
+                      : isNewPayout
+                        ? "Guardar y continuar"
+                        : "Guardar nómina"
+                  }
+                  onPress={() => handleSave(isNewPayout ? openSavedScreen : onBack)}
                   loading={saving}
+                  disabled={saving}
                   style={styles.primaryAction}
                   textStyle={styles.primaryActionText}
                 />
+                {isNewPayout ? (
+                  <Text style={styles.nextStepHint}>
+                    Después podrás organizar tus ingresos
+                  </Text>
+                ) : null}
               </View>
 
               {editingId && onOrganizeExpenses ? (
@@ -884,6 +911,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: "#670CF5",
+  },
+  nextStepHint: {
+    marginTop: 10,
+    fontSize: 13,
+    color: "#64748B",
+    textAlign: "center",
   },
   primaryAction: {
     marginTop: 16,

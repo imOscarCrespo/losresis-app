@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
@@ -20,10 +21,12 @@ import {
 } from "../services/residentPayoutService";
 import {
   PAYOUT_EXPENSE_CATEGORIES,
+  adaptPreviousExpenses,
   buildExpenseSummary,
   centsToEuros,
   formatEuroAmount,
   formatEuroInput,
+  getPreviousPayoutPeriod,
   parseEuroInputToCents,
 } from "../utils/payoutExpenses";
 
@@ -46,6 +49,8 @@ export default function ResidentPayoutExpensesScreen({
   const [loadError, setLoadError] = useState(false);
   const [reloadCount, setReloadCount] = useState(0);
   const [inputs, setInputs] = useState(() => buildInputsFromRow(null));
+  // Nómina del mes natural anterior, solo si ya estaba organizada (ClickUp 124b4z9w0da).
+  const [previousPayout, setPreviousPayout] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -67,6 +72,21 @@ export default function ResidentPayoutExpensesScreen({
         if (!isMounted) return;
         setPayout(row);
         setInputs(buildInputsFromRow(row));
+
+        // El reparto anterior es opcional: si no se puede leer, simplemente no se ofrece.
+        setPreviousPayout(null);
+        if (row && !row.is_expenses_organized) {
+          const previous = getPreviousPayoutPeriod(initialYear, initialMonth);
+          getResidentPayoutForMonth(userProfile.id, previous.year, previous.month)
+            .then((previousRow) => {
+              if (isMounted && previousRow?.is_expenses_organized) {
+                setPreviousPayout(previousRow);
+              }
+            })
+            .catch((error) => {
+              console.error("Error loading previous payout expenses:", error);
+            });
+        }
       } catch (error) {
         console.error("Error loading payout expenses:", error);
         if (isMounted) setLoadError(true);
@@ -98,6 +118,22 @@ export default function ResidentPayoutExpensesScreen({
     () => buildExpenseSummary(payout?.gross_total_eur, centsByKey),
     [payout?.gross_total_eur, centsByKey]
   );
+
+  const reusedExpenses = useMemo(
+    () => adaptPreviousExpenses(payout?.gross_total_eur, previousPayout),
+    [payout?.gross_total_eur, previousPayout]
+  );
+
+  // Solo rellena los campos: no guarda nada ni toca la nómina del mes anterior.
+  const applyPreviousExpenses = () => {
+    if (!reusedExpenses) return;
+    setInputs(
+      PAYOUT_EXPENSE_CATEGORIES.reduce((acc, category) => {
+        acc[category.key] = formatEuroInput(centsToEuros(reusedExpenses[category.key]));
+        return acc;
+      }, {})
+    );
+  };
 
   const handleSave = async () => {
     if (hasInvalidInput) {
@@ -222,6 +258,18 @@ export default function ResidentPayoutExpensesScreen({
               </View>
             </View>
 
+            {reusedExpenses ? (
+              <TouchableOpacity
+                testID="expense-reuse-previous"
+                style={styles.reuseButton}
+                onPress={applyPreviousExpenses}
+                activeOpacity={0.85}
+              >
+                <Icon name="refresh" size={18} color="#670CF5" />
+                <Text style={styles.reuseButtonText}>Usar el reparto del mes pasado</Text>
+              </TouchableOpacity>
+            ) : null}
+
             <View style={styles.categoryList}>
               {PAYOUT_EXPENSE_CATEGORIES.map((category) => {
                 const isInvalid = centsByKey[category.key] === null;
@@ -322,6 +370,23 @@ export default function ResidentPayoutExpensesScreen({
 }
 
 const styles = StyleSheet.create({
+  reuseButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#C4B5FD",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  reuseButtonText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#670CF5",
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",

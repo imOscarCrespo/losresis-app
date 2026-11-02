@@ -2,7 +2,7 @@
 // builder y la respuesta final ({ data, error }) la decide cada test.
 jest.mock("../../config/supabase", () => {
   const builder = { response: { data: null, error: null } };
-  ["from", "select", "eq", "order", "update", "upsert"].forEach((method) => {
+  ["from", "select", "eq", "order", "limit", "update", "upsert"].forEach((method) => {
     builder[method] = jest.fn(() => builder);
   });
   builder.single = jest.fn(() => Promise.resolve(builder.response));
@@ -18,6 +18,7 @@ const mockResponse = {
 };
 
 import {
+  getLatestResidentPayout,
   getResidentPayoutForMonth,
   saveResidentPayoutExpenses,
   upsertResidentPayout,
@@ -97,5 +98,37 @@ describe("getResidentPayoutForMonth", () => {
     expect(row.is_expenses_organized).toBe(false);
     expect(row.housing_expense_eur).toBe(0);
     expect(row.gross_total_eur).toBe(3452);
+  });
+});
+
+describe("getLatestResidentPayout", () => {
+  it("pide la nómina del periodo más reciente del usuario", async () => {
+    mockResponse.current = {
+      data: { id: "p1", period_year: 2026, period_month: 10, gross_total_eur: "2340" },
+      error: null,
+    };
+
+    const row = await getLatestResidentPayout("u1");
+
+    expect(mockBuilder.eq).toHaveBeenCalledWith("user_id", "u1");
+    expect(mockBuilder.order).toHaveBeenNthCalledWith(1, "period_year", { ascending: false });
+    expect(mockBuilder.order).toHaveBeenNthCalledWith(2, "period_month", { ascending: false });
+    expect(mockBuilder.limit).toHaveBeenCalledWith(1);
+    expect(row.gross_total_eur).toBe(2340);
+    expect(row.is_expenses_organized).toBe(false);
+  });
+
+  it("devuelve null si no hay ninguna nómina", async () => {
+    expect(await getLatestResidentPayout("u1")).toBeNull();
+  });
+
+  it("no consulta sin usuario", async () => {
+    expect(await getLatestResidentPayout(null)).toBeNull();
+    expect(mockBuilder.from).not.toHaveBeenCalled();
+  });
+
+  it("propaga el error de Supabase", async () => {
+    mockResponse.current = { data: null, error: new Error("boom") };
+    await expect(getLatestResidentPayout("u1")).rejects.toThrow("boom");
   });
 });

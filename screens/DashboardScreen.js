@@ -68,6 +68,7 @@ import ResidentPayoutsScreen from "./ResidentPayoutsScreen";
 import ResidentPayoutDetailScreen from "./ResidentPayoutDetailScreen";
 import ResidentPayoutEntryScreen from "./ResidentPayoutEntryScreen";
 import ResidentPayoutExpensesScreen from "./ResidentPayoutExpensesScreen";
+import ResidentPayoutSavedScreen from "./ResidentPayoutSavedScreen";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { getFooterConfig } from "../constants/footerConfig";
 import posthogLogger from "../services/posthogService";
@@ -135,6 +136,7 @@ const GENERIC_BACK_SECTIONS = new Set([
   "residentPayoutDetail",
   "residentPayoutEntry",
   "residentPayoutExpenses",
+  "residentPayoutSaved",
   "mentalHealth",
   "valoracionJornada",
   "shiftDebrief",
@@ -869,7 +871,9 @@ export default function DashboardScreen({
     const shouldTrackBack = GENERIC_BACK_SECTIONS.has(sectionId);
 
     if (sectionId !== currentSection) {
-      if (shouldTrackBack) {
+      // `replace`: la pantalla actual no queda en el historial (p. ej. el formulario de una
+      // nómina ya guardada), así que «volver» nunca regresa a ella.
+      if (shouldTrackBack && !params.replace) {
         const originSection = params.fromSection || currentSection;
         setSectionHistory((prev) => {
           if (prev[prev.length - 1] === originSection) {
@@ -1044,7 +1048,10 @@ export default function DashboardScreen({
         initialMonth: params.initialMonth || null,
         lockInitialPeriod: false,
       });
-    } else if (sectionId === "residentPayoutExpenses") {
+    } else if (
+      sectionId === "residentPayoutExpenses" ||
+      sectionId === "residentPayoutSaved"
+    ) {
       setResidentPayoutRouteParams({
         initialYear: params.initialYear || null,
         initialMonth: params.initialMonth || null,
@@ -1119,6 +1126,22 @@ export default function DashboardScreen({
     });
 
     setCurrentSection(nextSection);
+  };
+
+  // «¡Nómina guardada!» (ClickUp 124b4z9w0da) siempre termina en Nóminas, se llegue desde la
+  // lista o desde el aviso de Inicio: deja Nóminas justo debajo en el historial.
+  const ensureResidentPayoutsBelow = () => {
+    setSectionHistory((prev) =>
+      prev[prev.length - 1] === "residentPayouts" ? prev : [...prev, "residentPayouts"]
+    );
+  };
+
+  const leaveResidentPayoutSavedToList = () => {
+    setSectionHistory((prev) =>
+      prev[prev.length - 1] === "residentPayouts" ? prev.slice(0, -1) : prev
+    );
+    setResidentPayoutRouteParams(DEFAULT_RESIDENT_PAYOUT_ROUTE_PARAMS);
+    setCurrentSection("residentPayouts");
   };
 
   const renderSectionWithBackButton = (section) => (
@@ -2120,6 +2143,9 @@ export default function DashboardScreen({
                 lockInitialPeriod: Boolean(params.lockInitialPeriod),
               })
             }
+            onOrganizeExpenses={(params = {}) =>
+              handleSectionChange("residentPayoutExpenses", params)
+            }
           />
         );
 
@@ -2155,9 +2181,32 @@ export default function DashboardScreen({
               onOrganizeExpenses={(params = {}) =>
                 handleSectionChange("residentPayoutExpenses", params)
               }
+              onSaved={(params = {}) =>
+                handleSectionChange("residentPayoutSaved", { ...params, replace: true })
+              }
               initialYear={residentPayoutRouteParams.initialYear}
               initialMonth={residentPayoutRouteParams.initialMonth}
               lockInitialPeriod={residentPayoutRouteParams.lockInitialPeriod}
+            />
+          </SwipeBackWrapper>
+        );
+
+      case "residentPayoutSaved":
+        return (
+          <SwipeBackWrapper onSwipeBack={leaveResidentPayoutSavedToList}>
+            <ResidentPayoutSavedScreen
+              userProfile={userProfile}
+              initialYear={residentPayoutRouteParams.initialYear}
+              initialMonth={residentPayoutRouteParams.initialMonth}
+              onDismiss={leaveResidentPayoutSavedToList}
+              onOrganize={(params = {}) => {
+                // Del organizador se vuelve a Nóminas, nunca a esta confirmación.
+                ensureResidentPayoutsBelow();
+                handleSectionChange("residentPayoutExpenses", {
+                  ...params,
+                  replace: true,
+                });
+              }}
             />
           </SwipeBackWrapper>
         );

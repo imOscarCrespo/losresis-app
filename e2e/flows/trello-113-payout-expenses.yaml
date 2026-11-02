@@ -12,7 +12,17 @@ name: "#113 Organizar mis gastos"
 - runFlow: ../subflows/login.yaml
 
 # Nóminas → nómina de enero con 3.452 €
+- waitForAnimationToEnd
 - tapOn: "Nóminas"
+# Entre el día 28 y el 3, Inicio carga tarde el aviso «Añade tu nómina» y desplaza el acceso:
+# si el toque cae en el aviso, se vuelve y se repite.
+- runFlow:
+    when:
+      visible: "Registro sugerido para.*"
+    commands:
+      - tapOn: "Volver"
+      - waitForAnimationToEnd
+      - tapOn: "Nóminas"
 - extendedWaitUntil:
     visible: "Tus nóminas"
     timeout: 20000

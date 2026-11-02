@@ -15,8 +15,13 @@ import { COLORS } from "../constants/colors";
 import {
   buildPayoutChartData,
   formatPayoutPeriodLabel,
+  getLatestResidentPayout,
   getResidentPayoutsByYear,
 } from "../services/residentPayoutService";
+import {
+  formatEuroAmount,
+  getPayoutPendingToOrganize,
+} from "../utils/payoutExpenses";
 
 const formatCurrency = (value) =>
   Number(value || 0).toLocaleString("es-ES", {
@@ -139,17 +144,67 @@ const PayoutListRow = ({ row, onPress }) => {
   );
 };
 
+// «Tu dinero está esperando» (ClickUp 124b4z9w0da): recupera a quien dijo «Ahora no».
+const PendingToOrganizeCard = ({ pending, onPress }) => (
+  <View style={styles.pendingCard} testID="payout-pending-card">
+    <View style={styles.pendingHeader}>
+      <View style={styles.pendingIcon}>
+        <Icon name="wallet-outline" size={22} color="#670CF5" />
+      </View>
+      <View style={styles.pendingCopy}>
+        <Text style={styles.pendingTitle}>Tu dinero está esperando</Text>
+        <Text style={styles.pendingText} testID="payout-pending-text">
+          Te quedan{" "}
+          <Text style={styles.pendingAmount}>{formatEuroAmount(pending.amountEur)}</Text> por
+          organizar de {formatPayoutPeriodLabel(pending.year, pending.month)}.
+        </Text>
+      </View>
+    </View>
+    <TouchableOpacity
+      testID="payout-pending-organize"
+      style={styles.pendingButton}
+      onPress={onPress}
+      activeOpacity={0.88}
+    >
+      <Text style={styles.pendingButtonText}>Organizar</Text>
+      <Icon name="arrow-forward" size={18} color="#FFFFFF" />
+    </TouchableOpacity>
+  </View>
+);
+
 export default function ResidentPayoutsScreen({
   userProfile,
   onBack,
   onCreateEntry,
   onOpenDetail,
+  onOrganizeExpenses,
 }) {
   const { width } = useWindowDimensions();
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [yearRows, setYearRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [latestPayout, setLatestPayout] = useState(null);
+
+  // La última nómina no depende del año que se mira; un fallo solo oculta la tarjeta.
+  useEffect(() => {
+    let isMounted = true;
+    if (!userProfile?.id) return undefined;
+
+    getLatestResidentPayout(userProfile.id)
+      .then((row) => {
+        if (isMounted) setLatestPayout(row);
+      })
+      .catch((error) => {
+        console.error("Error loading latest resident payout:", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userProfile?.id]);
+
+  const pendingToOrganize = getPayoutPendingToOrganize(latestPayout);
 
   const loadRows = useCallback(
     async (yearToLoad) => {
@@ -242,6 +297,18 @@ export default function ResidentPayoutsScreen({
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {pendingToOrganize && onOrganizeExpenses ? (
+            <PendingToOrganizeCard
+              pending={pendingToOrganize}
+              onPress={() =>
+                onOrganizeExpenses({
+                  initialYear: pendingToOrganize.year,
+                  initialMonth: pendingToOrganize.month,
+                })
+              }
+            />
+          ) : null}
+
           <View style={styles.heroCard}>
             <View style={styles.heroTopRow}>
               <Text style={styles.heroEyebrow}>RESUMEN {selectedYear}</Text>
@@ -404,6 +471,56 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     color: "#1B0977",
+  },
+  pendingCard: {
+    backgroundColor: "#F4EEFF",
+    borderRadius: 24,
+    padding: 18,
+    gap: 14,
+  },
+  pendingHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  pendingIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pendingCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  pendingTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#1B0977",
+  },
+  pendingText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#4C1D95",
+  },
+  pendingAmount: {
+    fontWeight: "900",
+  },
+  pendingButton: {
+    minHeight: 48,
+    borderRadius: 16,
+    backgroundColor: "#670CF5",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  pendingButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
   },
   heroCard: {
     backgroundColor: "#FFFFFF",

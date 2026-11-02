@@ -171,6 +171,28 @@ export const getResidentPayoutForMonth = async (userId, year, month) => {
   return normalizePayout(data);
 };
 
+// Nómina del periodo más reciente del residente (cualquier año), o null si no tiene ninguna.
+export const getLatestResidentPayout = async (userId) => {
+  if (!userId) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from(TABLE_NAME)
+    .select("*")
+    .eq("user_id", userId)
+    .order("period_year", { ascending: false })
+    .order("period_month", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return normalizePayout(data);
+};
+
 export const upsertResidentPayout = async (payload) => {
   const weekdayGuardCount = toNumber(payload.weekday_guard_count);
   const fridayGuardCount = toNumber(payload.friday_guard_count);

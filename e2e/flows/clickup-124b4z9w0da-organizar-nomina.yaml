@@ -1,0 +1,196 @@
+# ClickUp 124b4z9w0da · Organizar nóminas: tras guardar una nómina nueva, «¡Nómina guardada!»
+# invita a organizar el dinero; «Ahora no» deja una tarjeta de pendiente en Nóminas.
+# https://app.clickup.com/t/90151808476/124b4z9w0da
+#
+# Repetible: el script deja noviembre de 2026 organizado (el «mes pasado») y borra diciembre,
+# que se registra como nómina nueva en cada recorrido. Solo toca datos del residente de pruebas.
+appId: com.losresis.app
+name: "124b4z9w0da Organizar nóminas"
+---
+- runScript:
+    file: ../scripts/seed-124b4z9w0da-payouts.js
+    env:
+      MODE: reset
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+# ── Recorrido alternativo: Guardar y continuar → Ahora no → tarjeta → Organizar ──
+- waitForAnimationToEnd
+- tapOn: "Nóminas"
+# Entre el día 28 y el 3, Inicio carga tarde el aviso «Añade tu nómina» y desplaza el acceso:
+# si el toque cae en el aviso, se vuelve y se repite.
+- runFlow:
+    when:
+      visible: "Registro sugerido para.*"
+    commands:
+      - tapOn: "Volver"
+      - waitForAnimationToEnd
+      - tapOn: "Nóminas"
+- extendedWaitUntil:
+    visible: "Tus nóminas"
+    timeout: 20000
+# Noviembre ya está organizado: no hay tarjeta de pendiente.
+- assertNotVisible:
+    id: "payout-pending-card"
+- tapOn: "Nuevo registro"
+- tapOn:
+    id: "payout-month-select"
+- tapOn: "diciembre"
+- tapOn:
+    id: "payout-gross-total"
+- eraseText: 12
+- inputText: "2900"
+- tapOn: "Total nómina"
+- scrollUntilVisible:
+    element: "Después podrás organizar tus ingresos"
+    direction: DOWN
+    centerElement: true
+# Criterio: botón «Guardar y continuar» con el texto informativo debajo.
+- assertVisible: "Guardar y continuar"
+- takeScreenshot: w0da-01-formulario
+- tapOn: "Guardar y continuar"
+
+# Criterio: confirmación con el importe real y los apartados existentes.
+- extendedWaitUntil:
+    visible: "¡Nómina guardada!"
+    timeout: 20000
+- assertVisible: "Tus ingresos de diciembre ya están registrados."
+- assertVisible:
+    id: "payout-saved-income"
+    text: ".*2\\.?900.*€.*"
+- assertVisible: "Vivienda.*"
+- takeScreenshot: w0da-02-confirmacion
+- scrollUntilVisible:
+    element: "Otros.*"
+    direction: DOWN
+- scrollUntilVisible:
+    element: "Ahora no"
+    direction: DOWN
+- assertVisible: "Tienes .*2\\.?900.* para organizar"
+- takeScreenshot: w0da-03-confirmacion-acciones
+- tapOn: "Ahora no"
+
+# Criterio: Nóminas con la tarjeta del importe pendiente real.
+- extendedWaitUntil:
+    visible: "Tu dinero está esperando"
+    timeout: 20000
+- assertVisible:
+    id: "payout-pending-text"
+    text: "Te quedan .*2\\.?900.* por organizar de diciembre 2026\\."
+- takeScreenshot: w0da-04-tarjeta-pendiente
+- tapOn:
+    id: "payout-pending-organize"
+
+# Criterio: el organizador abre con el importe y ofrece el reparto del mes pasado.
+- extendedWaitUntil:
+    visible: "Ingresos del mes"
+    timeout: 20000
+- assertVisible: ".*2\\.?900.*€.*"
+- tapOn: "Usar el reparto del mes pasado"
+- assertVisible:
+    id: "expense-input-housing_expense_eur"
+    text: "700"
+- scrollUntilVisible:
+    element:
+      id: "expense-result"
+    direction: DOWN
+- assertVisible: "Te quedan .*788.* este mes"
+- takeScreenshot: w0da-05-organizador-reutilizado
+- scrollUntilVisible:
+    element: "Guardar gastos"
+    direction: DOWN
+- tapOn: "Guardar gastos"
+
+# Criterio: con todo organizado la tarjeta desaparece; diciembre queda «Organizado».
+- extendedWaitUntil:
+    visible: "Tus nóminas"
+    timeout: 20000
+- assertNotVisible: "Tu dinero está esperando"
+- runScript:
+    file: ../scripts/seed-124b4z9w0da-payouts.js
+    env:
+      MODE: assert
+      HOUSING: "700"
+
+# ── Recorrido principal: Guardar y continuar → Organizar mi dinero → Guardar ──
+# Con una nómina menor que el reparto del mes pasado, este se escala sin pasarse.
+- runScript:
+    file: ../scripts/seed-124b4z9w0da-payouts.js
+    env:
+      MODE: drop-dec
+- tapOn: "Nuevo registro"
+- tapOn:
+    id: "payout-month-select"
+- tapOn: "diciembre"
+- tapOn:
+    id: "payout-gross-total"
+- eraseText: 12
+- inputText: "1000"
+- tapOn: "Total nómina"
+- scrollUntilVisible:
+    element: "Guardar y continuar"
+    direction: DOWN
+    centerElement: true
+- tapOn: "Guardar y continuar"
+- extendedWaitUntil:
+    visible: "¡Nómina guardada!"
+    timeout: 20000
+- assertVisible:
+    id: "payout-saved-income"
+    text: ".*1\\.?000.*€.*"
+- scrollUntilVisible:
+    element:
+      id: "payout-saved-organize"
+    direction: DOWN
+- tapOn:
+    id: "payout-saved-organize"
+- extendedWaitUntil:
+    visible: "Ingresos del mes"
+    timeout: 20000
+- tapOn: "Usar el reparto del mes pasado"
+# 2.112 € del mes pasado escalados a 1.000 €: 700 → 331,43 y el total no pasa de lo cobrado.
+- assertVisible:
+    id: "expense-input-housing_expense_eur"
+    text: "331,43"
+- scrollUntilVisible:
+    element:
+      id: "expense-result"
+    direction: DOWN
+- assertVisible: "Te quedan .*0,04.* este mes"
+- takeScreenshot: w0da-06-organizador-escalado
+- scrollUntilVisible:
+    element: "Guardar gastos"
+    direction: DOWN
+- tapOn: "Guardar gastos"
+# Sin bucles: al guardar se vuelve a Nóminas, no a la confirmación.
+- extendedWaitUntil:
+    visible: "Tus nóminas"
+    timeout: 20000
+- assertNotVisible: "¡Nómina guardada!"
+- assertNotVisible: "Tu dinero está esperando"
+- runScript:
+    file: ../scripts/seed-124b4z9w0da-payouts.js
+    env:
+      MODE: assert
+      HOUSING: "331.43"
+
+# ── Editar una nómina existente no dispara la confirmación ──
+- tapOn: "Nuevo registro"
+- tapOn:
+    id: "payout-month-select"
+- tapOn: "diciembre"
+- extendedWaitUntil:
+    visible: "Editar nómina"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "Guardar nómina"
+    direction: DOWN
+    centerElement: true
+- assertNotVisible: "Después podrás organizar tus ingresos"
+- tapOn: "Guardar nómina"
+- extendedWaitUntil:
+    visible: "Tus nóminas"
+    timeout: 20000
+- assertNotVisible: "¡Nómina guardada!"
+- takeScreenshot: w0da-07-lista-final
