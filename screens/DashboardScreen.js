@@ -209,6 +209,9 @@ export default function DashboardScreen({
   const [selectedOpenDayId, setSelectedOpenDayId] = useState(null);
   // Postguardia: la guardia (agenda_events) que se registra.
   const [selectedShiftEventId, setSelectedShiftEventId] = useState(null);
+  // ResiNotes abierto desde el recordatorio del repaso: arranca en el repaso de
+  // hoy. No se guarda en la navegación persistida (al relanzar, la portada).
+  const [resinotesLaunch, setResinotesLaunch] = useState(null);
   const [selectedClinicalCaseId, setSelectedClinicalCaseId] = useState(null);
   const [selectedArticleId, setSelectedArticleId] = useState(null);
   const [selectedCourseId, setSelectedCourseId] = useState(null);
@@ -570,6 +573,12 @@ export default function DashboardScreen({
       return;
     }
 
+    // Recordatorio del repaso de tarjetas de ResiNotes: abrir el repaso de hoy.
+    if (data?.destination_section === "resinotesReview") {
+      handleSectionChange("resinotes", { initialRoute: "review-today" });
+      return;
+    }
+
     // El hospital pide valoración de su jornada de puertas abiertas.
     if (
       data?.destination_section === "valoracionJornada" &&
@@ -924,6 +933,12 @@ export default function DashboardScreen({
     // Valorar una jornada de puertas abiertas: la pantalla solo necesita el id.
     if (sectionId === "valoracionJornada" && params.openDayId) {
       setSelectedOpenDayId(params.openDayId);
+    }
+    // ResiNotes: el push del repaso lo abre en «Tu repaso de hoy»; el resto, en la portada.
+    if (sectionId === "resinotes") {
+      setResinotesLaunch(
+        params.initialRoute ? { route: params.initialRoute, nonce: Date.now() } : null
+      );
     }
     // Postguardia: la pantalla solo necesita la guardia.
     if (sectionId === "shiftDebrief" && params.agendaEventId) {
@@ -1839,6 +1854,8 @@ export default function DashboardScreen({
                 handleSectionChange(screenId);
               } else if (screenId === "recordatoriosServicio") {
                 handleSectionChange("recordatoriosServicio");
+              } else if (screenId === "resinotesReview") {
+                handleSectionChange("resinotes", { initialRoute: "review-today" });
               } else if (
                 screenId === "valoracionJornada" &&
                 entityId?.openDayId
@@ -2228,7 +2245,9 @@ export default function DashboardScreen({
       case "resinotes":
         return (
           <ResiNotesScreen
+            key={resinotesLaunch?.nonce || "resinotes"}
             userProfile={userProfile}
+            initialRoute={resinotesLaunch?.route || null}
             onBack={handleBackFromGenericSection}
           />
         );

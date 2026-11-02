@@ -1,12 +1,31 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { HeroScreenLayout } from "../../HeroScreenLayout";
 import { Icon } from "../../Icon";
 import { COLORS } from "../../../constants/colors";
 import { getItem } from "../../../services/resinotesService";
 import { flashcardErrorMessage, listFlashcards, saveProposals } from "../../../services/flashcardService";
-import { formatCardCount, generateFlashcards, markDuplicates, normalizeText } from "../../../utils/flashcards";
-import { recentItems } from "../../../utils/resinotes";
+import {
+  formatCardCount,
+  generateFlashcards,
+  generateFromSelection,
+  markDuplicates,
+  markSimilar,
+  normalizeText,
+} from "../../../utils/flashcards";
+import { descendantIds, htmlToPlainText, recentItems, sortFolderItems } from "../../../utils/resinotes";
+import { ResiNotesSheet } from "../ResiNotesSheet";
 import {
   AnswerBody,
   CardEditorSheet,
@@ -25,7 +44,23 @@ import {
  * desmarcadas y no entran en «Aprobar todas».
  *
  * Sin `itemId` empieza eligiendo el apunte (acceso desde la portada).
+ *
+ * Pasada B:
+ *   * `selectionHtml`: solo el fragmento seleccionado en el editor. Pasa por las
+ *     mismas reglas y se queda solo lo que está tal cual en el texto guardado
+ *     del apunte (la BD lo vuelve a comprobar).
+ *   * `folderId`: «Generar tarjetas de esta carpeta». Antes de generar enseña
+ *     exactamente qué notas se procesan (con o sin subcarpetas). Las
+ *     propuestas van agrupadas por nota y se guardan nota a nota: nunca se
+ *     mezclan notas en una tarjeta.
+ *   * Tarjetas parecidas a una que ya tiene: «Ya tienes una tarjeta parecida»,
+ *     desmarcadas, con Ver existente / Mantener ambas / Descartar nueva.
+ *   * El atrás de Android lo gestiona esta vista (en «Revisar una a una» vuelve
+ *     a la lista sin perder nada).
  */
+
+export const MAX_FOLDER_NOTES = 30;
+const LOAD_BATCH = 5;
 
 const SOURCE_NOTICE = "Solo se generan tarjetas con información que está en tu apunte, copiada tal cual.";
 
@@ -109,47 +144,203 @@ const SourceFragment = ({ proposal }) => {
   );
 };
 
-export const CreateCardsView = ({ userId, itemId: initialItemId = null, library, onBack, onStartReview, onCreated }) => {
+/** Notas de una carpeta (y, si se pide, de sus subcarpetas), en el orden de la carpeta. */
+export const folderNotes = (library, folderId, includeSubfolders) => {
+  const ids = new Set([folderId]);
+  if (includeSubfolders) descendantIds(library.folders.filter((f) => !f.deleted_at), folderId).forEach((id) => ids.add(id));
+  return sortFolderItems(library.items.filter((i) => i.type === "note" && !i.deleted_at && ids.has(i.folder_id)));
+};
+
+const FolderNotesPicker = ({ library, folderId, folderName, onGenerate }) => {
+  const [withSub, setWithSub] = useState(true);
+  const notes = useMemo(() => folderNotes(library, folderId, withSub), [library, folderId, withSub]);
+  const [excluded, setExcluded] = useState(new Set());
+  const chosen = notes.filter((n) => !excluded.has(n.id));
+  const tooMany = chosen.length > MAX_FOLDER_NOTES;
+  const hasSubfolders = library.folders.some((f) => !f.deleted_at && f.parent_id === folderId);
+  const folder = library.folders.find((f) => f.id === folderId);
+
+  const toggle = (id) =>
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  return (
+    <>
+      <ScrollView contentContainerStyle={fs.content} testID="flashcards-folder-notes">
+        <Text style={styles.intro}>
+          Se crearán tarjetas a partir de estas notas de «{folder?.name || "la carpeta"}». Cada tarjeta sale de una sola nota.
+        </Text>
+        {hasSubfolders ? (
+          <View style={[fs.card, styles.switchRow]}>
+            <Text style={styles.switchLabel}>Incluir subcarpetas</Text>
+            <Switch
+              value={withSub}
+              onValueChange={setWithSub}
+              trackColor={{ true: COLORS.PRIMARY, false: COLORS.GRAY_MEDIUM }}
+              thumbColor={COLORS.WHITE}
+              accessibilityLabel="Incluir subcarpetas"
+              testID="flashcards-folder-subfolders"
+            />
+          </View>
+        ) : null}
+        <Text style={styles.selectAllText} testID="flashcards-folder-count">
+          {chosen.length === 1 ? "1 nota" : `${chosen.length} notas`} de {notes.length}
+        </Text>
+        {notes.map((note) => {
+          const on = !excluded.has(note.id);
+          return (
+            <TouchableOpacity
+              key={note.id}
+              style={[fs.card, styles.noteRow]}
+              onPress={() => toggle(note.id)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: on }}
+              accessibilityLabel={note.title || "Sin título"}
+              testID={`flashcards-folder-note-${note.id}`}
+            >
+              <Checkbox checked={on} />
+              <View style={styles.flex}>
+                <Text style={styles.noteTitle} numberOfLines={2}>
+                  {note.title || "Sin título"}
+                </Text>
+                {note.folder_id !== folderId ? (
+                  <Text style={fs.muted} numberOfLines={1}>
+                    {folderName(note.folder_id)}
+                  </Text>
+                ) : null}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+        {!notes.length ? (
+          <View style={fs.center}>
+            <Text style={fs.emptyTitle}>No hay notas</Text>
+            <Text style={fs.emptyText}>
+              {withSub ? "Esta carpeta no tiene notas de texto." : "Esta carpeta no tiene notas. Prueba a incluir las subcarpetas."}
+            </Text>
+          </View>
+        ) : null}
+        {tooMany ? (
+          <InfoNotice icon="warning-outline" tone="warning">
+            Puedes generar tarjetas de hasta {MAX_FOLDER_NOTES} notas a la vez. Desmarca algunas o elige una subcarpeta.
+          </InfoNotice>
+        ) : null}
+      </ScrollView>
+      <View style={fs.footerBar}>
+        <PrimaryButton
+          label={chosen.length ? `Generar tarjetas (${chosen.length === 1 ? "1 nota" : `${chosen.length} notas`})` : "Generar tarjetas"}
+          onPress={() => onGenerate(chosen)}
+          disabled={!chosen.length || tooMany}
+          style={styles.flex}
+          testID="flashcards-folder-generate"
+        />
+      </View>
+    </>
+  );
+};
+
+/** Prepara las propuestas de una nota (o de un fragmento suyo) y las marca contra lo que ya tiene. */
+const proposalsForItem = (item, selectionHtml) => {
+  if (selectionHtml) {
+    return generateFromSelection({ selectionHtml, title: item.title, contentText: htmlToPlainText(item.content) });
+  }
+  return generateFlashcards({ html: item.content, title: item.title });
+};
+
+export const CreateCardsView = ({
+  userId,
+  itemId: initialItemId = null,
+  selectionHtml = null,
+  folderId = null,
+  library,
+  onBack,
+  onStartReview,
+  onCreated,
+}) => {
   const [itemId, setItemId] = useState(initialItemId);
-  const [state, setState] = useState({ step: initialItemId ? "loading" : "pick" });
+  const [state, setState] = useState({ step: folderId ? "folder" : initialItemId ? "loading" : "pick" });
   const [proposals, setProposals] = useState([]);
   const [selected, setSelected] = useState(new Set());
   const [expanded, setExpanded] = useState(null);
   const [editing, setEditing] = useState(null); // índice
   const [oneByOne, setOneByOne] = useState(null); // índice actual
   const [saving, setSaving] = useState(false);
+  const [viewing, setViewing] = useState(null); // tarjeta parecida que se está viendo
+  const savingRef = useRef(false);
 
   const folderName = useCallback(
-    (folderId) => (folderId ? library.folders.find((f) => f.id === folderId)?.name : null),
+    (fid) => (fid ? library.folders.find((f) => f.id === fid)?.name : null),
     [library.folders]
+  );
+
+  const loadProposals = useCallback(
+    async (items, { selection = null } = {}) => {
+      setExpanded(null);
+      setOneByOne(null);
+      const existing = await listFlashcards(userId);
+      const all = [];
+      const empty = [];
+      items.forEach((item) => {
+        const { proposals: generated } = proposalsForItem(item, selection);
+        if (!generated.length) empty.push(item);
+        generated.forEach((p) => all.push({ ...p, itemId: item.id, itemTitle: item.title || "Sin título" }));
+      });
+      const marked = markSimilar(markDuplicates(all, existing), existing).map((p, idx) => ({ ...p, key: `p${idx}` }));
+      setProposals(marked);
+      setSelected(new Set(marked.filter((p) => !p.duplicate && !p.similar).map((p) => p.key)));
+      return { marked, empty };
+    },
+    [userId]
   );
 
   const prepare = useCallback(
     async (id) => {
       setState({ step: "loading" });
-      setExpanded(null);
-      setOneByOne(null);
       try {
-        const [item, existing] = await Promise.all([getItem(id), listFlashcards(userId, { sourceItemId: id })]);
+        const item = await getItem(id);
         if (!item || item.deleted_at || item.type !== "note") {
           setState({ step: "error", title: "Este apunte ya no está disponible", message: "Puede que esté en la papelera." });
           return;
         }
-        const { proposals: generated, reason } = generateFlashcards({ html: item.content, title: item.title });
-        const marked = markDuplicates(generated, existing).map((p, idx) => ({ ...p, key: `p${idx}` }));
-        setProposals(marked);
-        setSelected(new Set(marked.filter((p) => !p.duplicate).map((p) => p.key)));
-        setState({ step: reason ? reason : "review", item });
+        const { reason } = proposalsForItem(item, selectionHtml);
+        const { marked } = await loadProposals([item], { selection: selectionHtml });
+        setState({ step: reason || (marked.length ? "review" : "no_structure"), item });
       } catch (error) {
         setState({ step: "error", title: "No hemos podido preparar las tarjetas", message: flashcardErrorMessage(error, "Revisa tu conexión e inténtalo de nuevo.") });
       }
     },
-    [userId]
+    [loadProposals, selectionHtml]
   );
 
+  const prepareFolder = async (notes) => {
+    setState({ step: "loading", fromFolder: true });
+    try {
+      const items = [];
+      for (let i = 0; i < notes.length; i += LOAD_BATCH) {
+        const batch = await Promise.all(notes.slice(i, i + LOAD_BATCH).map((n) => getItem(n.id)));
+        batch.forEach((item) => {
+          if (item && !item.deleted_at && item.type === "note") items.push(item);
+        });
+      }
+      const { marked, empty } = await loadProposals(items);
+      setState({
+        step: marked.length ? "review" : "no_structure",
+        fromFolder: true,
+        notes: items.length,
+        emptyNotes: empty.map((i) => i.title || "Sin título"),
+      });
+    } catch (error) {
+      setState({ step: "error", fromFolder: true, title: "No hemos podido preparar las tarjetas", message: flashcardErrorMessage(error, "Revisa tu conexión e inténtalo de nuevo.") });
+    }
+  };
+
   useEffect(() => {
-    if (initialItemId) prepare(initialItemId);
-  }, [initialItemId, prepare]);
+    if (initialItemId && !folderId) prepare(initialItemId);
+  }, [initialItemId, folderId, prepare]);
 
   const pick = (id) => {
     setItemId(id);
@@ -164,7 +355,9 @@ export const CreateCardsView = ({ userId, itemId: initialItemId = null, library,
       return next;
     });
 
-  const allSelectable = proposals.filter((p) => !p.duplicate);
+  // En «Aprobar todas» no entran las repetidas ni las parecidas sin decidir.
+  const bulkSelectable = (p) => !p.duplicate && (!p.similar || p.keepBoth);
+  const allSelectable = proposals.filter(bulkSelectable);
   const allOn = allSelectable.length > 0 && allSelectable.every((p) => selected.has(p.key));
   const selectedCount = proposals.filter((p) => selected.has(p.key)).length;
 
@@ -178,33 +371,69 @@ export const CreateCardsView = ({ userId, itemId: initialItemId = null, library,
     setExpanded(null);
   };
 
+  const keepBoth = (key) => {
+    setProposals((prev) => prev.map((p) => (p.key === key ? { ...p, keepBoth: true } : p)));
+    setSelected((prev) => new Set(prev).add(key));
+  };
+
   const save = async (keys) => {
+    if (savingRef.current) return;
     const chosen = proposals.filter((p) => keys.has(p.key));
     if (!chosen.length) {
       onBack();
       return;
     }
+    // Una llamada por nota: si una nota ha cambiado, las demás se guardan igual.
+    const groups = new Map();
+    chosen.forEach((p) => {
+      if (!groups.has(p.itemId)) groups.set(p.itemId, []);
+      groups.get(p.itemId).push(p);
+    });
+    savingRef.current = true;
     setSaving(true);
-    try {
-      await saveProposals(userId, itemId, chosen);
-      onCreated?.();
-      setState((prev) => ({ ...prev, step: "done", saved: chosen.length }));
-    } catch (error) {
-      const message = flashcardErrorMessage(error);
-      const changed = String(error?.message || "").includes("source_changed") || String(error?.message || "").includes("not_in_source");
+    let saved = 0;
+    const failed = [];
+    let lastError = null;
+    for (const [id, group] of groups) {
+      try {
+        await saveProposals(userId, id, group);
+        saved += group.length;
+        const savedKeys = new Set(group.map((p) => p.key));
+        setProposals((prev) => prev.filter((p) => !savedKeys.has(p.key)));
+      } catch (error) {
+        lastError = error;
+        failed.push(group[0].itemTitle);
+      }
+    }
+    savingRef.current = false;
+    setSaving(false);
+    if (saved) onCreated?.();
+
+    if (!failed.length) {
+      setState((prev) => ({ ...prev, step: "done", saved }));
+      return;
+    }
+    const message = flashcardErrorMessage(lastError);
+    const changed = /source_changed|not_in_source/.test(String(lastError?.message || ""));
+    if (groups.size === 1) {
       Alert.alert(
         "No se han guardado las tarjetas",
         message,
-        changed
+        changed && !state.fromFolder
           ? [
               { text: "Cancelar", style: "cancel" },
               { text: "Volver a preparar", onPress: () => prepare(itemId) },
             ]
           : [{ text: "Entendido" }]
       );
-    } finally {
-      setSaving(false);
+      return;
     }
+    Alert.alert(
+      saved ? `Se han guardado ${formatCardCount(saved)}` : "No se han guardado las tarjetas",
+      `No se han podido guardar las de: ${failed.join(", ")}. ${message}`,
+      [{ text: "Entendido" }]
+    );
+    if (saved) setState((prev) => ({ ...prev, partial: true }));
   };
 
   const submitEdit = async ({ question, answer }) => {
@@ -233,6 +462,9 @@ export const CreateCardsView = ({ userId, itemId: initialItemId = null, library,
     if (approve) nextSelected.add(current.key);
     else nextSelected.delete(current.key);
     setSelected(nextSelected);
+    if (approve && current.similar) {
+      setProposals((prev) => prev.map((p) => (p.key === current.key ? { ...p, keepBoth: true } : p)));
+    }
     if (oneByOne + 1 < proposals.length) {
       setOneByOne(oneByOne + 1);
     } else {
@@ -241,22 +473,120 @@ export const CreateCardsView = ({ userId, itemId: initialItemId = null, library,
     }
   };
 
-  const title = state.step === "pick" ? "Crear tarjetas" : state.step === "done" ? "Tarjetas listas" : "Revisa tus tarjetas";
+  const title =
+    state.step === "pick"
+      ? "Crear tarjetas"
+      : state.step === "folder"
+        ? "Tarjetas de la carpeta"
+        : state.step === "done"
+          ? "Tarjetas listas"
+          : "Revisa tus tarjetas";
+
   const goBack = () => {
+    if (viewing) {
+      setViewing(null);
+      return;
+    }
     if (oneByOne !== null) {
       setOneByOne(null);
       return;
     }
-    if (!initialItemId && state.step !== "pick" && state.step !== "done") {
+    if (folderId && state.step !== "folder" && state.step !== "done" && !saving) {
+      setState({ step: "folder" });
+      return;
+    }
+    if (!initialItemId && !folderId && state.step !== "pick" && state.step !== "done") {
       setState({ step: "pick" });
       return;
     }
     onBack();
   };
 
+  // El atrás de Android hace lo mismo que «Volver» (ResiNotesScreen no lo gestiona en esta vista).
+  const goBackRef = useRef(goBack);
+  goBackRef.current = goBack;
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      goBackRef.current();
+      return true;
+    });
+    return () => sub.remove();
+  }, []);
+
+  const SimilarNotice = ({ proposal }) =>
+    proposal.similar && !proposal.keepBoth ? (
+      <View style={styles.similarBox} testID="flashcards-similar">
+        <Text style={styles.similarTitle}>Ya tienes una tarjeta parecida.</Text>
+        <View style={styles.similarActions}>
+          <TouchableOpacity onPress={() => setViewing(proposal.similar)} accessibilityRole="button" testID="flashcards-similar-view">
+            <Text style={styles.similarAction}>Ver existente</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => keepBoth(proposal.key)} accessibilityRole="button" testID="flashcards-similar-keep">
+            <Text style={styles.similarAction}>Mantener ambas</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => discard(proposal.key)} accessibilityRole="button" testID="flashcards-similar-discard">
+            <Text style={[styles.similarAction, { color: COLORS.ERROR }]}>Descartar nueva</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    ) : null;
+
+  const renderProposal = (p, idx) => {
+    const open = expanded === p.key;
+    return (
+      <View key={p.key} style={[fs.card, styles.proposal]}>
+        <View style={styles.proposalRow}>
+          <TouchableOpacity
+            onPress={() => toggle(p.key)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: selected.has(p.key) }}
+            accessibilityLabel={p.question}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            testID={`flashcards-proposal-check-${idx}`}
+          >
+            <Checkbox checked={selected.has(p.key)} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.flex}
+            onPress={() => setExpanded(open ? null : p.key)}
+            accessibilityRole="button"
+            accessibilityHint={open ? "Oculta la respuesta" : "Muestra la respuesta y su fuente"}
+            testID={`flashcards-proposal-${idx}`}
+          >
+            <Text style={styles.proposalQuestion}>{p.question}</Text>
+            {p.duplicate ? <Text style={styles.duplicate}>Ya tienes una tarjeta igual</Text> : null}
+            {p.similar && !p.keepBoth ? <Text style={styles.duplicate}>Ya tienes una tarjeta parecida</Text> : null}
+            {p.edited ? <Text style={styles.edited}>Editada por ti</Text> : null}
+          </TouchableOpacity>
+          <Icon name={open ? "chevron-up" : "chevron-down"} size={18} color={COLORS.TEXT_LIGHT} />
+        </View>
+        {open ? (
+          <View style={styles.proposalBody}>
+            <AnswerBody answer={p.answer} size={15} />
+            <SourceFragment proposal={p} />
+            <SimilarNotice proposal={p} />
+            <View style={styles.inlineActions}>
+              <TouchableOpacity onPress={() => setEditing(idx)} accessibilityRole="button" style={styles.inlineAction}>
+                <Icon name="pencil-outline" size={16} color={COLORS.PRIMARY} />
+                <Text style={styles.inlineActionText}>Editar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => discard(p.key)} accessibilityRole="button" style={styles.inlineAction}>
+                <Icon name="trash-outline" size={16} color={COLORS.ERROR} />
+                <Text style={[styles.inlineActionText, { color: COLORS.ERROR }]}>Descartar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
+      </View>
+    );
+  };
+
   const renderBody = () => {
     if (state.step === "pick") {
       return <NotePicker items={library.items} folderName={folderName} onPick={pick} />;
+    }
+    if (state.step === "folder") {
+      return <FolderNotesPicker library={library} folderId={folderId} folderName={folderName} onGenerate={prepareFolder} />;
     }
     if (state.step === "loading") {
       return (
@@ -266,25 +596,27 @@ export const CreateCardsView = ({ userId, itemId: initialItemId = null, library,
         </View>
       );
     }
-    if (state.step === "empty" || state.step === "no_structure" || state.step === "error") {
+    if (["empty", "no_structure", "needs_context", "error"].includes(state.step)) {
       const copy =
         state.step === "empty"
           ? { title: "Este apunte está vacío", message: "Escribe algo en él y vuelve a intentarlo." }
-          : state.step === "no_structure"
-            ? {
-                title: "No se ha podido generar ninguna tarjeta",
-                message:
-                  "No hemos encontrado información suficientemente clara en este apunte. Las tarjetas salen de los títulos con su contenido, las listas, las líneas «Término: definición» y las tablas.",
-              }
-            : { title: state.title, message: state.message };
+          : state.step === "needs_context"
+            ? { title: "Este fragmento necesita más contexto", message: "Selecciona un apartado más completo." }
+            : state.step === "no_structure"
+              ? {
+                  title: "No se ha podido generar ninguna tarjeta",
+                  message: `No hemos encontrado información suficientemente clara en ${state.fromFolder ? "estas notas" : "este apunte"}. Las tarjetas salen de los títulos con su contenido, las listas, las líneas «Término: definición» y las tablas.`,
+                }
+              : { title: state.title, message: state.message };
       return (
         <View style={[fs.center, styles.padded]} testID={`flashcards-${state.step}`}>
           <Icon name="cards-outline" size={40} color={COLORS.PRIMARY} />
           <Text style={fs.emptyTitle}>{copy.title}</Text>
           <Text style={fs.emptyText}>{copy.message}</Text>
-          {state.step === "error" && itemId ? (
+          {state.step === "error" && itemId && !state.fromFolder ? (
             <SecondaryButton label="Reintentar" onPress={() => prepare(itemId)} />
           ) : null}
+          {state.step === "needs_context" ? <SecondaryButton label="Volver al apunte" onPress={onBack} /> : null}
         </View>
       );
     }
@@ -312,6 +644,7 @@ export const CreateCardsView = ({ userId, itemId: initialItemId = null, library,
           <Text style={styles.progress}>
             Tarjeta {oneByOne + 1} de {proposals.length}
           </Text>
+          {state.fromFolder ? <Text style={styles.groupLabel}>{current.itemTitle}</Text> : null}
           <View style={fs.card} testID="flashcards-one-by-one">
             <Text style={fs.sectionLabel}>Pregunta</Text>
             <Text style={fs.question}>{current.question}</Text>
@@ -320,23 +653,52 @@ export const CreateCardsView = ({ userId, itemId: initialItemId = null, library,
             {current.duplicate ? <Text style={styles.duplicate}>Ya tienes una tarjeta igual.</Text> : null}
             {current.edited ? <Text style={styles.edited}>Editada por ti</Text> : null}
           </View>
+          {current.similar && !current.keepBoth ? (
+            <View style={styles.similarBox}>
+              <Text style={styles.similarTitle}>Ya tienes una tarjeta parecida.</Text>
+              <TouchableOpacity onPress={() => setViewing(current.similar)} accessibilityRole="button">
+                <Text style={styles.similarAction}>Ver existente</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           <SourceFragment proposal={current} />
           <View style={styles.oneActions}>
             <SecondaryButton label="Descartar" danger onPress={() => decideOne(false)} style={styles.flex} testID="flashcards-one-discard" />
             <SecondaryButton label="Editar" icon="pencil-outline" onPress={() => setEditing(oneByOne)} style={styles.flex} />
           </View>
-          <PrimaryButton label="Aprobar" onPress={() => decideOne(true)} loading={saving} testID="flashcards-one-approve" />
+          <PrimaryButton
+            label={current.similar && !current.keepBoth ? "Mantener ambas" : "Aprobar"}
+            onPress={() => decideOne(true)}
+            loading={saving}
+            testID="flashcards-one-approve"
+          />
         </ScrollView>
       );
     }
 
+    // Agrupadas por nota (desde una carpeta); desde un apunte, una sola lista.
+    const groups = [];
+    proposals.forEach((p, idx) => {
+      const last = groups[groups.length - 1];
+      if (last && last.itemId === p.itemId) last.rows.push([p, idx]);
+      else groups.push({ itemId: p.itemId, title: p.itemTitle, rows: [[p, idx]] });
+    });
+
     return (
       <ScrollView contentContainerStyle={fs.content}>
         <Text style={styles.intro}>
-          Hemos preparado {formatCardCount(proposals.length)} a partir de «{state.item?.title || "tu apunte"}». Revisa y selecciona las que
-          quieras guardar.
+          {state.fromFolder
+            ? `Hemos preparado ${formatCardCount(proposals.length)} a partir de ${groups.length === 1 ? "1 nota" : `${groups.length} notas`}. Revisa y selecciona las que quieras guardar.`
+            : selectionHtml
+              ? `Hemos preparado ${formatCardCount(proposals.length)} a partir del fragmento que has seleccionado. Revisa y selecciona las que quieras guardar.`
+              : `Hemos preparado ${formatCardCount(proposals.length)} a partir de «${state.item?.title || "tu apunte"}». Revisa y selecciona las que quieras guardar.`}
         </Text>
         <InfoNotice>{SOURCE_NOTICE}</InfoNotice>
+        {state.fromFolder && state.emptyNotes?.length ? (
+          <Text style={fs.muted} testID="flashcards-folder-empty-notes">
+            Sin tarjetas: {state.emptyNotes.join(", ")}.
+          </Text>
+        ) : null}
         <TouchableOpacity
           style={styles.selectAll}
           onPress={() => setSelected(allOn ? new Set() : new Set(allSelectable.map((p) => p.key)))}
@@ -349,53 +711,16 @@ export const CreateCardsView = ({ userId, itemId: initialItemId = null, library,
           </Text>
           <Checkbox checked={allOn} />
         </TouchableOpacity>
-        {proposals.map((p, idx) => {
-          const open = expanded === p.key;
-          return (
-            <View key={p.key} style={[fs.card, styles.proposal]}>
-              <View style={styles.proposalRow}>
-                <TouchableOpacity
-                  onPress={() => toggle(p.key)}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: selected.has(p.key) }}
-                  accessibilityLabel={p.question}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  testID={`flashcards-proposal-check-${idx}`}
-                >
-                  <Checkbox checked={selected.has(p.key)} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.flex}
-                  onPress={() => setExpanded(open ? null : p.key)}
-                  accessibilityRole="button"
-                  accessibilityHint={open ? "Oculta la respuesta" : "Muestra la respuesta y su fuente"}
-                  testID={`flashcards-proposal-${idx}`}
-                >
-                  <Text style={styles.proposalQuestion}>{p.question}</Text>
-                  {p.duplicate ? <Text style={styles.duplicate}>Ya tienes una tarjeta igual</Text> : null}
-                  {p.edited ? <Text style={styles.edited}>Editada por ti</Text> : null}
-                </TouchableOpacity>
-                <Icon name={open ? "chevron-up" : "chevron-down"} size={18} color={COLORS.TEXT_LIGHT} />
+        {state.fromFolder
+          ? groups.map((g) => (
+              <View key={g.itemId}>
+                <Text style={styles.groupLabel} testID={`flashcards-group-${g.itemId}`}>
+                  {g.title}
+                </Text>
+                {g.rows.map(([p, idx]) => renderProposal(p, idx))}
               </View>
-              {open ? (
-                <View style={styles.proposalBody}>
-                  <AnswerBody answer={p.answer} size={15} />
-                  <SourceFragment proposal={p} />
-                  <View style={styles.inlineActions}>
-                    <TouchableOpacity onPress={() => setEditing(idx)} accessibilityRole="button" style={styles.inlineAction}>
-                      <Icon name="pencil-outline" size={16} color={COLORS.PRIMARY} />
-                      <Text style={styles.inlineActionText}>Editar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => discard(p.key)} accessibilityRole="button" style={styles.inlineAction}>
-                      <Icon name="trash-outline" size={16} color={COLORS.ERROR} />
-                      <Text style={[styles.inlineActionText, { color: COLORS.ERROR }]}>Descartar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : null}
-            </View>
-          );
-        })}
+            ))
+          : proposals.map((p, idx) => renderProposal(p, idx))}
       </ScrollView>
     );
   };
@@ -430,6 +755,16 @@ export const CreateCardsView = ({ userId, itemId: initialItemId = null, library,
             onSubmit={submitEdit}
             onClose={() => setEditing(null)}
           />
+          <ResiNotesSheet visible={Boolean(viewing)} title="Tu tarjeta parecida" onClose={() => setViewing(null)} testID="flashcards-similar-sheet">
+            {viewing ? (
+              <>
+                <Text style={fs.sectionLabel}>Pregunta</Text>
+                <Text style={[fs.question, styles.viewQuestion]}>{viewing.question}</Text>
+                <Text style={fs.sectionLabel}>Respuesta</Text>
+                <AnswerBody answer={viewing.answer} size={15} />
+              </>
+            ) : null}
+          </ResiNotesSheet>
         </>
       }
     >
@@ -503,6 +838,14 @@ const styles = StyleSheet.create({
   progress: { fontSize: 14, fontWeight: "700", color: COLORS.PRIMARY_DARK, marginBottom: 10 },
   spaced: { marginTop: 14 },
   oneActions: { flexDirection: "row", gap: 10, marginTop: 12, marginBottom: 10 },
+  switchRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  switchLabel: { flex: 1, fontSize: 15, fontWeight: "600", color: COLORS.PRIMARY_DARK },
+  groupLabel: { fontSize: 14, fontWeight: "700", color: COLORS.TEXT_MEDIUM, marginTop: 10, marginBottom: 8 },
+  similarBox: { backgroundColor: "#FEF6DC", borderRadius: 12, padding: 12, gap: 8, marginBottom: 10 },
+  similarTitle: { fontSize: 14, fontWeight: "700", color: "#92400E" },
+  similarActions: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
+  similarAction: { fontSize: 14, fontWeight: "700", color: COLORS.PRIMARY, paddingVertical: 4 },
+  viewQuestion: { marginBottom: 14 },
   doneIcon: {
     width: 84,
     height: 84,

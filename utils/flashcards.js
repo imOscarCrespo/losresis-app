@@ -1,4 +1,4 @@
-import { htmlToPlainText } from "./resinotes";
+import { descendantIds, htmlToPlainText } from "./resinotes";
 
 /**
  * Tarjetas de repaso de ResiNotes (ClickUp 124b4z9w0z0).
@@ -355,6 +355,80 @@ export const markDuplicates = (proposals = [], existing = []) => {
   return proposals.map((p) => ({ ...p, duplicate: known.has(fingerprint(p.question, p.answer)) }));
 };
 
+// Palabras que no dicen nada del contenido: artículos, preposiciones y las de
+// las plantillas de las preguntas («¿Qué incluye … en tu apunte …?»).
+const SIMILARITY_STOPWORDS = new Set(
+  (
+    "a al como con cual cuales de del el en es esta este fila la las lo los mi o para pone por que " +
+    "se segun son su sus tabla tu tus un una unas uno unos y apunte apuntes incluye recoge sobre " +
+    "corresponde define definicion"
+  ).split(" ")
+);
+
+/** Palabras significativas de un texto: minúsculas, sin tildes, sin palabras vacías. */
+export const similarityTokens = (text) =>
+  new Set(
+    normalizeText(text)
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((w) => w && !SIMILARITY_STOPWORDS.has(w))
+  );
+
+/** Índice de Jaccard entre dos conjuntos (0 si los dos están vacíos). */
+export const jaccard = (a, b) => {
+  if (!a.size && !b.size) return 0;
+  let shared = 0;
+  a.forEach((w) => {
+    if (b.has(w)) shared += 1;
+  });
+  return shared / (a.size + b.size - shared);
+};
+
+export const SIMILAR_THRESHOLD = 0.6;
+
+/** Parecido determinista entre dos tarjetas: Jaccard de palabras de pregunta + respuesta. */
+export const cardSimilarity = (a, b) =>
+  jaccard(similarityTokens(`${a.question} ${a.answer}`), similarityTokens(`${b.question} ${b.answer}`));
+
+/**
+ * Marca las propuestas que se parecen a una tarjeta que ya tiene
+ * (`similar` = la más parecida). Las exactas ya van como `duplicate`. Nunca se
+ * descarta nada solo: el residente elige Ver existente, Mantener ambas o
+ * Descartar nueva.
+ */
+export const markSimilar = (proposals = [], existing = [], threshold = SIMILAR_THRESHOLD) => {
+  const pool = existing
+    .filter((c) => !c.deleted_at)
+    .map((c) => ({ card: c, tokens: similarityTokens(`${c.question} ${c.answer}`) }));
+  return proposals.map((p) => {
+    if (p.duplicate || !pool.length) return { ...p, similar: null };
+    const tokens = similarityTokens(`${p.question} ${p.answer}`);
+    let best = null;
+    pool.forEach(({ card, tokens: other }) => {
+      const score = jaccard(tokens, other);
+      if (score >= threshold && (!best || score > best.score)) best = { score, card };
+    });
+    return {
+      ...p,
+      similar: best ? { id: best.card.id, question: best.card.question, answer: best.card.answer, score: best.score } : null,
+    };
+  });
+};
+
+/**
+ * Propuestas de un fragmento seleccionado en el editor: las mismas reglas que
+ * para el apunte entero, sobre el HTML de la selección. Como la BD comprueba
+ * que el fragmento está en el texto guardado del apunte, se quedan solo las
+ * que están tal cual en `contentText`. Sin ninguna: reason = 'needs_context'.
+ */
+export const generateFromSelection = ({ selectionHtml, title = "", contentText = "" } = {}) => {
+  const { proposals } = generateFlashcards({ html: selectionHtml, title });
+  const kept = proposals.filter((p) => textContains(contentText, p.excerpt) && textContains(p.excerpt, p.answer));
+  return { proposals: kept, reason: kept.length ? null : "needs_context" };
+};
+
 // ---------------------------------------------------------------------------
 // Fechas (días locales, 'YYYY-MM-DD')
 // ---------------------------------------------------------------------------
@@ -405,17 +479,52 @@ const uniqueById = (cards) => {
 };
 
 /**
- * El repaso de hoy: primero las vencidas (las más antiguas y las más falladas),
- * después las nuevas, hasta el límite diario menos lo ya repasado hoy.
+ * Carpetas incluidas en el repaso (configuración de repaso), con sus
+ * subcarpetas. null = todas. Los ids de carpetas que ya no existen se ignoran
+ * y, si no queda ninguna, cuenta como todas. Igual que
+ * resinotes_review_pending_count en la BD.
  */
-export const buildTodayQueue = ({ cards = [], reviewedTodayIds = [], today, limit = DAILY_CARD_LIMIT }) => {
+export const includedFolderSet = (folders = [], includedIds = null) => {
+  if (!Array.isArray(includedIds) || !includedIds.length) return null;
+  const alive = folders.filter((f) => !f.deleted_at);
+  const known = new Set(alive.map((f) => f.id));
+  const roots = includedIds.filter((id) => known.has(id));
+  if (!roots.length) return null;
+  const set = new Set(roots);
+  roots.forEach((id) => descendantIds(alive, id).forEach((d) => set.add(d)));
+  return set;
+};
+
+/** ¿Entra la tarjeta con este filtro de carpetas? Las tarjetas sin apunte entran siempre. */
+export const cardInFolders = (card, folderSet) => {
+  if (!folderSet) return true;
+  if (!card.source_item_id) return true;
+  return folderSet.has(card.source?.folder_id ?? null);
+};
+
+/**
+ * El repaso de hoy: primero las vencidas (las más antiguas y las más falladas),
+ * después las nuevas (hasta el límite de nuevas menos las nuevas ya repasadas
+ * hoy), y todo hasta el límite diario menos lo ya repasado hoy. Igual que
+ * resinotes_review_pending_count en la BD, que decide los recordatorios.
+ */
+export const buildTodayQueue = ({
+  cards = [],
+  reviewedTodayIds = [],
+  newReviewedToday = 0,
+  today,
+  limit = DAILY_CARD_LIMIT,
+  newLimit = Infinity,
+  folderSet = null,
+}) => {
   const reviewed = new Set(reviewedTodayIds);
-  const eligible = uniqueById(cards).filter((c) => isReviewable(c) && !reviewed.has(c.id));
+  const eligible = uniqueById(cards).filter((c) => isReviewable(c) && !reviewed.has(c.id) && cardInFolders(c, folderSet));
   const due = eligible.filter((c) => c.due_on && c.due_on <= today).sort(byDue);
   const fresh = eligible.filter((c) => !c.due_on).sort(byCreated);
   const remaining = Math.max(0, limit - reviewed.size);
+  const freshAllowed = Math.max(0, newLimit - newReviewedToday);
   return {
-    queue: [...due, ...fresh].slice(0, remaining),
+    queue: [...due, ...fresh.slice(0, freshAllowed)].slice(0, remaining),
     reviewedToday: reviewed.size,
     dueCount: due.length,
     newCount: fresh.length,
@@ -423,9 +532,9 @@ export const buildTodayQueue = ({ cards = [], reviewedTodayIds = [], today, limi
 };
 
 /** «Repasar más»: lo vencido o nuevo que no ha entrado hoy y después lo más próximo. */
-export const buildMoreQueue = ({ cards = [], reviewedTodayIds = [], today, size = MORE_BATCH_SIZE }) => {
+export const buildMoreQueue = ({ cards = [], reviewedTodayIds = [], today, size = MORE_BATCH_SIZE, folderSet = null }) => {
   const reviewed = new Set(reviewedTodayIds);
-  const eligible = uniqueById(cards).filter((c) => isReviewable(c) && !reviewed.has(c.id));
+  const eligible = uniqueById(cards).filter((c) => isReviewable(c) && !reviewed.has(c.id) && cardInFolders(c, folderSet));
   const due = eligible.filter((c) => c.due_on && c.due_on <= today).sort(byDue);
   const fresh = eligible.filter((c) => !c.due_on).sort(byCreated);
   const future = eligible.filter((c) => c.due_on && c.due_on > today).sort(byDue);
@@ -489,3 +598,143 @@ export const newClientReviewId = (random = Math.random) =>
     const r = Math.floor(random() * 16);
     return (ch === "x" ? r : (r & 0x3) | 0x8).toString(16);
   });
+
+// ---------------------------------------------------------------------------
+// Configuración de repaso (resinotes_review_preferences)
+// ---------------------------------------------------------------------------
+
+export const WEEKDAYS = [
+  { key: 1, short: "L", label: "Lunes" },
+  { key: 2, short: "M", label: "Martes" },
+  { key: 3, short: "X", label: "Miércoles" },
+  { key: 4, short: "J", label: "Jueves" },
+  { key: 5, short: "V", label: "Viernes" },
+  { key: 6, short: "S", label: "Sábado" },
+  { key: 7, short: "D", label: "Domingo" },
+];
+
+/** Sin fila en la BD = estos valores (los mismos defaults que la tabla). */
+export const DEFAULT_REVIEW_PREFERENCES = Object.freeze({
+  daily_card_limit: DAILY_CARD_LIMIT,
+  new_card_limit: DAILY_CARD_LIMIT,
+  review_enabled: true,
+  reminders_enabled: false,
+  reminder_time: "20:30",
+  timezone: null,
+  active_weekdays: [1, 2, 3, 4, 5, 6, 7],
+  included_folder_ids: null,
+  paused_until: null,
+  snoozed_until: null,
+});
+
+export const DAILY_LIMIT_OPTIONS = [3, 5, 10, 15];
+export const NEW_LIMIT_OPTIONS = [0, 3, 5, 10, 15];
+export const MAX_CARD_LIMIT = 100;
+
+const clampInt = (value, min, max, fallback) => {
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+};
+
+/** «20:30:00» o «20:30» -> «20:30». */
+export const formatTime = (value) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(value || ""));
+  if (!m) return DEFAULT_REVIEW_PREFERENCES.reminder_time;
+  const h = clampInt(m[1], 0, 23, 20);
+  const min = clampInt(m[2], 0, 59, 30);
+  return `${pad(h)}:${pad(min)}`;
+};
+
+/** Una fila de la BD (o null) -> preferencias completas y válidas. */
+export const normalizePreferences = (row) => {
+  const p = { ...DEFAULT_REVIEW_PREFERENCES, ...(row || {}) };
+  const weekdays = Array.isArray(p.active_weekdays) ? p.active_weekdays.map(Number) : DEFAULT_REVIEW_PREFERENCES.active_weekdays;
+  return {
+    daily_card_limit: clampInt(p.daily_card_limit, 1, MAX_CARD_LIMIT, DAILY_CARD_LIMIT),
+    new_card_limit: clampInt(p.new_card_limit, 0, MAX_CARD_LIMIT, DAILY_CARD_LIMIT),
+    review_enabled: p.review_enabled !== false,
+    reminders_enabled: p.reminders_enabled === true,
+    reminder_time: formatTime(p.reminder_time),
+    timezone: p.timezone || null,
+    active_weekdays: Array.from(new Set(weekdays.filter((d) => d >= 1 && d <= 7))).sort((a, b) => a - b),
+    included_folder_ids: Array.isArray(p.included_folder_ids) && p.included_folder_ids.length ? p.included_folder_ids : null,
+    paused_until: p.paused_until || null,
+    snoozed_until: p.snoozed_until || null,
+  };
+};
+
+/** En pausa mientras hoy < paused_until (el día en que se reanudan). */
+export const isPaused = (prefs, today) => Boolean(prefs?.paused_until) && String(today) < String(prefs.paused_until);
+
+/** Zona horaria IANA del dispositivo (null si no se puede saber). */
+export const deviceTimeZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+};
+
+export const addDays = (ymd, days) => {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d + days));
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+};
+
+const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];
+
+/** «2026-11-09» -> «9 nov». */
+export const formatDay = (ymd) => {
+  const [, m, d] = String(ymd).split("-").map(Number);
+  return m && d ? `${d} ${MONTHS[m - 1]}` : "";
+};
+
+export const PAUSE_OPTIONS = [
+  { days: 3, label: "3 días" },
+  { days: 7, label: "1 semana" },
+  { days: 14, label: "2 semanas" },
+  { days: 30, label: "1 mes" },
+];
+
+/** Resumen de los días activos: «Todos los días», «L M X J V», «Ninguno». */
+export const formatWeekdays = (days = []) => {
+  const set = new Set(days);
+  if (set.size === 7) return "Todos los días";
+  if (!set.size) return "Ninguno";
+  if (set.size === 5 && [1, 2, 3, 4, 5].every((d) => set.has(d))) return "De lunes a viernes";
+  return WEEKDAYS.filter((w) => set.has(w.key))
+    .map((w) => w.short)
+    .join(" ");
+};
+
+const atLocalTime = (base, dayOffset, hhmm) => {
+  const [h, m] = formatTime(hhmm).split(":").map(Number);
+  return new Date(base.getFullYear(), base.getMonth(), base.getDate() + dayOffset, h, m, 0, 0);
+};
+
+export const TONIGHT_TIME = "22:00";
+
+/**
+ * Opciones de «Posponer» el aviso de hoy, con el instante (snoozed_until) de
+ * cada una. «Esta noche» solo sale antes de las 21:00.
+ */
+export const snoozeOptions = (now = new Date(), reminderTime = DEFAULT_REVIEW_PREFERENCES.reminder_time) => {
+  const options = [{ key: "hour", label: "En 1 hora", at: new Date(now.getTime() + 60 * 60 * 1000) }];
+  const tonight = atLocalTime(now, 0, TONIGHT_TIME);
+  if (tonight.getTime() - now.getTime() >= 60 * 60 * 1000) {
+    options.push({ key: "tonight", label: "Esta noche", description: `A las ${TONIGHT_TIME}`, at: tonight });
+  }
+  options.push({
+    key: "tomorrow",
+    label: "Mañana",
+    description: `A las ${formatTime(reminderTime)}`,
+    at: atLocalTime(now, 1, reminderTime),
+  });
+  return options;
+};
+
+const pluralCards = (n) => (n === 1 ? "1 tarjeta" : `${n} tarjetas`);
+
+/** Texto de la fila «Tarjetas por día» / «Tarjetas nuevas». */
+export const formatLimit = (n) => (n === 0 ? "Ninguna" : pluralCards(n));

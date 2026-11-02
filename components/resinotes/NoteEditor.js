@@ -20,7 +20,7 @@ import {
   useEditorBridge,
 } from "@10play/tentap-editor";
 import { editorHtml } from "./editor/editorHtml";
-import { CalloutBridge, TableBridge } from "./editor/bridges";
+import { CalloutBridge, SelectionBridge, TableBridge } from "./editor/bridges";
 import { HeroScreenLayout } from "../HeroScreenLayout";
 import { Icon } from "../Icon";
 import { COLORS } from "../../constants/colors";
@@ -133,7 +133,7 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
     initialContent: initialHtml || "",
     // Editor propio (editor-web/): el de TenTap más tablas y bloques especiales.
     customSource: editorHtml,
-    bridgeExtensions: [...TenTapStartKit, TableBridge, CalloutBridge, CoreBridge.configureCSS(EDITOR_CSS)],
+    bridgeExtensions: [...TenTapStartKit, TableBridge, CalloutBridge, SelectionBridge, CoreBridge.configureCSS(EDITOR_CSS)],
     onChange: () => scheduleSave(),
     theme: {
       webview: { backgroundColor: COLORS.WHITE },
@@ -271,15 +271,16 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
   }, []);
 
   // Tarjetas de repaso (ClickUp 124b4z9w0z0): se generan desde lo guardado, así
-  // que primero se guarda la nota.
+  // que primero se guarda la nota. Con texto seleccionado, solo de ese
+  // fragmento (pasada B): la BD comprueba que está tal cual en lo guardado.
   const [preparingCards, setPreparingCards] = useState(false);
-  const createCards = async () => {
+  const createCards = async (selectionHtml = null) => {
     if (preparingCards) return;
     setPreparingCards(true);
     const ok = await flush();
     setPreparingCards(false);
     if (ok) {
-      onCreateCards?.(item.id);
+      onCreateCards?.(item.id, selectionHtml);
       return;
     }
     Alert.alert("No se ha podido guardar", "Guarda la nota antes de crear tarjetas. Revisa tu conexión e inténtalo de nuevo.");
@@ -319,7 +320,7 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
         <View style={styles.headerActions}>
           {onCreateCards ? (
             <TouchableOpacity
-              onPress={createCards}
+              onPress={() => createCards()}
               disabled={preparingCards}
               style={styles.headerButton}
               accessibilityRole="button"
@@ -477,6 +478,19 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
             </Text>
             <Text style={styles.blockButtonText}>Bloque</Text>
           </TouchableOpacity>
+          {onCreateCards && editorState.selectionHtml ? (
+            <TouchableOpacity
+              style={styles.blockButton}
+              onPress={() => createCards(editorState.selectionHtml)}
+              disabled={preparingCards}
+              accessibilityRole="button"
+              accessibilityLabel="Crear tarjetas de la selección"
+              testID="resinotes-note-selection-cards"
+            >
+              <Icon name="brain-outline" size={18} color={COLORS.PRIMARY} />
+              <Text style={styles.blockButtonText}>Crear tarjetas</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
         <View style={styles.toolbarRow}>
           <Toolbar editor={editor} />

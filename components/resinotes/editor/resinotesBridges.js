@@ -1,4 +1,4 @@
-import { Node, mergeAttributes } from "@tiptap/core";
+import { Node, getHTMLFromFragment, mergeAttributes } from "@tiptap/core";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import { CALLOUT_KIND_KEYS, normalizeCalloutKind } from "../../../utils/resinotes";
 
@@ -114,7 +114,20 @@ const runCallout = (editor, action, kind) => {
   return false;
 };
 
-/** Los dos bridges, creados con la BridgeExtension de cada lado. */
+// Tarjetas de repaso desde un fragmento (ClickUp 124b4z9w0z0, pasada B): el
+// estado del editor lleva la selección como HTML, que la app pasa por las
+// mismas reglas que un apunte entero. Una selección enorme no se manda.
+export const MAX_SELECTION_HTML = 20000;
+
+const selectionHtml = (editor) => {
+  const { selection, schema, doc } = editor.state;
+  if (selection.empty || typeof document === "undefined") return null;
+  if (!doc.textBetween(selection.from, selection.to, " ").trim()) return null;
+  const html = getHTMLFromFragment(selection.content().content, schema);
+  return html.length > MAX_SELECTION_HTML ? null : html;
+};
+
+/** Los bridges, creados con la BridgeExtension de cada lado. */
 export const createResiNotesBridges = (BridgeExtension) => {
   const TableBridge = new BridgeExtension({
     tiptapExtension: Table.configure({ resizable: false }),
@@ -147,5 +160,10 @@ export const createResiNotesBridges = (BridgeExtension) => {
     }),
   });
 
-  return { TableBridge, CalloutBridge };
+  const SelectionBridge = new BridgeExtension({
+    forceName: "resinotesSelection",
+    extendEditorState: (editor) => ({ selectionHtml: selectionHtml(editor) }),
+  });
+
+  return { TableBridge, CalloutBridge, SelectionBridge };
 };

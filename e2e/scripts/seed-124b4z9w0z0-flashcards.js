@@ -1,5 +1,6 @@
 // ClickUp 124b4z9w0z0 (tarjetas de repaso de ResiNotes): datos del residente de pruebas (solo los suyos).
-// MODE=reset  → borra todas sus tarjetas (y con ellas sus repasos), y deja en la carpeta
+// MODE=reset  → borra todas sus tarjetas (y con ellas sus repasos) y su configuración de
+//               repaso, y deja en la carpeta
 //               «Obstetricia» dos apuntes nuevos: «Eclampsia» (títulos, lista, tabla, bloque
 //               especial y una línea «Término: definición») y «Caso sin estructura» (prosa).
 // MODE=modify → edita «Eclampsia» quitando «Sulfato de magnesio.» de «Manejo inicial», como si
@@ -88,6 +89,9 @@ function noteByTitle(title) {
 if (MODE === "reset") {
   var delCards = http.delete(rest + "resinotes_flashcards" + own, { headers: headers });
   if (delCards.status !== 200 && delCards.status !== 204) throw new Error("Borrado de tarjetas falló: " + delCards.status);
+  // La configuración de repaso (pasada B) vuelve a los valores por defecto: 5 al día.
+  var delPrefs = http.delete(rest + "resinotes_review_preferences" + own, { headers: headers });
+  if (delPrefs.status !== 200 && delPrefs.status !== 204) throw new Error("Borrado de la configuración falló: " + delPrefs.status);
 
   ["Eclampsia", "Caso sin estructura"].forEach(function (title) {
     var del = http.delete(rest + "resinotes_items" + own + "&title=eq." + encodeURIComponent(title), { headers: headers });

@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { deviceTimeZone, normalizePreferences } from "../utils/flashcards";
 
 /**
  * Tarjetas de repaso de ResiNotes (ClickUp 124b4z9w0z0).
@@ -93,7 +94,7 @@ export const loadReviewData = async (userId, today) => {
     reviewableQuery(userId).gt("due_on", today).order("due_on", { ascending: true }).limit(QUEUE_LIMIT),
     supabase
       .from("resinotes_flashcard_reviews")
-      .select("flashcard_id, rating, reviewed_at")
+      .select("flashcard_id, rating, reviewed_at, previous_due_on")
       .eq("user_id", userId)
       .eq("local_date", today)
       .order("reviewed_at", { ascending: true })
@@ -112,6 +113,8 @@ export const loadReviewData = async (userId, today) => {
     cards: [...(due.data || []), ...(fresh.data || []), ...(future.data || [])],
     reviews: reviewRows,
     reviewedTodayIds: Array.from(new Set(reviewRows.map((r) => r.flashcard_id))),
+    // Tarjetas nuevas repasadas hoy (su primer repaso), para el límite de nuevas.
+    newReviewedToday: new Set(reviewRows.filter((r) => !r.previous_due_on).map((r) => r.flashcard_id)).size,
     totalCards: total.count || 0,
   };
 };
@@ -176,6 +179,20 @@ export const deleteFlashcard = async (cardId) => {
   if (error) raise(error, "deleteFlashcard");
 };
 
+/**
+ * «Actualizar a mano» de una tarjeta con la fuente modificada: edita y la
+ * mantiene en una sola transacción (RPC resinotes_update_flashcard_and_keep).
+ */
+export const updateAndKeepFlashcard = async (cardId, { question, answer }) => {
+  const { data, error } = await supabase.rpc("resinotes_update_flashcard_and_keep", {
+    p_flashcard_id: cardId,
+    p_question: String(question).trim(),
+    p_answer: String(answer).trim(),
+  });
+  if (error) raise(error, "updateAndKeepFlashcard");
+  return data;
+};
+
 /** «Mantener tarjeta» cuando el apunte ha cambiado. */
 export const keepFlashcard = async (cardId) => {
   const { error } = await supabase.rpc("resinotes_keep_flashcard", { p_flashcard_id: cardId });
@@ -197,6 +214,52 @@ export const reviewFlashcard = async ({ cardId, rating, clientReviewId, localDat
   return data;
 };
 
+// ---------------------------------------------------------------------------
+// Configuración de repaso (resinotes_review_preferences)
+// ---------------------------------------------------------------------------
+
+const PREFERENCE_COLUMNS =
+  "daily_card_limit, new_card_limit, review_enabled, reminders_enabled, reminder_time, timezone, active_weekdays, included_folder_ids, paused_until, snoozed_until";
+
+/** Preferencias del residente; sin fila, los valores por defecto. */
+export const getReviewPreferences = async (userId) => {
+  const { data, error } = await supabase
+    .from("resinotes_review_preferences")
+    .select(PREFERENCE_COLUMNS)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) raise(error, "getReviewPreferences");
+  return { ...normalizePreferences(data), saved: Boolean(data) };
+};
+
+/**
+ * Guarda un cambio de preferencias (upsert). Siempre manda la zona horaria del
+ * dispositivo: los recordatorios se calculan con ella.
+ */
+export const saveReviewPreferences = async (userId, patch = {}) => {
+  const allowed = PREFERENCE_COLUMNS.split(", ");
+  const row = { user_id: userId };
+  allowed.forEach((key) => {
+    if (patch[key] !== undefined) row[key] = patch[key];
+  });
+  const tz = deviceTimeZone();
+  if (tz) row.timezone = tz;
+  const { data, error } = await supabase
+    .from("resinotes_review_preferences")
+    .upsert(row, { onConflict: "user_id" })
+    .select(PREFERENCE_COLUMNS)
+    .single();
+  if (error) raise(error, "saveReviewPreferences");
+  return { ...normalizePreferences(data), saved: true };
+};
+
+/** «Restablecer programación»: todas vuelven a nuevas, sin borrar nada. Devuelve cuántas. */
+export const resetSchedules = async () => {
+  const { data, error } = await supabase.rpc("resinotes_reset_flashcard_schedules");
+  if (error) raise(error, "resetSchedules");
+  return data || 0;
+};
+
 export default {
   listFlashcards,
   getFlashcard,
@@ -207,5 +270,9 @@ export default {
   setFlashcardStatus,
   deleteFlashcard,
   keepFlashcard,
+  updateAndKeepFlashcard,
   reviewFlashcard,
+  getReviewPreferences,
+  saveReviewPreferences,
+  resetSchedules,
 };

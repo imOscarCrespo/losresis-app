@@ -143,6 +143,7 @@ import {
   CheckSquare,
   Square,
   Table,
+  GearSix,
 } from "phosphor-react-native";
 
 // ============================================================================
@@ -224,6 +225,9 @@ const IONICON_TO_PHOSPHOR = {
   "clipboard-outline": Clipboard,
   close: X,
   "close-circle": XCircle,
+  "close-circle-outline": XCircle,
+  // Configuración de repaso de ResiNotes (ClickUp 124b4z9w0z0).
+  "settings-outline": GearSix,
   "cloud-download-outline": CloudArrowDown,
   compass: Compass,
   "compass-outline": Compass,

@@ -11,12 +11,13 @@ import { createResiNotesBridges } from "../components/resinotes/editor/resinotes
 
 /*
  * El editor de ResiNotes dentro del WebView: el de TenTap (como su
- * simpleWebEditor) más tablas y bloques especiales.
+ * simpleWebEditor) más tablas, bloques especiales y la selección (para crear
+ * tarjetas de un fragmento).
  * Compilar: `npm run editor:build` → components/resinotes/editor/editorHtml.js.
  */
 
-const { TableBridge, CalloutBridge } = createResiNotesBridges(BridgeExtension);
-const bridges = [...TenTapStartKit, TableBridge, CalloutBridge];
+const { TableBridge, CalloutBridge, SelectionBridge } = createResiNotesBridges(BridgeExtension);
+const bridges = [...TenTapStartKit, TableBridge, CalloutBridge, SelectionBridge];
 
 const Editor = () => {
   const editor = useTenTap({ bridges });

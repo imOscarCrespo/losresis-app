@@ -11,6 +11,7 @@ import {
   getFlashcard,
   keepFlashcard,
   setFlashcardStatus,
+  updateAndKeepFlashcard,
   updateFlashcard,
 } from "../../../services/flashcardService";
 import { ORIGIN_LABELS, cardDisplayState, formatNextReview, localDateString } from "../../../utils/flashcards";
@@ -98,9 +99,11 @@ export const CardDetailView = ({ cardId, folderName, onBack, onOpenNote, onRegen
 
   const submitEdit = async (values) => {
     try {
-      await updateFlashcard(card.id, values);
-      // «Actualizar a mano» tras un cambio del apunte: editarla es decidir qué hacer con ella.
-      if (card.source_state === "modified") await keepFlashcard(card.id);
+      // «Actualizar a mano» tras un cambio del apunte: editarla es decidir qué
+      // hacer con ella. Edita y mantiene en una sola transacción: si falla, no
+      // queda ni la edición ni el «mantener».
+      if (card.source_state === "modified") await updateAndKeepFlashcard(card.id, values);
+      else await updateFlashcard(card.id, values);
     } catch (error) {
       error.userMessage = flashcardErrorMessage(error);
       throw error;

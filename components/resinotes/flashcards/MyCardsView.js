@@ -22,7 +22,7 @@ const TABS = [
   { key: "review", label: "Por revisar" },
 ];
 
-export const MyCardsView = ({ userId, library, onBack, onOpenCard, onCreateFromNotes }) => {
+export const MyCardsView = ({ userId, library, onBack, onOpenCard, onCreateFromNotes, onSettings }) => {
   const [state, setState] = useState({ loading: true, error: null, cards: [] });
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
@@ -189,6 +189,19 @@ export const MyCardsView = ({ userId, library, onBack, onOpenCard, onCreateFromN
     <HeroScreenLayout
       title="Mis tarjetas"
       onBack={onBack}
+      rightSlot={
+        onSettings ? (
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={onSettings}
+            accessibilityRole="button"
+            accessibilityLabel="Configuración de repaso"
+            testID="flashcards-settings"
+          >
+            <Icon name="settings-outline" size={22} color={COLORS.PRIMARY} />
+          </TouchableOpacity>
+        ) : null
+      }
       overlay={
         <>
           <FloatingActionButton
@@ -247,6 +260,14 @@ export const MyCardsView = ({ userId, library, onBack, onOpenCard, onCreateFromN
 };
 
 const styles = StyleSheet.create({
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   search: {
     flexDirection: "row",
     alignItems: "center",

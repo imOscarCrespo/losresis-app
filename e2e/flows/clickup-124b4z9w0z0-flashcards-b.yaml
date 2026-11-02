@@ -1,0 +1,270 @@
+# ClickUp 124b4z9w0z0 · Tarjetas de repaso de ResiNotes (pasada B).
+# https://app.clickup.com/t/90151808476/124b4z9w0z0
+#
+# Recorre los criterios de aceptación de la pasada B:
+#   - Generar tarjetas de una carpeta: antes enseña exactamente qué notas (con el interruptor
+#     «Incluir subcarpetas»); la revisión va agrupada por nota.
+#   - «Ya tienes una tarjeta parecida»: Ver existente y Mantener ambas.
+#   - Configuración de repaso: tarjetas por día (la portada lo refleja), carpetas incluidas,
+#     pausar y reanudar, repaso diario desactivado, recordatorios con hora y días, y
+#     «Restablecer programación» con confirmación.
+#   - Un fragmento seleccionado sin estructura: «Este fragmento necesita más contexto».
+#   - El script final comprueba en la BD la configuración, las tarjetas por nota y que
+#     restablecer deja todas como nuevas sin borrar tarjetas ni repasos.
+# El push no se puede probar en el simulador (lo prueba el ensayo de la migración con la hora
+# simulada; queda pendiente probarlo en un móvil físico).
+#
+# Repetible: el script borra las tarjetas y la configuración del residente de pruebas y vuelve
+# a crear sus apuntes. Solo toca datos del residente de pruebas.
+appId: com.losresis.app
+name: "124b4z9w0z0 Tarjetas de repaso (pasada B)"
+---
+- runScript:
+    file: ../scripts/seed-124b4z9w0z0-flashcards-b.js
+    env:
+      MODE: reset
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+- runFlow: ../subflows/login.yaml
+
+# ── Portada: la tarjeta a mano está pendiente ──
+- waitForAnimationToEnd
+- tapOn: "ResiNotes"
+- extendedWaitUntil:
+    visible: "1 tarjeta pendiente.*"
+    timeout: 20000
+
+# ── Generar tarjetas de una carpeta ──
+- tapOn: "Carpeta Obstetricia.*"
+- tapOn:
+    id: "resinotes-folder-options"
+- tapOn:
+    id: "resinotes-folder-cards"
+- extendedWaitUntil:
+    visible: "2 notas de 2"
+    timeout: 10000
+- assertVisible: "Eclampsia"
+- assertVisible: "Preeclampsia"
+- takeScreenshot: 124b4z9w0z0-b1-notas-de-la-carpeta
+- tapOn:
+    id: "flashcards-folder-subfolders"
+- assertVisible: "1 nota de 1"
+- assertNotVisible: "Preeclampsia"
+- tapOn:
+    id: "flashcards-folder-subfolders"
+- assertVisible: "2 notas de 2"
+- tapOn:
+    id: "flashcards-folder-generate"
+- extendedWaitUntil:
+    visible: "Hemos preparado 7 tarjetas a partir de 2 notas.*"
+    timeout: 15000
+# La parecida a la tarjeta a mano sale desmarcada.
+- assertVisible: "6 de 7 seleccionadas"
+- assertVisible: ".*Ya tienes una tarjeta parecida.*"
+- scrollUntilVisible:
+    element: ".*Manejo inicial.*Ya tienes una tarjeta parecida.*"
+    centerElement: true
+- tapOn: ".*Manejo inicial.*Ya tienes una tarjeta parecida.*"
+- assertVisible: "Ya tienes una tarjeta parecida\\."
+- takeScreenshot: 124b4z9w0z0-b2-tarjeta-parecida
+- tapOn:
+    id: "flashcards-similar-view"
+- extendedWaitUntil:
+    visible: "¿Cuál es el manejo inicial de la eclampsia?"
+    timeout: 5000
+- takeScreenshot: 124b4z9w0z0-b3-ver-existente
+- tapOn: "Cerrar"
+- tapOn:
+    id: "flashcards-similar-keep"
+- assertVisible: "Aprobar 7 tarjetas"
+# Agrupada por nota: la de Preeclampsia va bajo su nota.
+- scrollUntilVisible:
+    element: ".*qué corresponde a «Umbral».*"
+    direction: UP
+    centerElement: true
+- assertVisible:
+    id: "flashcards-group-.*"
+- takeScreenshot: 124b4z9w0z0-b4-agrupadas-por-nota
+- tapOn:
+    id: "flashcards-approve"
+- extendedWaitUntil:
+    visible: "Tus tarjetas están listas"
+    timeout: 15000
+- assertVisible: "Has guardado 7 tarjetas.*"
+- tapOn:
+    id: "flashcards-done-back"
+- tapOn: "Volver"
+
+# ── Configuración de repaso: tarjetas por día ──
+- extendedWaitUntil:
+    visible: "5 tarjetas pendientes.*"
+    timeout: 10000
+- tapOn:
+    id: "resinotes-review-settings"
+- extendedWaitUntil:
+    visible: "Configuración de repaso"
+    timeout: 10000
+- assertVisible: "Repaso diario"
+- assertVisible: "Recordatorios"
+- assertVisible: "Pausar repasos"
+- assertVisible: "Restablecer programación"
+- tapOn:
+    id: "review-settings-daily"
+- tapOn:
+    id: "review-settings-limit-3"
+- assertVisible: "Tarjetas por día: 3"
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "3 tarjetas pendientes.*"
+    timeout: 10000
+
+# ── Carpetas incluidas: solo Urgencias (sin notas) → solo la tarjeta a mano ──
+- tapOn:
+    id: "resinotes-review-settings"
+- tapOn:
+    id: "review-settings-folders"
+- tapOn: "Urgencias"
+- tapOn:
+    id: "review-settings-folders-save"
+- assertVisible: "Incluir carpetas: Urgencias"
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "1 tarjeta pendiente.*"
+    timeout: 10000
+- tapOn:
+    id: "resinotes-review-settings"
+- tapOn:
+    id: "review-settings-folders"
+- tapOn:
+    id: "review-settings-folders-all"
+- tapOn:
+    id: "review-settings-folders-save"
+- assertVisible: "Incluir carpetas: Todas"
+
+# ── Pausar y reanudar ──
+- tapOn:
+    id: "review-settings-pause"
+- tapOn:
+    id: "review-settings-pause-7"
+- assertVisible: "En pausa hasta el .*"
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Repasos en pausa"
+    timeout: 10000
+- takeScreenshot: 124b4z9w0z0-b5-en-pausa
+- tapOn:
+    id: "resinotes-review-resume"
+- extendedWaitUntil:
+    visible: "3 tarjetas pendientes.*"
+    timeout: 10000
+
+# ── Repaso diario desactivado: no sale «Tu repaso de hoy» ──
+- tapOn:
+    id: "resinotes-review-settings"
+- tapOn:
+    id: "review-settings-enabled"
+- assertVisible: "No verás «Tu repaso de hoy» ni recibirás recordatorios."
+- tapOn: "Volver"
+- assertNotVisible:
+    id: "resinotes-review-card"
+- tapOn:
+    id: "resinotes-quick-cards"
+- tapOn:
+    id: "flashcards-settings"
+- tapOn:
+    id: "review-settings-enabled"
+
+# ── Recordatorios: hora y días ──
+- tapOn:
+    id: "review-settings-reminders"
+- extendedWaitUntil:
+    visible: "Hora del recordatorio.*"
+    timeout: 10000
+- assertVisible: "Hora del recordatorio: 20:30"
+- tapOn:
+    id: "review-settings-time"
+- scrollUntilVisible:
+    element:
+      id: "review-settings-time-2100"
+    centerElement: true
+- tapOn:
+    id: "review-settings-time-2100"
+- assertVisible: "Hora del recordatorio: 21:00"
+- tapOn:
+    id: "review-settings-day-7"
+- assertVisible: "L M X J V S a las 21:00."
+- takeScreenshot: 124b4z9w0z0-b6-configuracion
+- tapOn: "Volver"
+- tapOn: "Volver"
+
+# ── Un repaso y «Ahora no» (sin push, solo sale) ──
+- extendedWaitUntil:
+    visible: "3 tarjetas pendientes.*"
+    timeout: 10000
+- tapOn:
+    id: "resinotes-review-start"
+- extendedWaitUntil:
+    visible: "Tarjeta 1 de 3"
+    timeout: 10000
+- tapOn:
+    id: "review-show-answer"
+- tapOn:
+    id: "review-rate-good"
+- extendedWaitUntil:
+    visible: "Tarjeta 2 de 3"
+    timeout: 10000
+- tapOn:
+    id: "review-later"
+- extendedWaitUntil:
+    visible: "2 tarjetas pendientes.*"
+    timeout: 10000
+
+# ── Restablecer programación, con confirmación ──
+- tapOn:
+    id: "resinotes-review-settings"
+- scrollUntilVisible:
+    element:
+      id: "review-settings-reset"
+    centerElement: true
+- tapOn:
+    id: "review-settings-reset"
+- extendedWaitUntil:
+    visible: "¿Restablecer la programación?"
+    timeout: 5000
+- tapOn: "Restablecer"
+- extendedWaitUntil:
+    visible: "Programación restablecida"
+    timeout: 10000
+- assertVisible: "1 tarjeta vuelve a empezar como nueva."
+- tapOn: "OK"
+- tapOn: "Volver"
+
+# ── Un fragmento sin estructura ──
+- tapOn: "Carpeta Obstetricia.*"
+- tapOn: "Carpeta Hipertensión.*"
+- tapOn: "Nota Preeclampsia.*"
+- extendedWaitUntil:
+    visible:
+      id: "resinotes-note-editor"
+    timeout: 15000
+# En el WebView cada párrafo es un elemento: el toque largo selecciona una palabra de la prosa.
+- longPressOn: "Lo vimos en la sesión del martes.*"
+- extendedWaitUntil:
+    visible:
+      id: "resinotes-note-selection-cards"
+    timeout: 5000
+- tapOn:
+    id: "resinotes-note-selection-cards"
+- extendedWaitUntil:
+    visible: "Este fragmento necesita más contexto"
+    timeout: 10000
+- assertVisible: "Selecciona un apartado más completo."
+- takeScreenshot: 124b4z9w0z0-b7-fragmento-sin-contexto
+
+# ── Comprobación en la BD ──
+- runScript:
+    file: ../scripts/seed-124b4z9w0z0-flashcards-b.js
+    env:
+      MODE: assert

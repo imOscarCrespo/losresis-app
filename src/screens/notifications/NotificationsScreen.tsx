@@ -273,6 +273,12 @@ export default function NotificationsScreen({
         return;
       }
 
+      // Recordatorio del repaso de tarjetas de ResiNotes: abrir el repaso de hoy.
+      if (data.destination_section === "resinotesReview") {
+        onNavigateToEntity("resinotesReview", {});
+        return;
+      }
+
       // El hospital pide valoración de su jornada de puertas abiertas.
       if (
         data.destination_section === "valoracionJornada" &&

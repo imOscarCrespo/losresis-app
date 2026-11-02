@@ -14,18 +14,27 @@ import {
 import { HeroScreenLayout } from "../../HeroScreenLayout";
 import { Icon } from "../../Icon";
 import { COLORS } from "../../../constants/colors";
-import { flashcardErrorMessage, loadReviewData, reviewFlashcard } from "../../../services/flashcardService";
 import {
-  DAILY_CARD_LIMIT,
+  flashcardErrorMessage,
+  getReviewPreferences,
+  loadReviewData,
+  reviewFlashcard,
+  saveReviewPreferences,
+} from "../../../services/flashcardService";
+import {
+  DEFAULT_REVIEW_PREFERENCES,
   RATINGS,
   RATING_KEYS,
   buildMoreQueue,
   buildTodayQueue,
+  includedFolderSet,
   localDateString,
   newClientReviewId,
   summarizeReviews,
 } from "../../../utils/flashcards";
 import { AnswerBody, PrimaryButton, SecondaryButton, SourceMeta, flashcardStyles as fs } from "./FlashcardParts";
+import { SnoozeSheet } from "./ReminderParts";
+import { SheetOption } from "../ResiNotesSheet";
 
 /**
  * «Repasar» (ClickUp 124b4z9w0z0): una tarjeta a pantalla completa, tocar para
@@ -37,7 +46,11 @@ import { AnswerBody, PrimaryButton, SecondaryButton, SourceMeta, flashcardStyles
  * monta otra vez sin lo ya repasado hoy). Una tarjeta fallada reaparece una
  * sola vez al final.
  *
- * mode = 'today' (el repaso del día) | 'more' («Repasar más»).
+ * mode = 'today' (el repaso del día) | 'more' («Repasar más»). El límite del
+ * día, el de nuevas y las carpetas salen de la configuración de repaso.
+ *
+ * fromPush: se ha abierto desde el recordatorio. Entonces «Ahora no» ofrece
+ * posponer el aviso (en 1 hora, esta noche, mañana o desactivarlos).
  */
 
 const SUMMARY_COPY = {
@@ -76,7 +89,19 @@ const Completed = ({ summary, onExit, onMore }) => (
   </ScrollView>
 );
 
-export const ReviewSessionView = ({ userId, mode = "today", folderName, onBack, onExit, onMore, onOpenNote }) => {
+export const ReviewSessionView = ({
+  userId,
+  mode = "today",
+  fromPush = false,
+  folders = [], // null = la biblioteca aún se está cargando
+  folderName,
+  onBack,
+  onExit,
+  onMore,
+  onOpenNote,
+}) => {
+  const [prefs, setPrefs] = useState(null);
+  const [snoozing, setSnoozing] = useState(false);
   const [state, setState] = useState({ loading: true, error: null });
   const [queue, setQueue] = useState([]);
   const [index, setIndex] = useState(0);
@@ -112,15 +137,28 @@ export const ReviewSessionView = ({ userId, mode = "today", folderName, onBack, 
     setSummary(null);
     try {
       const today = localDateString();
-      const data = await loadReviewData(userId, today);
+      const [loadedPrefs, data] = await Promise.all([
+        getReviewPreferences(userId).catch(() => ({ ...DEFAULT_REVIEW_PREFERENCES })),
+        loadReviewData(userId, today),
+      ]);
+      setPrefs(loadedPrefs);
+      const folderSet = includedFolderSet(folders || [], loadedPrefs.included_folder_ids);
       let next;
       let already = 0;
       if (mode === "more") {
-        next = buildMoreQueue({ cards: data.cards, reviewedTodayIds: data.reviewedTodayIds, today });
+        next = buildMoreQueue({ cards: data.cards, reviewedTodayIds: data.reviewedTodayIds, today, folderSet });
       } else {
-        const built = buildTodayQueue({ cards: data.cards, reviewedTodayIds: data.reviewedTodayIds, today, limit: DAILY_CARD_LIMIT });
+        const built = buildTodayQueue({
+          cards: data.cards,
+          reviewedTodayIds: data.reviewedTodayIds,
+          newReviewedToday: data.newReviewedToday,
+          today,
+          limit: loadedPrefs.daily_card_limit,
+          newLimit: loadedPrefs.new_card_limit,
+          folderSet,
+        });
         next = built.queue;
-        already = Math.min(built.reviewedToday, DAILY_CARD_LIMIT);
+        already = Math.min(built.reviewedToday, loadedPrefs.daily_card_limit);
       }
       requeued.current = new Set();
       reviewIdRef.current = newClientReviewId();
@@ -137,11 +175,16 @@ export const ReviewSessionView = ({ userId, mode = "today", folderName, onBack, 
     } catch {
       setState({ loading: false, error: "No hemos podido cargar tu repaso. Revisa tu conexión." });
     }
+    // Las carpetas solo hacen falta al montar: no se rehace la cola a mitad del repaso.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, mode, flip]);
 
+  // `folders` es null mientras la biblioteca se carga (al abrir desde el push):
+  // sin las carpetas no se puede aplicar el filtro de la configuración.
+  const foldersReady = folders !== null;
   useEffect(() => {
-    load();
-  }, [load]);
+    if (foldersReady) load();
+  }, [load, foldersReady]);
 
   const card = queue[index];
 
@@ -215,11 +258,47 @@ export const ReviewSessionView = ({ userId, mode = "today", folderName, onBack, 
     }
   };
 
+  // «Ahora no»: desde el recordatorio, ofrece posponerlo; si no, sale.
+  const later = () => {
+    if (fromPush && prefs?.reminders_enabled) setSnoozing(true);
+    else onBack();
+  };
+
+  const snooze = async (patch) => {
+    setSnoozing(false);
+    try {
+      await saveReviewPreferences(userId, patch);
+      onBack();
+    } catch (error) {
+      Alert.alert("No se ha guardado", flashcardErrorMessage(error, "Revisa tu conexión e inténtalo de nuevo."));
+    }
+  };
+
   const header = (
     <HeroScreenLayout
       title="Repasar"
       bottomContent={<Text style={fs.headerSubtitle}>Unos minutos para recordar lo aprendido.</Text>}
       onBack={onBack}
+      overlay={
+        <SnoozeSheet
+          visible={snoozing}
+          reminderTime={prefs?.reminder_time || DEFAULT_REVIEW_PREFERENCES.reminder_time}
+          onPick={snooze}
+          onClose={() => setSnoozing(false)}
+          extraOption={
+            <SheetOption
+              icon="arrow-back"
+              label="Solo salir"
+              description="Sin cambiar el recordatorio"
+              onPress={() => {
+                setSnoozing(false);
+                onBack();
+              }}
+              testID="review-snooze-exit"
+            />
+          }
+        />
+      }
     >
       {renderBody()}
     </HeroScreenLayout>
@@ -349,7 +428,7 @@ export const ReviewSessionView = ({ userId, mode = "today", folderName, onBack, 
             ))}
           </View>
         ) : (
-          <TouchableOpacity style={styles.later} onPress={onBack} accessibilityRole="button" testID="review-later">
+          <TouchableOpacity style={styles.later} onPress={later} accessibilityRole="button" testID="review-later">
             <Icon name="time-outline" size={18} color={COLORS.PRIMARY} />
             <Text style={styles.laterText}>Ahora no</Text>
           </TouchableOpacity>

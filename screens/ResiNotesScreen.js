@@ -57,13 +57,14 @@ import {
   uploadFileItem,
 } from "../services/resinotesService";
 import { exportFolderZip, exportNoteHtml } from "../services/resinotesExport";
-import { loadReviewData } from "../services/flashcardService";
+import { getReviewPreferences, loadReviewData, saveReviewPreferences } from "../services/flashcardService";
 import { ReviewTodayCard } from "../components/resinotes/flashcards/ReviewTodayCard";
 import { CreateCardsView } from "../components/resinotes/flashcards/CreateCardsView";
 import { ReviewSessionView } from "../components/resinotes/flashcards/ReviewSessionView";
 import { MyCardsView } from "../components/resinotes/flashcards/MyCardsView";
 import { CardDetailView } from "../components/resinotes/flashcards/CardDetailView";
-import { DAILY_CARD_LIMIT, buildTodayQueue, localDateString } from "../utils/flashcards";
+import { ReviewSettingsView } from "../components/resinotes/flashcards/ReviewSettingsView";
+import { buildTodayQueue, includedFolderSet, isPaused, localDateString } from "../utils/flashcards";
 import {
   ITEM_TYPE_ICONS,
   ITEM_TYPE_LABELS,
@@ -128,9 +129,14 @@ const SEARCH_FILTERS = [
 
 const PATIENT_NOTICE = "Tus apuntes son privados. No guardes datos identificables de pacientes.";
 
-const ResiNotesScreen = ({ userProfile, onBack }) => {
+// Pila con la que se abre ResiNotes. 'review-today' viene del recordatorio push
+// del repaso (ClickUp 124b4z9w0z0): abre el repaso y «Volver» lleva a la portada.
+const initialStack = (initialRoute) =>
+  initialRoute === "review-today" ? [{ name: "home" }, { name: "review", mode: "today", fromPush: true }] : [{ name: "home" }];
+
+const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
   const userId = userProfile?.id;
-  const [stack, setStack] = useState([{ name: "home" }]);
+  const [stack, setStack] = useState(() => initialStack(initialRoute));
   const route = stack[stack.length - 1];
 
   const [library, setLibrary] = useState({ folders: [], items: [] });
@@ -205,32 +211,57 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
   }, [refresh]);
 
   // «Tu repaso de hoy» (ClickUp 124b4z9w0z0): se recalcula cada vez que se vuelve
-  // a la portada. Si falla, la tarjeta no se enseña y la biblioteca sigue igual.
-  const [reviewSummary, setReviewSummary] = useState({ loading: true });
+  // a la portada, con la configuración de repaso (límites, carpetas, pausa). Si
+  // falla, la tarjeta no se enseña y la biblioteca sigue igual.
+  const [reviewRaw, setReviewRaw] = useState({ loading: true });
   const refreshReview = useCallback(async () => {
     if (!userId) return;
     try {
       const today = localDateString();
-      const data = await loadReviewData(userId, today);
-      const { queue } = buildTodayQueue({
-        cards: data.cards,
-        reviewedTodayIds: data.reviewedTodayIds,
-        today,
-        limit: DAILY_CARD_LIMIT,
-      });
-      setReviewSummary({ loading: false, pending: queue.length, totalCards: data.totalCards });
+      const [prefs, data] = await Promise.all([getReviewPreferences(userId), loadReviewData(userId, today)]);
+      setReviewRaw({ loading: false, today, prefs, data });
     } catch {
-      setReviewSummary({ loading: false, error: true });
+      setReviewRaw({ loading: false, error: true });
     }
   }, [userId]);
+
+  const reviewSummary = useMemo(() => {
+    if (reviewRaw.loading || reviewRaw.error) return reviewRaw;
+    const { prefs, data, today } = reviewRaw;
+    if (!prefs.review_enabled) return { loading: false, disabled: true };
+    if (isPaused(prefs, today)) {
+      return { loading: false, paused: true, pausedUntil: prefs.paused_until, totalCards: data.totalCards };
+    }
+    const { queue } = buildTodayQueue({
+      cards: data.cards,
+      reviewedTodayIds: data.reviewedTodayIds,
+      newReviewedToday: data.newReviewedToday,
+      today,
+      limit: prefs.daily_card_limit,
+      newLimit: prefs.new_card_limit,
+      folderSet: includedFolderSet(library.folders, prefs.included_folder_ids),
+    });
+    return { loading: false, pending: queue.length, totalCards: data.totalCards };
+  }, [reviewRaw, library.folders]);
+
+  const resumeReviews = async () => {
+    try {
+      await saveReviewPreferences(userId, { paused_until: null });
+    } catch {
+      Alert.alert("No se ha podido reanudar", "Revisa tu conexión e inténtalo de nuevo.");
+    }
+    refreshReview();
+  };
 
   useEffect(() => {
     if (route.name === "home") refreshReview();
   }, [route.name, refreshReview]);
 
-  // El editor gestiona su propio «volver» (guarda antes de salir).
+  // El editor gestiona su propio «volver» (guarda antes de salir), y «Crear
+  // tarjetas» también (en «Revisar una a una» vuelve a la lista sin perder las
+  // propuestas).
   useEffect(() => {
-    if (route.name === "note") return undefined;
+    if (route.name === "note" || route.name === "cards-create") return undefined;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       goBack();
       return true;
@@ -735,6 +766,8 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
           onStart={() => push({ name: "review", mode: "today" })}
           onMore={() => push({ name: "review", mode: "more" })}
           onCreate={() => push({ name: "cards-create" })}
+          onSettings={() => push({ name: "review-settings" })}
+          onResume={resumeReviews}
         />
 
         <View style={styles.quickRow}>
@@ -1017,9 +1050,9 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
           refresh({ silent: true });
         }}
         onSaved={patchItem}
-        onCreateCards={(id) => {
+        onCreateCards={(id, selectionHtml = null) => {
           refresh({ silent: true });
-          push({ name: "cards-create", id });
+          push({ name: "cards-create", id, selectionHtml });
         }}
       />
     );
@@ -1034,9 +1067,11 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
   if (route.name === "cards-create") {
     return (
       <CreateCardsView
-        key={route.id || "pick"}
+        key={route.id || route.folderId || "pick"}
         userId={userId}
         itemId={route.id || null}
+        selectionHtml={route.selectionHtml || null}
+        folderId={route.folderId || null}
         library={library}
         onBack={pop}
         onStartReview={() => replaceTop({ name: "review", mode: "today" })}
@@ -1051,6 +1086,8 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
         key={route.mode}
         userId={userId}
         mode={route.mode}
+        fromPush={Boolean(route.fromPush)}
+        folders={loading && !library.folders.length ? null : library.folders}
         folderName={folderName}
         onBack={pop}
         onExit={toHome}
@@ -1060,12 +1097,17 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
     );
   }
 
+  if (route.name === "review-settings") {
+    return <ReviewSettingsView userId={userId} folders={library.folders} onBack={pop} onChanged={refreshReview} />;
+  }
+
   if (route.name === "cards") {
     return (
       <MyCardsView
         userId={userId}
         library={library}
         onBack={pop}
+        onSettings={() => push({ name: "review-settings" })}
         onOpenCard={(id) => push({ name: "card", id })}
         onCreateFromNotes={() => push({ name: "cards-create" })}
       />
@@ -1339,6 +1381,17 @@ const ResiNotesScreen = ({ userProfile, onBack }) => {
                     setMoveTarget({ kind: "folder", entity: folderActions });
                     setFolderActions(null);
                   }}
+                />
+                <SheetOption
+                  icon="brain-outline"
+                  label="Generar tarjetas de esta carpeta"
+                  description="Tarjetas de repaso a partir de sus notas"
+                  onPress={() => {
+                    const folderId = folderActions.id;
+                    setFolderActions(null);
+                    push({ name: "cards-create", folderId });
+                  }}
+                  testID="resinotes-folder-cards"
                 />
                 <SheetOption
                   icon="share-outline"
