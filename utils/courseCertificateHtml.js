@@ -132,3 +132,14 @@ export const buildCourseCertificateHtml = ({ certificate, course, residentName }
 </body>
 </html>`;
 };
+
+/** Nombre del PDF al compartirlo: «Certificado - <curso>.pdf», sin caracteres que rompan una ruta. */
+export const certificateFileName = (title) => {
+  const clean = String(title ?? "")
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80)
+    .trim();
+  return clean ? `Certificado - ${clean}.pdf` : "Certificado de asistencia.pdf";
+};

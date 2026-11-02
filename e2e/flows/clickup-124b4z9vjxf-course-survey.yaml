@@ -106,4 +106,6 @@ name: "124b4z9vjxf Encuesta del curso"
 - extendedWaitUntil:
     visible: "(Save to Files|Guardar en Archivos|Print|Imprimir|Copy|Copiar)"
     timeout: 30000
+# El PDF lleva un nombre legible, no un UUID.
+- assertVisible: "Certificado - E2E · Curso con encuesta.*"
 - takeScreenshot: 124b4z9vjxf-app-4-compartir-pdf

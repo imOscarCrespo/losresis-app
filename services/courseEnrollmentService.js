@@ -21,6 +21,8 @@ const ERROR_MESSAGES = {
   min_attendance_not_met:
     "No llegas a la asistencia mínima del curso, así que no puedes hacer la encuesta ni obtener el certificado.",
   invalid_survey_answer: "Responde a todas las preguntas de la encuesta.",
+  no_attendance:
+    "No tienes ninguna sesión registrada en este curso, así que no puedes obtener el certificado.",
 };
 
 const DEFAULT_ERROR = "Algo ha fallado. Inténtalo de nuevo.";

@@ -23,7 +23,8 @@ export const SURVEY_COMMENTS_MAX_LENGTH = 2000;
  *     una base anterior a la encuesta).
  *   - { kind: "certificate", certificate }: ya hizo la encuesta.
  *   - { kind: "pending", message }: el curso aún no ha llegado al último día.
- *   - { kind: "locked", message }: no cumple la asistencia mínima.
+ *   - { kind: "locked", message }: no cumple la asistencia mínima o, sin
+ *     mínimo, no ha ido a ninguna sesión.
  *   - { kind: "available" }: puede hacer la encuesta.
  */
 export const describeCourseSurvey = (summary) => {
@@ -53,6 +54,15 @@ export const describeCourseSurvey = (summary) => {
     return {
       kind: "locked",
       message: `Has asistido al ${percent} % de las sesiones. Para obtener el certificado necesitas un ${summary.min_attendance_percent} %.`,
+    };
+  }
+
+  // Sin mínimo también hace falta haber ido a alguna sesión.
+  if (summary.attended_count === 0) {
+    return {
+      kind: "locked",
+      message:
+        "No tienes ninguna sesión registrada. Para obtener el certificado tienes que haber asistido al menos a una.",
     };
   }
 

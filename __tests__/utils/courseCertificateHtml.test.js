@@ -68,3 +68,17 @@ describe("courseCertificateHtml", () => {
     expect(html).not.toContain("celebrado");
   });
 });
+
+describe("certificateFileName", () => {
+  const { certificateFileName } = require("../../utils/courseCertificateHtml");
+  it("nombre legible sin caracteres de ruta", () => {
+    expect(certificateFileName("E2E · Curso con encuesta")).toBe(
+      "Certificado - E2E · Curso con encuesta.pdf"
+    );
+    expect(certificateFileName("RCP: básico/avanzado?")).toBe(
+      "Certificado - RCP básico avanzado.pdf"
+    );
+    expect(certificateFileName("")).toBe("Certificado de asistencia.pdf");
+    expect(certificateFileName("x".repeat(200))).toHaveLength("Certificado - .pdf".length + 80);
+  });
+});

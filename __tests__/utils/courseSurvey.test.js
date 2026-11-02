@@ -50,6 +50,24 @@ describe("describeCourseSurvey", () => {
     ).toEqual({ kind: "available" });
   });
 
+  it("curso sin mínimo y ninguna sesión asistida: no puede", () => {
+    expect(
+      describeCourseSurvey(
+        summary({
+          min_attendance_percent: null,
+          attendance_percent: 0,
+          meets_min_attendance: true,
+          survey_available: false,
+          attended_count: 0,
+        })
+      )
+    ).toEqual({
+      kind: "locked",
+      message:
+        "No tienes ninguna sesión registrada. Para obtener el certificado tienes que haber asistido al menos a una.",
+    });
+  });
+
   it("antes del último día: dice cuándo se abre", () => {
     const view = describeCourseSurvey(
       summary({ today: "2026-01-13", survey_available: false, meets_min_attendance: false })
