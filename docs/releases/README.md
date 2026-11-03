@@ -22,9 +22,13 @@ el checklist de publicación. Lo mantiene la skill `/clickup-task`.
 
 - La versión de una tarea la da su tag de ClickUp. Puede haber varias versiones `en desarrollo`
   a la vez (p. ej. una en QA y la siguiente abierta); `app.json` lleva siempre la más alta.
-- Un build enviado a TestFlight o a una vía de pruebas de Play **ya gasta** su versión y su build:
-  aunque no llegue a tiendas, lo siguiente va en una versión nueva. Al hacer `eas submit`, apunta
-  en el fichero `Enviada a TestFlight: <fecha> (build N, commit X)`.
+- Un build enviado a TestFlight o a una vía de pruebas de Play **no cierra** la versión: mientras
+  no esté publicada en tiendas, los cambios siguientes siguen en la misma versión y un build nuevo
+  solo suma 1 a `ios.buildNumber` y a `android.versionCode` (`expo.version` no cambia). Lo que sí
+  gasta es el número de build: no se puede reutilizar. Cada envío se apunta en el fichero de la
+  versión: `Enviada a TestFlight: <fecha> (build N, commit X)`.
+- Cuando una versión se publica, lo siguiente abre la versión siguiente (Apple no acepta más builds
+  de una versión ya publicada).
 - Las migraciones de una versión tienen que funcionar con la versión anterior ya publicada
   (se aplican antes de que salga la app nueva).
 - Si algo se publica por EAS Update en vez de por build, se apunta igualmente en la versión cuyo
