@@ -1,0 +1,56 @@
+appId: com.losresis.app
+name: "ResiNotes: subir un PDF desde «PDF o documento»"
+# Regresión: el selector de documentos se abría mientras la hoja se cerraba e iOS
+# lo cerraba con ella. Requiere «Protocolo sepsis UCI.pdf» en «En mi iPhone» del
+# simulador. Solo toca datos del residente de pruebas (reset al empezar).
+---
+- runScript:
+    file: ../scripts/seed-124b4z9w0qg-resinotes.js
+    env:
+      MODE: reset
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+- waitForAnimationToEnd
+- tapOn: "ResiNotes"
+- extendedWaitUntil:
+    visible: "Tu biblioteca personal de apuntes."
+    timeout: 20000
+- tapOn:
+    id: "resinotes-fab"
+- tapOn: "PDF o documento.*"
+# Selector de documentos del sistema: si abre en Recientes, ir a «En mi iPhone».
+- extendedWaitUntil:
+    visible: "Recents|Recientes|Browse|Explorar|On My iPhone|En mi iPhone"
+    timeout: 15000
+- takeScreenshot: pdf-1-picker
+- runFlow:
+    when:
+      notVisible: "Protocolo sepsis UCI.*"
+    commands:
+      - tapOn: "Browse|Explorar"
+      - runFlow:
+          when:
+            notVisible: "Protocolo sepsis UCI.*"
+          commands:
+            - tapOn: "On My iPhone|En mi iPhone"
+- extendedWaitUntil:
+    visible: "Protocolo sepsis UCI.*"
+    timeout: 10000
+- tapOn: "Protocolo sepsis UCI.*"
+- runFlow:
+    when:
+      visible: "Open|Abrir"
+    commands:
+      - tapOn: "Open|Abrir"
+- extendedWaitUntil:
+    notVisible: "Subiendo.*"
+    timeout: 30000
+- takeScreenshot: pdf-2-result
+- assertNotVisible: "Error de subida"
+- assertNotVisible: "No se ha podido abrir"
+- tapOn: "Sin clasificar"
+- extendedWaitUntil:
+    visible: "Protocolo sepsis UCI.*"
+    timeout: 10000
+- takeScreenshot: pdf-3-sin-clasificar

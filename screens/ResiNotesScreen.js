@@ -16,7 +16,7 @@ import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { FloatingActionButton } from "../components/FloatingActionButton";
 import { Icon } from "../components/Icon";
 import { COLORS } from "../constants/colors";
-import { ResiNotesSheet, SheetOption } from "../components/resinotes/ResiNotesSheet";
+import { ResiNotesSheet, SheetOption, useRunAfterSheetClose } from "../components/resinotes/ResiNotesSheet";
 import { FolderRow, ItemRow, ResiNotesEmpty } from "../components/resinotes/ResiNotesRows";
 import {
   FolderFormSheet,
@@ -148,6 +148,7 @@ const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
   // Hojas
   const [createMenu, setCreateMenu] = useState(false);
   const [photoMenu, setPhotoMenu] = useState(false);
+  const { runAfterSheetClose, onSheetDismiss } = useRunAfterSheetClose();
   const [linkForm, setLinkForm] = useState(false);
   const [folderForm, setFolderForm] = useState(null); // {folder?, parentId?}
   const [itemActions, setItemActions] = useState(null);
@@ -373,9 +374,14 @@ const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
     }
   };
 
-  const uploadFiles = async (picker) => {
+  // El selector se abre cuando la hoja ya se ha cerrado (ver useRunAfterSheetClose).
+  const uploadFiles = (picker) => {
     setCreateMenu(false);
     setPhotoMenu(false);
+    runAfterSheetClose(() => pickAndUpload(picker));
+  };
+
+  const pickAndUpload = async (picker) => {
     let files = [];
     try {
       files = await picker();
@@ -1219,7 +1225,13 @@ const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
             </View>
           ) : null}
 
-          <ResiNotesSheet visible={createMenu} title={createTitle} onClose={() => setCreateMenu(false)} testID="resinotes-create-menu">
+          <ResiNotesSheet
+            visible={createMenu}
+            title={createTitle}
+            onClose={() => setCreateMenu(false)}
+            onDismiss={onSheetDismiss}
+            testID="resinotes-create-menu"
+          >
             <SheetOption emoji="📝" label="Nueva nota" onPress={newNote} testID="resinotes-create-note" />
             <SheetOption
               emoji="📸"
@@ -1257,7 +1269,12 @@ const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
             <Text style={styles.notice}>🔒 {PATIENT_NOTICE}</Text>
           </ResiNotesSheet>
 
-          <ResiNotesSheet visible={photoMenu} title="Fotografía o imagen" onClose={() => setPhotoMenu(false)}>
+          <ResiNotesSheet
+            visible={photoMenu}
+            title="Fotografía o imagen"
+            onClose={() => setPhotoMenu(false)}
+            onDismiss={onSheetDismiss}
+          >
             <SheetOption icon="camera-outline" label="Hacer una foto" onPress={() => uploadFiles(takePhoto)} />
             <SheetOption
               icon="images-outline"

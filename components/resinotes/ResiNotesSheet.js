@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useRef } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -18,11 +18,42 @@ import { COLORS } from "../../constants/colors";
  * Hoja inferior de ResiNotes (menú «¿Qué quieres guardar?», acciones de un
  * elemento, formularios de carpeta y enlace, selector de carpeta).
  */
-export const ResiNotesSheet = ({ visible, title, onClose, children, footer = null, testID }) => {
+// Lo que tarda como mucho la hoja en cerrarse (slide de iOS ~300 ms). Respaldo por si
+// onDismiss no llega.
+const SHEET_CLOSE_FALLBACK_MS = 800;
+
+/**
+ * Ejecuta algo cuando la hoja ha terminado de cerrarse.
+ *
+ * Un selector nativo (documentos, fotos, cámara) no se puede abrir mientras un
+ * Modal se está cerrando: iOS lo presenta encima del Modal y lo cierra con él.
+ * El selector de documentos se quedaba entonces colgado («Different document
+ * picking in progress») y la subida de PDFs de ResiNotes fallaba.
+ * Uso: pasar onSheetDismiss como onDismiss de la hoja y llamar a
+ * runAfterSheetClose(fn) justo después de ocultarla.
+ */
+export const useRunAfterSheetClose = () => {
+  const pending = useRef(null);
+  const onSheetDismiss = useCallback(() => {
+    const fn = pending.current;
+    pending.current = null;
+    if (fn) fn();
+  }, []);
+  const runAfterSheetClose = useCallback(
+    (fn) => {
+      pending.current = fn;
+      setTimeout(onSheetDismiss, SHEET_CLOSE_FALLBACK_MS);
+    },
+    [onSheetDismiss]
+  );
+  return { runAfterSheetClose, onSheetDismiss };
+};
+
+export const ResiNotesSheet = ({ visible, title, onClose, onDismiss, children, footer = null, testID }) => {
   const insets = useSafeAreaInsets();
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

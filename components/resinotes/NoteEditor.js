@@ -24,7 +24,7 @@ import { CalloutBridge, SelectionBridge, TableBridge } from "./editor/bridges";
 import { HeroScreenLayout } from "../HeroScreenLayout";
 import { Icon } from "../Icon";
 import { COLORS } from "../../constants/colors";
-import { ResiNotesSheet, SheetOption } from "./ResiNotesSheet";
+import { ResiNotesSheet, SheetOption, useRunAfterSheetClose } from "./ResiNotesSheet";
 import { pickImagesFromLibrary, takePhoto } from "./pickers";
 import {
   getItem,
@@ -114,6 +114,7 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
   const [title, setTitle] = useState(initialTitle);
   const [status, setStatus] = useState(recovered ? "dirty" : "idle");
   const [imageSheet, setImageSheet] = useState(false);
+  const { runAfterSheetClose, onSheetDismiss } = useRunAfterSheetClose();
   const [tableSheet, setTableSheet] = useState(false);
   const [calloutSheet, setCalloutSheet] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -286,8 +287,13 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
     Alert.alert("No se ha podido guardar", "Guarda la nota antes de crear tarjetas. Revisa tu conexión e inténtalo de nuevo.");
   };
 
-  const insertImages = async (source) => {
+  // El selector se abre cuando la hoja ya se ha cerrado (ver useRunAfterSheetClose).
+  const insertImages = (source) => {
     setImageSheet(false);
+    runAfterSheetClose(() => pickAndInsertImages(source));
+  };
+
+  const pickAndInsertImages = async (source) => {
     let files = [];
     try {
       files = source === "camera" ? await takePhoto() : await pickImagesFromLibrary();
@@ -352,7 +358,12 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
       }
       overlay={
         <>
-          <ResiNotesSheet visible={imageSheet} title="Insertar imagen" onClose={() => setImageSheet(false)}>
+          <ResiNotesSheet
+            visible={imageSheet}
+            title="Insertar imagen"
+            onClose={() => setImageSheet(false)}
+            onDismiss={onSheetDismiss}
+          >
             <SheetOption icon="camera-outline" label="Hacer una foto" onPress={() => insertImages("camera")} />
             <SheetOption icon="images-outline" label="Elegir de la galería" onPress={() => insertImages("library")} />
           </ResiNotesSheet>
