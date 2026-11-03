@@ -3,6 +3,7 @@
  */
 
 import { supabase } from "../config/supabase";
+import { uploadLocalFile } from "./storageUpload";
 import { getHospitalByIdFromCatalog } from "./staticCatalogService";
 
 const ITEMS_PER_PAGE = 10;
@@ -388,20 +389,12 @@ export const createHousingAd = async (adData) => {
           // Crear nombre de archivo único
           const { fileName, contentType } = getImageUploadMetadata(image, i);
           const filePath = `${user_id}/${adId}/${fileName}`;
-          const formData = new FormData();
-
-          formData.append("file", {
-            uri: image.uri,
-            name: fileName,
-            type: contentType,
-          });
-
-          // Subir a Supabase Storage
-          const { data: uploadData, error: uploadError } =
-            await supabase.storage.from(HOUSING_BUCKET).upload(filePath, formData, {
-              contentType,
-              upsert: false,
-            });
+          const { data: uploadData, error: uploadError } = await uploadLocalFile(
+            HOUSING_BUCKET,
+            filePath,
+            image.uri,
+            { contentType }
+          );
 
           if (uploadError) {
             console.error(`Error uploading image ${i}:`, uploadError);

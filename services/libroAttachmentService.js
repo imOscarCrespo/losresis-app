@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { uploadLocalFile } from "./storageUpload";
 
 /**
  * Los adjuntos del Libro del Residente.
@@ -73,12 +74,7 @@ export const uploadLibroAttachment = async ({ userId, section, file }) => {
   const storageName = `${Date.now()}.${extensionFor(mime, name)}`;
   const path = `${userId}/${section}/${storageName}`;
 
-  const formData = new FormData();
-  formData.append("file", { uri: file.uri, name: storageName, type: mime });
-
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, formData, { contentType: mime, upsert: false });
+  const { data, error } = await uploadLocalFile(BUCKET, path, file.uri, { contentType: mime });
 
   if (error) {
     console.error("Error uploading libro attachment:", error);

@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { uploadLocalFile } from "./storageUpload";
 import { getReviewQuestionsCatalog } from "./staticCatalogService";
 
 /**
@@ -381,21 +382,11 @@ export const uploadReviewImage = async (reviewId, imageUri) => {
       .substring(2)}.${fileExt}`;
     const filePath = `review/${reviewId}/${fileName}`;
 
-    // En React Native, necesitamos crear un FormData para subir la imagen
-    const formData = new FormData();
-    formData.append("file", {
-      uri: imageUri,
-      name: fileName,
-      type: `image/${fileExt}`,
+    const ext = String(fileExt).toLowerCase();
+    const { error: uploadError } = await uploadLocalFile("review-images", filePath, imageUri, {
+      contentType: `image/${ext === "jpg" ? "jpeg" : ext}`,
+      cacheControl: "3600",
     });
-
-    // Subir imagen al storage
-    const { error: uploadError } = await supabase.storage
-      .from("review-images")
-      .upload(filePath, formData, {
-        cacheControl: "3600",
-        upsert: false,
-      });
 
     if (uploadError) {
       console.error("Error uploading image:", uploadError);

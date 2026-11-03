@@ -1,5 +1,9 @@
 // Supabase se mockea en la frontera: cada llamada encadenada devuelve el mismo
 // builder; las respuestas salen en orden de una cola que decide cada test.
+jest.mock("expo-file-system", () => ({
+  File: jest.fn().mockImplementation(() => ({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)) })),
+}));
+
 jest.mock("../../config/supabase", () => {
   const builder = { queue: [], calls: [] };
   const next = () => Promise.resolve(builder.queue.length ? builder.queue.shift() : { data: null, error: null });
@@ -94,6 +98,8 @@ describe("uploadFileItem", () => {
     expect(item.id).toBe("i1");
     expect(callsOf("insert")[0][1]).toMatchObject({ user_id: "u1", folder_id: "f1", type: "pdf", title: "Guía SEGO" });
     expect(callsOf("upload")[0][1]).toMatch(/^u1\/i1\/.+\.pdf$/);
+    expect(callsOf("upload")[0][2]).toBeInstanceOf(ArrayBuffer);
+    expect(callsOf("upload")[0][3]).toMatchObject({ contentType: "application/pdf", upsert: false });
     expect(callsOf("insert")[1][1]).toMatchObject({ storage_key: "u1/i1/x.pdf", filename: "Guía SEGO.pdf" });
   });
 

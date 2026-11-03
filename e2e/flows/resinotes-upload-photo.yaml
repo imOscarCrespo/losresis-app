@@ -1,0 +1,45 @@
+appId: com.losresis.app
+name: "ResiNotes: subir una foto de la galería"
+# Regresión de "no puedo subir imágenes ni PDFs": el FormData de React Native no
+# tiene has() y storage-js lo llamaba, así que toda subida fallaba en el móvil.
+# Sube la primera foto de la galería del simulador y comprueba que el elemento
+# aparece y se abre. Solo toca datos del residente de pruebas (reset al empezar).
+---
+- runScript:
+    file: ../scripts/seed-124b4z9w0qg-resinotes.js
+    env:
+      MODE: reset
+- launchApp:
+    clearState: true
+    permissions:
+      photos: allow
+- runFlow: ../subflows/login.yaml
+
+- waitForAnimationToEnd
+- tapOn: "ResiNotes"
+- extendedWaitUntil:
+    visible: "Tu biblioteca personal de apuntes."
+    timeout: 20000
+- tapOn:
+    id: "resinotes-fab"
+- tapOn: "Fotografía o imagen.*"
+- tapOn: "Elegir de la galería.*"
+# Selector de fotos del sistema (iOS 26): primera foto y botón ✓.
+- extendedWaitUntil:
+    visible: "Select Photos|Seleccionar fotos"
+    timeout: 15000
+- takeScreenshot: upload-1-picker
+- tapOn:
+    point: "16%,28%"
+- tapOn:
+    point: "90%,16%"
+- extendedWaitUntil:
+    notVisible: "Subiendo.*"
+    timeout: 30000
+- assertNotVisible: "Error de subida"
+- assertNotVisible: "Algunos archivos no se han subido"
+- tapOn: "Sin clasificar"
+- extendedWaitUntil:
+    visible: "IMG_.*"
+    timeout: 10000
+- takeScreenshot: upload-2-sin-clasificar

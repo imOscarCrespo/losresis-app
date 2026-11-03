@@ -1,5 +1,6 @@
 import { fetch } from "expo/fetch";
 import { supabase } from "../config/supabase";
+import { uploadLocalFile } from "./storageUpload";
 import {
   getFunctionUrl,
   readFallbackResponse,
@@ -28,16 +29,10 @@ export const uploadStudyPhoto = async (userId, imageUri) => {
       .substring(2)}.${fileExt}`;
     const filePath = `${userId}/${fileName}`;
 
-    const formData = new FormData();
-    formData.append("file", {
-      uri: imageUri,
-      name: fileName,
-      type: `image/${fileExt === "jpg" ? "jpeg" : fileExt}`,
+    const { error } = await uploadLocalFile(STUDY_PHOTO_BUCKET, filePath, imageUri, {
+      contentType: `image/${fileExt === "jpg" ? "jpeg" : fileExt}`,
+      cacheControl: "3600",
     });
-
-    const { error } = await supabase.storage
-      .from(STUDY_PHOTO_BUCKET)
-      .upload(filePath, formData, { cacheControl: "3600", upsert: false });
 
     if (error) {
       return { success: false, path: null, error: error.message };

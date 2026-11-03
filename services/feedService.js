@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { uploadLocalFile } from "./storageUpload";
 
 const FEED_IMAGES_BUCKET = "feed-images";
 
@@ -23,16 +24,10 @@ export const uploadFeedPostImage = async (userId, imageUri) => {
       .substring(2)}.${fileExt}`;
     const filePath = `${userId}/${fileName}`;
 
-    const formData = new FormData();
-    formData.append("file", {
-      uri: imageUri,
-      name: fileName,
-      type: `image/${fileExt}`,
+    const { error } = await uploadLocalFile(FEED_IMAGES_BUCKET, filePath, imageUri, {
+      contentType: `image/${fileExt === "jpg" ? "jpeg" : fileExt}`,
+      cacheControl: "3600",
     });
-
-    const { error } = await supabase.storage
-      .from(FEED_IMAGES_BUCKET)
-      .upload(filePath, formData, { cacheControl: "3600", upsert: false });
 
     if (error) {
       return { success: false, path: null, error: error.message };

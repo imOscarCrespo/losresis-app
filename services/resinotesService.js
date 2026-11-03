@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { uploadLocalFile } from "./storageUpload";
 import {
   ALLOWED_IMAGE_MIME,
   MAX_FOLDER_NAME,
@@ -381,12 +382,7 @@ const uploadToStorage = async ({ userId, itemId, file, mime }) => {
   const storageName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extensionForMime(mime, file.name)}`;
   const path = `${userId}/${itemId}/${storageName}`;
 
-  const formData = new FormData();
-  formData.append("file", { uri: file.uri, name: storageName, type: mime });
-
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, formData, { contentType: mime, upsert: false });
+  const { data, error } = await uploadLocalFile(BUCKET, path, file.uri, { contentType: mime });
   if (error) raise(error, "upload");
   return data?.path || path;
 };

@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { uploadLocalFile } from "./storageUpload";
 import { FALLBACK_ROOMMATE_QUESTIONS } from "../constants/roommateQuestions";
 import {
   getHospitalByIdFromCatalog,
@@ -52,20 +53,11 @@ export const uploadRoommateAvatar = async (userId, asset, previousPath = null) =
   const filePath = buildAvatarPath(userId, asset);
   const fileName = filePath.split("/").pop() || `avatar_${Date.now()}.jpg`;
   const fileExt = fileName.split(".").pop() || "jpg";
-  const formData = new FormData();
-
-  formData.append("file", {
-    uri: asset.uri,
-    name: fileName,
-    type: asset?.mimeType || `image/${String(fileExt).toLowerCase()}`,
+  const ext = String(fileExt).toLowerCase();
+  const { error: uploadError } = await uploadLocalFile(ROOMMATE_AVATAR_BUCKET, filePath, asset.uri, {
+    contentType: asset?.mimeType || `image/${ext === "jpg" ? "jpeg" : ext}`,
+    upsert: true,
   });
-
-  const { error: uploadError } = await supabase.storage
-    .from(ROOMMATE_AVATAR_BUCKET)
-    .upload(filePath, formData, {
-      contentType: asset?.mimeType || `image/${String(fileExt).toLowerCase()}`,
-      upsert: true,
-    });
 
   if (uploadError) {
     return { success: false, error: uploadError.message };
