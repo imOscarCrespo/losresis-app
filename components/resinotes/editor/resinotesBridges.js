@@ -1,4 +1,5 @@
-import { Node, getHTMLFromFragment, mergeAttributes } from "@tiptap/core";
+import { Extension, Node, getHTMLFromFragment, mergeAttributes } from "@tiptap/core";
+import { Plugin } from "@tiptap/pm/state";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import { CALLOUT_KIND_KEYS, normalizeCalloutKind } from "../../../utils/resinotes";
 
@@ -127,8 +128,123 @@ const selectionHtml = (editor) => {
   return html.length > MAX_SELECTION_HTML ? null : html;
 };
 
-/** Los bridges, creados con la BridgeExtension de cada lado. */
-export const createResiNotesBridges = (BridgeExtension) => {
+// ---------------------------------------------------------------------------
+// Toques sin teclado (ClickUp 124b4z9w5nh): tocar una imagen la abre a
+// pantalla completa y tocar la casilla de una tarea la marca o desmarca. En
+// los dos casos sin enfocar el editor, para que no salga el teclado ni se
+// seleccione la imagen (la casilla de TipTap llama a focus() al cambiar).
+// Un toque es un dedo que se levanta casi donde bajó y enseguida: deslizar
+// para leer la nota no cuenta.
+// ---------------------------------------------------------------------------
+
+export const IMAGE_TAP_MESSAGE = "resinotes-image-tap";
+const TAP_SLOP_PX = 10;
+// Tras un toque en una casilla o una imagen, si el editor coge el foco en este
+// tiempo sin haberlo tenido antes, se le quita (iOS 26 enfoca la zona editable
+// aunque se cancele el toque, y sacaría el teclado).
+const FOCUS_GUARD_MS = 600;
+
+/** Marca o desmarca la tarea de la casilla `label` sin enfocar el editor. */
+const toggleTaskAt = (view, label) => {
+  const item = label.parentElement;
+  const content = item?.querySelector(":scope > div");
+  if (!content) return false;
+  let pos;
+  try {
+    pos = view.posAtDOM(content, 0);
+  } catch {
+    return false;
+  }
+  const $pos = view.state.doc.resolve(pos);
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    const node = $pos.node(depth);
+    if (node.type.name === "taskItem") {
+      view.dispatch(view.state.tr.setNodeMarkup($pos.before(depth), undefined, { ...node.attrs, checked: !node.attrs.checked }));
+      return true;
+    }
+  }
+  return false;
+};
+
+const tapTarget = (target) => {
+  if (!target || typeof target.closest !== "function") return null;
+  if (target.tagName === "IMG") return { kind: "image", el: target };
+  // La vista de la tarea de TipTap no pone data-type en el <li>: se busca por su lista.
+  const label = target.closest('ul[data-type="taskList"] > li > label');
+  return label ? { kind: "task", el: label } : null;
+};
+
+const createTapsExtension = (onImageTap) =>
+  Extension.create({
+    name: "resinotesTaps",
+    addProseMirrorPlugins() {
+      return [
+        new Plugin({
+          view: (view) => {
+            // Un toque (no un deslizamiento) en una casilla o una imagen: activa el guardián de foco.
+            let start = null;
+            let guardUntil = 0;
+            const onStart = (event) => {
+              const touch = event.touches?.[0];
+              const hit = event.touches?.length === 1 ? tapTarget(event.target) : null;
+              start = hit ? { x: touch.clientX, y: touch.clientY } : null;
+              guardUntil = hit && !view.hasFocus() ? Date.now() + FOCUS_GUARD_MS : 0;
+            };
+            const onMove = (event) => {
+              const touch = event.touches?.[0];
+              if (!start || !touch) return;
+              if (Math.abs(touch.clientX - start.x) > TAP_SLOP_PX || Math.abs(touch.clientY - start.y) > TAP_SLOP_PX) {
+                start = null;
+                guardUntil = 0;
+              }
+            };
+            const onFocus = () => {
+              if (Date.now() >= guardUntil) return;
+              guardUntil = 0;
+              setTimeout(() => {
+                view.dom.blur();
+                window.getSelection?.()?.removeAllRanges();
+              }, 0);
+            };
+            // El click llega antes aquí (captura) que al change de la casilla de TipTap, que
+            // enfocaría el editor: se cancela y la tarea se marca sin foco.
+            const onClick = (event) => {
+              const hit = tapTarget(event.target);
+              if (!hit) return;
+              event.preventDefault();
+              event.stopPropagation();
+              if (hit.kind === "image") {
+                const src = hit.el.currentSrc || hit.el.getAttribute("src");
+                if (src) onImageTap?.(src);
+              } else if (view.editable) {
+                toggleTaskAt(view, hit.el);
+              }
+            };
+            const options = { capture: true, passive: true };
+            view.dom.addEventListener("touchstart", onStart, options);
+            view.dom.addEventListener("touchmove", onMove, options);
+            view.dom.addEventListener("click", onClick, true);
+            view.dom.addEventListener("focus", onFocus);
+            return {
+              destroy: () => {
+                view.dom.removeEventListener("touchstart", onStart, options);
+                view.dom.removeEventListener("touchmove", onMove, options);
+                view.dom.removeEventListener("click", onClick, true);
+                view.dom.removeEventListener("focus", onFocus);
+              },
+            };
+          },
+        }),
+      ];
+    },
+  });
+
+/**
+ * Los bridges, creados con la BridgeExtension de cada lado. `sendMessage` solo
+ * lo pasa el WebView (para avisar a la app de que se ha tocado una imagen);
+ * `onImageTap` solo la app.
+ */
+export const createResiNotesBridges = (BridgeExtension, { sendMessage = null, onImageTap = null } = {}) => {
   const TableBridge = new BridgeExtension({
     tiptapExtension: Table.configure({ resizable: false }),
     tiptapExtensionDeps: [TableRow, TableHeader, TableCell],
@@ -165,5 +281,14 @@ export const createResiNotesBridges = (BridgeExtension) => {
     extendEditorState: (editor) => ({ selectionHtml: selectionHtml(editor) }),
   });
 
-  return { TableBridge, CalloutBridge, SelectionBridge };
+  const TapsBridge = new BridgeExtension({
+    tiptapExtension: createTapsExtension((src) => sendMessage?.({ type: IMAGE_TAP_MESSAGE, payload: { src } })),
+    onEditorMessage: (message) => {
+      if (message?.type !== IMAGE_TAP_MESSAGE || !message.payload?.src) return false;
+      onImageTap?.(message.payload.src);
+      return true;
+    },
+  });
+
+  return { TableBridge, CalloutBridge, SelectionBridge, TapsBridge };
 };

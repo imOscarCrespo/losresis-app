@@ -2,7 +2,7 @@ import { supabase } from "../config/supabase";
 import { deviceTimeZone, normalizePreferences } from "../utils/flashcards";
 
 /**
- * Tarjetas de repaso de ResiNotes (ClickUp 124b4z9w0z0).
+ * Tarjetas de repaso de ResiNotes (ClickUp 124b4z9w0z0 y 124b4z9w5nh).
  *
  * Tablas resinotes_flashcards y resinotes_flashcard_reviews (migración
  * losresis-db 20261112120000_resinotes_flashcards.sql). Todo es del dueño por
@@ -15,7 +15,7 @@ const LIST_LIMIT = 2000;
 const QUEUE_LIMIT = 100;
 
 const CARD_COLUMNS =
-  "id, source_item_id, source_excerpt, source_locator, source_version_at, source_state, question, answer, origin, status, due_on, interval_days, review_count, lapse_count, learning_state, last_rating, last_reviewed_at, created_at, updated_at, deleted_at";
+  "id, card_type, source_item_id, source_excerpt, source_locator, source_version_at, source_state, question, answer, origin, status, due_on, interval_days, review_count, lapse_count, learning_state, last_rating, last_reviewed_at, created_at, updated_at, deleted_at";
 const CARD_WITH_SOURCE = `${CARD_COLUMNS}, source:resinotes_items(id, title, folder_id, deleted_at)`;
 
 const raise = (error, context) => {
@@ -37,6 +37,7 @@ export const flashcardErrorMessage = (error, fallback = "No se ha podido guardar
     return "Una de las respuestas ya no coincide con tu apunte. Vuelve a prepararlas.";
   }
   if (message.includes("resinotes_flashcard_suspended")) return "Esta tarjeta está suspendida.";
+  if (message.includes("resinotes_note_empty")) return "Esta nota está vacía. Escribe algo antes de guardarla para repasar.";
   if (message.includes("resinotes_flashcard_not_found")) return "Esta tarjeta ya no existe.";
   if (message.includes("resinotes_flashcards_question_check") || message.includes("resinotes_flashcards_answer_check")) {
     return "La pregunta y la respuesta no pueden quedar vacías.";
@@ -124,34 +125,54 @@ export const loadReviewData = async (userId, today) => {
 // ---------------------------------------------------------------------------
 
 /**
- * Guarda las propuestas aprobadas de un apunte. Las que el residente ha
- * editado van como 'generated_edited'. Es un único INSERT: si el apunte ha
- * cambiado, la BD rechaza el lote entero y no se guarda ninguna a medias.
+ * «Crear pregunta»: una tarjeta de pregunta y respuesta escrita por el
+ * residente. Desde una nota queda vinculada a ella (sourceItemId); la nota no
+ * cambia y la tarjeta tampoco cambia sola si después se edita la nota.
  */
-export const saveProposals = async (userId, itemId, proposals = []) => {
-  if (!proposals.length) return [];
-  const rows = proposals.map((p) => ({
-    user_id: userId,
-    source_item_id: itemId,
-    source_excerpt: p.excerpt,
-    source_locator: p.locator || null,
-    question: String(p.question).trim(),
-    answer: String(p.answer).trim(),
-    origin: p.edited ? "generated_edited" : "generated",
-  }));
-  const { data, error } = await supabase.from("resinotes_flashcards").insert(rows).select(CARD_COLUMNS);
-  if (error) raise(error, "saveProposals");
-  return data || [];
-};
-
-export const createManualFlashcard = async (userId, { question, answer }) => {
-  const { data, error } = await supabase
-    .from("resinotes_flashcards")
-    .insert({ user_id: userId, question: String(question).trim(), answer: String(answer).trim(), origin: "manual" })
-    .select(CARD_WITH_SOURCE)
-    .single();
+export const createManualFlashcard = async (userId, { question, answer, sourceItemId = null }) => {
+  const row = { user_id: userId, question: String(question).trim(), answer: String(answer).trim(), origin: "manual" };
+  if (sourceItemId) row.source_item_id = sourceItemId;
+  const { data, error } = await supabase.from("resinotes_flashcards").insert(row).select(CARD_WITH_SOURCE).single();
   if (error) raise(error, "createManualFlashcard");
   return data;
+};
+
+/** La tarjeta de «Apunte completo» viva de una nota, si la tiene. */
+export const getNoteCard = async (userId, itemId) => {
+  const { data, error } = await supabase
+    .from("resinotes_flashcards")
+    .select(CARD_COLUMNS)
+    .eq("user_id", userId)
+    .eq("source_item_id", itemId)
+    .eq("card_type", "note")
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error) raise(error, "getNoteCard");
+  return data;
+};
+
+/**
+ * «Guardar para repasos»: la nota entera como tarjeta programada. Como mucho
+ * una por nota (índice único en la BD): si ya estaba, no crea otra y lo dice
+ * con alreadySaved.
+ */
+export const saveNoteCard = async (userId, item) => {
+  const title = String(item?.title || "").trim() || "Nota sin título";
+  const { data, error } = await supabase
+    .from("resinotes_flashcards")
+    .insert({
+      user_id: userId,
+      source_item_id: item.id,
+      card_type: "note",
+      question: title.slice(0, 500),
+      answer: "",
+      origin: "manual",
+    })
+    .select(CARD_COLUMNS)
+    .single();
+  if (error?.code === "23505") return { card: await getNoteCard(userId, item.id), alreadySaved: true };
+  if (error) raise(error, "saveNoteCard");
+  return { card: data, alreadySaved: false };
 };
 
 const updateCard = async (cardId, payload, context) => {
@@ -264,8 +285,9 @@ export default {
   listFlashcards,
   getFlashcard,
   loadReviewData,
-  saveProposals,
   createManualFlashcard,
+  getNoteCard,
+  saveNoteCard,
   updateFlashcard,
   setFlashcardStatus,
   deleteFlashcard,

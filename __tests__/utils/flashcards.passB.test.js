@@ -1,26 +1,18 @@
 import {
   DEFAULT_REVIEW_PREFERENCES,
-  SIMILAR_THRESHOLD,
   addDays,
   buildMoreQueue,
   buildTodayQueue,
   cardInFolders,
-  cardSimilarity,
   formatDay,
   formatLimit,
   formatTime,
   formatWeekdays,
-  generateFromSelection,
   includedFolderSet,
   isPaused,
-  jaccard,
-  markDuplicates,
-  markSimilar,
   normalizePreferences,
-  similarityTokens,
   snoozeOptions,
 } from "../../utils/flashcards";
-import { htmlToPlainText } from "../../utils/resinotes";
 
 /**
  * Tarjetas de repaso, pasada B (ClickUp 124b4z9w0z0): configuración de repaso
@@ -189,87 +181,3 @@ describe("snoozeOptions", () => {
   });
 });
 
-describe("tarjetas parecidas", () => {
-  it("las palabras significativas ignoran tildes, mayúsculas y la plantilla de la pregunta", () => {
-    expect(Array.from(similarityTokens("¿Qué incluye «Manejo» en tu apunte?"))).toEqual(["manejo"]);
-    expect(Array.from(similarityTokens("Sulfato de MAGNESIO, 4 g"))).toEqual(["sulfato", "magnesio", "4", "g"]);
-    expect(jaccard(new Set(), new Set())).toBe(0);
-  });
-
-  it("detecta una reformulación y no confunde tarjetas distintas del mismo apunte", () => {
-    const existing = {
-      question: "¿Qué incluye «Manejo inicial» en tu apunte de «Eclampsia»?",
-      answer: "Estabilización materna (ABC).\nSulfato de magnesio.\nControl de la presión arterial.",
-    };
-    const reworded = {
-      question: "¿Cuál es el manejo inicial de la eclampsia?",
-      answer: "Estabilización materna (ABC).\nSulfato de magnesio.\nControl de la presión arterial.",
-    };
-    const other = {
-      question: "¿Cómo define tu apunte «Eclampsia»?",
-      answer: "Convulsiones tónico-clónicas en el contexto de preeclampsia, sin otra causa que lo explique.",
-    };
-    expect(cardSimilarity(existing, reworded)).toBeGreaterThanOrEqual(SIMILAR_THRESHOLD);
-    expect(cardSimilarity(existing, other)).toBeLessThan(SIMILAR_THRESHOLD);
-  });
-
-  it("cambiar una cifra en una respuesta corta la deja por debajo del umbral", () => {
-    const a = { question: "Según tu apunte, ¿qué corresponde a «Dosis»?", answer: "5 mg" };
-    const b = { question: "Según tu apunte, ¿qué corresponde a «Dosis»?", answer: "10 mg" };
-    expect(cardSimilarity(a, b)).toBeLessThan(SIMILAR_THRESHOLD);
-  });
-
-  it("markSimilar marca la más parecida, deja en paz las exactas y no descarta nada", () => {
-    const existing = [
-      { id: "x", question: "¿Qué incluye «Manejo inicial»?", answer: "Sulfato de magnesio. Control de la presión arterial." },
-      { id: "y", question: "Otra", answer: "Nada que ver", deleted_at: "2026-11-01" },
-    ];
-    const proposals = markDuplicates(
-      [
-        { question: "¿Cuál es el manejo inicial?", answer: "Sulfato de magnesio. Control de la presión arterial." },
-        { question: "¿Qué incluye «Manejo inicial»?", answer: "Sulfato de magnesio. Control de la presión arterial." },
-        { question: "¿Color?", answer: "azul" },
-      ],
-      existing
-    );
-    const marked = markSimilar(proposals, existing);
-    expect(marked).toHaveLength(3);
-    expect(marked[0].similar).toMatchObject({ id: "x" });
-    expect(marked[1].duplicate).toBe(true);
-    expect(marked[1].similar).toBeNull();
-    expect(marked[2].similar).toBeNull();
-  });
-});
-
-describe("generateFromSelection", () => {
-  const NOTE = [
-    "<h2>Manejo inicial</h2>",
-    "<ul><li><p>Estabilización materna (ABC).</p></li><li><p>Sulfato de magnesio.</p></li></ul>",
-    "<p>Dosis: 4 g en 15 min</p>",
-    "<p>Texto suelto sin estructura.</p>",
-  ].join("");
-  const contentText = htmlToPlainText(NOTE);
-
-  it("una selección con título y lista da su tarjeta, con el fragmento literal", () => {
-    const sel = "<h2>Manejo inicial</h2><ul><li><p>Estabilización materna (ABC).</p></li><li><p>Sulfato de magnesio.</p></li></ul>";
-    const { proposals, reason } = generateFromSelection({ selectionHtml: sel, title: "Eclampsia", contentText });
-    expect(reason).toBeNull();
-    expect(proposals[0].answer).toBe("Estabilización materna (ABC).\nSulfato de magnesio.");
-  });
-
-  it("una línea «Término: definición» seleccionada a medias sigue valiendo si está tal cual", () => {
-    const { proposals } = generateFromSelection({ selectionHtml: "<p>Dosis: 4 g en 15 min</p>", contentText });
-    expect(proposals.map((p) => p.answer)).toEqual(["4 g en 15 min"]);
-  });
-
-  it("texto sin estructura: necesita más contexto", () => {
-    expect(generateFromSelection({ selectionHtml: "<p>Texto suelto</p>", contentText }).reason).toBe("needs_context");
-    expect(generateFromSelection({ selectionHtml: "", contentText }).reason).toBe("needs_context");
-  });
-
-  it("descarta lo que no está en el texto guardado del apunte (selección de algo sin guardar)", () => {
-    const { proposals, reason } = generateFromSelection({ selectionHtml: "<p>Vía: oral</p>", contentText });
-    expect(proposals).toEqual([]);
-    expect(reason).toBe("needs_context");
-  });
-});

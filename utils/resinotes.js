@@ -375,6 +375,8 @@ export const DEFAULT_CALLOUT_KIND = "pearl";
 export const normalizeCalloutKind = (kind) => (CALLOUT_KINDS[kind] ? kind : DEFAULT_CALLOUT_KIND);
 
 /** CSS de bloques y tablas: el mismo en el editor y en la exportación. */
+const TASK_PURPLE = "#670CF5";
+
 export const NOTE_BLOCKS_CSS = [
   `div[data-callout] { border-left: 4px solid #CBD5E1; border-radius: 12px; padding: 10px 14px; margin: 12px 0; }`,
   `div[data-callout]::before { display: block; font-weight: 700; margin-bottom: 4px; color: #1B0977; }`,
@@ -390,7 +392,25 @@ export const NOTE_BLOCKS_CSS = [
   `td > p, th > p { margin: 0; }`,
   `.selectedCell { background: #EDE9FE; }`,
   `.tableWrapper { overflow-x: auto; }`,
+  // Listas de tareas (ClickUp 124b4z9w5nh): casilla con contorno morado; hecha, rellena con ✓
+  // blanco y el texto tachado y en gris. Todas las líneas de una tarea comparten su casilla.
+  `ul[data-type="taskList"][data-type] { list-style: none; padding: 0; margin-left: 0; }`,
+  `ul[data-type="taskList"][data-type] li { display: flex; align-items: flex-start; gap: 10px; margin: 4px 0; }`,
+  `ul[data-type="taskList"][data-type] li > label { flex: 0 0 auto; margin: 0; padding: 1px 0 0; user-select: none; -webkit-user-select: none; }`,
+  `ul[data-type="taskList"][data-type] li > div { flex: 1 1 auto; min-width: 0; }`,
+  `ul[data-type="taskList"][data-type] p { margin: 0; }`,
+  `ul[data-type="taskList"][data-type] li > label > input { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; margin: 0; border: 2px solid ${TASK_PURPLE}; border-radius: 7px; background: #FFFFFF; display: block; }`,
+  `ul[data-type="taskList"][data-type] li > label > input:checked { background: ${TASK_PURPLE} url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.2 4.2L19 7' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 16px no-repeat; }`,
+  `ul[data-type="taskList"][data-type] li[data-checked="true"] > div { color: #94A3B8; text-decoration: line-through; }`,
+  `img { cursor: zoom-in; }`,
 ].join("\n");
+
+/**
+ * Título de una nota (ClickUp 124b4z9w5nh): el campo es de varias líneas para
+ * que se lea entero, pero el título es una sola línea de texto (un salto de
+ * línea pegado o escrito pasa a espacio).
+ */
+export const singleLineTitle = (value) => String(value ?? "").replace(/[\r\n\u2028\u2029]+/g, " ");
 
 // ---------------------------------------------------------------------------
 // Exportación

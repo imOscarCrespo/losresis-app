@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Icon } from "../../Icon";
 import { COLORS } from "../../../constants/colors";
 import { ResiNotesSheet } from "../ResiNotesSheet";
-import { CARD_STATES, answerLines, cardDisplayState } from "../../../utils/flashcards";
+import { KeyboardAwareTextInput } from "../../KeyboardAwareTextInput";
+import { CARD_STATES, CARD_TYPES, answerLines, cardDisplayState, cardType, isValidQuestion } from "../../../utils/flashcards";
 
 /**
  * Piezas comunes de las tarjetas de repaso de ResiNotes (ClickUp 124b4z9w0z0).
@@ -73,6 +74,17 @@ export const StateChip = ({ card, testID }) => {
   );
 };
 
+/** «Pregunta y respuesta» o «Apunte completo» (ClickUp 124b4z9w5nh): icono y texto, no solo color. */
+export const TypeChip = ({ card, testID }) => {
+  const meta = CARD_TYPES[cardType(card)];
+  return (
+    <View style={styles.typeChip} testID={testID}>
+      <Icon name={meta.icon} size={13} color={COLORS.PRIMARY} />
+      <Text style={styles.typeChipText}>{meta.label}</Text>
+    </View>
+  );
+};
+
 /** «Carpeta · Apunte» bajo una pregunta. */
 export const SourceMeta = ({ card, folderName, style }) => {
   const title = card.source?.title;
@@ -81,22 +93,26 @@ export const SourceMeta = ({ card, folderName, style }) => {
     return (
       <View style={[styles.meta, style]}>
         <Icon name="pencil-outline" size={14} color={COLORS.TEXT_LIGHT} />
-        <Text style={styles.metaText}>Creada a mano</Text>
+        <Text style={styles.metaText}>Creada por ti</Text>
       </View>
     );
   }
   return (
     <View style={[styles.meta, style]}>
       <Icon name="folder-outline" size={14} color={COLORS.TEXT_LIGHT} />
-      <Text style={styles.metaText} numberOfLines={1}>
+      <Text style={styles.metaText} numberOfLines={2}>
         {parts.join(" · ")}
       </Text>
     </View>
   );
 };
 
-/** Hoja para escribir o corregir una pregunta y su respuesta. */
-export const CardEditorSheet = ({ visible, title, initial, onSubmit, onClose, notice }) => {
+/**
+ * Hoja para escribir o corregir una pregunta y su respuesta («Crear
+ * pregunta», ClickUp 124b4z9w5nh). Las dos son obligatorias. Si falla el
+ * guardado, lo escrito se queda en la hoja para reintentar.
+ */
+export const CardEditorSheet = ({ visible, title, initial, onSubmit, onClose, notice, testID = "flashcard-editor" }) => {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [saving, setSaving] = useState(false);
@@ -111,7 +127,7 @@ export const CardEditorSheet = ({ visible, title, initial, onSubmit, onClose, no
     }
   }, [visible, initial]);
 
-  const valid = question.trim().length > 0 && answer.trim().length > 0;
+  const valid = isValidQuestion({ question, answer });
 
   const submit = async () => {
     if (!valid || saving) return;
@@ -129,7 +145,8 @@ export const CardEditorSheet = ({ visible, title, initial, onSubmit, onClose, no
       visible={visible}
       title={title}
       onClose={onClose}
-      testID="flashcard-editor"
+      testID={testID}
+      keyboardAware
       footer={
         <View style={styles.footer}>
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -138,7 +155,7 @@ export const CardEditorSheet = ({ visible, title, initial, onSubmit, onClose, no
       }
     >
       <Text style={styles.label}>Pregunta</Text>
-      <TextInput
+      <KeyboardAwareTextInput
         value={question}
         onChangeText={setQuestion}
         maxLength={500}
@@ -150,13 +167,13 @@ export const CardEditorSheet = ({ visible, title, initial, onSubmit, onClose, no
         testID="flashcard-editor-question"
       />
       <Text style={styles.label}>Respuesta</Text>
-      <TextInput
+      <KeyboardAwareTextInput
         value={answer}
         onChangeText={setAnswer}
         maxLength={4000}
         multiline
         style={[styles.input, styles.inputTall]}
-        placeholder="Una línea por cada punto"
+        placeholder="La respuesta que quieres recordar"
         placeholderTextColor={COLORS.TEXT_LIGHT}
         accessibilityLabel="Respuesta"
         testID="flashcard-editor-answer"
@@ -238,6 +255,17 @@ const styles = StyleSheet.create({
   bullet: { lineHeight: 23 },
   bulletText: { flex: 1 },
   chip: { alignSelf: "flex-start", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  typeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+  },
+  typeChipText: { fontSize: 12, fontWeight: "700", color: COLORS.PRIMARY },
   chipText: { fontSize: 12, fontWeight: "700" },
   meta: { flexDirection: "row", alignItems: "center", gap: 6 },
   metaText: { flexShrink: 1, fontSize: 13, color: COLORS.TEXT_LIGHT },

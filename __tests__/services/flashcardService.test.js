@@ -22,13 +22,14 @@ jest.mock("../../config/supabase", () => {
 const { supabase: mock } = jest.requireMock("../../config/supabase");
 
 import {
+  createManualFlashcard,
   deleteFlashcard,
   flashcardErrorMessage,
   keepFlashcard,
   listFlashcards,
   loadReviewData,
   reviewFlashcard,
-  saveProposals,
+  saveNoteCard,
   updateFlashcard,
 } from "../../services/flashcardService";
 
@@ -42,50 +43,63 @@ beforeEach(() => {
   jest.spyOn(console, "error").mockImplementation(() => {});
 });
 
-describe("saveProposals", () => {
-  it("guarda el lote en un solo INSERT con su fuente; las editadas van como generated_edited", async () => {
-    queue({ data: [{ id: "c1" }, { id: "c2" }], error: null });
-    const saved = await saveProposals("u1", "n1", [
-      { question: " ¿A? ", answer: "Uno", excerpt: "Uno", locator: "Sección" },
-      { question: "¿B?", answer: "Dos cambiada", excerpt: "Dos", locator: null, edited: true },
-    ]);
-    expect(saved).toHaveLength(2);
-    const inserts = callsOf("insert");
-    expect(inserts).toHaveLength(1);
-    expect(inserts[0][1]).toEqual([
-      {
-        user_id: "u1",
-        source_item_id: "n1",
-        source_excerpt: "Uno",
-        source_locator: "Sección",
-        question: "¿A?",
-        answer: "Uno",
-        origin: "generated",
-      },
-      {
-        user_id: "u1",
-        source_item_id: "n1",
-        source_excerpt: "Dos",
-        source_locator: null,
-        question: "¿B?",
-        answer: "Dos cambiada",
-        origin: "generated_edited",
-      },
-    ]);
+describe("preguntas a mano y apunte completo (124b4z9w5nh)", () => {
+  it("«Crear pregunta» desde una nota la vincula a la nota, sin tocar nada más", async () => {
+    queue({ data: { id: "c1" }, error: null });
+    await createManualFlashcard("u1", { question: " ¿Qué contiene Gixoderm? ", answer: " Vitamina E ", sourceItemId: "n1" });
+    expect(callsOf("insert")[0][1]).toEqual({
+      user_id: "u1",
+      source_item_id: "n1",
+      question: "¿Qué contiene Gixoderm?",
+      answer: "Vitamina E",
+      origin: "manual",
+    });
   });
 
-  it("sin propuestas no llama a la BD", async () => {
-    expect(await saveProposals("u1", "n1", [])).toEqual([]);
-    expect(callsOf("insert")).toHaveLength(0);
+  it("sin nota, la tarjeta a mano no lleva fuente", async () => {
+    queue({ data: { id: "c1" }, error: null });
+    await createManualFlashcard("u1", { question: "¿A?", answer: "B" });
+    expect(callsOf("insert")[0][1]).not.toHaveProperty("source_item_id");
   });
 
-  it("si el apunte cambió, propaga el error con un mensaje claro", async () => {
-    queue({ data: null, error: { message: "resinotes_flashcard_source_changed", code: "23514" } });
-    const error = await saveProposals("u1", "n1", [{ question: "q", answer: "a", excerpt: "a" }]).catch((e) => e);
-    expect(error.code).toBe("23514");
-    expect(flashcardErrorMessage(error)).toBe(
-      "El apunte ha cambiado mientras revisabas las tarjetas. Vuelve a prepararlas."
+  it("si falla el guardado, propaga el error (no confirma nada)", async () => {
+    queue({ data: null, error: { message: "Network request failed" } });
+    const error = await createManualFlashcard("u1", { question: "¿A?", answer: "B" }).catch((e) => e);
+    expect(error).toBeInstanceOf(Error);
+    expect(flashcardErrorMessage(error)).toBe("Sin conexión. Revisa tu conexión e inténtalo de nuevo.");
+  });
+
+  it("«Guardar para repasos» crea una tarjeta de apunte completo con el título de la nota", async () => {
+    queue({ data: { id: "c9", card_type: "note" }, error: null });
+    const res = await saveNoteCard("u1", { id: "n1", title: "Tratamiento de la hemorragia posparto" });
+    expect(res).toEqual({ card: { id: "c9", card_type: "note" }, alreadySaved: false });
+    expect(callsOf("insert")[0][1]).toEqual({
+      user_id: "u1",
+      source_item_id: "n1",
+      card_type: "note",
+      question: "Tratamiento de la hemorragia posparto",
+      answer: "",
+      origin: "manual",
+    });
+  });
+
+  it("guardarla otra vez no duplica: devuelve la que ya estaba", async () => {
+    queue({ data: null, error: { code: "23505", message: "duplicate key" } }, { data: { id: "c9" }, error: null });
+    const res = await saveNoteCard("u1", { id: "n1", title: "" });
+    expect(res).toEqual({ card: { id: "c9" }, alreadySaved: true });
+    expect(callsOf("insert")[0][1].question).toBe("Nota sin título");
+    expect(callsOf("eq")).toEqual(
+      expect.arrayContaining([
+        ["eq", "source_item_id", "n1"],
+        ["eq", "card_type", "note"],
+      ])
     );
+  });
+
+  it("una nota vacía no se guarda y se explica", async () => {
+    queue({ data: null, error: { code: "23514", message: "resinotes_note_empty" } });
+    const error = await saveNoteCard("u1", { id: "n1", title: "Vacía" }).catch((e) => e);
+    expect(flashcardErrorMessage(error)).toBe("Esta nota está vacía. Escribe algo antes de guardarla para repasar.");
   });
 });
 

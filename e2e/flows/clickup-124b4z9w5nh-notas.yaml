@@ -1,0 +1,155 @@
+appId: com.losresis.app
+name: "ResiNotes definitivo (124b4z9w5nh): títulos completos, casillas sin teclado, barra de formato e imágenes a pantalla completa"
+# Solo toca datos del residente de pruebas (reset al empezar).
+---
+- runScript:
+    file: ../scripts/seed-124b4z9w5nh-resinotes.js
+    env:
+      MODE: reset
+- launchApp:
+    clearState: true
+    permissions:
+      photos: allow
+- runFlow: ../subflows/login.yaml
+- waitForAnimationToEnd
+- tapOn: "ResiNotes"
+- extendedWaitUntil:
+    visible: "Tu biblioteca personal de apuntes."
+    timeout: 20000
+- tapOn: ".*Ginecología.*"
+- extendedWaitUntil:
+    visible: ".*HIDRATANTES.*"
+    timeout: 10000
+- takeScreenshot: 124b4z9w5nh-a1-listado
+- tapOn: "Nota HIDRATANTES.*"
+- extendedWaitUntil:
+    visible: "Comprar Gixoderm en la farmacia"
+    timeout: 20000
+- takeScreenshot: 124b4z9w5nh-a2-nota
+- waitForAnimationToEnd
+# Espera a que el WebView pinte (un deslizamiento corto en la cabecera, fuera del editor).
+- swipe:
+    start: "50%,6%"
+    end: "50%,7%"
+    duration: 600
+- assertVisible: "HIDRATANTES, LUBRICANTES Y OTROS PRODUCTOS PARA EL CUIDADO DE LA MUCOSA VULVOVAGINAL EN LA POSMENOPAUSIA"
+- takeScreenshot: 124b4z9w5nh-a3-titulo-completo
+
+# ── Casillas: marcar sin entrar en edición y sin teclado ──
+- tapOn:
+    point: "10%,41%"
+- swipe:
+    start: "50%,6%"
+    end: "50%,7%"
+    duration: 600
+# La sección «Estudiar esta nota» solo está con el teclado cerrado.
+- assertVisible:
+    id: "resinotes-study-section"
+- takeScreenshot: 124b4z9w5nh-a4-tarea-hecha
+- extendedWaitUntil:
+    visible: "Guardado"
+    timeout: 10000
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Nota HIDRATANTES.*"
+    timeout: 10000
+- runScript:
+    file: ../scripts/seed-124b4z9w5nh-resinotes.js
+    env:
+      MODE: assert_a
+# Al volver a abrirla, la tarea sigue hecha.
+- tapOn: "Nota HIDRATANTES.*"
+- extendedWaitUntil:
+    visible: "Comprar Gixoderm en la farmacia"
+    timeout: 20000
+- swipe:
+    start: "50%,6%"
+    end: "50%,7%"
+    duration: 600
+- takeScreenshot: 124b4z9w5nh-a5-tarea-hecha-al-reabrir
+
+
+# ── Barra de formato: con el teclado abierto, negrita activa en morado ──
+- tapOn:
+    point: "66%,59%"
+- extendedWaitUntil:
+    visible: "Negrita"
+    timeout: 10000
+- tapOn: "Negrita"
+- inputText: " Fin"
+- takeScreenshot: 124b4z9w5nh-a6-barra-negrita
+- assertVisible: ".*Fin.*"
+
+# ── Imagen: insertar de la galería y abrirla a pantalla completa ──
+- tapOn: "Insertar imagen"
+- tapOn: "Elegir de la galería.*"
+# El selector de iOS tarda y Maestro no siempre lee su jerarquía: se espera a que deje de verse la nota.
+- extendedWaitUntil:
+    notVisible: "Insertar imagen"
+    timeout: 15000
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- tapOn:
+    point: "16%,28%"
+- tapOn:
+    point: "90%,16%"
+- extendedWaitUntil:
+    visible: "Guardado"
+    timeout: 30000
+- swipe:
+    start: "50%,6%"
+    end: "50%,7%"
+    duration: 600
+- takeScreenshot: 124b4z9w5nh-a7-imagen-en-nota
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Nota HIDRATANTES.*"
+    timeout: 15000
+- runScript:
+    file: ../scripts/seed-124b4z9w5nh-resinotes.js
+    env:
+      MODE: assert_a2
+- tapOn: "Nota HIDRATANTES.*"
+- extendedWaitUntil:
+    visible: "Comprar Gixoderm en la farmacia"
+    timeout: 20000
+- swipe:
+    start: "50%,6%"
+    end: "50%,7%"
+    duration: 900
+- takeScreenshot: 124b4z9w5nh-a8-nota-con-imagen
+- tapOn:
+    point: "50%,68%"
+- extendedWaitUntil:
+    visible:
+      id: "resinotes-image-viewer-close"
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "resinotes-image-viewer-error"
+    timeout: 3000
+- waitForAnimationToEnd
+- takeScreenshot: 124b4z9w5nh-a9-visor-imagen
+# Doble toque: amplía en el punto tocado.
+- doubleTapOn:
+    point: "30%,50%"
+- waitForAnimationToEnd
+- takeScreenshot: 124b4z9w5nh-a10-visor-doble-toque
+# Arrastrar con la imagen ampliada.
+- swipe:
+    start: "40%,50%"
+    end: "70%,50%"
+    duration: 800
+- takeScreenshot: 124b4z9w5nh-a11-visor-arrastre
+# Otro doble toque: vuelve al tamaño inicial.
+- doubleTapOn:
+    point: "50%,50%"
+- waitForAnimationToEnd
+- takeScreenshot: 124b4z9w5nh-a12-visor-inicial
+- tapOn:
+    id: "resinotes-image-viewer-close"
+# Vuelve a la misma nota, sin teclado.
+- assertVisible: "Gixoderm: Vitamina E.*"
+- assertVisible:
+    id: "resinotes-study-section"
+- takeScreenshot: 124b4z9w5nh-a13-vuelta-a-la-nota

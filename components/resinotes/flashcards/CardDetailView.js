@@ -14,7 +14,7 @@ import {
   updateAndKeepFlashcard,
   updateFlashcard,
 } from "../../../services/flashcardService";
-import { ORIGIN_LABELS, cardDisplayState, formatNextReview, localDateString } from "../../../utils/flashcards";
+import { ORIGIN_LABELS, cardDisplayState, cardFrontText, cardType, formatNextReview, localDateString } from "../../../utils/flashcards";
 import {
   AnswerBody,
   CardEditorSheet,
@@ -22,6 +22,7 @@ import {
   SecondaryButton,
   SourceMeta,
   StateChip,
+  TypeChip,
   flashcardStyles as fs,
 } from "./FlashcardParts";
 
@@ -42,7 +43,7 @@ const ActionRow = ({ icon, label, onPress, testID, danger }) => (
   </TouchableOpacity>
 );
 
-export const CardDetailView = ({ cardId, folderName, onBack, onOpenNote, onRegenerate, onChanged }) => {
+export const CardDetailView = ({ cardId, folderName, onBack, onOpenNote, onChanged }) => {
   const [state, setState] = useState({ loading: true, error: null, card: null });
   const [editing, setEditing] = useState(false);
   const [changes, setChanges] = useState(false);
@@ -78,7 +79,7 @@ export const CardDetailView = ({ cardId, folderName, onBack, onOpenNote, onRegen
   const card = state.card;
 
   const confirmDelete = () =>
-    Alert.alert("¿Eliminar esta tarjeta?", "Dejará de aparecer en tus repasos. Tu apunte no cambia.", [
+    Alert.alert("¿Eliminar esta tarjeta?", "Dejará de aparecer en tus repasos. Tu nota no cambia ni se borra.", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Eliminar",
@@ -130,6 +131,7 @@ export const CardDetailView = ({ cardId, folderName, onBack, onOpenNote, onRegen
       );
     }
     const display = cardDisplayState(card);
+    const isNote = cardType(card) === "note";
     const source = card.source;
     const today = localDateString();
     if (display === "modified") {
@@ -148,7 +150,6 @@ export const CardDetailView = ({ cardId, folderName, onBack, onOpenNote, onRegen
           <View style={fs.card}>
             <ActionRow icon="eye-outline" label="Ver cambios" onPress={() => setChanges(true)} testID="flashcard-see-changes" />
             <ActionRow icon="checkmark-circle-outline" label="Mantener tarjeta" onPress={() => run(() => keepFlashcard(card.id))} testID="flashcard-keep" />
-            <ActionRow icon="refresh-outline" label="Regenerar propuesta" onPress={() => onRegenerate(source.id)} testID="flashcard-regenerate" />
             <ActionRow icon="pencil-outline" label="Actualizar a mano" onPress={() => setEditing(true)} testID="flashcard-update-manually" />
             <ActionRow icon="pause-circle-outline" label="Suspender tarjeta" onPress={() => run(() => setFlashcardStatus(card.id, "suspended"))} />
           </View>
@@ -165,16 +166,31 @@ export const CardDetailView = ({ cardId, folderName, onBack, onOpenNote, onRegen
           </InfoNotice>
         ) : null}
 
-        <View style={[fs.card, styles.qa]}>
-          <Text style={fs.sectionLabel}>Pregunta</Text>
-          <Text style={fs.question} testID="flashcard-detail-question">
-            {card.question}
-          </Text>
-        </View>
-        <View style={[fs.card, styles.qa]}>
-          <Text style={fs.sectionLabel}>Respuesta</Text>
-          <AnswerBody answer={card.answer} testID="flashcard-detail-answer" />
-        </View>
+        <TypeChip card={card} testID="flashcard-detail-type" />
+        {isNote ? (
+          <View style={[fs.card, styles.qa, styles.typeSpaced]}>
+            <Text style={fs.sectionLabel}>Apunte</Text>
+            <Text style={fs.question} testID="flashcard-detail-question">
+              {cardFrontText(card)}
+            </Text>
+            <Text style={[fs.muted, styles.noteHint]}>
+              Al repasarla verás el título y, después, la nota entera tal y como esté en ese momento.
+            </Text>
+          </View>
+        ) : (
+          <>
+            <View style={[fs.card, styles.qa, styles.typeSpaced]}>
+              <Text style={fs.sectionLabel}>Pregunta</Text>
+              <Text style={fs.question} testID="flashcard-detail-question">
+                {card.question}
+              </Text>
+            </View>
+            <View style={[fs.card, styles.qa]}>
+              <Text style={fs.sectionLabel}>Respuesta</Text>
+              <AnswerBody answer={card.answer} testID="flashcard-detail-answer" />
+            </View>
+          </>
+        )}
 
         <View style={fs.card}>
           <Text style={fs.sectionLabel}>Fuente</Text>
@@ -196,7 +212,11 @@ export const CardDetailView = ({ cardId, folderName, onBack, onOpenNote, onRegen
               {source.deleted_at ? null : <Icon name="chevron-forward" size={18} color={COLORS.TEXT_LIGHT} />}
             </TouchableOpacity>
           ) : (
-            <Text style={fs.muted}>{card.origin === "manual" ? "Creada a mano, sin apunte." : "El apunte se ha eliminado."}</Text>
+            <Text style={fs.muted}>
+              {card.origin === "manual" && cardType(card) === "qa" && card.source_state !== "missing"
+                ? "Creada por ti, sin nota."
+                : "La nota se ha eliminado."}
+            </Text>
           )}
           <Text style={styles.origin}>{ORIGIN_LABELS[card.origin]}</Text>
         </View>
@@ -241,7 +261,9 @@ export const CardDetailView = ({ cardId, folderName, onBack, onOpenNote, onRegen
         <>
           {card && cardDisplayState(card) !== "modified" ? (
             <View style={fs.footerBar}>
-              <SecondaryButton label="Editar" icon="pencil-outline" onPress={() => setEditing(true)} style={styles.flex} testID="flashcard-edit" />
+              {cardType(card) === "note" ? null : (
+                <SecondaryButton label="Editar" icon="pencil-outline" onPress={() => setEditing(true)} style={styles.flex} testID="flashcard-edit" />
+              )}
               <SecondaryButton
                 label={suspended ? "Reactivar" : "Suspender"}
                 icon={suspended ? "play-circle-outline" : "pause-circle-outline"}
@@ -292,6 +314,8 @@ export const CardDetailView = ({ cardId, folderName, onBack, onOpenNote, onRegen
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   qa: { backgroundColor: COLORS.PRIMARY_LIGHT, borderColor: COLORS.PRIMARY_LIGHT },
+  typeSpaced: { marginTop: 10 },
+  noteHint: { marginTop: 8 },
   metaSpaced: { marginTop: 10 },
   sourceRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   sourceTitle: { fontSize: 15, fontWeight: "700", color: COLORS.PRIMARY_DARK },

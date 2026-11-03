@@ -6,13 +6,15 @@ import { Icon } from "../../Icon";
 import { COLORS } from "../../../constants/colors";
 import { ResiNotesSheet, SheetOption } from "../ResiNotesSheet";
 import { createManualFlashcard, flashcardErrorMessage, listFlashcards } from "../../../services/flashcardService";
-import { cardDisplayState, filterCards, formatNextReview, localDateString } from "../../../utils/flashcards";
-import { CardEditorSheet, PrimaryButton, SecondaryButton, SourceMeta, StateChip, flashcardStyles as fs } from "./FlashcardParts";
+import { cardDisplayState, cardFrontText, filterCards, formatNextReview, localDateString } from "../../../utils/flashcards";
+import { CardEditorSheet, PrimaryButton, SecondaryButton, SourceMeta, StateChip, TypeChip, flashcardStyles as fs } from "./FlashcardParts";
 
 /**
- * «Mis tarjetas» (ClickUp 124b4z9w0z0): todas las tarjetas con su apunte de
- * origen, estado y próximo repaso. Buscar, filtrar por estado y por carpeta, y
- * crear una a mano con el botón +.
+ * «Mis tarjetas» (ClickUp 124b4z9w0z0 y 124b4z9w5nh): todas las tarjetas
+ * (las antiguas también) con su tipo («Pregunta y respuesta» o «Apunte
+ * completo»), su nota de origen, estado y próximo repaso. Buscar, filtrar por
+ * estado y por carpeta (las de ResiNotes, sin carpetas propias), y crear una
+ * pregunta a mano con el botón +.
  */
 
 const TABS = [
@@ -22,7 +24,7 @@ const TABS = [
   { key: "review", label: "Por revisar" },
 ];
 
-export const MyCardsView = ({ userId, library, onBack, onOpenCard, onCreateFromNotes, onSettings }) => {
+export const MyCardsView = ({ userId, library, onBack, onOpenCard, onGoToNotes, onSettings }) => {
   const [state, setState] = useState({ loading: true, error: null, cards: [] });
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
@@ -87,8 +89,9 @@ export const MyCardsView = ({ userId, library, onBack, onOpenCard, onCreateFromN
         accessibilityRole="button"
         testID={`flashcards-card-${card.id}`}
       >
+        <TypeChip card={card} testID={`flashcards-card-type-${card.id}`} />
         <Text style={styles.question} numberOfLines={3}>
-          {card.question}
+          {cardFrontText(card)}
         </Text>
         <SourceMeta card={card} folderName={folderName(card.source?.folder_id)} />
         <View style={styles.rowFooter}>
@@ -173,8 +176,11 @@ export const MyCardsView = ({ userId, library, onBack, onOpenCard, onCreateFromN
         <View style={fs.center} testID="flashcards-none">
           <Icon name="cards-outline" size={40} color={COLORS.PRIMARY} />
           <Text style={fs.emptyTitle}>Todavía no tienes tarjetas</Text>
-          <Text style={fs.emptyText}>Empieza creando tarjetas desde uno de tus apuntes.</Text>
-          <PrimaryButton label="Crear tarjetas" onPress={onCreateFromNotes} />
+          <Text style={fs.emptyText}>
+            Abre una de tus notas y pulsa «Crear pregunta» para guardar un dato que quieras memorizar, o selecciona un
+            texto y conviértelo en la respuesta. También puedes guardar una nota entera para repasarla.
+          </Text>
+          <PrimaryButton label="Ir a mis apuntes" onPress={onGoToNotes} testID="flashcards-go-notes" />
         </View>
       );
     }
@@ -212,9 +218,8 @@ export const MyCardsView = ({ userId, library, onBack, onOpenCard, onCreateFromN
           />
           <CardEditorSheet
             visible={manual}
-            title="Nueva tarjeta"
+            title="Crear pregunta"
             initial={null}
-            notice="Las tarjetas que creas a mano se identifican como manuales."
             onSubmit={submitManual}
             onClose={() => setManual(false)}
           />

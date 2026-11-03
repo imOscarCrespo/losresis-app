@@ -94,7 +94,7 @@ export const FolderRow = ({ folder, count = 0, onPress, onLongPress, onMore, sel
       </View>
       {folder.emoji ? <Text style={styles.emoji}>{folder.emoji}</Text> : null}
       <View style={styles.texts}>
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={styles.title} numberOfLines={2}>
           {folder.name}
         </Text>
         <Text style={styles.subtitle}>{formatElementCount(count)}</Text>
@@ -137,7 +137,8 @@ export const ItemRow = ({ item, folderName, onPress, onMore, onLongPress, showFo
         <Icon name={ITEM_TYPE_ICONS[item.type]} size={22} color={COLORS.PRIMARY} />
       </View>
       <View style={styles.texts}>
-        <Text style={styles.title} numberOfLines={1}>
+        {/* Hasta 3 líneas: el título se lee sin abrir la nota (ClickUp 124b4z9w5nh). */}
+        <Text style={styles.title} numberOfLines={3}>
           {item.title || "Sin título"}
         </Text>
         <Text style={styles.subtitle} numberOfLines={1}>

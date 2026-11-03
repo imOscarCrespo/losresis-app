@@ -27,18 +27,23 @@ import {
   RATING_KEYS,
   buildMoreQueue,
   buildTodayQueue,
+  cardFrontText,
+  cardType,
   includedFolderSet,
   localDateString,
   newClientReviewId,
   summarizeReviews,
 } from "../../../utils/flashcards";
-import { AnswerBody, PrimaryButton, SecondaryButton, SourceMeta, flashcardStyles as fs } from "./FlashcardParts";
+import { AnswerBody, PrimaryButton, SecondaryButton, SourceMeta, TypeChip, flashcardStyles as fs } from "./FlashcardParts";
+import { NoteContent, useNoteForReading } from "../NoteContent";
 import { SnoozeSheet } from "./ReminderParts";
 import { SheetOption } from "../ResiNotesSheet";
 
 /**
- * «Repasar» (ClickUp 124b4z9w0z0): una tarjeta a pantalla completa, tocar para
- * darle la vuelta y autoevaluarse con «No lo sabía», «Me costó» o «Lo sabía».
+ * «Repasar» (ClickUp 124b4z9w0z0 y 124b4z9w5nh): una tarjeta a pantalla
+ * completa, «Ver respuesta» (o «Ver apunte» en una de apunte completo, que
+ * enseña la nota actual entera) y autoevaluarse con «Otra vez», «Me costó» o
+ * «Fácil» (el algoritmo de siempre).
  *
  * Cada respuesta se guarda en la BD antes de pasar a la siguiente, con una
  * clave de idempotencia por tarjeta mostrada: un doble toque o un reintento no
@@ -46,8 +51,10 @@ import { SheetOption } from "../ResiNotesSheet";
  * monta otra vez sin lo ya repasado hoy). Una tarjeta fallada reaparece una
  * sola vez al final.
  *
- * mode = 'today' (el repaso del día) | 'more' («Repasar más»). El límite del
- * día, el de nuevas y las carpetas salen de la configuración de repaso.
+ * mode = 'today' (el repaso del día) | 'more' («Repasar otras tarjetas»). El
+ * límite del día, el de nuevas y las carpetas salen de la configuración de
+ * repaso. 'more' es práctica voluntaria: no se valora ni cambia la
+ * programación de ninguna tarjeta («Ver respuesta» → «Siguiente»).
  *
  * fromPush: se ha abierto desde el recordatorio. Entonces «Ahora no» ofrece
  * posponer el aviso (en 1 hora, esta noche, mañana o desactivarlos).
@@ -85,9 +92,42 @@ const Completed = ({ summary, onExit, onMore }) => (
       </View>
     ) : null}
     <PrimaryButton label="Volver a ResiNotes" onPress={onExit} style={styles.fullWidth} testID="review-back-home" />
-    <SecondaryButton label="Repasar más" onPress={onMore} style={styles.fullWidth} testID="review-more" />
+    <SecondaryButton label="Repasar otras tarjetas" onPress={onMore} style={styles.fullWidth} testID="review-more" />
   </ScrollView>
 );
+
+const PracticeDone = ({ count, onExit }) => (
+  <ScrollView contentContainerStyle={[fs.content, styles.completed]} testID="review-practice-done">
+    <View style={styles.doneIcon}>
+      <Icon name="checkmark" size={44} color={COLORS.PRIMARY} weight="bold" />
+    </View>
+    <Text style={styles.doneTitle}>Repaso terminado</Text>
+    <Text style={styles.doneText}>
+      Has repasado {count} {count === 1 ? "tarjeta" : "tarjetas"}. Su programación no ha cambiado.
+    </Text>
+    <PrimaryButton label="Volver a ResiNotes" onPress={onExit} style={styles.fullWidth} testID="review-back-home" />
+  </ScrollView>
+);
+
+/** Cara de atrás de una tarjeta de apunte completo: la nota actual entera. */
+const NoteCardBack = ({ card }) => {
+  const note = useNoteForReading(card.source_item_id);
+  if (note.loading) return <ActivityIndicator color={COLORS.PRIMARY} />;
+  if (note.error) {
+    return (
+      <View style={styles.noteError}>
+        <Text style={fs.muted}>
+          {note.error === "missing" ? "La nota ya no está disponible." : "No se ha podido cargar la nota. Revisa tu conexión."}
+        </Text>
+        {note.error === "missing" ? null : <SecondaryButton label="Reintentar" onPress={note.reload} />}
+      </View>
+    );
+  }
+  return <NoteContent html={note.html} testID="review-note-content" />;
+};
+
+// Tarjetas de un «Repasar otras tarjetas».
+const PRACTICE_SIZE = 20;
 
 export const ReviewSessionView = ({
   userId,
@@ -111,6 +151,8 @@ export const ReviewSessionView = ({
   const [saving, setSaving] = useState(null); // rating en curso
   const [summary, setSummary] = useState(null);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const practice = mode === "more";
+  const [practiceDone, setPracticeDone] = useState(false);
   const requeued = useRef(new Set());
   const reviewIdRef = useRef(newClientReviewId());
   const savingRef = useRef(false);
@@ -146,7 +188,8 @@ export const ReviewSessionView = ({
       let next;
       let already = 0;
       if (mode === "more") {
-        next = buildMoreQueue({ cards: data.cards, reviewedTodayIds: data.reviewedTodayIds, today, folderSet });
+        // Práctica: no cambia nada, así que también entran las ya repasadas hoy.
+        next = buildMoreQueue({ cards: data.cards, reviewedTodayIds: [], today, folderSet, size: PRACTICE_SIZE });
       } else {
         const built = buildTodayQueue({
           cards: data.cards,
@@ -167,6 +210,7 @@ export const ReviewSessionView = ({
       setBase(next.length ? already : 0);
       setPlanned(next.length);
       setFlipped(false);
+      setPracticeDone(false);
       flip.setValue(0);
       if (!next.length && data.reviewedTodayIds.length && mode === "today") {
         setSummary(summarizeReviews(data.reviews));
@@ -258,6 +302,14 @@ export const ReviewSessionView = ({
     }
   };
 
+  // Práctica: pasar a la siguiente sin guardar nada.
+  const nextPractice = () => {
+    setFlipped(false);
+    flip.setValue(0);
+    if (index + 1 >= queue.length) setPracticeDone(true);
+    setIndex(index + 1);
+  };
+
   // «Ahora no»: desde el recordatorio, ofrece posponerlo; si no, sale.
   const later = () => {
     if (fromPush && prefs?.reminders_enabled) setSnoozing(true);
@@ -324,6 +376,9 @@ export const ReviewSessionView = ({
     if (summary) {
       return <Completed summary={summary} onExit={onExit} onMore={onMore} />;
     }
+    if (practice && practiceDone) {
+      return <PracticeDone count={queue.length} onExit={onExit} />;
+    }
     if (!queue.length) {
       const noCards = !state.totalCards;
       return (
@@ -332,7 +387,7 @@ export const ReviewSessionView = ({
           <Text style={fs.emptyTitle}>{noCards ? "Todavía no tienes tarjetas" : "Todo al día"}</Text>
           <Text style={fs.emptyText}>
             {noCards
-              ? "Empieza creando tarjetas desde uno de tus apuntes."
+              ? "Abre una nota y pulsa «Crear pregunta» o guárdala para repasar."
               : mode === "more"
                 ? "No tienes más tarjetas activas para repasar ahora."
                 : "No tienes tarjetas pendientes de repaso."}
@@ -356,11 +411,16 @@ export const ReviewSessionView = ({
     const rotateY = flip.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "90deg"] });
     const folder = card.source?.folder_id ? folderName(card.source.folder_id) : null;
     const sourceAvailable = card.source && !card.source.deleted_at;
+    const isNote = cardType(card) === "note";
 
     return (
       <ScrollView contentContainerStyle={fs.content}>
         <Text style={styles.progressLabel} testID="review-progress">
-          {isRepeat ? "Repaso de las que no sabías" : `Tarjeta ${position} de ${total}`}
+          {isRepeat
+            ? "Repaso de las que no sabías"
+            : practice
+              ? `Repaso libre · Tarjeta ${index + 1} de ${queue.length}`
+              : `Tarjeta ${position} de ${total}`}
         </Text>
         <View style={styles.progressTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}>
           <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
@@ -369,11 +429,16 @@ export const ReviewSessionView = ({
         <Animated.View style={[styles.face, { transform: [{ perspective: 1200 }, { rotateY }] }]}>
           {flipped ? (
             <View style={styles.faceInner} testID="review-card-back">
+              {isNote ? <TypeChip card={card} /> : null}
               <SourceMeta card={card} folderName={folder} />
-              <Text style={styles.backQuestion}>{card.question}</Text>
-              <View style={styles.answerBox}>
-                <AnswerBody answer={card.answer} size={16} color={COLORS.PRIMARY_DARK} testID="review-answer" />
-              </View>
+              <Text style={styles.backQuestion}>{cardFrontText(card)}</Text>
+              {isNote ? (
+                <NoteCardBack card={card} />
+              ) : (
+                <View style={styles.answerBox}>
+                  <AnswerBody answer={card.answer} size={16} color={COLORS.PRIMARY_DARK} testID="review-answer" />
+                </View>
+              )}
               {sourceAvailable ? (
                 <TouchableOpacity
                   style={styles.sourceLink}
@@ -391,19 +456,33 @@ export const ReviewSessionView = ({
               style={[styles.faceInner, styles.front]}
               onPress={showAnswer}
               accessibilityRole="button"
-              accessibilityHint="Toca para ver la respuesta"
+              accessibilityHint={isNote ? "Toca para ver el apunte" : "Toca para ver la respuesta"}
               testID="review-card-front"
             >
+              {isNote ? <TypeChip card={card} testID="review-card-type" /> : null}
               <SourceMeta card={card} folderName={folder} />
               <Text style={styles.questionText} testID="review-question">
-                {card.question}
+                {cardFrontText(card)}
               </Text>
-              <PrimaryButton label="Mostrar respuesta" onPress={showAnswer} testID="review-show-answer" style={styles.showButton} />
+              <PrimaryButton
+                label={isNote ? "Ver apunte" : "Ver respuesta"}
+                onPress={showAnswer}
+                testID="review-show-answer"
+                style={styles.showButton}
+              />
             </Pressable>
           )}
         </Animated.View>
 
-        {flipped ? (
+        {flipped && practice ? (
+          <PrimaryButton
+            label={index + 1 >= queue.length ? "Terminar" : "Siguiente"}
+            icon="arrow-forward"
+            onPress={nextPractice}
+            style={styles.nextButton}
+            testID="review-next"
+          />
+        ) : flipped ? (
           <View style={styles.ratings}>
             {RATING_KEYS.map((key) => (
               <TouchableOpacity
@@ -475,6 +554,8 @@ const styles = StyleSheet.create({
   sourceLink: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
   sourceLinkText: { fontSize: 15, color: COLORS.TEXT_MEDIUM, textDecorationLine: "underline" },
   ratings: { flexDirection: "row", justifyContent: "space-between", marginTop: 22, gap: 8 },
+  nextButton: { marginTop: 22 },
+  noteError: { gap: 10 },
   rating: { flex: 1, alignItems: "center", gap: 8, minHeight: 88 },
   ratingCircle: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center" },
   ratingLabel: { fontSize: 14, fontWeight: "600", color: COLORS.TEXT_DARK, textAlign: "center" },

@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { EditorContent } from "@tiptap/react";
 // Todo de las fuentes de TenTap (no de `@10play/tentap-editor/web`): mezclar las
 // dos copias duplicaría el runtime del WebView.
-import { boot } from "@10play/tentap-editor/src/web/runtime";
+import { boot, sendMessage } from "@10play/tentap-editor/src/web/runtime";
 import { useTenTap } from "@10play/tentap-editor/src/web/useTenTap";
 import { TenTapStartKit } from "@10play/tentap-editor/src/bridges/StarterKit";
 import BridgeExtension from "@10play/tentap-editor/src/bridges/base";
@@ -11,13 +11,13 @@ import { createResiNotesBridges } from "../components/resinotes/editor/resinotes
 
 /*
  * El editor de ResiNotes dentro del WebView: el de TenTap (como su
- * simpleWebEditor) más tablas, bloques especiales y la selección (para crear
- * tarjetas de un fragmento).
+ * simpleWebEditor) más tablas, bloques especiales, la selección (para crear
+ * tarjetas de un fragmento) y los toques en imágenes y casillas.
  * Compilar: `npm run editor:build` → components/resinotes/editor/editorHtml.js.
  */
 
-const { TableBridge, CalloutBridge, SelectionBridge } = createResiNotesBridges(BridgeExtension);
-const bridges = [...TenTapStartKit, TableBridge, CalloutBridge, SelectionBridge];
+const { TableBridge, CalloutBridge, SelectionBridge, TapsBridge } = createResiNotesBridges(BridgeExtension, { sendMessage });
+const bridges = [...TenTapStartKit, TableBridge, CalloutBridge, SelectionBridge, TapsBridge];
 
 const Editor = () => {
   const editor = useTenTap({ bridges });

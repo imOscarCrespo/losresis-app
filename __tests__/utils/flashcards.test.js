@@ -1,44 +1,20 @@
-import { htmlToPlainText } from "../../utils/resinotes";
 import {
   DAILY_CARD_LIMIT,
-  answerLines,
   buildMoreQueue,
   buildTodayQueue,
   cardDisplayState,
   daysBetween,
   estimateMinutes,
   filterCards,
-  fingerprint,
   formatNextReview,
   formatPending,
-  generateFlashcards,
   localDateString,
-  markDuplicates,
   newClientReviewId,
   normalizeText,
-  noteBlocks,
   summarizeReviews,
   textContains,
-  topLevelElements,
 } from "../../utils/flashcards";
 
-// Un apunte tal y como lo guarda el editor (TenTap): párrafos dentro de <li>,
-// tablas con <th>/<td> con párrafos y bloques especiales en <div data-callout>.
-const ECLAMPSIA = [
-  "<h2>Definición</h2>",
-  "<p>Convulsiones tónico-clónicas en el contexto de preeclampsia, sin otra causa que lo explique.</p>",
-  "<h2>Manejo inicial</h2>",
-  "<ul><li><p>Estabilización materna (ABC).</p></li><li><p>Sulfato de magnesio.</p></li>",
-  "<li><p>Control de la presión arterial.</p></li><li><p>Valoración de finalización de la gestación.</p></li></ul>",
-  "<h2>Fármacos</h2>",
-  "<table><tbody><tr><th><p>Fármaco</p></th><th><p>Dosis</p></th><th><p>Vía</p></th></tr>",
-  "<tr><td><p>Sulfato de magnesio</p></td><td><p>4 g en 20 min</p></td><td><p>IV</p></td></tr>",
-  "<tr><td><p>Labetalol</p></td><td><p>20 mg</p></td><td><p>IV</p></td></tr></tbody></table>",
-  '<div data-callout="pearl"><p>Criterios de gravedad:</p><ul><li><p>TAS ≥ 160 mmHg</p></li><li><p>Plaquetas &lt; 100.000</p></li></ul></div>',
-  "<p>Magnesemia objetivo: 4-7 mEq/L</p>",
-].join("");
-
-const contentText = htmlToPlainText(ECLAMPSIA);
 
 describe("normalizeText / textContains", () => {
   it("colapsa espacios, saltos y espacios duros como la BD", () => {
@@ -49,137 +25,6 @@ describe("normalizeText / textContains", () => {
     expect(textContains("Uno\nDos  tres", "Dos tres")).toBe(true);
     expect(textContains("Uno", "")).toBe(false);
     expect(textContains("Uno", "Cuatro")).toBe(false);
-  });
-});
-
-describe("noteBlocks", () => {
-  it("separa encabezados, párrafos, listas y tablas y abre los bloques especiales", () => {
-    const types = noteBlocks(ECLAMPSIA).map((b) => b.type);
-    expect(types).toEqual(["heading", "paragraph", "heading", "list", "heading", "table", "paragraph", "list", "paragraph"]);
-  });
-
-  it("decodifica entidades y lee cada celda", () => {
-    const table = noteBlocks(ECLAMPSIA).find((b) => b.type === "table");
-    expect(table.rows[0]).toEqual(["Fármaco", "Dosis", "Vía"]);
-    expect(noteBlocks("<ul><li><p>Plaquetas &lt; 100.000</p></li></ul>")[0].lines).toEqual(["Plaquetas < 100.000"]);
-  });
-
-  it("no se rompe con HTML suelto o sin cerrar", () => {
-    expect(topLevelElements("texto suelto<p>uno</p>").map((e) => e.tag)).toEqual(["p", "p"]);
-    expect(noteBlocks("<p>sin cerrar").map((b) => b.lines)).toEqual([["sin cerrar"]]);
-    expect(noteBlocks("<p></p><img src=\"x\"><hr>")).toEqual([]);
-  });
-});
-
-describe("generateFlashcards", () => {
-  const { proposals, reason } = generateFlashcards({ html: ECLAMPSIA, title: "Eclampsia" });
-  const byQuestion = (q) => proposals.find((p) => p.question === q);
-
-  it("crea una tarjeta por apartado con su contenido literal", () => {
-    expect(reason).toBeNull();
-    expect(byQuestion("¿Cómo define tu apunte «Eclampsia»?").answer).toBe(
-      "Convulsiones tónico-clónicas en el contexto de preeclampsia, sin otra causa que lo explique."
-    );
-    const manejo = byQuestion("¿Qué incluye «Manejo inicial» en tu apunte de «Eclampsia»?");
-    expect(answerLines(manejo.answer)).toEqual([
-      "Estabilización materna (ABC).",
-      "Sulfato de magnesio.",
-      "Control de la presión arterial.",
-      "Valoración de finalización de la gestación.",
-    ]);
-    expect(manejo.locator).toBe("Manejo inicial");
-  });
-
-  it("crea una tarjeta por fila de tabla preguntando por sus columnas", () => {
-    const row = byQuestion("En tu tabla «Fármacos», ¿qué pone en «Dosis» y «Vía» para «Labetalol»?");
-    expect(row.answer).toBe("20 mg\nIV");
-    expect(row.excerpt).toBe("Labetalol\n20 mg\nIV");
-  });
-
-  it("usa una línea «Etiqueta:» como título de la lista que la sigue", () => {
-    const list = byQuestion("¿Qué incluye «Criterios de gravedad» en tu apunte de «Eclampsia»?");
-    expect(list.answer).toBe("TAS ≥ 160 mmHg\nPlaquetas < 100.000");
-  });
-
-  it("crea tarjetas de «Término: definición» sin tocar cifras ni unidades", () => {
-    const term = byQuestion("Según tu apunte de «Eclampsia», ¿qué corresponde a «Magnesemia objetivo»?");
-    expect(term.answer).toBe("4-7 mEq/L");
-  });
-
-  it("todas las respuestas y fragmentos son texto literal del apunte (lo que comprueba la BD)", () => {
-    expect(proposals.length).toBeGreaterThan(4);
-    proposals.forEach((p) => {
-      expect(textContains(contentText, p.excerpt)).toBe(true);
-      expect(textContains(p.excerpt, p.answer)).toBe(true);
-    });
-  });
-
-  it("no repite propuestas", () => {
-    const keys = proposals.map((p) => fingerprint(p.question, p.answer));
-    expect(new Set(keys).size).toBe(keys.length);
-  });
-
-  it("apunte vacío: no genera nada y lo dice", () => {
-    expect(generateFlashcards({ html: "", title: "x" })).toEqual({ proposals: [], reason: "empty" });
-    expect(generateFlashcards({ html: "<p></p><h2>Solo título</h2>" }).reason).toBe("empty");
-  });
-
-  it("una sola palabra o prosa sin estructura: se abstiene", () => {
-    expect(generateFlashcards({ html: "<p>Preeclampsia</p>" })).toEqual({ proposals: [], reason: "no_structure" });
-    const prose = "<p>La paciente tuvo una evolución favorable y se decidió el alta al tercer día.</p>";
-    expect(generateFlashcards({ html: prose, title: "Caso" }).reason).toBe("no_structure");
-  });
-
-  it("no completa nada: «revisar protocolo» se queda tal cual", () => {
-    const { proposals: p } = generateFlashcards({
-      html: "<h2>Tratamiento</h2><p>Revisar protocolo.</p>",
-      title: "Patología X",
-    });
-    expect(p).toEqual([
-      {
-        question: "¿Qué recoge tu apunte de «Patología X» sobre «Tratamiento»?",
-        answer: "Revisar protocolo.",
-        excerpt: "Revisar protocolo.",
-        locator: "Tratamiento",
-      },
-    ]);
-  });
-
-  it("conserva negaciones literalmente", () => {
-    const { proposals: p } = generateFlashcards({ html: "<p>Contraindicación: no administrar en asmáticos</p>" });
-    expect(p[0].answer).toBe("no administrar en asmáticos");
-  });
-
-  it("no toma horas ni URLs por «Término: definición»", () => {
-    const html = "<p>Pase de guardia a las 8:30 en la sala</p><p>Fuente: https://example.com</p>";
-    const { proposals: p } = generateFlashcards({ html });
-    expect(p.map((x) => x.question)).toEqual(["Según tu apunte, ¿qué corresponde a «Fuente»?"]);
-  });
-
-  it("deja fuera un apartado demasiado largo para una tarjeta, pero no sus definiciones", () => {
-    const long = Array.from({ length: 20 }, (_, i) => `<li><p>Elemento ${i}</p></li>`).join("");
-    const { proposals: p } = generateFlashcards({ html: `<h2>Lista larga</h2><ul>${long}</ul><p>Dosis: 4 g</p>` });
-    expect(p.find((x) => x.locator === "Lista larga")).toBeUndefined();
-    expect(p.find((x) => x.answer === "4 g")).toBeDefined();
-  });
-
-  it("un apartado sin contenido (solo subapartados) no crea tarjeta", () => {
-    const { proposals: p } = generateFlashcards({ html: "<h1>Tema</h1><h2>Sub</h2><p>Texto del sub.</p>" });
-    expect(p.map((x) => x.locator)).toEqual(["Sub"]);
-  });
-});
-
-describe("markDuplicates", () => {
-  it("marca las que ya tienes (ignorando mayúsculas y espacios) y no las borradas", () => {
-    const proposals = [
-      { question: "¿A?", answer: "Uno" },
-      { question: "¿B?", answer: "Dos" },
-    ];
-    const marked = markDuplicates(proposals, [
-      { question: "¿a? ", answer: "uno" },
-      { question: "¿B?", answer: "Dos", deleted_at: "2026-01-01" },
-    ]);
-    expect(marked.map((p) => p.duplicate)).toEqual([true, false]);
   });
 });
 
@@ -333,5 +178,70 @@ describe("newClientReviewId", () => {
     const a = newClientReviewId();
     expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     expect(newClientReviewId()).not.toBe(a);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ClickUp 124b4z9w5nh: sin generación, preguntas a mano y apunte completo
+// ---------------------------------------------------------------------------
+describe("estudiar una nota (124b4z9w5nh)", () => {
+  const {
+    RATINGS,
+    cardFrontText,
+    cardType,
+    formatPendingReview,
+    isValidQuestion,
+    noteHasStudyContent,
+    selectionToAnswer,
+  } = require("../../utils/flashcards");
+  const flashcards = require("../../utils/flashcards");
+
+  it("ya no hay generador automático", () => {
+    expect(flashcards.generateFlashcards).toBeUndefined();
+    expect(flashcards.generateFromSelection).toBeUndefined();
+    expect(flashcards.markSimilar).toBeUndefined();
+  });
+
+  it("valoraciones «Otra vez», «Me costó» y «Fácil»", () => {
+    expect([RATINGS.again.label, RATINGS.hard.label, RATINGS.good.label]).toEqual(["Otra vez", "Me costó", "Fácil"]);
+  });
+
+  it("una nota vacía no se puede repasar; con texto o con una imagen, sí", () => {
+    expect(noteHasStudyContent("")).toBe(false);
+    expect(noteHasStudyContent("<p></p><p>  </p>")).toBe(false);
+    expect(noteHasStudyContent("<p>Oxitocina 10 UI</p>")).toBe(true);
+    expect(noteHasStudyContent('<p></p><img src="resinotes://u/n/a.jpg">')).toBe(true);
+  });
+
+  it("el texto seleccionado pasa a la respuesta, una línea por elemento", () => {
+    expect(selectionToAnswer("<p>Vitamina E, ácido hialurónico y caléndula</p>")).toBe(
+      "Vitamina E, ácido hialurónico y caléndula"
+    );
+    expect(selectionToAnswer("<ul><li><p>Vitamina E</p></li><li><p>Caléndula &amp; tomillo</p></li></ul>")).toBe(
+      "Vitamina E\nCaléndula & tomillo"
+    );
+    expect(selectionToAnswer("x".repeat(5000))).toHaveLength(4000);
+    expect(selectionToAnswer(null)).toBe("");
+  });
+
+  it("pregunta y respuesta son obligatorias", () => {
+    expect(isValidQuestion({ question: "¿Qué contiene Gixoderm?", answer: "Vitamina E" })).toBe(true);
+    expect(isValidQuestion({ question: "   ", answer: "Vitamina E" })).toBe(false);
+    expect(isValidQuestion({ question: "¿Qué contiene?", answer: "\n " })).toBe(false);
+  });
+
+  it("una tarjeta de apunte enseña el título actual de su nota; las antiguas son de pregunta", () => {
+    expect(cardType({ card_type: "note" })).toBe("note");
+    expect(cardType({ origin: "generated" })).toBe("qa");
+    expect(cardFrontText({ card_type: "note", question: "Título viejo", source: { title: "Hemorragia posparto" } })).toBe(
+      "Hemorragia posparto"
+    );
+    expect(cardFrontText({ card_type: "note", question: "Título viejo", source: null })).toBe("Título viejo");
+    expect(cardFrontText({ card_type: "qa", question: "¿Dosis?" })).toBe("¿Dosis?");
+  });
+
+  it("«Tienes 5 tarjetas para repasar»", () => {
+    expect(formatPendingReview(5)).toBe("Tienes 5 tarjetas para repasar");
+    expect(formatPendingReview(1)).toBe("Tienes 1 tarjeta para repasar");
   });
 });

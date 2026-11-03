@@ -2,16 +2,19 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Icon } from "../../Icon";
 import { COLORS } from "../../../constants/colors";
-import { estimateMinutes, formatDay, formatPending } from "../../../utils/flashcards";
+import { estimateMinutes, formatDay, formatPendingReview } from "../../../utils/flashcards";
 
 /**
- * «Tu repaso de hoy» en la portada de ResiNotes (ClickUp 124b4z9w0z0).
+ * Repasos pendientes en la portada de ResiNotes (ClickUp 124b4z9w0z0,
+ * simplificado en 124b4z9w5nh: «Tienes N tarjetas para repasar · Repasar
+ * ahora», que empieza el repaso directamente, o «Todo al día · Repasar otras
+ * tarjetas», que practica sin cambiar la programación).
  * Estados: pendientes, todo al día, aún sin tarjetas y en pausa. Con el repaso
  * diario desactivado (configuración de repaso) o si no se ha podido cargar, no
  * se enseña (la biblioteca sigue funcionando; la configuración sigue en Mis
  * tarjetas).
  */
-export const ReviewTodayCard = ({ summary, onStart, onMore, onCreate, onSettings, onResume }) => {
+export const ReviewTodayCard = ({ summary, onStart, onMore, onSettings, onResume }) => {
   if (!summary || summary.error || summary.disabled) return null;
 
   let title;
@@ -29,15 +32,12 @@ export const ReviewTodayCard = ({ summary, onStart, onMore, onCreate, onSettings
     onPress = onResume;
     testID = "resinotes-review-resume";
   } else if (!summary.totalCards) {
-    title = "Tus apuntes también pueden ayudarte a repasar";
-    text = "Crea tus primeras tarjetas automáticamente.";
-    action = "Crear tarjetas";
-    onPress = onCreate;
-    testID = "resinotes-review-create";
+    title = "Repasa tus apuntes en segundos";
+    text = "Abre una nota y pulsa «Repasar ahora» o «Crear pregunta».";
   } else if (summary.pending > 0) {
-    title = "Tu repaso de hoy";
-    text = `${formatPending(summary.pending)} · ${estimateMinutes(summary.pending)} min aprox.`;
-    action = "Empezar repaso";
+    title = formatPendingReview(summary.pending);
+    text = `Unos ${estimateMinutes(summary.pending)} min aprox.`;
+    action = "Repasar ahora";
     onPress = onStart;
     testID = "resinotes-review-start";
   } else {

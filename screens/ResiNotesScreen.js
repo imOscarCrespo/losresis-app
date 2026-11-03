@@ -59,7 +59,7 @@ import {
 import { exportFolderZip, exportNoteHtml } from "../services/resinotesExport";
 import { getReviewPreferences, loadReviewData, saveReviewPreferences } from "../services/flashcardService";
 import { ReviewTodayCard } from "../components/resinotes/flashcards/ReviewTodayCard";
-import { CreateCardsView } from "../components/resinotes/flashcards/CreateCardsView";
+import { NoteStudyView } from "../components/resinotes/flashcards/NoteStudyView";
 import { ReviewSessionView } from "../components/resinotes/flashcards/ReviewSessionView";
 import { MyCardsView } from "../components/resinotes/flashcards/MyCardsView";
 import { CardDetailView } from "../components/resinotes/flashcards/CardDetailView";
@@ -262,7 +262,7 @@ const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
   // tarjetas» también (en «Revisar una a una» vuelve a la lista sin perder las
   // propuestas).
   useEffect(() => {
-    if (route.name === "note" || route.name === "cards-create") return undefined;
+    if (route.name === "note") return undefined;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       goBack();
       return true;
@@ -771,7 +771,6 @@ const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
           summary={reviewSummary}
           onStart={() => push({ name: "review", mode: "today" })}
           onMore={() => push({ name: "review", mode: "more" })}
-          onCreate={() => push({ name: "cards-create" })}
           onSettings={() => push({ name: "review-settings" })}
           onResume={resumeReviews}
         />
@@ -841,24 +840,6 @@ const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
           ) : (
             <Text style={styles.hint}>Aún no tienes carpetas. Pulsa + para crear la primera.</Text>
           ))}
-
-        {!loading && !loadError && !ordering && library.items.some((i) => i.type === "note") ? (
-          <TouchableOpacity
-            style={styles.createCards}
-            onPress={() => push({ name: "cards-create" })}
-            accessibilityRole="button"
-            testID="resinotes-create-cards"
-          >
-            <View style={styles.createCardsIcon}>
-              <Icon name="sparkles-outline" size={22} color={COLORS.PRIMARY} />
-            </View>
-            <View style={styles.flex}>
-              <Text style={styles.createCardsTitle}>Crear tarjetas</Text>
-              <Text style={styles.createCardsText}>Tarjetas de repaso a partir de tus apuntes.</Text>
-            </View>
-            <Icon name="chevron-forward" size={18} color={COLORS.TEXT_LIGHT} />
-          </TouchableOpacity>
-        ) : null}
 
         {!loading && !loadError && !isEmpty && !ordering ? (
           <TouchableOpacity
@@ -1056,9 +1037,9 @@ const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
           refresh({ silent: true });
         }}
         onSaved={patchItem}
-        onCreateCards={(id, selectionHtml = null) => {
+        onStudy={(id) => {
           refresh({ silent: true });
-          push({ name: "cards-create", id, selectionHtml });
+          push({ name: "note-study", id });
         }}
       />
     );
@@ -1070,20 +1051,8 @@ const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
   const toHome = () => setStack([{ name: "home" }]);
   const replaceTop = (next) => setStack((prev) => [...prev.slice(0, -1), next]);
 
-  if (route.name === "cards-create") {
-    return (
-      <CreateCardsView
-        key={route.id || route.folderId || "pick"}
-        userId={userId}
-        itemId={route.id || null}
-        selectionHtml={route.selectionHtml || null}
-        folderId={route.folderId || null}
-        library={library}
-        onBack={pop}
-        onStartReview={() => replaceTop({ name: "review", mode: "today" })}
-        onCreated={refreshReview}
-      />
-    );
+  if (route.name === "note-study") {
+    return <NoteStudyView key={route.id} userId={userId} itemId={route.id} onBack={pop} />;
   }
 
   if (route.name === "review") {
@@ -1115,7 +1084,7 @@ const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
         onBack={pop}
         onSettings={() => push({ name: "review-settings" })}
         onOpenCard={(id) => push({ name: "card", id })}
-        onCreateFromNotes={() => push({ name: "cards-create" })}
+        onGoToNotes={toHome}
       />
     );
   }
@@ -1128,7 +1097,6 @@ const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
         folderName={folderName}
         onBack={pop}
         onOpenNote={(id) => push({ name: "note", id })}
-        onRegenerate={(id) => push({ name: "cards-create", id })}
         onChanged={() => refresh({ silent: true })}
       />
     );
@@ -1303,18 +1271,6 @@ const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
           >
             {itemActions ? (
               <>
-                {itemActions.type === "note" ? (
-                  <SheetOption
-                    icon="brain-outline"
-                    label="Crear tarjetas de estudio"
-                    onPress={() => {
-                      const id = itemActions.id;
-                      setItemActions(null);
-                      push({ name: "cards-create", id });
-                    }}
-                    testID="resinotes-action-cards"
-                  />
-                ) : null}
                 <SheetOption
                   icon={itemActions.is_favorite ? "star" : "star-outline"}
                   label={itemActions.is_favorite ? "Quitar de favoritos" : "Añadir a favoritos"}
@@ -1398,17 +1354,6 @@ const ResiNotesScreen = ({ userProfile, onBack, initialRoute = null }) => {
                     setMoveTarget({ kind: "folder", entity: folderActions });
                     setFolderActions(null);
                   }}
-                />
-                <SheetOption
-                  icon="brain-outline"
-                  label="Generar tarjetas de esta carpeta"
-                  description="Tarjetas de repaso a partir de sus notas"
-                  onPress={() => {
-                    const folderId = folderActions.id;
-                    setFolderActions(null);
-                    push({ name: "cards-create", folderId });
-                  }}
-                  testID="resinotes-folder-cards"
                 />
                 <SheetOption
                   icon="share-outline"
@@ -1600,7 +1545,7 @@ const SearchView = ({ onBack, onOpenFolder, onOpenItem }) => {
                 />
               </View>
               <View style={styles.flex}>
-                <Text style={styles.resultTitle} numberOfLines={1}>
+                <Text style={styles.resultTitle} numberOfLines={3}>
                   {r.title || "Sin título"}
                 </Text>
                 <Text style={styles.resultMeta} numberOfLines={1}>
@@ -1681,7 +1626,7 @@ const TrashView = ({ userId, onBack, onChanged }) => {
         <Icon name={icon} size={20} color={color ? color.fg : COLORS.PRIMARY} />
       </View>
       <View style={styles.flex}>
-        <Text style={styles.resultTitle} numberOfLines={1}>
+        <Text style={styles.resultTitle} numberOfLines={3}>
           {title}
         </Text>
         <Text style={styles.resultMeta}>{meta}</Text>
@@ -1963,27 +1908,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   trashButton: { padding: 8 },
-  createCards: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: COLORS.WHITE,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.BORDER,
-    padding: 14,
-    marginTop: 14,
-  },
-  createCardsIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: COLORS.PRIMARY_LIGHT,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  createCardsTitle: { fontSize: 15, fontWeight: "700", color: COLORS.PRIMARY_DARK },
-  createCardsText: { fontSize: 13, color: COLORS.TEXT_LIGHT, marginTop: 2 },
 });
 
 export default ResiNotesScreen;

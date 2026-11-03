@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "../Icon";
 import { COLORS } from "../../constants/colors";
+import { KeyboardAwareScrollView } from "../KeyboardAwareScrollView";
 
 /**
  * Hoja inferior de ResiNotes (menú «¿Qué quieres guardar?», acciones de un
@@ -49,8 +50,10 @@ export const useRunAfterSheetClose = () => {
   return { runAfterSheetClose, onSheetDismiss };
 };
 
-export const ResiNotesSheet = ({ visible, title, onClose, onDismiss, children, footer = null, testID }) => {
+export const ResiNotesSheet = ({ visible, title, onClose, onDismiss, children, footer = null, testID, keyboardAware = false }) => {
   const insets = useSafeAreaInsets();
+  // Con campos de texto (p. ej. «Crear pregunta»): el campo enfocado nunca queda bajo el teclado.
+  const Body = keyboardAware ? KeyboardAwareScrollView : ScrollView;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
@@ -68,7 +71,7 @@ export const ResiNotesSheet = ({ visible, title, onClose, onDismiss, children, f
           >
             <View style={styles.handle} />
             <View style={styles.header}>
-              <Text style={styles.title} numberOfLines={2}>
+              <Text style={styles.title} numberOfLines={3}>
                 {title}
               </Text>
               <TouchableOpacity
@@ -80,13 +83,9 @@ export const ResiNotesSheet = ({ visible, title, onClose, onDismiss, children, f
                 <Icon name="close" size={22} color={COLORS.TEXT_LIGHT} />
               </TouchableOpacity>
             </View>
-            <ScrollView
-              style={styles.body}
-              contentContainerStyle={styles.bodyContent}
-              keyboardShouldPersistTaps="handled"
-            >
+            <Body style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
               {children}
-            </ScrollView>
+            </Body>
             {footer}
           </Pressable>
         </Pressable>

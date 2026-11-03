@@ -407,3 +407,22 @@ describe("exportación", () => {
     expect(exportFileName("Urgencias / guardia", now)).toBe("ResiNotes - Urgencias - guardia - 2026-11-02");
   });
 });
+
+// ClickUp 124b4z9w5nh
+describe("singleLineTitle", () => {
+  const { singleLineTitle } = require("../../utils/resinotes");
+  it("convierte los saltos de línea en espacios y deja el resto igual", () => {
+    expect(singleLineTitle("HIDRATANTES,\nLUBRICANTES\r\nY OTROS")).toBe("HIDRATANTES, LUBRICANTES Y OTROS");
+    expect(singleLineTitle("Recomendaciones cuidados locales")).toBe("Recomendaciones cuidados locales");
+    expect(singleLineTitle(null)).toBe("");
+  });
+});
+
+describe("estilos de las listas de tareas", () => {
+  const { NOTE_BLOCKS_CSS } = require("../../utils/resinotes");
+  it("casilla morada, marca blanca y tarea hecha tachada y en gris", () => {
+    expect(NOTE_BLOCKS_CSS).toMatch(/taskList.*input \{[^}]*border: 2px solid #670CF5/);
+    expect(NOTE_BLOCKS_CSS).toMatch(/input:checked \{[^}]*#670CF5[^}]*stroke='white'/);
+    expect(NOTE_BLOCKS_CSS).toMatch(/data-checked="true"\] > div \{[^}]*line-through/);
+  });
+});

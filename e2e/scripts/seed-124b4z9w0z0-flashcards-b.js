@@ -105,8 +105,8 @@ if (MODE === "reset") {
   var hta = folder("Hipertensión", obs.id);
   folder("Urgencias", null);
 
-  post("resinotes_items", { user_id: userId, folder_id: obs.id, type: "note", title: "Eclampsia", content: ECLAMPSIA, content_text: plain(ECLAMPSIA) });
-  post("resinotes_items", {
+  var ecl = post("resinotes_items", { user_id: userId, folder_id: obs.id, type: "note", title: "Eclampsia", content: ECLAMPSIA, content_text: plain(ECLAMPSIA) });
+  var pre = post("resinotes_items", {
     user_id: userId,
     folder_id: hta.id,
     type: "note",
@@ -114,6 +114,18 @@ if (MODE === "reset") {
     content: PREECLAMPSIA,
     content_text: plain(PREECLAMPSIA),
   });
+  // Antes las generaba el flujo; desde 124b4z9w5nh son preguntas a mano vinculadas a su nota.
+  [
+    "¿Qué es la eclampsia?",
+    "¿Cuál es el manejo inicial de la eclampsia? (apunte)",
+    "¿Qué dosis de sulfato de magnesio?",
+    "¿Qué dosis de labetalol?",
+    "¿Criterios de gravedad?",
+    "¿Magnesemia objetivo?",
+  ].forEach(function (q) {
+    post("resinotes_flashcards", { user_id: userId, source_item_id: ecl.id, question: q, answer: "Ver apunte", origin: "manual" });
+  });
+  post("resinotes_flashcards", { user_id: userId, source_item_id: pre.id, question: "¿Umbral de TA?", answer: "≥ 140/90", origin: "manual" });
   post("resinotes_flashcards", {
     user_id: userId,
     question: MANUAL_QUESTION,
@@ -145,17 +157,13 @@ if (MODE === "reset") {
     return c.source_item_id === pre.id;
   });
   var manual = cards.filter(function (c) {
-    return c.origin === "manual";
+    return c.origin === "manual" && !c.source_item_id;
   });
-  // Las 6 de Eclampsia (con la parecida, «Mantener ambas») y la de Preeclampsia; cada una con su nota.
+  // Las 6 de Eclampsia y la de Preeclampsia (sembradas); cada una con su nota.
   if (fromEcl.length !== 6) throw new Error("De Eclampsia: " + fromEcl.length);
   if (fromPre.length !== 1 || fromPre[0].question.indexOf("Umbral") < 0) throw new Error("De Preeclampsia: " + JSON.stringify(fromPre));
   if (manual.length !== 1 || manual[0].question !== MANUAL_QUESTION) throw new Error("La manual: " + JSON.stringify(manual));
   if (cards.length !== 8) throw new Error("Tarjetas: " + cards.length);
-  var kept = fromEcl.filter(function (c) {
-    return c.question.indexOf("Manejo inicial") >= 0;
-  });
-  if (kept.length !== 1) throw new Error("No se mantuvo la parecida");
 
   // Un repaso antes de restablecer; después, todas nuevas y el repaso sigue ahí.
   var reviews = get("resinotes_flashcard_reviews" + own + "&select=id");

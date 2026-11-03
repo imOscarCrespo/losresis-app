@@ -1,15 +1,13 @@
 import { descendantIds, htmlToPlainText } from "./resinotes";
 
 /**
- * Tarjetas de repaso de ResiNotes (ClickUp 124b4z9w0z0).
+ * Tarjetas de repaso de ResiNotes (ClickUp 124b4z9w0z0 y 124b4z9w5nh).
  *
- * Generación SIN IA: las propuestas salen de la estructura del apunte
- * (encabezados con su contenido, listas con una línea «Etiqueta:» delante,
- * líneas «Término: definición» y filas de tabla). La respuesta es siempre texto
- * literal del apunte y cada propuesta lleva el fragmento del que sale
- * (excerpt), que la BD vuelve a comprobar al guardar
- * (losresis-db 20261112120000_resinotes_flashcards.sql). Si el apunte no tiene
- * estructura suficiente, no se inventa nada: no salen tarjetas.
+ * Sin generación automática (retirada en 124b4z9w5nh): el residente crea sus
+ * preguntas a mano (desde una nota, o desde un texto seleccionado que pasa a
+ * ser la respuesta) o guarda una nota entera como tarjeta de «Apunte
+ * completo» (card_type = 'note', que enseña siempre el contenido actual de la
+ * nota). Las tarjetas generadas antes se conservan y se repasan igual.
  *
  * La programación (repetición espaciada) se calcula en la BD
  * (resinotes_review_flashcard); aquí solo se decide qué toca repasar hoy.
@@ -18,23 +16,31 @@ import { descendantIds, htmlToPlainText } from "./resinotes";
 export const DAILY_CARD_LIMIT = 5;
 export const MORE_BATCH_SIZE = 5;
 export const SECONDS_PER_CARD = 36;
-export const MAX_PROPOSALS = 40;
-export const MAX_ANSWER_CHARS = 700;
-export const MAX_ANSWER_LINES = 15;
-export const MAX_LINE_CHARS = 300;
 export const MAX_QUESTION_CHARS = 500;
+export const MAX_ANSWER_LENGTH = 4000;
 
 export const RATINGS = {
-  again: { label: "No lo sabía", summary: "necesitas reforzar", icon: "close", bg: "#FDE8EF", fg: "#DB2777" },
+  again: { label: "Otra vez", summary: "necesitas reforzar", icon: "close", bg: "#FDE8EF", fg: "#DB2777" },
   hard: { label: "Me costó", summary: "te ha costado", icon: "remove", bg: "#FEF6DC", fg: "#D97706" },
-  good: { label: "Lo sabía", summary: "las sabías", icon: "checkmark", bg: "#E3F6EA", fg: "#16A34A" },
+  good: { label: "Fácil", summary: "las sabías", icon: "checkmark", bg: "#E3F6EA", fg: "#16A34A" },
 };
 export const RATING_KEYS = ["again", "hard", "good"];
+
+/** Tipo de tarjeta (ClickUp 124b4z9w5nh). Las anteriores son todas 'qa'. */
+export const CARD_TYPES = {
+  qa: { label: "Pregunta y respuesta", icon: "help-circle-outline" },
+  note: { label: "Apunte completo", icon: "document-text-outline" },
+};
+export const cardType = (card) => (card?.card_type === "note" ? "note" : "qa");
+
+/** Lo que se enseña como «pregunta»: en una tarjeta de apunte, el título actual de la nota. */
+export const cardFrontText = (card) =>
+  cardType(card) === "note" ? card?.source?.title || card?.question || "Nota sin título" : card?.question || "";
 
 export const ORIGIN_LABELS = {
   generated: "Creada desde tu apunte",
   generated_edited: "Creada desde tu apunte y editada por ti",
-  manual: "Creada a mano",
+  manual: "Creada por ti",
 };
 
 // ---------------------------------------------------------------------------
@@ -64,370 +70,32 @@ export const answerLines = (answer) =>
     .filter(Boolean);
 
 // ---------------------------------------------------------------------------
-// HTML -> bloques
+// Estudiar una nota (ClickUp 124b4z9w5nh)
 // ---------------------------------------------------------------------------
 
-const VOID_TAGS = new Set(["br", "img", "hr", "input", "meta", "link", "col", "source", "wbr"]);
-const CONTAINER_TAGS = new Set(["div", "blockquote", "section", "article"]);
-const TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>|<!--[\s\S]*?-->/g;
-
-/** Trocea el HTML en sus elementos de primer nivel ({tag, html}). */
-export const topLevelElements = (html) => {
-  const source = String(html || "");
-  const out = [];
-  let depth = 0;
-  let start = 0;
-  let rootTag = null;
-  let textStart = 0;
-  TAG_RE.lastIndex = 0;
-  let m;
-  while ((m = TAG_RE.exec(source))) {
-    if (m[0].startsWith("<!--")) continue;
-    const closing = m[1] === "/";
-    const tag = m[2].toLowerCase();
-    const selfClosing = m[3] === "/" || VOID_TAGS.has(tag);
-    if (depth === 0) {
-      const loose = source.slice(textStart, m.index);
-      if (loose.trim()) out.push({ tag: "p", html: loose });
-      if (closing) {
-        textStart = TAG_RE.lastIndex;
-        continue;
-      }
-      if (selfClosing) {
-        out.push({ tag, html: m[0] });
-        textStart = TAG_RE.lastIndex;
-        continue;
-      }
-      rootTag = tag;
-      start = m.index;
-      depth = 1;
-      continue;
-    }
-    if (selfClosing) continue;
-    if (closing) {
-      depth -= 1;
-      if (depth === 0) {
-        out.push({ tag: rootTag, html: source.slice(start, TAG_RE.lastIndex) });
-        textStart = TAG_RE.lastIndex;
-      }
-    } else {
-      depth += 1;
-    }
-  }
-  if (depth > 0) {
-    out.push({ tag: rootTag, html: source.slice(start) });
-  } else {
-    const loose = source.slice(textStart);
-    if (loose.trim()) out.push({ tag: "p", html: loose });
-  }
-  return out;
-};
-
-const innerHtml = (html) => String(html).replace(/^<[^>]+>/, "").replace(/<\/[a-zA-Z0-9]+>\s*$/, "");
-
-const tableRows = (html) => {
-  const rows = [];
-  const rowRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
-  let r;
-  while ((r = rowRe.exec(html))) {
-    const cells = [];
-    const cellRe = /<(t[hd])\b[^>]*>([\s\S]*?)<\/\1>/gi;
-    let c;
-    while ((c = cellRe.exec(r[1]))) {
-      cells.push(normalizeText(htmlToPlainText(c[2])));
-    }
-    rows.push(cells);
-  }
-  return rows;
-};
+/** ¿Tiene la nota algo que repasar? Texto o, al menos, una imagen. */
+export const noteHasStudyContent = (html) =>
+  normalizeText(htmlToPlainText(html)) !== "" || /<img\b/i.test(String(html || ""));
 
 /**
- * Bloques del apunte en orden: heading | paragraph | list | table. Los bloques
- * especiales (callouts) y las citas se abren y se leen como su contenido.
+ * «Crear pregunta» desde un texto seleccionado: la selección (HTML del editor)
+ * pasa a texto y es la respuesta, con una línea por párrafo o elemento de
+ * lista. Recortada al máximo de la BD.
  */
-export const noteBlocks = (html) => {
-  const blocks = [];
-  const walk = (elements) => {
-    elements.forEach(({ tag, html: el }) => {
-      if (CONTAINER_TAGS.has(tag)) {
-        walk(topLevelElements(innerHtml(el)));
-        return;
-      }
-      if (/^h[1-6]$/.test(tag)) {
-        const text = normalizeText(htmlToPlainText(el));
-        if (text) blocks.push({ type: "heading", level: Number(tag[1]), text });
-        return;
-      }
-      if (tag === "ul" || tag === "ol") {
-        const lines = htmlToPlainText(el)
-          .split("\n")
-          .map(normalizeText)
-          .filter(Boolean);
-        if (lines.length) blocks.push({ type: "list", lines });
-        return;
-      }
-      if (tag === "table") {
-        const rows = tableRows(el).filter((cells) => cells.some(Boolean));
-        if (rows.length) blocks.push({ type: "table", rows });
-        return;
-      }
-      if (VOID_TAGS.has(tag)) return;
-      const lines = htmlToPlainText(el)
-        .split("\n")
-        .map(normalizeText)
-        .filter(Boolean);
-      if (lines.length) blocks.push({ type: "paragraph", lines });
-    });
-  };
-  walk(topLevelElements(html));
-  return blocks;
-};
+export const selectionToAnswer = (selectionHtml) =>
+  htmlToPlainText(selectionHtml || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, MAX_ANSWER_LENGTH);
 
-// ---------------------------------------------------------------------------
-// Generación
-// ---------------------------------------------------------------------------
+/** Pregunta y respuesta obligatorias (sin contar espacios). */
+export const isValidQuestion = ({ question, answer } = {}) =>
+  normalizeText(question) !== "" && normalizeText(answer) !== "";
 
-const DEFINITION_RE = /^(definici[oó]n|concepto|qu[eé] es)\b/i;
-// «Término: definición» (con espacio tras los dos puntos: deja fuera horas y URLs).
-const TERM_RE = /^([^:]{2,60}?)\s*:\s+(\S[\s\S]*)$/;
-
-const cleanLabel = (text) =>
-  normalizeText(text)
-    .replace(/[\s:.;,·-]+$/u, "")
-    .replace(/^[•\-–·*\s]+/u, "");
-
-const sameText = (a, b) => normalizeText(a).toLowerCase() === normalizeText(b).toLowerCase();
-
-const truncate = (text, max) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
-
-const ofTitle = (title, label) => (title && !sameText(title, label) ? ` de «${title}»` : "");
-
-const questionForSection = (label, title, kind) => {
-  if (DEFINITION_RE.test(label)) {
-    return title ? `¿Cómo define tu apunte «${title}»?` : `¿Qué recoge tu apunte sobre «${label}»?`;
-  }
-  if (kind === "list") return `¿Qué incluye «${label}» en tu apunte${ofTitle(title, label)}?`;
-  return `¿Qué recoge tu apunte${ofTitle(title, label)} sobre «${label}»?`;
-};
-
-const questionForTerm = (term, title) => `Según tu apunte${ofTitle(title, term)}, ¿qué corresponde a «${term}»?`;
-
-const questionForRow = (label, headers, key) => {
-  const cols = headers.filter(Boolean).map((h) => `«${h}»`);
-  const what = cols.length ? cols.join(" y ") : "esta fila";
-  const where = label ? ` «${label}»` : "";
-  return `En tu tabla${where}, ¿qué pone en ${what} para «${key}»?`;
-};
-
-const answerFits = (lines) =>
-  lines.length > 0 &&
-  lines.length <= MAX_ANSWER_LINES &&
-  lines.join("\n").length <= MAX_ANSWER_CHARS &&
-  lines.every((l) => l.length <= MAX_LINE_CHARS);
-
-/** Una línea es «solo» una etiqueta si acaba en dos puntos. */
-const isLabelLine = (line) => /:\s*$/.test(line) && cleanLabel(line).length >= 2 && line.length <= 120;
-
-/**
- * Propuestas de tarjetas para un apunte.
- * Devuelve { proposals: [{question, answer, excerpt, locator}], reason }
- * con reason = 'empty' | 'no_structure' | null.
- */
-export const generateFlashcards = ({ html, title = "" } = {}) => {
-  const noteTitle = cleanLabel(title);
-  const blocks = noteBlocks(html);
-  const textBlocks = blocks.filter((b) => b.type !== "heading");
-  if (!textBlocks.length) return { proposals: [], reason: "empty" };
-
-  // Secciones: un encabezado y los bloques hasta el siguiente encabezado.
-  const sections = [];
-  let current = { heading: null, blocks: [] };
-  blocks.forEach((block) => {
-    if (block.type === "heading") {
-      sections.push(current);
-      current = { heading: block.text, blocks: [] };
-    } else {
-      current.blocks.push(block);
-    }
-  });
-  sections.push(current);
-
-  const proposals = [];
-  const seen = new Set();
-  const add = ({ question, answer, excerpt, locator }) => {
-    const q = normalizeText(question);
-    const a = String(answer)
-      .split("\n")
-      .map(normalizeText)
-      .filter(Boolean)
-      .join("\n");
-    if (!q || !a || q.length > MAX_QUESTION_CHARS || !textContains(excerpt, a)) return;
-    const key = fingerprint(q, a);
-    if (seen.has(key)) return;
-    seen.add(key);
-    proposals.push({ question: q, answer: a, excerpt: String(excerpt), locator: locator || null });
-  };
-
-  sections.forEach(({ heading, blocks: sectionBlocks }) => {
-    const label = heading ? cleanLabel(heading) : null;
-    const locatorBase = label || null;
-
-    // 1. La sección entera (párrafos y listas, sin tablas) si cabe en una tarjeta.
-    const prose = sectionBlocks.filter((b) => b.type !== "table");
-    const proseLines = prose.flatMap((b) => b.lines);
-    if (label && prose.length && prose.length === sectionBlocks.length && answerFits(proseLines)) {
-      const kind = prose.every((b) => b.type === "list") ? "list" : "text";
-      const answer = proseLines.join("\n");
-      add({
-        question: questionForSection(label, noteTitle, kind),
-        answer,
-        excerpt: answer,
-        locator: locatorBase,
-      });
-    }
-
-    sectionBlocks.forEach((block, idx) => {
-      // 2. Lista con una línea «Etiqueta:» justo delante.
-      if (block.type === "list") {
-        const prev = sectionBlocks[idx - 1];
-        const labelLine = prev && prev.type === "paragraph" ? prev.lines[prev.lines.length - 1] : null;
-        if (labelLine && isLabelLine(labelLine) && answerFits(block.lines)) {
-          const sub = cleanLabel(labelLine);
-          const answer = block.lines.join("\n");
-          add({
-            question: `¿Qué incluye «${sub}» en tu apunte${ofTitle(noteTitle, sub)}?`,
-            answer,
-            excerpt: `${labelLine}\n${answer}`,
-            locator: [locatorBase, sub].filter(Boolean).join(" › "),
-          });
-        }
-      }
-
-      // 3. Líneas «Término: definición».
-      if (block.type === "list" || block.type === "paragraph") {
-        block.lines.forEach((line) => {
-          if (line.length > MAX_LINE_CHARS) return;
-          const match = TERM_RE.exec(line);
-          if (!match) return;
-          const term = cleanLabel(match[1]);
-          const definition = normalizeText(match[2]);
-          if (!/\p{L}/u.test(term) || !/[\p{L}\p{N}]/u.test(definition)) return;
-          add({
-            question: questionForTerm(term, noteTitle),
-            answer: definition,
-            excerpt: line,
-            locator: [locatorBase, term].filter(Boolean).join(" › "),
-          });
-        });
-      }
-
-      // 4. Filas de tabla: la primera fila son los encabezados.
-      if (block.type === "table" && block.rows.length >= 2) {
-        const [headers, ...rows] = block.rows;
-        if (headers.length < 2) return;
-        rows.forEach((cells) => {
-          const key = cells[0];
-          const rest = cells.slice(1).filter(Boolean);
-          if (!key || !rest.length || cells.length < 2) return;
-          const answer = rest.join("\n");
-          if (!answerFits(rest)) return;
-          add({
-            question: questionForRow(label, headers.slice(1, cells.length), key),
-            answer,
-            excerpt: cells.join("\n"),
-            locator: [locatorBase, key].filter(Boolean).join(" › "),
-          });
-        });
-      }
-    });
-  });
-
-  const capped = proposals.slice(0, MAX_PROPOSALS).map((p) => ({ ...p, question: truncate(p.question, MAX_QUESTION_CHARS) }));
-  return { proposals: capped, reason: capped.length ? null : "no_structure" };
-};
-
-/**
- * Marca las propuestas que ya existen como tarjeta (misma pregunta y
- * respuesta). Las duplicadas no se aprueban en bloque.
- */
-export const markDuplicates = (proposals = [], existing = []) => {
-  const known = new Set(existing.filter((c) => !c.deleted_at).map((c) => fingerprint(c.question, c.answer)));
-  return proposals.map((p) => ({ ...p, duplicate: known.has(fingerprint(p.question, p.answer)) }));
-};
-
-// Palabras que no dicen nada del contenido: artículos, preposiciones y las de
-// las plantillas de las preguntas («¿Qué incluye … en tu apunte …?»).
-const SIMILARITY_STOPWORDS = new Set(
-  (
-    "a al como con cual cuales de del el en es esta este fila la las lo los mi o para pone por que " +
-    "se segun son su sus tabla tu tus un una unas uno unos y apunte apuntes incluye recoge sobre " +
-    "corresponde define definicion"
-  ).split(" ")
-);
-
-/** Palabras significativas de un texto: minúsculas, sin tildes, sin palabras vacías. */
-export const similarityTokens = (text) =>
-  new Set(
-    normalizeText(text)
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .split(/[^\p{L}\p{N}]+/u)
-      .filter((w) => w && !SIMILARITY_STOPWORDS.has(w))
-  );
-
-/** Índice de Jaccard entre dos conjuntos (0 si los dos están vacíos). */
-export const jaccard = (a, b) => {
-  if (!a.size && !b.size) return 0;
-  let shared = 0;
-  a.forEach((w) => {
-    if (b.has(w)) shared += 1;
-  });
-  return shared / (a.size + b.size - shared);
-};
-
-export const SIMILAR_THRESHOLD = 0.6;
-
-/** Parecido determinista entre dos tarjetas: Jaccard de palabras de pregunta + respuesta. */
-export const cardSimilarity = (a, b) =>
-  jaccard(similarityTokens(`${a.question} ${a.answer}`), similarityTokens(`${b.question} ${b.answer}`));
-
-/**
- * Marca las propuestas que se parecen a una tarjeta que ya tiene
- * (`similar` = la más parecida). Las exactas ya van como `duplicate`. Nunca se
- * descarta nada solo: el residente elige Ver existente, Mantener ambas o
- * Descartar nueva.
- */
-export const markSimilar = (proposals = [], existing = [], threshold = SIMILAR_THRESHOLD) => {
-  const pool = existing
-    .filter((c) => !c.deleted_at)
-    .map((c) => ({ card: c, tokens: similarityTokens(`${c.question} ${c.answer}`) }));
-  return proposals.map((p) => {
-    if (p.duplicate || !pool.length) return { ...p, similar: null };
-    const tokens = similarityTokens(`${p.question} ${p.answer}`);
-    let best = null;
-    pool.forEach(({ card, tokens: other }) => {
-      const score = jaccard(tokens, other);
-      if (score >= threshold && (!best || score > best.score)) best = { score, card };
-    });
-    return {
-      ...p,
-      similar: best ? { id: best.card.id, question: best.card.question, answer: best.card.answer, score: best.score } : null,
-    };
-  });
-};
-
-/**
- * Propuestas de un fragmento seleccionado en el editor: las mismas reglas que
- * para el apunte entero, sobre el HTML de la selección. Como la BD comprueba
- * que el fragmento está en el texto guardado del apunte, se quedan solo las
- * que están tal cual en `contentText`. Sin ninguna: reason = 'needs_context'.
- */
-export const generateFromSelection = ({ selectionHtml, title = "", contentText = "" } = {}) => {
-  const { proposals } = generateFlashcards({ html: selectionHtml, title });
-  const kept = proposals.filter((p) => textContains(contentText, p.excerpt) && textContains(p.excerpt, p.answer));
-  return { proposals: kept, reason: kept.length ? null : "needs_context" };
-};
+/** «Tienes 5 tarjetas para repasar». */
+export const formatPendingReview = (n) => `Tienes ${n} ${n === 1 ? "tarjeta" : "tarjetas"} para repasar`;
 
 // ---------------------------------------------------------------------------
 // Fechas (días locales, 'YYYY-MM-DD')
@@ -531,7 +199,10 @@ export const buildTodayQueue = ({
   };
 };
 
-/** «Repasar más»: lo vencido o nuevo que no ha entrado hoy y después lo más próximo. */
+/**
+ * «Repasar otras tarjetas» (práctica, no cambia la programación): lo vencido o
+ * nuevo que no ha entrado hoy y después lo más próximo.
+ */
 export const buildMoreQueue = ({ cards = [], reviewedTodayIds = [], today, size = MORE_BATCH_SIZE, folderSet = null }) => {
   const reviewed = new Set(reviewedTodayIds);
   const eligible = uniqueById(cards).filter((c) => isReviewable(c) && !reviewed.has(c.id) && cardInFolders(c, folderSet));
@@ -585,6 +256,7 @@ export const filterCards = (cards = [], { tab = "all", query = "", folderId = nu
     if (folderId !== null && (card.source?.folder_id || null) !== folderId) return false;
     if (!q) return true;
     return (
+      normalizeText(cardFrontText(card)).toLowerCase().includes(q) ||
       normalizeText(card.question).toLowerCase().includes(q) ||
       normalizeText(card.answer).toLowerCase().includes(q) ||
       normalizeText(card.source?.title).toLowerCase().includes(q)

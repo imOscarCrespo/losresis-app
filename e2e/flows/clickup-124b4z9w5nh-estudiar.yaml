@@ -1,0 +1,201 @@
+appId: com.losresis.app
+name: "ResiNotes definitivo (124b4z9w5nh): Repasar ahora, Crear pregunta, apunte completo y repaso único"
+# Solo toca datos del residente de pruebas (reset al empezar). Comprueba en la BD al final.
+---
+- runScript:
+    file: ../scripts/seed-124b4z9w5nh-resinotes.js
+    env:
+      MODE: reset
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+- waitForAnimationToEnd
+- tapOn: "ResiNotes"
+- extendedWaitUntil:
+    visible: "Tu biblioteca personal de apuntes."
+    timeout: 20000
+# Sin generación automática: ni «Crear tarjetas» en la portada.
+- assertNotVisible:
+    id: "resinotes-create-cards"
+- tapOn: ".*Ginecología.*"
+- tapOn: "Nota Tratamiento de la hemorragia posparto.*"
+- extendedWaitUntil:
+    visible: "Masaje uterino bimanual"
+    timeout: 20000
+
+# ── ⚡ Repasar ahora: título, contenido oculto, «Ver apunte» ──
+- tapOn:
+    id: "resinotes-study-now"
+- extendedWaitUntil:
+    visible:
+      id: "note-study-reveal"
+    timeout: 15000
+- assertVisible: "Tratamiento de la hemorragia posparto"
+- assertNotVisible: "Masaje uterino bimanual"
+- takeScreenshot: 124b4z9w5nh-b1-repasar-ahora-titulo
+- tapOn:
+    id: "note-study-reveal"
+- extendedWaitUntil:
+    visible: "Masaje uterino bimanual"
+    timeout: 15000
+- assertVisible: "Ácido tranexámico"
+- takeScreenshot: 124b4z9w5nh-b2-repasar-ahora-apunte
+# Guardar para repasos (voluntario), sin duplicados.
+- scrollUntilVisible:
+    element:
+      id: "note-study-save"
+    centerElement: true
+- tapOn:
+    id: "note-study-save"
+- extendedWaitUntil:
+    visible:
+      id: "note-study-saved"
+    timeout: 10000
+- takeScreenshot: 124b4z9w5nh-b3-guardada-para-repasos
+- tapOn:
+    id: "note-study-finish"
+- extendedWaitUntil:
+    visible:
+      id: "resinotes-study-section"
+    timeout: 15000
+
+# ── + Crear pregunta ──
+- tapOn:
+    id: "resinotes-create-question"
+- extendedWaitUntil:
+    visible: "Crear pregunta"
+    timeout: 5000
+- tapOn:
+    id: "flashcard-editor-question"
+- inputText: "¿Qué fármaco es de primera línea?"
+- tapOn:
+    id: "flashcard-editor-answer"
+- inputText: "Oxitocina 10 UI IM"
+# Con el teclado abierto: volver a tocar la respuesta no cae en una tecla.
+- tapOn:
+    id: "flashcard-editor-answer"
+- assertVisible:
+    id: "flashcard-editor-answer"
+    text: "Oxitocina 10 UI IM"
+- takeScreenshot: 124b4z9w5nh-b4-crear-pregunta-teclado
+- tapOn:
+    id: "flashcard-editor-save"
+- extendedWaitUntil:
+    visible: "Tarjeta guardada"
+    timeout: 10000
+- takeScreenshot: 124b4z9w5nh-b5-tarjeta-guardada
+- assertVisible: "Masaje uterino bimanual"
+
+# ── Crear pregunta desde texto seleccionado ──
+- longPressOn: "Si persiste.*"
+- extendedWaitUntil:
+    visible:
+      id: "resinotes-note-selection-question"
+    timeout: 5000
+- tapOn:
+    id: "resinotes-note-selection-question"
+- extendedWaitUntil:
+    visible:
+      id: "flashcard-editor-question"
+    timeout: 5000
+- takeScreenshot: 124b4z9w5nh-b6-pregunta-desde-seleccion
+- tapOn:
+    id: "flashcard-editor-question"
+- inputText: "¿Qué se da si persiste?"
+- tapOn:
+    id: "flashcard-editor-save"
+- extendedWaitUntil:
+    visible: "Tarjeta guardada"
+    timeout: 10000
+
+# ── Portada: «Tienes 4 tarjetas para repasar» → Repasar ahora ──
+- tapOn: "Volver"
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Tienes 4 tarjetas para repasar"
+    timeout: 15000
+- takeScreenshot: 124b4z9w5nh-b7-portada-pendientes
+- tapOn:
+    id: "resinotes-review-start"
+# 1.ª: la tarjeta ANTIGUA generada, que se sigue repasando.
+- extendedWaitUntil:
+    visible: "¿Qué incluye Primera línea en tu apunte?"
+    timeout: 15000
+- tapOn: "Ver respuesta"
+- assertVisible: "Otra vez"
+- assertVisible: "Me costó"
+- assertVisible: "Fácil"
+- takeScreenshot: 124b4z9w5nh-b8-valoracion
+- tapOn:
+    id: "review-rate-good"
+# 2.ª: la de apunte completo: título y «Ver apunte».
+- extendedWaitUntil:
+    visible:
+      id: "review-card-type"
+    timeout: 10000
+- assertVisible: "Ver apunte"
+- takeScreenshot: 124b4z9w5nh-b9-apunte-completo-frente
+- tapOn: "Ver apunte"
+- extendedWaitUntil:
+    visible: "Masaje uterino bimanual"
+    timeout: 15000
+- takeScreenshot: 124b4z9w5nh-b10-apunte-completo-dorso
+- scrollUntilVisible:
+    element:
+      id: "review-rate-again"
+    centerElement: true
+- tapOn:
+    id: "review-rate-again"
+# Salir a mitad (atender a un paciente): lo hecho se queda guardado.
+- extendedWaitUntil:
+    visible: "Ver respuesta"
+    timeout: 10000
+- tapOn: "Volver"
+- extendedWaitUntil:
+    visible: "Tienes 2 tarjetas para repasar"
+    timeout: 15000
+- tapOn:
+    id: "resinotes-review-start"
+- repeat:
+    times: 2
+    commands:
+      - extendedWaitUntil:
+          visible: "Ver respuesta"
+          timeout: 10000
+      - tapOn: "Ver respuesta"
+      - tapOn:
+          id: "review-rate-good"
+- extendedWaitUntil:
+    visible: "¡Repaso completado!"
+    timeout: 15000
+# «Repasar otras tarjetas»: práctica sin valorar.
+- tapOn: "Repasar otras tarjetas"
+- extendedWaitUntil:
+    visible: "Repaso libre.*"
+    timeout: 15000
+- tapOn:
+    id: "review-show-answer"
+- assertNotVisible:
+    id: "review-rate-good"
+- assertVisible:
+    id: "review-next"
+- takeScreenshot: 124b4z9w5nh-b11-repaso-libre
+- tapOn:
+    id: "review-next"
+- tapOn: "Volver"
+
+# ── Mis tarjetas: tipos, nota de origen y las antiguas ──
+- extendedWaitUntil:
+    visible: "Todo al día"
+    timeout: 15000
+- tapOn: "Mis tarjetas"
+- extendedWaitUntil:
+    visible: ".*Apunte completo.*"
+    timeout: 15000
+- assertVisible: ".*¿Qué incluye Primera línea en tu apunte\\?.*"
+- takeScreenshot: 124b4z9w5nh-b12-mis-tarjetas
+
+- runScript:
+    file: ../scripts/seed-124b4z9w5nh-resinotes.js
+    env:
+      MODE: assert_b

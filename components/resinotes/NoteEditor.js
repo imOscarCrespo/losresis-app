@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   BackHandler,
+  Keyboard,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -20,7 +23,12 @@ import {
   useEditorBridge,
 } from "@10play/tentap-editor";
 import { editorHtml } from "./editor/editorHtml";
-import { CalloutBridge, SelectionBridge, TableBridge } from "./editor/bridges";
+import { CalloutBridge, SelectionBridge, TableBridge, TapsBridge, onEditorImageTap } from "./editor/bridges";
+import { RESINOTES_TOOLBAR_ITEMS, RESINOTES_TOOLBAR_THEME } from "./editor/toolbar";
+import { ImageViewer } from "./ImageViewer";
+import { CardEditorSheet } from "./flashcards/FlashcardParts";
+import { createManualFlashcard, flashcardErrorMessage } from "../../services/flashcardService";
+import { noteHasStudyContent, selectionToAnswer } from "../../utils/flashcards";
 import { HeroScreenLayout } from "../HeroScreenLayout";
 import { Icon } from "../Icon";
 import { COLORS } from "../../constants/colors";
@@ -38,6 +46,7 @@ import {
   CALLOUT_KIND_KEYS,
   MAX_ITEM_TITLE,
   NOTE_BLOCKS_CSS,
+  singleLineTitle,
   storedImageKeys,
   toEditorHtml,
   toStoredHtml,
@@ -110,7 +119,43 @@ const clearDraft = async (itemId) => {
 };
 
 /** El editor ya montado con el contenido inicial. */
-const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack, onSaved, onCreateCards }) => {
+/** Si el teclado está abierto (la sección «Estudiar esta nota» se esconde mientras se escribe). */
+const useKeyboardVisible = () => {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const show = Keyboard.addListener(showEvent, () => setVisible(true));
+    const hide = Keyboard.addListener(hideEvent, () => setVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  return visible;
+};
+
+/** Aviso discreto que desaparece solo («Tarjeta guardada»). */
+const useToast = () => {
+  const [message, setMessage] = useState(null);
+  const opacity = useRef(new Animated.Value(0)).current;
+  const timer = useRef(null);
+  const show = useCallback(
+    (text) => {
+      if (timer.current) clearTimeout(timer.current);
+      setMessage(text);
+      Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true }).start();
+      timer.current = setTimeout(() => {
+        Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setMessage(null));
+      }, 2200);
+    },
+    [opacity]
+  );
+  useEffect(() => () => timer.current && clearTimeout(timer.current), []);
+  return { message, opacity, show };
+};
+
+const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack, onSaved, onStudy }) => {
   const [title, setTitle] = useState(initialTitle);
   const [status, setStatus] = useState(recovered ? "dirty" : "idle");
   const [imageSheet, setImageSheet] = useState(false);
@@ -118,6 +163,7 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
   const [tableSheet, setTableSheet] = useState(false);
   const [calloutSheet, setCalloutSheet] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [viewerSrc, setViewerSrc] = useState(null);
   const titleRef = useRef(initialTitle);
   const timerRef = useRef(null);
   const savingRef = useRef(null);
@@ -134,12 +180,23 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
     initialContent: initialHtml || "",
     // Editor propio (editor-web/): el de TenTap más tablas y bloques especiales.
     customSource: editorHtml,
-    bridgeExtensions: [...TenTapStartKit, TableBridge, CalloutBridge, SelectionBridge, CoreBridge.configureCSS(EDITOR_CSS)],
+    bridgeExtensions: [
+      ...TenTapStartKit,
+      TableBridge,
+      CalloutBridge,
+      SelectionBridge,
+      TapsBridge,
+      CoreBridge.configureCSS(EDITOR_CSS),
+    ],
     onChange: () => scheduleSave(),
     theme: {
       webview: { backgroundColor: COLORS.WHITE },
+      toolbar: RESINOTES_TOOLBAR_THEME,
     },
   });
+
+  // Tocar una imagen de la nota la abre a pantalla completa (sin teclado).
+  useEffect(() => onEditorImageTap((src) => setViewerSrc(src)), []);
 
   const editorState = useBridgeState(editor);
 
@@ -237,7 +294,8 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleTitle = (value) => {
+  const handleTitle = (raw) => {
+    const value = singleLineTitle(raw);
     setTitle(value);
     titleRef.current = value;
     scheduleSave();
@@ -271,20 +329,51 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
     return () => sub.remove();
   }, []);
 
-  // Tarjetas de repaso (ClickUp 124b4z9w0z0): se generan desde lo guardado, así
-  // que primero se guarda la nota. Con texto seleccionado, solo de ese
-  // fragmento (pasada B): la BD comprueba que está tal cual en lo guardado.
-  const [preparingCards, setPreparingCards] = useState(false);
-  const createCards = async (selectionHtml = null) => {
-    if (preparingCards) return;
-    setPreparingCards(true);
+  // «Estudiar esta nota» (ClickUp 124b4z9w5nh).
+  const keyboardVisible = useKeyboardVisible();
+  const toast = useToast();
+  const [questionSheet, setQuestionSheet] = useState(null); // {answer} con la hoja abierta
+  const [preparingStudy, setPreparingStudy] = useState(false);
+
+  // «Repasar ahora»: primero se guarda, para repasar lo último escrito.
+  const studyNow = async () => {
+    if (preparingStudy) return;
+    setPreparingStudy(true);
+    let html = lastHtmlRef.current;
+    try {
+      html = await editor.getHTML();
+    } catch {
+      // Se usa lo último conocido.
+    }
     const ok = await flush();
-    setPreparingCards(false);
-    if (ok) {
-      onCreateCards?.(item.id, selectionHtml);
+    setPreparingStudy(false);
+    if (!noteHasStudyContent(html ?? initialHtml)) {
+      Alert.alert("Esta nota está vacía", "Escribe algo en ella para poder repasarla.");
       return;
     }
-    Alert.alert("No se ha podido guardar", "Guarda la nota antes de crear tarjetas. Revisa tu conexión e inténtalo de nuevo.");
+    if (!ok) {
+      Alert.alert("No se ha podido guardar", "Guarda la nota antes de repasarla. Revisa tu conexión e inténtalo de nuevo.");
+      return;
+    }
+    onStudy?.(item.id);
+  };
+
+  // «Crear pregunta»: con texto seleccionado, ese texto es la respuesta.
+  const openQuestion = (selection = null) => {
+    Keyboard.dismiss();
+    setQuestionSheet({ question: "", answer: selection ? selectionToAnswer(selection) : "" });
+  };
+
+  const saveQuestion = async ({ question, answer }) => {
+    try {
+      await createManualFlashcard(userId, { question, answer, sourceItemId: item.id });
+    } catch (error) {
+      // La hoja enseña el error y conserva lo escrito para reintentar.
+      error.userMessage = flashcardErrorMessage(error);
+      throw error;
+    }
+    setQuestionSheet(null);
+    toast.show("Tarjeta guardada");
   };
 
   // El selector se abre cuando la hoja ya se ha cerrado (ver useRunAfterSheetClose).
@@ -324,22 +413,6 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
       onBack={handleBack}
       rightSlot={
         <View style={styles.headerActions}>
-          {onCreateCards ? (
-            <TouchableOpacity
-              onPress={() => createCards()}
-              disabled={preparingCards}
-              style={styles.headerButton}
-              accessibilityRole="button"
-              accessibilityLabel="Crear tarjetas de estudio"
-              testID="resinotes-note-create-cards"
-            >
-              {preparingCards ? (
-                <ActivityIndicator color={COLORS.PRIMARY} />
-              ) : (
-                <Icon name="brain-outline" size={22} color={COLORS.PRIMARY} />
-              )}
-            </TouchableOpacity>
-          ) : null}
           <TouchableOpacity
             onPress={() => setImageSheet(true)}
             disabled={uploading}
@@ -358,6 +431,21 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
       }
       overlay={
         <>
+          <ImageViewer src={viewerSrc} onClose={() => setViewerSrc(null)} />
+          <CardEditorSheet
+            visible={Boolean(questionSheet)}
+            title="Crear pregunta"
+            initial={questionSheet}
+            onSubmit={saveQuestion}
+            onClose={() => setQuestionSheet(null)}
+            testID="resinotes-question-sheet"
+          />
+          {toast.message ? (
+            <Animated.View pointerEvents="none" style={[styles.toast, { opacity: toast.opacity }]} testID="resinotes-toast">
+              <Icon name="checkmark-circle" size={18} color={COLORS.WHITE} />
+              <Text style={styles.toastText}>{toast.message}</Text>
+            </Animated.View>
+          ) : null}
           <ResiNotesSheet
             visible={imageSheet}
             title="Insertar imagen"
@@ -458,6 +546,12 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
             placeholderTextColor={COLORS.GRAY_MEDIUM}
             maxLength={MAX_ITEM_TITLE}
             style={styles.title}
+            // Varias líneas para que un título largo se lea entero (sin «…»); Intro no
+            // añade un salto, termina el título.
+            multiline
+            scrollEnabled={false}
+            submitBehavior="blurAndSubmit"
+            returnKeyType="done"
             autoFocus={!initialHtml && !initialTitle}
             accessibilityLabel="Título de la nota"
             testID="resinotes-note-title"
@@ -489,22 +583,55 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
             </Text>
             <Text style={styles.blockButtonText}>Bloque</Text>
           </TouchableOpacity>
-          {onCreateCards && editorState.selectionHtml ? (
+          {editorState.selectionHtml ? (
             <TouchableOpacity
               style={styles.blockButton}
-              onPress={() => createCards(editorState.selectionHtml)}
-              disabled={preparingCards}
+              onPress={() => openQuestion(editorState.selectionHtml)}
               accessibilityRole="button"
-              accessibilityLabel="Crear tarjetas de la selección"
-              testID="resinotes-note-selection-cards"
+              accessibilityLabel="Crear pregunta con el texto seleccionado"
+              testID="resinotes-note-selection-question"
             >
-              <Icon name="brain-outline" size={18} color={COLORS.PRIMARY} />
-              <Text style={styles.blockButtonText}>Crear tarjetas</Text>
+              <Icon name="add-circle-outline" size={18} color={COLORS.PRIMARY} />
+              <Text style={styles.blockButtonText}>Crear pregunta</Text>
             </TouchableOpacity>
           ) : null}
         </View>
+        {keyboardVisible ? null : (
+          <View style={styles.study} testID="resinotes-study-section">
+            <Text style={styles.studyLabel}>Estudiar esta nota</Text>
+            <View style={styles.studyButtons}>
+              <TouchableOpacity
+                style={[styles.studyButton, styles.studyPrimary]}
+                onPress={studyNow}
+                disabled={preparingStudy}
+                accessibilityRole="button"
+                accessibilityLabel="Repasar ahora"
+                testID="resinotes-study-now"
+              >
+                {preparingStudy ? (
+                  <ActivityIndicator color={COLORS.WHITE} />
+                ) : (
+                  <>
+                    <Icon name="flash-outline" size={18} color={COLORS.WHITE} weight="fill" />
+                    <Text style={styles.studyPrimaryText}>Repasar ahora</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.studyButton, styles.studySecondary]}
+                onPress={() => openQuestion()}
+                accessibilityRole="button"
+                accessibilityLabel="Crear pregunta"
+                testID="resinotes-create-question"
+              >
+                <Icon name="add" size={18} color={COLORS.PRIMARY} />
+                <Text style={styles.studySecondaryText}>Crear pregunta</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
         <View style={styles.toolbarRow}>
-          <Toolbar editor={editor} />
+          <Toolbar editor={editor} items={RESINOTES_TOOLBAR_ITEMS} />
         </View>
       </EditorKeyboardAvoidingView>
     </HeroScreenLayout>
@@ -515,7 +642,7 @@ const EditorBody = ({ userId, item, initialHtml, initialTitle, recovered, onBack
  * Editor de una nota de ResiNotes. Carga la nota, firma las URLs de sus
  * imágenes, recupera un borrador local si lo hay y monta el editor.
  */
-export const NoteEditor = ({ userId, itemId, onBack, onSaved, onCreateCards }) => {
+export const NoteEditor = ({ userId, itemId, onBack, onSaved, onStudy }) => {
   const [state, setState] = useState({ loading: true, error: null, data: null });
 
   const load = useCallback(async () => {
@@ -578,13 +705,42 @@ export const NoteEditor = ({ userId, itemId, onBack, onSaved, onCreateCards }) =
       recovered={state.data.recovered}
       onBack={onBack}
       onSaved={onSaved}
-      onCreateCards={onCreateCards}
+      onStudy={onStudy}
     />
   );
 };
 
 const styles = StyleSheet.create({
   headerActions: { flexDirection: "row", gap: 8 },
+  study: { paddingHorizontal: 16, paddingBottom: 10, gap: 6 },
+  studyLabel: { fontSize: 13, fontWeight: "700", color: COLORS.TEXT_MEDIUM },
+  studyButtons: { flexDirection: "row", gap: 8 },
+  studyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 44,
+    borderRadius: 22,
+    paddingHorizontal: 12,
+  },
+  studyPrimary: { flex: 1, backgroundColor: COLORS.PRIMARY },
+  studyPrimaryText: { color: COLORS.WHITE, fontWeight: "700", fontSize: 15 },
+  studySecondary: { flex: 1, backgroundColor: COLORS.PRIMARY_LIGHT },
+  studySecondaryText: { color: COLORS.PRIMARY, fontWeight: "700", fontSize: 15 },
+  toast: {
+    position: "absolute",
+    alignSelf: "center",
+    bottom: 200,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(15,23,42,0.88)",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  toastText: { color: COLORS.WHITE, fontWeight: "700", fontSize: 14 },
   flex: { flex: 1 },
   toolbarRow: { flexDirection: "row" },
   blocksRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 6 },
@@ -617,9 +773,12 @@ const styles = StyleSheet.create({
   retry: { color: COLORS.PRIMARY, fontWeight: "700", fontSize: 14 },
   title: {
     fontSize: 22,
+    lineHeight: 28,
     fontWeight: "700",
     color: COLORS.PRIMARY_DARK,
-    paddingVertical: 8,
+    paddingTop: 8,
+    paddingBottom: 8,
+    textAlignVertical: "top",
   },
   headerButton: {
     width: 44,
