@@ -1,0 +1,97 @@
+# Teclado sobre «Crear procedimiento personalizado» (reporte de usuario, 2026-11-03)
+#
+#   scripts/e2e.sh e2e/flows/procedure-picker-keyboard.yaml
+#
+# Abre «Añadir procedimiento» desde la postguardia del 26/10/2026, escribe en el
+# campo del personalizado y comprueba que el texto se ve CON EL TECLADO ABIERTO.
+# No crea nada. Repetible.
+#
+# Ojo: el residente de pruebas tiene el Libro casi vacío, así que el campo sale
+# arriba y el teclado nunca lo tapa. Para reproducir el caso real (lista larga)
+# se verificó el 2026-11-03 añadiendo en local, de forma temporal, 12
+# procedimientos falsos al `catalog` de ProcedurePickerModal: con el código
+# viejo este flujo falla y con el arreglo pasa. Ese relleno no se commitea.
+appId: com.losresis.app
+name: "Teclado en el selector de procedimientos"
+---
+- runScript:
+    file: ../scripts/seed-124b4z9vc56-shift.js
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+# A veces la app abre otra pantalla (p. ej. «Nueva nómina»): volver a Inicio.
+- runFlow:
+    when:
+      visible: "Nueva nómina"
+    commands:
+      - back
+- tapOn: "Inicio"
+- extendedWaitUntil:
+    visible: "Libro de[\\s\\S]*residentes"
+    timeout: 20000
+- tapOn: "Libro de[\\s\\S]*residentes"
+- extendedWaitUntil:
+    visible: "Apartados del libro"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "Guardias, Registro de guardias.*"
+    centerElement: true
+- tapOn: "Guardias, Registro de guardias.*"
+- extendedWaitUntil:
+    visible: "Mis autoevaluaciones de guardia.*"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "libro-shift-debrief-2026-10-26"
+    centerElement: true
+- tapOn:
+    id: "libro-shift-debrief-2026-10-26"
+- extendedWaitUntil:
+    visible: "Cada especialidad y cada guardia.*|Detalle de guardia|🎯 ¿Qué has hecho en esta guardia\\?"
+    timeout: 20000
+
+# Abrir el selector: desde la configuración de frecuentes o desde el paso 1.
+- runFlow:
+    when:
+      visible: "Detalle de guardia"
+    commands:
+      - tapOn: "Editar mi registro"
+- runFlow:
+    when:
+      visible: "Cada especialidad y cada guardia.*"
+    commands:
+      - tapOn:
+          id: "frequent-add"
+- runFlow:
+    when:
+      visible: "🎯 ¿Qué has hecho en esta guardia\\?"
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: "debrief-add-other"
+          centerElement: true
+      - tapOn:
+          id: "debrief-add-other"
+- extendedWaitUntil:
+    visible: "Añadir procedimiento"
+    timeout: 5000
+- takeScreenshot: picker-before-keyboard
+
+# Como el usuario: bajar lo justo para ver el campo (queda en la parte baja de la
+# pantalla, donde sale el teclado), tocarlo y escribir.
+- scrollUntilVisible:
+    element:
+      id: "procedure-custom-name"
+- tapOn:
+    id: "procedure-custom-name"
+- inputText: "Prueba teclado"
+- takeScreenshot: picker-keyboard-open
+# assertVisible NO detecta que el teclado tape un elemento (lo da por visible).
+# Por eso se vuelve a tocar el campo con el teclado abierto: si está tapado, el
+# toque cae en una tecla y el texto deja de ser exactamente «Prueba teclado».
+- tapOn:
+    id: "procedure-custom-name"
+- assertVisible:
+    id: "procedure-custom-name"
+    text: "Prueba teclado"

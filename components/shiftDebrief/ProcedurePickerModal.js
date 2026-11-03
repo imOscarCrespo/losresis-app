@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Modal,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,6 +10,8 @@ import {
   View,
 } from "react-native";
 import { Icon } from "../Icon";
+import { KeyboardAwareScrollView } from "../KeyboardAwareScrollView";
+import { KeyboardAwareTextInput } from "../KeyboardAwareTextInput";
 import {
   findProcedureByName,
   searchProcedures,
@@ -114,10 +115,13 @@ export const ProcedurePickerModal = ({
         </View>
 
         {/* ScrollView y no FlatList: el campo del personalizado en el pie de una
-            FlatList perdía el cursor al escribir. El catálogo es corto. */}
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
+            FlatList perdía el cursor al escribir. El catálogo es corto.
+            Keyboard-aware: el campo del personalizado está al final de la
+            lista y el teclado lo tapaba mientras se escribía. */}
+        <KeyboardAwareScrollView
           contentContainerStyle={styles.list}
+          bottomPadding={32}
+          testID="procedure-picker-scroll"
         >
           {results.length ? (
             results.map((item) => (
@@ -149,7 +153,7 @@ export const ProcedurePickerModal = ({
             <Text style={styles.createTitle}>
               Crear procedimiento personalizado
             </Text>
-            <TextInput
+            <KeyboardAwareTextInput
               style={styles.createInput}
               value={customName}
               onChangeText={setCustomName}
@@ -208,7 +212,7 @@ export const ProcedurePickerModal = ({
               )}
             </TouchableOpacity>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </Modal>
   );
@@ -238,7 +242,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
   },
   searchInput: { flex: 1, fontSize: 15, color: "#0F172A" },
-  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
+  list: { paddingHorizontal: 16, paddingTop: 8 },
   empty: {
     fontSize: 13,
     color: "#64748B",

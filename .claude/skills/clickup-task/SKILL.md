@@ -181,6 +181,10 @@ inventando una regla de producto. Si el plan es grande o toca dominio delicado, 
        (la barra inferior tapa lo último de la lista).
      - Un `testID` en un `View` no lleva texto; asserta el texto del `Text` hijo.
      - Inputs alineados a la derecha: `selectTextOnFocus` para que `eraseText` funcione.
+     - Si la tarea añade o toca un campo de texto en la mitad baja de un modal o de una lista,
+       el flujo comprueba que no lo tapa el teclado: ver «Campos de texto y teclado» abajo.
+     - Si la tarea toca algo que sube archivos (fotos, PDFs, adjuntos a Storage), el flujo hace
+       una subida real desde el simulador: ver «Subida de archivos» abajo.
    - **Credenciales:** nunca abras capturas ni `commands.json` de pasos del login ni anteriores a
      él (pueden mostrar la contraseña); resume con `node scripts/e2e-summary.mjs <commands.json>`.
      Si se filtra, rótala con la API admin de Auth y reescribe `~/.config/losresis/e2e.env`.
@@ -224,8 +228,75 @@ inventando una regla de producto. Si el plan es grande o toca dominio delicado, 
    - Ejemplo completo (mock por escenarios, comprobaciones, salto a los módulos filtrados):
      `scripts/recorrido-ejemplo-86cbm0wun.mjs`.
 
+### Campos de texto y teclado (OBLIGATORIO, petición del usuario, 2026-11-03)
+
+Un usuario reportó que en «Crear procedimiento personalizado» (`ProcedurePickerModal`) el
+teclado tapaba lo que escribía: el `TextInput` estaba al final de un `ScrollView` normal dentro
+de un `Modal`. Cada vez que la tarea añada o toque un `TextInput` que pueda quedar en la mitad
+baja de la pantalla (pie de una lista, formulario largo, modal `pageSheet`, bottom sheet):
+
+- **Implementación:** el contenedor con scroll es `KeyboardAwareScrollView`
+  (`components/KeyboardAwareScrollView.js`) y el campo es `KeyboardAwareTextInput`
+  (`components/KeyboardAwareTextInput.js`), nunca un `ScrollView` + `TextInput` a pelo. No
+  metas el campo en el pie de una `FlatList` (pierde el cursor al escribir).
+- **Test Jest de componente** en `__tests__/components/<Componente>.test.js`, siguiendo
+  `__tests__/components/ProcedurePickerModal.test.js`: (1) el campo cuelga de un `ScrollView`
+  con `automaticallyAdjustKeyboardInsets` en iOS; (2) con el teclado abierto (se captura el
+  listener de `Keyboard.addListener` y se dispara `keyboardWillShow`), enfocar el campo llama
+  a `scrollTo` con un desplazamiento que lo deja por encima del teclado. El mock de
+  `ScrollView` de jest nunca responde a `measureInWindow`: parchea
+  `ScrollView.prototype.measureInWindow` / `scrollTo` con `jest.spyOn`.
+- Comprueba que el test **falla sin el arreglo** (stash del componente) antes de darlo por bueno.
+- **Maestro (siempre en el simulador, petición del usuario 2026-11-03):** modelo en
+  `e2e/flows/procedure-picker-keyboard.yaml`.
+  - Baja hasta el campo con `scrollUntilVisible` **sin** `centerElement` (queda abajo, donde
+    sale el teclado, como lo usa la gente), tócalo y escribe.
+  - **`assertVisible` no detecta que el teclado tape algo:** lo da por visible igualmente. La
+    comprobación buena es volver a tocar el campo con el teclado abierto y luego
+    `assertVisible: { id: <campo>, text: "<texto exacto>" }`. Si el campo está tapado, el toque
+    cae en una tecla, el texto cambia y el paso falla.
+  - Si los datos del usuario de pruebas no llenan la pantalla (lista corta), el bug no se
+    reproduce. Mete un relleno **temporal y local** en el componente (p. ej. 12 elementos
+    falsos), ejecuta el flujo con el código viejo (debe fallar) y con el arreglo (debe pasar), y
+    quita el relleno antes de cerrar.
+  - Abre la captura con el teclado abierto y compruébalo a ojo.
+
 Si un nivel no se puede ejecutar (simulador roto, CLI de Supabase sin sesión…), dilo en el informe; no lo
 des por verificado.
+
+### Subida de archivos (OBLIGATORIO, petición del usuario, 2026-11-03)
+
+Un usuario reportó que en ResiNotes no podía subir fotos ni PDFs, y resultó que **ninguna subida
+de la app funcionaba** (ResiNotes, Libro, vivienda, feed, fotos de estudio, RoomiesMIR,
+reseñas). Se subía un `FormData` y `@supabase/storage-js` 2.8x llama a `FormData.has()`, que el
+`FormData` de React Native no tiene: la subida revienta en el móvil antes de salir. Jest no lo
+veía (el `FormData` de Node sí tiene `has()`) y el flujo E2E de ResiNotes metía el PDF por REST,
+así que nadie probó nunca subir desde la app. Cada vez que la tarea añada o toque algo que suba
+archivos a Storage (selector de fotos, cámara, selector de documentos, adjuntos):
+
+- **Implementación:** sube siempre con `uploadLocalFile(bucket, path, uri, { contentType,
+  upsert, cacheControl })` de `services/storageUpload.js`; nunca `new FormData()` ni
+  `supabase.storage.from(...).upload()` con un `uri` directo. El `contentType` es un MIME
+  estándar (`image/jpeg`, no `image/jpg`) y está en `allowed_mime_types` del bucket (consúltalo
+  con `GET /storage/v1/bucket/<id>` y la service role): si no, Storage rechaza el fichero.
+- **Jest:** `__tests__/services/storageUpload.test.js` falla si algún `services/*.js` usa
+  `new FormData(`; no lo desactives. Los tests del servicio mockean `expo-file-system`.
+- **Maestro, subida real desde el simulador:** modelo en `e2e/flows/resinotes-upload-photo.yaml`.
+  Los datos sembrados por REST sirven para probar cómo se ve un archivo, **nunca como sustituto
+  de subirlo**.
+  - `launchApp` con `permissions: { photos: allow }` (y `camera: allow` si hace falta).
+  - El selector de fotos de iOS tarda en abrirse: `extendedWaitUntil` de
+    `"Select Photos|Seleccionar fotos"` antes de tocar nada. En iOS 26 se elige la primera foto
+    con `tapOn: { point: "16%,28%" }` y se confirma con el ✓ en `point: "90%,16%"` (Maestro solo
+    acepta porcentajes enteros). La galería del simulador trae fotos HEIC.
+  - Después: espera a que desaparezca «Subiendo…», `assertNotVisible` del error de subida y
+    `assertVisible` del elemento nuevo en la pantalla.
+- **Comprueba en la BD y en Storage**, con la service role de `.env`, que la subida llegó:
+  la fila nueva (p. ej. `resinotes_attachments` del residente de pruebas) y
+  `GET /storage/v1/object/<bucket>/<path>` con `200` y un tamaño igual a `size_bytes` (no
+  vacío). Que la pantalla no dé error no basta.
+- Si la tarea sube PDFs con el selector de documentos y no puedes manejarlo en el simulador,
+  dilo en el informe final: «PDF no probado en simulador», no lo des por probado.
 
 ## Paso 4c — Bug review automático
 
