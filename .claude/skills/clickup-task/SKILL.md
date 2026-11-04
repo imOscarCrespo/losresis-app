@@ -1,9 +1,9 @@
 ---
 name: clickup-task
-description: Implementa en LosResis una o varias tareas de ClickUp del equipo de producto. Lee la tarea (descripción preparada por un agente de IA, checklists, comentarios e imágenes PNG de diseño si las hay), diseña la solución óptima como desarrollador senior contra el código real, la implementa tras validar el plan y apunta la tarea en el histórico de la versión que marca su tag de ClickUp (docs/releases/<versión>.md), abriendo esa versión en app.json si aún no existe. Si toca el panel, lo prueba obligatoriamente en un navegador (Playwright, con datos mock si hace falta) en local y en producción. Al terminar con todo en verde sube los cambios a main (app, losresis-db y panel con su vercel --prod), adjunta las capturas de la prueba a la tarea de ClickUp y la pasa a complete. Úsalo cuando el usuario pegue una URL app.clickup.com/t/..., diga "implementa esta tarea", "haz esta tarea de ClickUp", "/clickup-task" o similar.
+description: Implementa en LosResis una o varias tareas de Freedcamp (o de ClickUp, las antiguas) del equipo de producto. Lee la tarea (descripción preparada por un agente de IA, checklists, comentarios e imágenes PNG de diseño si las hay), diseña la solución óptima como desarrollador senior contra el código real, la implementa tras validar el plan y apunta la tarea en el histórico de la versión que marca su tag (docs/releases/<versión>.md), abriendo esa versión en app.json si aún no existe. Si toca el panel, lo prueba obligatoriamente en un navegador (Playwright, con datos mock si hace falta) en local y en producción. Al terminar con todo en verde sube los cambios a main (app, losresis-db y panel con su vercel --prod), adjunta las capturas de la prueba a la tarea y la pasa a complete. Úsalo cuando el usuario pegue una URL freedcamp.com/view/.../task/... o app.clickup.com/t/..., diga "implementa esta tarea", "haz esta tarea de Freedcamp/ClickUp", "/clickup-task" o similar.
 ---
 
-# clickup-task — de tarea de ClickUp a código en LosResis
+# clickup-task — de tarea de Freedcamp (o ClickUp) a código en LosResis
 
 Eres un desarrollador senior de LosResis (Expo / React Native en JS + Supabase). La tarea te
 dice **qué** quiere producto; el **cómo** lo decides tú contra el código real. La descripción la
@@ -11,13 +11,38 @@ ha preparado un agente de IA: tómala como un buen punto de partida, no como ver
 
 ## Entrada
 
-Una o varias URLs `https://app.clickup.com/t/<workspaceId>/<taskId>` (o solo el taskId). Si son varias,
-procésalas una a una: plan → OK → implementación → histórico, y luego la siguiente.
+Una o varias URLs de tarea. Si son varias, procésalas una a una: plan → OK → implementación →
+histórico, y luego la siguiente.
+
+**Producto se ha pasado de ClickUp a Freedcamp** (2026-11-04: ClickUp llegó al límite del plan
+gratuito). Las tareas nuevas son de Freedcamp; las antiguas de ClickUp siguen funcionando. Cada
+herramienta tiene sus scripts, con los mismos argumentos:
+
+| | Freedcamp (por defecto) | ClickUp (tareas antiguas) |
+|---|---|---|
+| URL | `https://freedcamp.com/view/<proyecto>/tasks/panel/task/<id>` (o el id) | `https://app.clickup.com/t/<workspaceId>/<taskId>` |
+| Leer | `fc_fetch_task.mjs` | `fetch_task.mjs` |
+| Estado | `fc_set_status.mjs` | `set_status.mjs` |
+| Versión | `fc_add_tag.mjs` (comentario) | `add_tag.mjs` (tag) |
+| Capturas | `fc_attach_files.mjs` | `attach_files.mjs` |
+
+En el resto de la skill, «la tarea» y los nombres de script sin prefijo valen para las dos: usa
+los `fc_*` si la URL es de Freedcamp. Todo está en `.claude/skills/clickup-task/scripts/`.
+
+Diferencias de Freedcamp que importan:
+- **Estados:** `not started`, `in progress`, `complete` (y `review`, `invalid`). Equivalen a
+  `to do` / `in progress` / `complete` de ClickUp.
+- **No hay checklists:** producto los escribe como subtareas o como lista en la descripción.
+- **Tags:** producto los pone en la app y `fc_fetch_task` los lee, pero la API no deja crearlos.
+  Por eso `fc_add_tag` apunta la versión como comentario «Versión: x.y.z», y `fc_fetch_task`
+  devuelve la versión ya resuelta en `version` (tag o, si no hay, ese comentario).
+- **Ficheros:** máximo 10 MB por fichero en el plan gratuito.
 
 ## Paso 1 — Leer la tarea
 
 ```bash
-node .claude/skills/clickup-task/scripts/fetch_task.mjs "<url>" "<scratchpad>/clickup/<taskId>"
+node .claude/skills/clickup-task/scripts/fc_fetch_task.mjs "<url>" "<scratchpad>/tareas/<id>"
+# ClickUp: fetch_task.mjs con los mismos argumentos
 ```
 
 - Usa el directorio de scratchpad de la sesión, nunca el repo.
@@ -25,20 +50,23 @@ node .claude/skills/clickup-task/scripts/fetch_task.mjs "<url>" "<scratchpad>/cl
   estado, prioridad, tags, campos personalizados, descripción (markdown), checklists, subtareas,
   comentarios, enlaces e `images[].file` (PNGs ya descargados).
 - Si sale `MISSING_CREDENTIALS`, para y explica al usuario la configuración de la sección
-  **Credenciales** de abajo. No intentes leer ClickUp por otra vía.
+  **Credenciales** de abajo. No intentes leer la tarea por otra vía.
+- Si sale `FREEDCAMP_ERROR 401`/`403`, la clave o el secreto no valen (o la clave se borró):
+  díselo. Las URLs de imagen de Freedcamp caducan; si una descarga falla, vuelve a lanzar el script.
 - Si sale `CLICKUP_ERROR 401`, el token no es válido; si sale `CLICKUP_ERROR 404` o `401` con
   `OAUTH_` en el cuerpo, el token no tiene acceso a ese workspace: díselo.
 - Si la tarea tiene **subtareas**, lístalas en el plan y pregunta si entran en esta pasada
   (cada una puede leerse con el mismo script).
 - **Al empezar, pasa la tarea a `in progress`** (petición del usuario, 2026-10-30), para que en
-  ClickUp se vea que alguien la está haciendo:
+  Freedcamp (o ClickUp) se vea que alguien la está haciendo:
 
   ```bash
-  node .claude/skills/clickup-task/scripts/set_status.mjs "<url>" "in progress"
+  node .claude/skills/clickup-task/scripts/fc_set_status.mjs "<url>" "in progress"
+  # ClickUp: set_status.mjs
   ```
 
-  Solo si su estado es `to do`. Si ya está `in progress`, no hace falta tocarla. Si está en
-  `complete` o `duplicate`, no la muevas: díselo al usuario en el plan, porque quizá no haya
+  Solo si su estado es `not started` (`to do` en ClickUp). Si ya está `in progress`, no hace falta tocarla. Si está en
+  `complete`, `invalid` o `duplicate`, no la muevas: díselo al usuario en el plan, porque quizá no haya
   que hacerla. Si sale `UNKNOWN_STATUS` (otra lista con otros nombres), enseña los estados
   disponibles y pregunta; no elijas otro.
 
@@ -342,13 +370,15 @@ antes de desplegar.
 Cada versión de la app tiene un fichero `docs/releases/<version>.md` con las tareas que lleva.
 
 **Qué versión usar.** La decide producto con un **tag de versión** en la tarea (`tags` de
-`task.json`, p. ej. `"1.0.93"`; acepta también `v1.0.93`). No la deduzcas de `app.json`.
+`task.json`, p. ej. `"1.0.93"`; acepta también `v1.0.93`). En Freedcamp usa `version` de
+`task.json`, que ya resuelve el tag o el comentario «Versión: x.y.z». No la deduzcas de `app.json`.
 
 - Sin tag de versión, o con más de uno: pregunta al usuario a qué versión va. No adivines.
-  Cuando conteste, **pon ese tag en la tarea de ClickUp** (petición del usuario, 2026-10-27),
-  para que en ClickUp se vea en qué release va:
-  `node .claude/skills/clickup-task/scripts/add_tag.mjs "<url>" <versión>` (crea el tag en
-  el espacio si no existe y no toca nada más). Solo para tareas que tocan `losresis-app`: las
+  Cuando conteste, **apunta la versión en la tarea** (petición del usuario, 2026-10-27),
+  para que se vea en qué release va:
+  `node .claude/skills/clickup-task/scripts/fc_add_tag.mjs "<url>" <versión>` (Freedcamp: deja
+  el comentario «Versión: x.y.z»; no repite si ya está) o `add_tag.mjs` en ClickUp (crea el tag
+  en el espacio si no existe). Ninguno toca nada más. Solo para tareas que tocan `losresis-app`: las
   de panel/BD no llevan versión.
 - Existe `docs/releases/<tag>.md` con `Estado: en desarrollo`: añade la tarea ahí y no toques
   `app.json`.
@@ -375,7 +405,7 @@ Iniciada: <YYYY-MM-DD>
 
 ## Tareas
 
-- **#<número> · <título de la tarea>** — <url de ClickUp>
+- **#<número> · <título de la tarea>** — <url de la tarea>
   - Fecha: <YYYY-MM-DD>
   - Qué se hizo: <1-2 líneas en lenguaje de producto>
   - Cambios técnicos: <archivos o áreas principales; migraciones en losresis-db si las hay>
@@ -391,7 +421,7 @@ El ciclo completo (abrir, sumar tareas, cerrar, publicar) está en `docs/release
   tarea dice a cuál va.
 - Al crear un fichero nuevo, copia la estructura de la última versión: «Tareas», «Otros cambios
   desde la <anterior>» (commits de `main` desde la subida de versión anterior que no vienen de
-  ClickUp), «Infraestructura de desarrollo» si aplica y el «Checklist de publicación».
+  Freedcamp ni ClickUp), «Infraestructura de desarrollo» si aplica y el «Checklist de publicación».
 - La entrada del histórico va en el mismo commit que el código de la app de la tarea (paso 6).
 - **Cerrar versión** (cuando el usuario diga "cerramos la versión", "vamos a publicar"…):
   recorre el checklist del fichero. Ejecuta tú lo que puedas (`npm test`, todos los flujos de
@@ -401,7 +431,7 @@ El ciclo completo (abrir, sumar tareas, cerrar, publicar) está en `docs/release
 - Cuando el usuario diga que la versión se ha publicado, cambia `Estado:` a `publicada`, añade
   `Publicada: <fecha>` y recuérdale el tag `git tag v<version> <commit>`.
 
-## Paso 6 — Subir a `main` y cerrar la tarea en ClickUp
+## Paso 6 — Subir a `main` y cerrar la tarea
 
 Cuando la tarea está terminada y **todo está bien**, la subes tú sin esperar a que el usuario lo
 pida (autorización del usuario, 2026-10-21). «Todo está bien» quiere decir:
@@ -428,37 +458,59 @@ pendientes que no bloquean (p. ej. probar en un móvil físico), apúntalos en e
    - El resto de cambios sin commitear del árbol son del usuario o de otra sesión: no los añadas,
      y nómbralos en el informe.
    - Subir a `main` no publica la app: sale con el build de EAS de su versión, que hace el usuario.
-5. **Capturas a ClickUp:** si la tarea toca el panel, sube como adjuntos las capturas de la
+5. **Capturas a la tarea:** si la tarea toca el panel, sube como adjuntos las capturas de la
    pasada en producción (paso 4d.6), ya revisadas con Read (petición del usuario, 2026-10-30):
 
    ```bash
-   node .claude/skills/clickup-task/scripts/attach_files.mjs "<url>" <scratchpad>/evidencias/*.png
+   node .claude/skills/clickup-task/scripts/fc_attach_files.mjs "<url>" <scratchpad>/evidencias/*.png
+   # ClickUp: attach_files.mjs
    ```
 
    Nómbralas `<número>-<n>-<qué-enseña>.png`, en el orden del recorrido. El script no vuelve a
-   subir un nombre que ya está adjunto. Antes de subirlas, comprueba que solo salen cuentas y
+   subir un nombre que ya está adjunto. En Freedcamp cada fichero debe pesar menos de 10 MB. Antes de subirlas, comprueba que solo salen cuentas y
    datos de prueba (Hospital E2E o mock), nunca datos de otros hospitales ni la contraseña.
    Si la tarea solo toca la app, sube del mismo modo las capturas de Maestro.
-6. **ClickUp:** con todo subido (y el panel `● Ready` si aplica), pasa la tarea a `complete`:
+6. **Cerrar la tarea:** con todo subido (y el panel `● Ready` si aplica), pásala a `complete`:
 
    ```bash
-   node .claude/skills/clickup-task/scripts/set_status.mjs "<url>"
+   node .claude/skills/clickup-task/scripts/fc_set_status.mjs "<url>"
+   # ClickUp: set_status.mjs
    ```
 
-   El script comprueba que el estado existe en la lista de la tarea y solo cambia el estado. Si
+   Solo cambia el estado. En ClickUp comprueba antes que el estado existe en la lista. Si
    sale `UNKNOWN_STATUS`, enseña los estados disponibles al usuario y pregunta; no elijas otro.
    Si la tarea tiene subtareas que entraron en esta pasada, pásalas también.
 7. Apunta en la entrada del histórico: «Subido a `main` el <fecha> (commit `<sha>`). Tarea en
-   ClickUp: complete.» El commit no puede llevar su propio sha. Por eso esta línea va en un
+   <Freedcamp|ClickUp>: complete.» El commit no puede llevar su propio sha. Por eso esta línea va en un
    segundo commit pequeño (`#<número> docs: histórico`) que también se sube.
 
 ## Lo que esta skill no hace
 
-- No escribe en ClickUp más allá de pasar a `in progress` las tareas que empieza (paso 1) y a `complete` las terminadas (paso 6), de poner el tag de versión a las que llegan sin él (paso 5) y de adjuntar las capturas de la prueba (paso 6): ni comenta
-  ni cambia otros campos, salvo que el usuario lo pida.
+- No escribe en Freedcamp ni en ClickUp más allá de pasar a `in progress` las tareas que empieza (paso 1) y a `complete` las terminadas (paso 6), de apuntar la versión en las que llegan sin ella (paso 5) y de adjuntar las capturas de la prueba (paso 6): ni comenta
+  (salvo el comentario de versión de Freedcamp) ni cambia otros campos, salvo que el usuario lo pida.
 - No hace builds de EAS ni EAS Update, ni crea el tag de la versión.
 
 ## Credenciales
+
+### Freedcamp
+
+Clave de API **secured** del usuario (clave + secreto), en `~/.config/freedcamp/credentials`
+(permisos `600`):
+
+```
+FREEDCAMP_API_KEY=...
+FREEDCAMP_API_SECRET=...
+```
+
+Se crea en https://freedcamp.com/manage/account#api. Para ver el secreto Freedcamp pide la
+contraseña; si la cuenta entra con Google, primero hay que ponerle una con «Forgot password».
+Cada petición va firmada (HMAC-SHA1 de clave + timestamp con el secreto, ver
+`freedcamp_api.mjs`). La clave tiene los permisos del usuario (no hay modo solo lectura): los
+`fc_*` solo leen, salvo el estado (`fc_set_status`), el comentario de versión (`fc_add_tag`) y
+los adjuntos (`fc_attach_files`). Nunca pegues la clave ni el secreto en el chat ni los guardes
+dentro del repo.
+
+### ClickUp (tareas antiguas)
 
 El workspace es privado, así que el script necesita un token personal de ClickUp del usuario:
 
