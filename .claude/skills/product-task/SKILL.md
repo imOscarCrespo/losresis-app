@@ -1,9 +1,9 @@
 ---
-name: clickup-task
-description: Implementa en LosResis una o varias tareas de Freedcamp (o de ClickUp, las antiguas) del equipo de producto. Lee la tarea (descripción preparada por un agente de IA, checklists, comentarios e imágenes PNG de diseño si las hay), diseña la solución óptima como desarrollador senior contra el código real, la implementa tras validar el plan y apunta la tarea en el histórico de la versión que marca su tag (docs/releases/<versión>.md), abriendo esa versión en app.json si aún no existe. Si toca el panel, lo prueba obligatoriamente en un navegador (Playwright, con datos mock si hace falta) en local y en producción. Al terminar con todo en verde sube los cambios a main (app, losresis-db y panel con su vercel --prod), adjunta las capturas de la prueba a la tarea y la pasa a complete. Úsalo cuando el usuario pegue una URL freedcamp.com/view/.../task/... o app.clickup.com/t/..., diga "implementa esta tarea", "haz esta tarea de Freedcamp/ClickUp", "/clickup-task" o similar.
+name: product-task
+description: Implementa en LosResis una o varias tareas de Freedcamp (o de ClickUp, las antiguas) del equipo de producto. Lee la tarea (descripción preparada por un agente de IA, checklists, comentarios e imágenes PNG de diseño si las hay), diseña la solución óptima como desarrollador senior contra el código real, la implementa tras validar el plan y apunta la tarea en el histórico de la versión que marca su tag (docs/releases/<versión>.md), abriendo esa versión en app.json si aún no existe. Si toca el panel, lo prueba obligatoriamente en un navegador (Playwright, con datos mock si hace falta) en local y en producción. Al terminar con todo en verde sube los cambios a main (app, losresis-db y panel con su vercel --prod), adjunta las capturas de la prueba a la tarea y la pasa a complete. Úsalo cuando el usuario pegue una URL freedcamp.com/view/.../task/... o app.clickup.com/t/..., diga "implementa esta tarea", "haz esta tarea de Freedcamp/ClickUp", "/product-task" (antes "/clickup-task") o similar.
 ---
 
-# clickup-task — de tarea de Freedcamp (o ClickUp) a código en LosResis
+# product-task — de tarea de Freedcamp (o ClickUp) a código en LosResis
 
 Eres un desarrollador senior de LosResis (Expo / React Native en JS + Supabase). La tarea te
 dice **qué** quiere producto; el **cómo** lo decides tú contra el código real. La descripción la
@@ -27,7 +27,7 @@ herramienta tiene sus scripts, con los mismos argumentos:
 | Capturas | `fc_attach_files.mjs` | `attach_files.mjs` |
 
 En el resto de la skill, «la tarea» y los nombres de script sin prefijo valen para las dos: usa
-los `fc_*` si la URL es de Freedcamp. Todo está en `.claude/skills/clickup-task/scripts/`.
+los `fc_*` si la URL es de Freedcamp. Todo está en `.claude/skills/product-task/scripts/`.
 
 Diferencias de Freedcamp que importan:
 - **Estados:** `not started`, `in progress`, `complete` (y `review`, `invalid`). Equivalen a
@@ -41,7 +41,7 @@ Diferencias de Freedcamp que importan:
 ## Paso 1 — Leer la tarea
 
 ```bash
-node .claude/skills/clickup-task/scripts/fc_fetch_task.mjs "<url>" "<scratchpad>/tareas/<id>"
+node .claude/skills/product-task/scripts/fc_fetch_task.mjs "<url>" "<scratchpad>/tareas/<id>"
 # ClickUp: fetch_task.mjs con los mismos argumentos
 ```
 
@@ -61,7 +61,7 @@ node .claude/skills/clickup-task/scripts/fc_fetch_task.mjs "<url>" "<scratchpad>
   Freedcamp (o ClickUp) se vea que alguien la está haciendo:
 
   ```bash
-  node .claude/skills/clickup-task/scripts/fc_set_status.mjs "<url>" "in progress"
+  node .claude/skills/product-task/scripts/fc_set_status.mjs "<url>" "in progress"
   # ClickUp: set_status.mjs
   ```
 
@@ -376,7 +376,7 @@ Cada versión de la app tiene un fichero `docs/releases/<version>.md` con las ta
 - Sin tag de versión, o con más de uno: pregunta al usuario a qué versión va. No adivines.
   Cuando conteste, **apunta la versión en la tarea** (petición del usuario, 2026-10-27),
   para que se vea en qué release va:
-  `node .claude/skills/clickup-task/scripts/fc_add_tag.mjs "<url>" <versión>` (Freedcamp: deja
+  `node .claude/skills/product-task/scripts/fc_add_tag.mjs "<url>" <versión>` (Freedcamp: deja
   el comentario «Versión: x.y.z»; no repite si ya está) o `add_tag.mjs` en ClickUp (crea el tag
   en el espacio si no existe). Ninguno toca nada más. Solo para tareas que tocan `losresis-app`: las
   de panel/BD no llevan versión.
@@ -462,7 +462,7 @@ pendientes que no bloquean (p. ej. probar en un móvil físico), apúntalos en e
    pasada en producción (paso 4d.6), ya revisadas con Read (petición del usuario, 2026-10-30):
 
    ```bash
-   node .claude/skills/clickup-task/scripts/fc_attach_files.mjs "<url>" <scratchpad>/evidencias/*.png
+   node .claude/skills/product-task/scripts/fc_attach_files.mjs "<url>" <scratchpad>/evidencias/*.png
    # ClickUp: attach_files.mjs
    ```
 
@@ -473,7 +473,7 @@ pendientes que no bloquean (p. ej. probar en un móvil físico), apúntalos en e
 6. **Cerrar la tarea:** con todo subido (y el panel `● Ready` si aplica), pásala a `complete`:
 
    ```bash
-   node .claude/skills/clickup-task/scripts/fc_set_status.mjs "<url>"
+   node .claude/skills/product-task/scripts/fc_set_status.mjs "<url>"
    # ClickUp: set_status.mjs
    ```
 

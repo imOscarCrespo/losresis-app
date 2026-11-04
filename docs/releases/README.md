@@ -1,7 +1,7 @@
 # Versiones de la app
 
 Un fichero por versión (`<version>.md`) con todo lo que lleva: tareas de ClickUp, otros cambios y
-el checklist de publicación. Lo mantiene la skill `/clickup-task`.
+el checklist de publicación. Lo mantiene la skill `/product-task`.
 
 ## Ciclo de vida
 

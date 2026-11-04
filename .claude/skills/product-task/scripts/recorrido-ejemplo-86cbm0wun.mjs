@@ -1,7 +1,7 @@
 // EJEMPLO de recorrido para panel_browser.mjs (tarea 86cbm0wun, pendientes de Docencia).
 // Copia este fichero al scratchpad como recorrido-<número>.mjs y adáptalo a los criterios de
 // aceptación de la tarea. Uso:
-//   PW_DIR=<scratchpad>/pw node .claude/skills/clickup-task/scripts/panel_browser.mjs \
+//   PW_DIR=<scratchpad>/pw node .claude/skills/product-task/scripts/panel_browser.mjs \
 //     https://panel.losresis.com <scratchpad>/recorrido-<número>.mjs <scratchpad>/evidencias
 
 // R1 es el residente real del Hospital E2E: así el salto al módulo enseña filas reales.
