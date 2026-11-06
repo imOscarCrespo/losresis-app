@@ -1,0 +1,36 @@
+# Unidades docentes · el simulador MIR las sigue enseñando
+#
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-student.env scripts/e2e.sh e2e/flows/unidades-docentes-simulador-mir.yaml
+#
+# Registro y Explorar hospitales esconden las unidades docentes; el simulador no, porque
+# en Medicina Familiar y Comunitaria las plazas son de unidades docentes. Solo lectura.
+appId: com.losresis.app
+name: "Unidades docentes · simulador MIR"
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+- extendedWaitUntil:
+    visible: "TU ACTIVIDAD"
+    timeout: 20000
+- tapOn: "Calcular mis probabilidades"
+- extendedWaitUntil:
+    visible: "Ej: 1950"
+    timeout: 10000
+- tapOn: "Ej: 1950"
+- inputText: "8000"
+- tapOn: "Tu posición en el MIR \\*"
+- tapOn: "Selecciona una especialidad"
+- tapOn: "Buscar..."
+- inputText: "familiar"
+- tapOn: "(?i)medicina familiar y comunitaria"
+- tapOn: "Confirmar selección"
+- tapOn: "Calcular probabilidades"
+- extendedWaitUntil:
+    visible: "Resultados de probabilidad"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "(?s).*Udm Afyc.*"
+    visibilityPercentage: 50
+    timeout: 20000
+- takeScreenshot: ud-simulador-mir
