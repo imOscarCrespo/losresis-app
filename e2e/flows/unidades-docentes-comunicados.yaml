@@ -1,0 +1,26 @@
+# Plan 2 de unidades docentes · Comunicados enseñan quién los manda
+#
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-r1.env scripts/e2e.sh e2e/flows/unidades-docentes-comunicados.yaml
+#
+# Necesita dos comunicados enviados al R1 del Hospital E2E: uno de una unidad docente
+# con nombre largo (con persona) y otro del hospital (sin persona). Solo lectura.
+appId: com.losresis.app
+name: "Unidades docentes · remitente en Comunicados"
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- scrollUntilVisible:
+    element: "Comunicados.*"
+    centerElement: true
+- tapOn: "Comunicados.*"
+- extendedWaitUntil:
+    visible: "E2E · Comunicado de la unidad docente"
+    timeout: 20000
+
+# Unidad docente: organización · persona · fecha; el nombre largo envuelve sin cortarse
+- assertVisible: "Udm Afyc Vega Media Y Alta Del Segura Y Altiplano De Murcia\\. H\\.Comarcal Virgen Del Castillo De Yecla · Marta Ruiz · .*"
+# Hospital sin persona: organización · fecha
+- assertVisible: "E2E Panel #100 · .*"
+- takeScreenshot: ud-comunicados
