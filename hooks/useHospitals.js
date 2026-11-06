@@ -7,13 +7,22 @@ import {
 } from "../services/hospitalService";
 import { usePersistedFilters } from "./usePersistedFilters";
 import { compareByRankingMetadata } from "../utils/homeHospitalSections";
+import { excludeTeachingUnits } from "../utils/teachingUnits";
 
 /**
  * Hook para obtener y filtrar hospitales
+ * @param {Object} [options]
+ * @param {boolean} [options.hideTeachingUnits=false] Quita las unidades
+ *   docentes del catálogo (listados donde el residente elige o explora
+ *   hospitales). El simulador MIR no lo usa: allí tienen que salir.
  * @returns {Object} Estado y funciones para manejar hospitales
  */
-export const useHospitals = () => {
-  const [hospitals, setHospitals] = useState([]);
+export const useHospitals = ({ hideTeachingUnits = false } = {}) => {
+  const [allHospitals, setHospitals] = useState([]);
+  const hospitals = useMemo(
+    () => (hideTeachingUnits ? excludeTeachingUnits(allHospitals) : allHospitals),
+    [allHospitals, hideTeachingUnits]
+  );
   const [specialties, setSpecialties] = useState([]);
   const [loadingHospitals, setLoadingHospitals] = useState(false);
   const [loadingSpecialties, setLoadingSpecialties] = useState(false);

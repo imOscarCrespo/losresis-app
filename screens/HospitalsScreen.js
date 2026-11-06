@@ -52,7 +52,7 @@ export default function HospitalsScreen({
     loadingHospitals,
     loadingSpecialtyFilter,
     clearFilters,
-  } = useHospitals();
+  } = useHospitals({ hideTeachingUnits: true });
 
   useEffect(() => {
     posthogLogger.logScreen("HospitalsScreen");

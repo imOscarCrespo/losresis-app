@@ -22,6 +22,7 @@ import { OnboardingStepLayout } from "../components/onboarding/OnboardingStepLay
 import { OnboardingUserTypeCards } from "../components/onboarding/OnboardingUserTypeCards";
 import { SelectFilter } from "../components/SelectFilter";
 import { useHospitals } from "../hooks/useHospitals";
+import { excludeTeachingUnits } from "../utils/teachingUnits";
 import { useEmailDomainValidation } from "../hooks/useEmailDomainValidation";
 import { useEmailReview } from "../hooks/useEmailReview";
 import { updateUserProfile } from "../services/userService";
@@ -104,6 +105,13 @@ export default function OnboardingScreen({ userId, onComplete }) {
   const [transitionConfig, setTransitionConfig] = useState(null);
 
   const { hospitals, specialties, uniqueCities } = useHospitals();
+  // El residente elige su hospital, no su unidad docente (la deduce el panel
+  // con hospital + especialidad). Las ciudades salen del catálogo entero:
+  // algunas solo existen en filas de unidad docente (Navarra, Asturias…).
+  const hospitalOptions = useMemo(
+    () => excludeTeachingUnits(hospitals),
+    [hospitals]
+  );
   const cityOptions = useMemo(
     () => prepareCityOptions(uniqueCities),
     [uniqueCities]
@@ -533,7 +541,7 @@ export default function OnboardingScreen({ userId, onComplete }) {
               label="Hospital"
               value={answers.hospital_id}
               onSelect={(value) => setAnswer("hospital_id", value)}
-              options={hospitals}
+              options={hospitalOptions}
               placeholder="Buscar hospital..."
               required
             />
