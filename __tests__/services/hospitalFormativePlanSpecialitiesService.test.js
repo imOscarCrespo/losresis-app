@@ -5,15 +5,24 @@ jest.mock("../../config/supabase", () => {
   const supabase = {
     state,
     from: jest.fn((table) => {
-      const query = {};
-      ["select", "eq", "order", "maybeSingle"].forEach((method) => {
+      const query = { filters: {} };
+      ["select", "order", "maybeSingle"].forEach((method) => {
         query[method] = jest.fn(() => query);
       });
-      query.then = (resolve, reject) =>
-        Promise.resolve(state.responses[table] || { data: null, error: null }).then(
+      query.eq = jest.fn((column, value) => {
+        query.filters[column] = value;
+        return query;
+      });
+      // Una respuesta puede ser una función de los filtros .eq() de la consulta.
+      query.then = (resolve, reject) => {
+        const response = state.responses[table];
+        const resolved =
+          typeof response === "function" ? response(query.filters) : response;
+        return Promise.resolve(resolved || { data: null, error: null }).then(
           resolve,
           reject
         );
+      };
       return query;
     }),
   };
@@ -35,6 +44,18 @@ const { supabase: mockSupabase } = jest.requireMock("../../config/supabase");
 import { getHospitalFormativePlanSpecialityIds } from "../../services/hospitalService";
 
 const ORG = "org-1";
+
+// employer_org como tabla de verdad: filtra por los .eq() y se comporta como
+// maybeSingle (error si quedan dos filas), que es lo que rompería la ficha.
+const orgRows = (rows) => (filters) => {
+  const matches = rows.filter((row) =>
+    Object.entries(filters).every(([column, value]) => row[column] === value)
+  );
+  if (matches.length > 1) {
+    return { data: null, error: { message: "JSON object requested, multiple (or no) rows returned" } };
+  }
+  return { data: matches[0] || null, error: null };
+};
 
 const respond = (responses) => {
   mockSupabase.state.responses = {
@@ -157,5 +178,35 @@ describe("getHospitalFormativePlanSpecialityIds", () => {
     expect(result.success).toBe(false);
     expect(result.error).toBe("Network request failed");
     expect(ids(result)).toEqual([]);
+  });
+
+  it("ignora la unidad docente del mismo hospital: los planes son los del hospital", async () => {
+    respond({
+      employer_org: orgRows([
+        { id: ORG, hospital_id: "h1", org_kind: "hospital" },
+        { id: "ud-1", hospital_id: "h1", org_kind: "teaching_unit" },
+      ]),
+      employer_org_profile_speciality: {
+        data: [{ speciality_id: "card", plan_formativo_url: "https://x/card.pdf" }],
+        error: null,
+      },
+    });
+
+    const result = await getHospitalFormativePlanSpecialityIds("h1");
+
+    expect(result.success).toBe(true);
+    expect(ids(result)).toEqual(["card"]);
+  });
+
+  it("con solo una unidad docente, no hay planes", async () => {
+    respond({
+      employer_org: orgRows([{ id: "ud-1", hospital_id: "h1", org_kind: "teaching_unit" }]),
+    });
+
+    const result = await getHospitalFormativePlanSpecialityIds("h1");
+
+    expect(result.success).toBe(true);
+    expect(ids(result)).toEqual([]);
+    expect(mockSupabase.from).toHaveBeenCalledTimes(1);
   });
 });

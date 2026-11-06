@@ -618,6 +618,10 @@ export const getHospitalProfileContent = async (hospitalId) => {
       .from("employer_org")
       .select("id, hospital_id")
       .eq("hospital_id", hospitalId)
+      // Una unidad docente comparte hospital_id con su hospital. La RLS se la esconde
+      // a quien no es miembro, pero un miembro de la UD vería dos filas y maybeSingle
+      // fallaría: la ficha del hospital es solo de la organización del hospital.
+      .eq("org_kind", "hospital")
       .maybeSingle();
 
     if (orgError) {
@@ -793,6 +797,8 @@ export const getHospitalFormativePlanSpecialityIds = async (hospitalId) => {
       .from("employer_org")
       .select("id")
       .eq("hospital_id", hospitalId)
+      // Igual que en getHospitalProfileContent: las unidades docentes no cuentan.
+      .eq("org_kind", "hospital")
       .maybeSingle();
 
     if (orgError) {

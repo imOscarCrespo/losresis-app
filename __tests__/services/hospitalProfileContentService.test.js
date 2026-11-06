@@ -5,15 +5,24 @@ jest.mock("../../config/supabase", () => {
   const supabase = {
     state,
     from: jest.fn((table) => {
-      const query = {};
-      ["select", "eq", "order", "maybeSingle"].forEach((method) => {
+      const query = { filters: {} };
+      ["select", "order", "maybeSingle"].forEach((method) => {
         query[method] = jest.fn(() => query);
       });
-      query.then = (resolve, reject) =>
-        Promise.resolve(state.responses[table] || { data: null, error: null }).then(
+      query.eq = jest.fn((column, value) => {
+        query.filters[column] = value;
+        return query;
+      });
+      // Una respuesta puede ser una función de los filtros .eq() de la consulta.
+      query.then = (resolve, reject) => {
+        const response = state.responses[table];
+        const resolved =
+          typeof response === "function" ? response(query.filters) : response;
+        return Promise.resolve(resolved || { data: null, error: null }).then(
           resolve,
           reject
         );
+      };
       return query;
     }),
   };
@@ -36,6 +45,18 @@ const { supabase: mockSupabase } = jest.requireMock("../../config/supabase");
 import { getHospitalProfileContent } from "../../services/hospitalService";
 
 const ORG = "org-1";
+
+// employer_org como tabla de verdad: filtra por los .eq() y se comporta como
+// maybeSingle (error si quedan dos filas), que es lo que rompería la ficha.
+const orgRows = (rows) => (filters) => {
+  const matches = rows.filter((row) =>
+    Object.entries(filters).every(([column, value]) => row[column] === value)
+  );
+  if (matches.length > 1) {
+    return { data: null, error: { message: "JSON object requested, multiple (or no) rows returned" } };
+  }
+  return { data: matches[0] || null, error: null };
+};
 
 const respond = (responses) => {
   mockSupabase.state.responses = {
@@ -142,5 +163,41 @@ describe("getHospitalProfileContent · fotos y vídeo de cada especialidad", () 
     const result = await getHospitalProfileContent("h1");
 
     expect(result).toEqual({ success: false, profile: null, error: "permission denied" });
+  });
+});
+
+describe("getHospitalProfileContent · unidades docentes en el mismo hospital", () => {
+  it("con un hospital y una unidad docente en el mismo hospital, devuelve el perfil del hospital", async () => {
+    respond({
+      employer_org: orgRows([
+        { id: ORG, hospital_id: "h1", org_kind: "hospital" },
+        { id: "ud-1", hospital_id: "h1", org_kind: "teaching_unit" },
+      ]),
+    });
+
+    const { success, profile } = await getHospitalProfileContent("h1");
+
+    expect(success).toBe(true);
+    expect(profile.org_id).toBe(ORG);
+    expect(profile.about).toBe("Hospital");
+  });
+
+  it("con solo una unidad docente, es un hospital sin organización", async () => {
+    respond({
+      employer_org: orgRows([{ id: "ud-1", hospital_id: "h1", org_kind: "teaching_unit" }]),
+    });
+
+    const { success, profile } = await getHospitalProfileContent("h1");
+
+    expect(success).toBe(true);
+    expect(profile).toEqual({
+      org_id: null,
+      about: null,
+      differential_points: [],
+      institutional_video_url: null,
+      images: [],
+      documents: [],
+      plans: [],
+    });
   });
 });

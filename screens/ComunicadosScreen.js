@@ -15,6 +15,7 @@ import {
   getResidentAnnouncements,
   markAnnouncementRead,
 } from "../services/docenciaService";
+import { buildAnnouncementMeta } from "../utils/announcementMeta";
 
 /**
  * Los comunicados que la Unidad Docente le manda al residente desde
@@ -140,10 +141,10 @@ export default function ComunicadosScreen({ userProfile, onBack }) {
             </View>
           ) : items.length ? (
             items.map((item) => {
-              const sentAt = formatSentAt(item.sent_at);
-              const meta = [item.created_by_name, sentAt]
-                .filter(Boolean)
-                .join(" · ");
+              const meta = buildAnnouncementMeta(
+                item,
+                formatSentAt(item.sent_at)
+              );
 
               return (
                 <View key={item.id} style={styles.card}>
