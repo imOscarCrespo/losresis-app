@@ -1,7 +1,10 @@
 import {
+  DEFAULT_SURVEY_QUESTIONS,
+  buildSurveyAnswersPayload,
   describeCourseSurvey,
   emptySurveyAnswers,
   isSurveyComplete,
+  surveyFormFor,
 } from "../../utils/courseSurvey";
 
 const CERTIFICATE = {
@@ -122,5 +125,97 @@ describe("isSurveyComplete", () => {
     expect(isSurveyComplete({ ...full, speakers_rating: null })).toBe(false);
     expect(isSurveyComplete({ ...full, would_recommend: null })).toBe(false);
     expect(isSurveyComplete({ ...full, overall_rating: 6 })).toBe(false);
+  });
+});
+
+// Plantillas de encuesta (Hospital de Manresa, 2026-11-13).
+const CUSTOM_QUESTIONS = [
+  { id: "docentes", type: "rating", label: "Docentes", required: true },
+  { id: "repetirias", type: "yes_no", label: "¿Repetirías?", required: false },
+  { id: "mejoras", type: "text", label: "¿Qué mejorarías?", required: true },
+  { id: "extra", type: "text", label: "Algo más", required: false },
+];
+
+describe("surveyFormFor", () => {
+  it("base con plantillas: usa las preguntas del curso", () => {
+    expect(surveyFormFor(summary({ survey_questions: CUSTOM_QUESTIONS }))).toEqual({
+      questions: CUSTOM_QUESTIONS,
+      dynamic: true,
+    });
+  });
+
+  it("base anterior (sin survey_questions): la encuesta fija y la RPC antigua", () => {
+    expect(surveyFormFor(summary())).toEqual({
+      questions: DEFAULT_SURVEY_QUESTIONS,
+      dynamic: false,
+    });
+    expect(surveyFormFor(null).dynamic).toBe(false);
+  });
+
+  it("la encuesta fija son las preguntas de la plantilla de LosResis", () => {
+    expect(DEFAULT_SURVEY_QUESTIONS.map((q) => [q.id, q.type, q.required])).toEqual([
+      ["overall_rating", "rating", true],
+      ["content_rating", "rating", true],
+      ["speakers_rating", "rating", true],
+      ["organization_rating", "rating", true],
+      ["would_recommend", "yes_no", true],
+      ["comments", "text", false],
+    ]);
+  });
+
+  it("salta tipos desconocidos, preguntas mal formadas e ids repetidos", () => {
+    const form = surveyFormFor(
+      summary({
+        survey_questions: [
+          { id: "a", type: "rating", label: "A", required: true },
+          { id: "b", type: "multiple_choice", label: "B", required: true },
+          { id: "", type: "text", label: "C" },
+          null,
+          { id: "a", type: "text", label: "A otra vez" },
+          { id: "d", type: "yes_no", label: " D " },
+        ],
+      })
+    );
+    expect(form.questions).toEqual([
+      { id: "a", type: "rating", label: "A", required: true },
+      { id: "d", type: "yes_no", label: "D", required: false },
+    ]);
+  });
+});
+
+describe("encuesta con preguntas del curso", () => {
+  it("respuestas vacías según el tipo", () => {
+    expect(emptySurveyAnswers(CUSTOM_QUESTIONS)).toEqual({
+      docentes: null,
+      repetirias: null,
+      mejoras: "",
+      extra: "",
+    });
+  });
+
+  it("solo pide las obligatorias; un texto obligatorio no vale en blanco", () => {
+    const answers = { docentes: 4, repetirias: null, mejoras: "Más casos", extra: "" };
+    expect(isSurveyComplete(answers, CUSTOM_QUESTIONS)).toBe(true);
+    expect(isSurveyComplete({ ...answers, mejoras: "   " }, CUSTOM_QUESTIONS)).toBe(false);
+    expect(isSurveyComplete({ ...answers, docentes: 0 }, CUSTOM_QUESTIONS)).toBe(false);
+    expect(isSurveyComplete(emptySurveyAnswers(CUSTOM_QUESTIONS), CUSTOM_QUESTIONS)).toBe(false);
+  });
+
+  it("el envío lleva solo lo respondido, con el texto recortado", () => {
+    expect(
+      buildSurveyAnswersPayload(
+        { docentes: 5, repetirias: false, mejoras: "  Más casos  ", extra: "   " },
+        CUSTOM_QUESTIONS
+      )
+    ).toEqual({ docentes: 5, repetirias: false, mejoras: "Más casos" });
+  });
+
+  it("no envía respuestas de preguntas que no son del curso ni texto de más de 2000", () => {
+    const payload = buildSurveyAnswersPayload(
+      { docentes: 3, mejoras: "x".repeat(2500), intrusa: 5 },
+      CUSTOM_QUESTIONS
+    );
+    expect(Object.keys(payload).sort()).toEqual(["docentes", "mejoras"]);
+    expect(payload.mejoras).toHaveLength(2000);
   });
 });

@@ -14,8 +14,8 @@ import { StarRating } from "../StarRating";
 import { KeyboardAwareScrollView } from "../KeyboardAwareScrollView";
 import { KeyboardAwareTextInput } from "../KeyboardAwareTextInput";
 import {
+  DEFAULT_SURVEY_QUESTIONS,
   SURVEY_COMMENTS_MAX_LENGTH,
-  SURVEY_RATING_QUESTIONS,
   emptySurveyAnswers,
   isSurveyComplete,
 } from "../../utils/courseSurvey";
@@ -27,22 +27,34 @@ const MUTED_LIGHT = "#94A3B8";
 const BORDER = "#E2E8F0";
 const DANGER = "#EF4444";
 
+const questionLabel = (question) =>
+  question.required ? question.label : `${question.label} (opcional)`;
+
 /**
  * Encuesta de satisfacción de un curso (ClickUp 124b4z9vjxf). Al enviarla, la
- * base emite el certificado. `onSubmit(answers)` devuelve `{ ok, error }`.
+ * base emite el certificado. Pinta las preguntas que recibe (valoración 1-5,
+ * sí/no o texto; ver `surveyFormFor` en utils/courseSurvey) y
+ * `onSubmit(answers)` —`{ [id]: valor }`— devuelve `{ ok, error }`.
  */
-export function CourseSurveyModal({ visible, courseTitle, onClose, onSubmit }) {
+export function CourseSurveyModal({
+  visible,
+  courseTitle,
+  questions = DEFAULT_SURVEY_QUESTIONS,
+  onClose,
+  onSubmit,
+}) {
   const insets = useSafeAreaInsets();
-  const [answers, setAnswers] = useState(emptySurveyAnswers);
+  const [answers, setAnswers] = useState(() => emptySurveyAnswers(questions));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (visible) {
-      setAnswers(emptySurveyAnswers());
+      setAnswers(emptySurveyAnswers(questions));
       setError(null);
       setSubmitting(false);
     }
+    // Solo al abrir: si el resumen se refresca con el modal abierto no se borra lo respondido.
   }, [visible]);
 
   const setAnswer = (key, value) => {
@@ -50,7 +62,7 @@ export function CourseSurveyModal({ visible, courseTitle, onClose, onSubmit }) {
     setError(null);
   };
 
-  const complete = isSurveyComplete(answers);
+  const complete = isSurveyComplete(answers, questions);
 
   const handleSubmit = async () => {
     if (!complete || submitting) return;
@@ -88,60 +100,62 @@ export function CourseSurveyModal({ visible, courseTitle, onClose, onSubmit }) {
             asistencia.
           </Text>
 
-          {SURVEY_RATING_QUESTIONS.map((question) => (
-            <View key={question.key} style={styles.question}>
-              <Text style={styles.questionLabel}>{question.label}</Text>
-              <StarRating
-                rating={answers[question.key] ?? 0}
-                onRatingChange={(value) => setAnswer(question.key, value)}
-                size={32}
-                color="#F59E0B"
-                disabled={submitting}
-                testIDPrefix={`survey-${question.key}`}
-              />
+          {questions.map((question) => (
+            <View key={question.id} style={styles.question}>
+              <Text style={styles.questionLabel}>{questionLabel(question)}</Text>
+              {question.type === "rating" ? (
+                <StarRating
+                  rating={answers[question.id] ?? 0}
+                  onRatingChange={(value) => setAnswer(question.id, value)}
+                  size={32}
+                  color="#F59E0B"
+                  disabled={submitting}
+                  testIDPrefix={`survey-${question.id}`}
+                />
+              ) : question.type === "yes_no" ? (
+                <View style={styles.choiceRow}>
+                  {[
+                    { value: true, label: "Sí", suffix: "yes" },
+                    { value: false, label: "No", suffix: "no" },
+                  ].map((option) => {
+                    const selected = answers[question.id] === option.value;
+                    return (
+                      <TouchableOpacity
+                        key={option.suffix}
+                        style={[styles.choice, selected && styles.choiceSelected]}
+                        onPress={() => setAnswer(question.id, option.value)}
+                        disabled={submitting}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        testID={`survey-${question.id}-${option.suffix}`}
+                      >
+                        <Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <KeyboardAwareTextInput
+                  value={answers[question.id] ?? ""}
+                  onChangeText={(value) => setAnswer(question.id, value)}
+                  placeholder={
+                    question.id === "comments"
+                      ? "¿Qué mejorarías? ¿Qué te ha resultado más útil?"
+                      : "Escribe tu respuesta"
+                  }
+                  placeholderTextColor={MUTED_LIGHT}
+                  multiline
+                  maxLength={SURVEY_COMMENTS_MAX_LENGTH}
+                  editable={!submitting}
+                  style={styles.comments}
+                  testID={`survey-${question.id}`}
+                />
+              )}
             </View>
           ))}
-
-          <View style={styles.question}>
-            <Text style={styles.questionLabel}>¿Recomendarías este curso?</Text>
-            <View style={styles.choiceRow}>
-              {[
-                { value: true, label: "Sí" },
-                { value: false, label: "No" },
-              ].map((option) => {
-                const selected = answers.would_recommend === option.value;
-                return (
-                  <TouchableOpacity
-                    key={option.label}
-                    style={[styles.choice, selected && styles.choiceSelected]}
-                    onPress={() => setAnswer("would_recommend", option.value)}
-                    disabled={submitting}
-                    activeOpacity={0.85}
-                    testID={`survey-recommend-${option.value ? "yes" : "no"}`}
-                  >
-                    <Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          <View style={styles.question}>
-            <Text style={styles.questionLabel}>Comentarios (opcional)</Text>
-            <KeyboardAwareTextInput
-              value={answers.comments}
-              onChangeText={(value) => setAnswer("comments", value)}
-              placeholder="¿Qué mejorarías? ¿Qué te ha resultado más útil?"
-              placeholderTextColor={MUTED_LIGHT}
-              multiline
-              maxLength={SURVEY_COMMENTS_MAX_LENGTH}
-              editable={!submitting}
-              style={styles.comments}
-              testID="survey-comments"
-            />
-          </View>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -159,7 +173,9 @@ export function CourseSurveyModal({ visible, courseTitle, onClose, onSubmit }) {
             )}
           </TouchableOpacity>
           {!complete ? (
-            <Text style={styles.hint}>Valora las cuatro preguntas y dinos si lo recomendarías.</Text>
+            <Text style={styles.hint}>
+              Responde a todas las preguntas que no son opcionales para enviarla.
+            </Text>
           ) : null}
         </KeyboardAwareScrollView>
       </View>

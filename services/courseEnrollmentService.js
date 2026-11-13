@@ -21,6 +21,9 @@ const ERROR_MESSAGES = {
   min_attendance_not_met:
     "No llegas a la asistencia mínima del curso, así que no puedes hacer la encuesta ni obtener el certificado.",
   invalid_survey_answer: "Responde a todas las preguntas de la encuesta.",
+  invalid_answers:
+    "Alguna respuesta no es válida o falta una pregunta obligatoria. Revisa la encuesta e inténtalo de nuevo.",
+  app_update_required: "Actualiza la app para poder responder a la encuesta de este curso.",
   no_attendance:
     "No tienes ninguna sesión registrada en este curso, así que no puedes obtener el certificado.",
 };
@@ -95,9 +98,23 @@ export const submitCourseSurvey = (courseId, answers) =>
     p_comments: String(answers?.comments ?? "").trim() || null,
   });
 
+/**
+ * Encuesta con las preguntas del curso (`summary.survey_questions`, petición
+ * del Hospital de Manresa 2026-11-13). `answers` es `{ [id]: valor }` (ver
+ * `buildSurveyAnswersPayload` en utils/courseSurvey). Mismo `data` que
+ * `submitCourseSurvey`; la base valida contra las preguntas efectivas del
+ * curso (`invalid_answers`).
+ */
+export const submitCourseSurveyAnswers = (courseId, answers) =>
+  callRpc("submit_course_survey_answers", {
+    p_course_id: courseId,
+    p_answers: answers && typeof answers === "object" ? answers : {},
+  });
+
 export default {
   getCourseEnrollmentSummary,
   submitCourseSurvey,
+  submitCourseSurveyAnswers,
   enrollInCourse,
   cancelCourseEnrollment,
   checkInCourse,

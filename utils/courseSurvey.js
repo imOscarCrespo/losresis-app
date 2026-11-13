@@ -69,19 +69,96 @@ export const describeCourseSurvey = (summary) => {
   return null;
 };
 
-/** Respuestas vacías del formulario. */
-export const emptySurveyAnswers = () => ({
-  overall_rating: null,
-  content_rating: null,
-  speakers_rating: null,
-  organization_rating: null,
-  would_recommend: null,
-  comments: "",
-});
+// ---------------------------------------------------------------------------
+// Preguntas de la encuesta (petición del Hospital de Manresa, 2026-11-13).
+//
+// Cada organización puede tener su plantilla; el resumen de inscripción trae
+// las preguntas efectivas del curso en `summary.survey_questions`:
+//   { id, type: 'rating' | 'yes_no' | 'text', label, required }
+// y se envían con `submit_course_survey_answers` como `{ [id]: valor }`.
+// Con una base anterior (sin `survey_questions`) se usa la encuesta fija de
+// siempre y la RPC antigua `submit_course_survey`.
+// ---------------------------------------------------------------------------
+
+export const SURVEY_QUESTION_TYPES = ["rating", "yes_no", "text"];
+
+/** La plantilla de LosResis: igual que `course_survey_default_questions()` en la base. */
+export const DEFAULT_SURVEY_QUESTIONS = [
+  ...SURVEY_RATING_QUESTIONS.map(({ key, label }) => ({
+    id: key,
+    type: "rating",
+    label,
+    required: true,
+  })),
+  { id: "would_recommend", type: "yes_no", label: "¿Recomendarías este curso?", required: true },
+  { id: "comments", type: "text", label: "Comentarios", required: false },
+];
+
+const normalizeQuestion = (raw) => {
+  if (!raw || typeof raw !== "object") return null;
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+  const label = typeof raw.label === "string" ? raw.label.trim() : "";
+  if (!id || !label || !SURVEY_QUESTION_TYPES.includes(raw.type)) return null;
+  return { id, type: raw.type, label, required: raw.required === true };
+};
+
+/**
+ * Formulario de la encuesta de un curso:
+ *   - { questions, dynamic: true } si la base manda `survey_questions`.
+ *   - { questions: DEFAULT_SURVEY_QUESTIONS, dynamic: false } si no (base
+ *     anterior): se envía con la RPC antigua.
+ * Las preguntas de un tipo que esta versión no conoce se saltan.
+ */
+export const surveyFormFor = (summary) => {
+  const raw = summary?.survey_questions;
+  if (!Array.isArray(raw)) {
+    return { questions: DEFAULT_SURVEY_QUESTIONS, dynamic: false };
+  }
+  const seen = new Set();
+  const questions = raw.map(normalizeQuestion).filter((question) => {
+    if (!question || seen.has(question.id)) return false;
+    seen.add(question.id);
+    return true;
+  });
+  return { questions, dynamic: true };
+};
+
+/** Respuestas vacías del formulario: null en valoración y sí/no, "" en texto. */
+export const emptySurveyAnswers = (questions = DEFAULT_SURVEY_QUESTIONS) =>
+  Object.fromEntries(
+    (questions || []).map((question) => [question.id, question.type === "text" ? "" : null])
+  );
+
+const isAnswered = (question, value) => {
+  switch (question.type) {
+    case "rating":
+      return Number.isInteger(value) && value >= 1 && value <= 5;
+    case "yes_no":
+      return typeof value === "boolean";
+    case "text":
+      return typeof value === "string" && value.trim() !== "";
+    default:
+      return false;
+  }
+};
 
 /** El formulario se puede enviar cuando todas las preguntas obligatorias tienen respuesta. */
-export const isSurveyComplete = (answers) =>
-  SURVEY_RATING_QUESTIONS.every((question) => {
-    const value = answers?.[question.key];
-    return Number.isInteger(value) && value >= 1 && value <= 5;
-  }) && typeof answers?.would_recommend === "boolean";
+export const isSurveyComplete = (answers, questions = DEFAULT_SURVEY_QUESTIONS) =>
+  (questions || []).every(
+    (question) => !question.required || isAnswered(question, answers?.[question.id])
+  );
+
+/**
+ * `p_answers` de `submit_course_survey_answers`: `{ [id]: valor }` solo con lo
+ * respondido (las opcionales en blanco no van) y el texto recortado.
+ */
+export const buildSurveyAnswersPayload = (answers, questions = DEFAULT_SURVEY_QUESTIONS) => {
+  const payload = {};
+  (questions || []).forEach((question) => {
+    const value = answers?.[question.id];
+    if (!isAnswered(question, value)) return;
+    payload[question.id] =
+      question.type === "text" ? value.trim().slice(0, SURVEY_COMMENTS_MAX_LENGTH) : value;
+  });
+  return payload;
+};

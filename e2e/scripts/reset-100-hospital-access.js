@@ -13,7 +13,7 @@ var withTemp = login(E2E_PASSWORD);
 var auth = withTemp.status === 200 ? withTemp : login(E2E_NEW_PASSWORD);
 if (auth.status !== 200) throw new Error("Login del residente de hospital falló: " + auth.status);
 
-var body = { data: { must_change_password: true } };
+var body = { data: { must_change_password: true, google_link_offered: null } };
 // Si entró con la nueva, vuelve a la provisional (Supabase no deja "cambiar" a la misma).
 if (withTemp.status !== 200) body.password = E2E_PASSWORD;
 

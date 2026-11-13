@@ -78,10 +78,10 @@ name: "124b4z9vjxf Encuesta del curso"
           element:
             id: "survey-submit"
           centerElement: true
-      - assertVisible: "Valora las cuatro preguntas y dinos si lo recomendarías."
+      - assertVisible: "Responde a todas las preguntas que no son opcionales para enviarla."
       - tapOn:
-          id: "survey-recommend-yes"
-      - assertNotVisible: "Valora las cuatro preguntas y dinos si lo recomendarías."
+          id: "survey-would_recommend-yes"
+      - assertNotVisible: "Responde a todas las preguntas que no son opcionales para enviarla."
       - takeScreenshot: 124b4z9vjxf-app-2-encuesta-rellena
       - scrollUntilVisible:
           element:

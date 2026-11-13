@@ -1,5 +1,6 @@
 import { escapeHtml } from "./html";
 import { formatDateOnly } from "./dateUtils";
+import { LOSRESIS_LOGO_ASPECT_RATIO, losresisLogoSvg } from "./losresisLogoSvg";
 
 /**
  * HTML del certificado de asistencia a un curso (ClickUp 124b4z9vjxf). Función
@@ -7,8 +8,14 @@ import { formatDateOnly } from "./dateUtils";
  *
  * Las sesiones y el título salen de la copia que guardó la base al emitirlo
  * (`certificate`), así el certificado no cambia aunque luego cambie el curso.
- * El resto (organización, horas, fechas) es la ficha actual del curso.
+ * El resto (horas, fechas) es la ficha actual del curso.
+ *
+ * Cabecera: el nombre de la entidad organizadora (hospital o unidad docente),
+ * no «LosResis»; el logo de LosResis va pequeño abajo a la derecha (petición
+ * del Hospital de Manresa, 2026-11-13).
  */
+
+const LOGO_HEIGHT_PX = 30;
 
 const hasText = (value) => value !== null && value !== undefined && String(value).trim() !== "";
 
@@ -30,11 +37,25 @@ export const certificateAttendancePhrase = (certificate) => {
   return `${attended} de ${total} ${total === 1 ? "sesión" : "sesiones"} (${percent} %)`;
 };
 
-export const buildCourseCertificateHtml = ({ certificate, course, residentName }) => {
+/**
+ * Entidad organizadora del curso: la copia guardada en el certificado, la que
+ * da hoy el resumen de inscripción, el texto libre del curso o su hospital.
+ * null si no hay ninguna (la cabecera pone entonces «LosResis»).
+ */
+export const certificateOrganizerName = ({ certificate, summary, course } = {}) => {
+  const candidates = [
+    certificate?.organizer_name,
+    summary?.organizer_name,
+    course?.organization,
+    course?.hospital?.name,
+  ];
+  const found = candidates.find(hasText);
+  return found ? String(found).trim() : null;
+};
+
+export const buildCourseCertificateHtml = ({ certificate, summary, course, residentName }) => {
   const title = hasText(certificate?.course_title) ? certificate.course_title : course?.title || "";
-  const organizer = hasText(course?.organization)
-    ? course.organization
-    : course?.hospital?.name || null;
+  const organizer = certificateOrganizerName({ certificate, summary, course });
   const dates = courseDatesPhrase(course?.event_dates);
   const attendance = certificateAttendancePhrase(certificate);
   const hours = hasText(course?.teaching_hours) ? String(course.teaching_hours).trim() : null;
@@ -83,6 +104,8 @@ export const buildCourseCertificateHtml = ({ certificate, course, residentName }
     text-transform: uppercase;
     color: #670cf5;
     font-weight: 700;
+    line-height: 1.5;
+    max-width: 85%;
   }
   h1 { font-size: 34px; margin: 8px 0 22px; color: #1b0977; }
   .lead { font-size: 15px; line-height: 1.6; color: #334155; }
@@ -99,14 +122,20 @@ export const buildCourseCertificateHtml = ({ certificate, course, residentName }
     color: #64748b;
     border-top: 1px solid #e2e8f0;
     padding-top: 10px;
+    gap: 24px;
   }
   .code { font-family: Menlo, Courier, monospace; color: #1e1b4b; font-size: 12px; }
+  .footer-end { display: flex; align-items: flex-end; gap: 16px; text-align: right; }
+  .brand { display: block; height: ${LOGO_HEIGHT_PX}px; width: ${Math.round(
+    LOGO_HEIGHT_PX * LOSRESIS_LOGO_ASPECT_RATIO
+  )}px; flex-shrink: 0; }
+  .brand svg { display: block; width: 100%; height: 100%; }
 </style>
 </head>
 <body>
 <div class="page"><div class="frame">
   <div>
-    <div class="eyebrow">LosResis</div>
+    <div class="eyebrow">${escapeHtml(organizer || "LosResis")}</div>
     <h1>Certificado de asistencia</h1>
     <p class="lead">Se certifica que</p>
     <p class="name">${escapeHtml(residentName || "")}</p>
@@ -126,7 +155,10 @@ export const buildCourseCertificateHtml = ({ certificate, course, residentName }
   </div>
   <div class="footer">
     <div>Emitido el ${escapeHtml(formatDateOnly(certificate?.issued_at))} tras completar la encuesta de satisfacción del curso.</div>
-    <div>Código de verificación: <span class="code">${escapeHtml(certificate?.code || "")}</span></div>
+    <div class="footer-end">
+      <div>Código de verificación: <span class="code">${escapeHtml(certificate?.code || "")}</span></div>
+      <div class="brand">${losresisLogoSvg()}</div>
+    </div>
   </div>
 </div></div>
 </body>

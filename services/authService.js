@@ -20,6 +20,12 @@ import {
   syncActiveProfileCacheUser,
 } from "./userProfileCacheService";
 import { mapPasswordSignInError } from "../utils/passwordAccess";
+import {
+  GOOGLE_LINK_OFFERED_KEY,
+  hasGoogleIdentity,
+  mapGoogleLinkError,
+  parseAuthCallbackUrl,
+} from "../utils/googleLink";
 
 // Clave para almacenar el userId en AsyncStorage
 const USER_ID_KEY = "@losresis:userId";
@@ -499,6 +505,99 @@ export const updatePassword = async (password) => {
       success: false,
       error: "No se pudo cambiar la contraseña. Inténtalo de nuevo.",
     };
+  }
+};
+
+const AUTH_CALLBACK_URL = "losresis://auth/callback";
+
+/**
+ * Vincula una cuenta de Google al usuario con sesión (residente creado por el
+ * hospital que acaba de cambiar su contraseña provisional). Mismo navegador
+ * integrado y misma URL de vuelta que el login con Google.
+ *
+ * Requiere «Manual linking» activado en Supabase Auth; si no lo está, la base
+ * responde `manual_linking_disabled` y se devuelve un mensaje amable.
+ * @returns {Promise<{success: boolean, cancelled?: boolean, error: string|null}>}
+ */
+export const linkGoogleIdentity = async () => {
+  try {
+    const { data, error } = await supabase.auth.linkIdentity({
+      provider: "google",
+      options: {
+        redirectTo: AUTH_CALLBACK_URL,
+        skipBrowserRedirect: true,
+        queryParams: { prompt: "select_account" },
+      },
+    });
+
+    if (error || !data?.url) {
+      if (error) console.warn("⚠️ linkIdentity(google) falló:", error.code || error.message);
+      return { success: false, error: mapGoogleLinkError(error) };
+    }
+
+    const result = await WebBrowser.openAuthSessionAsync(data.url, AUTH_CALLBACK_URL);
+
+    if (result?.type === "success" && result.url) {
+      const params = parseAuthCallbackUrl(result.url);
+      if (params.error || params.error_code) {
+        console.warn("⚠️ Vinculación con Google rechazada:", params.error_code || params.error);
+        return { success: false, error: mapGoogleLinkError(params) };
+      }
+      // Flujo implícito: vuelve con tokens nuevos del mismo usuario.
+      if (params.access_token && params.refresh_token) {
+        const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+          access_token: params.access_token,
+          refresh_token: params.refresh_token,
+        });
+        if (!sessionError && sessionData?.session) {
+          await saveTokensForBiometric(params.access_token, params.refresh_token);
+        }
+      } else if (params.code) {
+        const { data: codeData } = await supabase.auth.exchangeCodeForSession(params.code);
+        if (codeData?.session) {
+          await saveTokensForBiometric(
+            codeData.session.access_token,
+            codeData.session.refresh_token
+          );
+        }
+      }
+    }
+
+    // La verdad la da el usuario: en Android la vuelta a veces llega como
+    // «dismiss» aunque la vinculación se haya hecho.
+    const { data: userData } = await supabase.auth.getUser();
+    if (hasGoogleIdentity(userData?.user)) {
+      return { success: true, error: null };
+    }
+
+    if (result?.type === "cancel" || result?.type === "dismiss") {
+      return { success: false, cancelled: true, error: null };
+    }
+    return { success: false, error: mapGoogleLinkError(null) };
+  } catch (error) {
+    console.error("❌ Error al vincular Google:", error);
+    return { success: false, error: mapGoogleLinkError(error) };
+  }
+};
+
+/**
+ * Apunta en user_metadata que ya se le ofreció vincular Google, para no volver
+ * a enseñarlo (vinculara o dijera «Ahora no»).
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export const markGoogleLinkOffered = async () => {
+  try {
+    const { error } = await supabase.auth.updateUser({
+      data: { [GOOGLE_LINK_OFFERED_KEY]: true },
+    });
+    if (error) {
+      console.warn("⚠️ No se pudo guardar google_link_offered:", error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true, error: null };
+  } catch (error) {
+    console.warn("⚠️ No se pudo guardar google_link_offered:", error);
+    return { success: false, error: error?.message ?? "unknown" };
   }
 };
 

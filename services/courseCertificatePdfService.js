@@ -24,8 +24,13 @@ const renameForSharing = async (uri, fileName) => {
  * Devuelve el fichero aunque no haya hoja de compartir, para distinguir «no se
  * pudo generar» de «no se pudo compartir».
  */
-export const exportCourseCertificateToPdf = async ({ certificate, course, residentName }) => {
-  const html = buildCourseCertificateHtml({ certificate, course, residentName });
+export const exportCourseCertificateToPdf = async ({
+  certificate,
+  summary,
+  course,
+  residentName,
+}) => {
+  const html = buildCourseCertificateHtml({ certificate, summary, course, residentName });
 
   // A4 apaisado en puntos.
   const printed = await printToFileAsync({ html, base64: false, width: 842, height: 595 });

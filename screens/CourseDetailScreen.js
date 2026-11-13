@@ -29,6 +29,7 @@ import {
   enrollInCourse,
   getCourseEnrollmentSummary,
   submitCourseSurvey,
+  submitCourseSurveyAnswers,
 } from "../services/courseEnrollmentService";
 import { exportCourseCertificateToPdf } from "../services/courseCertificatePdfService";
 import { CourseSurveyModal } from "../components/courses/CourseSurveyModal";
@@ -40,7 +41,11 @@ import { formatDateOnly, formatShortDate } from "../utils/dateUtils";
 import { openURL } from "../utils/courseUtils";
 import { classifyCourseLoadError } from "../utils/agendaCourseLink";
 import { describeCourseAttendance } from "../utils/courseMinAttendance";
-import { describeCourseSurvey } from "../utils/courseSurvey";
+import {
+  buildSurveyAnswersPayload,
+  describeCourseSurvey,
+  surveyFormFor,
+} from "../utils/courseSurvey";
 import {
   checkinSuccessMessage,
   describeCourseSessions,
@@ -375,6 +380,7 @@ export default function CourseDetailScreen({
   const attendedToday = Boolean(summary?.today && attendedSet.has(summary.today));
   const attendance = useMemo(() => describeCourseAttendance(summary), [summary]);
   const survey = useMemo(() => describeCourseSurvey(summary), [summary]);
+  const surveyForm = useMemo(() => surveyFormFor(summary), [summary]);
   const sessionRows = useMemo(() => describeCourseSessions(summary), [summary]);
   const sessionToday = useMemo(() => todaySession(summary), [summary]);
   const seatsLeft =
@@ -433,7 +439,14 @@ export default function CourseDetailScreen({
 
   const handleSubmitSurvey = useCallback(
     async (answers) => {
-      const result = await submitCourseSurvey(courseId, answers);
+      // Base con plantillas: preguntas del curso y RPC nueva. Base anterior:
+      // la encuesta fija y la RPC de siempre.
+      const result = surveyForm.dynamic
+        ? await submitCourseSurveyAnswers(
+            courseId,
+            buildSurveyAnswersPayload(answers, surveyForm.questions)
+          )
+        : await submitCourseSurvey(courseId, answers);
       if (!result.success) {
         // Puede haber cambiado algo (asistencia, fecha): se refresca el bloque.
         await loadSummary();
@@ -442,8 +455,9 @@ export default function CourseDetailScreen({
       if (result.data?.status === "submitted") {
         posthogLogger.capture("course_survey_submitted", {
           course_id: courseId,
-          overall_rating: answers.overall_rating,
-          would_recommend: answers.would_recommend,
+          overall_rating: answers.overall_rating ?? null,
+          would_recommend: answers.would_recommend ?? null,
+          custom_questions: surveyForm.dynamic,
         });
       }
       setSurveyVisible(false);
@@ -454,7 +468,7 @@ export default function CourseDetailScreen({
       await loadSummary();
       return { ok: true, error: null };
     },
-    [courseId, loadSummary]
+    [courseId, loadSummary, surveyForm]
   );
 
   const handleDownloadCertificate = useCallback(async () => {
@@ -470,6 +484,7 @@ export default function CourseDetailScreen({
         "";
       await exportCourseCertificateToPdf({
         certificate: survey.certificate,
+        summary,
         course,
         residentName,
       });
@@ -480,7 +495,7 @@ export default function CourseDetailScreen({
     } finally {
       setDownloadingCertificate(false);
     }
-  }, [course, courseId, currentUserId, downloadingCertificate, survey]);
+  }, [course, courseId, currentUserId, downloadingCertificate, summary, survey]);
 
   const handleRegister = useCallback(() => {
     if (course?.registration_url) {
@@ -609,6 +624,7 @@ export default function CourseDetailScreen({
           <CourseSurveyModal
             visible={surveyVisible}
             courseTitle={course.title}
+            questions={surveyForm.questions}
             onClose={() => setSurveyVisible(false)}
             onSubmit={handleSubmitSurvey}
           />

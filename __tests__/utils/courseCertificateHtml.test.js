@@ -1,6 +1,7 @@
 import {
   buildCourseCertificateHtml,
   certificateAttendancePhrase,
+  certificateOrganizerName,
   courseDatesPhrase,
 } from "../../utils/courseCertificateHtml";
 
@@ -66,6 +67,58 @@ describe("courseCertificateHtml", () => {
     expect(html).toContain(">Curso<");
     expect(html).not.toContain("Horas lectivas");
     expect(html).not.toContain("celebrado");
+  });
+});
+
+describe("entidad organizadora y logo (Hospital de Manresa, 2026-11-13)", () => {
+  const eyebrow = (html) => html.match(/<div class="eyebrow">([^<]*)<\/div>/)[1];
+
+  it("la cabecera es la entidad copiada en el certificado, no «LosResis»", () => {
+    const html = buildCourseCertificateHtml({
+      certificate: { ...CERTIFICATE, organizer_name: "UDM AFyC <Manresa>" },
+      summary: { organizer_name: "Otro nombre de hoy" },
+      course: COURSE,
+      residentName: "Ana",
+    });
+    expect(eyebrow(html)).toBe("UDM AFyC &lt;Manresa&gt;");
+    expect(html).toContain("organizado por <strong>UDM AFyC &lt;Manresa&gt;</strong>");
+  });
+
+  it("orden de respaldo: certificado → resumen → curso → hospital → LosResis", () => {
+    expect(
+      certificateOrganizerName({
+        certificate: { organizer_name: " " },
+        summary: { organizer_name: "Hospital de Manresa" },
+        course: COURSE,
+      })
+    ).toBe("Hospital de Manresa");
+    expect(certificateOrganizerName({ certificate: {}, summary: {}, course: COURSE })).toBe(
+      "Hospital E2E"
+    );
+    expect(
+      certificateOrganizerName({ course: { hospital: { name: "H. Ramón y Cajal" } } })
+    ).toBe("H. Ramón y Cajal");
+    expect(certificateOrganizerName({})).toBeNull();
+
+    const html = buildCourseCertificateHtml({
+      certificate: CERTIFICATE,
+      course: { title: "Curso", event_dates: [] },
+      residentName: "Ana",
+    });
+    expect(eyebrow(html)).toBe("LosResis");
+    expect(html).not.toContain("organizado por");
+  });
+
+  it("lleva el logo de LosResis en línea abajo a la derecha (sin ficheros externos)", () => {
+    const html = buildCourseCertificateHtml({
+      certificate: CERTIFICATE,
+      course: COURSE,
+      residentName: "Ana",
+    });
+    const footer = html.slice(html.indexOf('<div class="footer">'));
+    expect(footer).toContain('<div class="brand"><svg');
+    expect(footer.indexOf("AD2018BC73")).toBeLessThan(footer.indexOf('<div class="brand">'));
+    expect(html).not.toMatch(/src="(?!data:)/);
   });
 });
 

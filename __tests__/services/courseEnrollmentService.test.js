@@ -4,7 +4,10 @@ jest.mock("../../config/supabase", () => ({
 
 const { supabase: mockSupabase } = jest.requireMock("../../config/supabase");
 
-import { submitCourseSurvey } from "../../services/courseEnrollmentService";
+import {
+  submitCourseSurvey,
+  submitCourseSurveyAnswers,
+} from "../../services/courseEnrollmentService";
 
 const ANSWERS = {
   overall_rating: 5,
@@ -67,5 +70,42 @@ describe("submitCourseSurvey", () => {
     mockSupabase.rpc.mockRejectedValue(new Error("Network request failed"));
     const result = await submitCourseSurvey("course-1", ANSWERS);
     expect(result).toMatchObject({ success: false, error: "Algo ha fallado. Inténtalo de nuevo." });
+  });
+});
+
+describe("submitCourseSurveyAnswers", () => {
+  it("envía el mapa id → valor a submit_course_survey_answers", async () => {
+    const certificate = { code: "AD2018BC73", organizer_name: "Hospital de Manresa" };
+    mockSupabase.rpc.mockResolvedValue({
+      data: { status: "submitted", certificate },
+      error: null,
+    });
+
+    const result = await submitCourseSurveyAnswers("course-1", { docentes: 5, repetirias: true });
+
+    expect(mockSupabase.rpc).toHaveBeenCalledWith("submit_course_survey_answers", {
+      p_course_id: "course-1",
+      p_answers: { docentes: 5, repetirias: true },
+    });
+    expect(result).toMatchObject({ success: true, data: { status: "submitted", certificate } });
+  });
+
+  it("sin respuestas manda un objeto vacío", async () => {
+    mockSupabase.rpc.mockResolvedValue({ data: {}, error: null });
+    await submitCourseSurveyAnswers("course-1", null);
+    expect(mockSupabase.rpc.mock.calls[0][1].p_answers).toEqual({});
+  });
+
+  it.each([
+    ["invalid_answers", /no es válida/],
+    ["app_update_required", /Actualiza la app/],
+    ["min_attendance_not_met", /asistencia mínima/],
+    ["survey_not_open_yet", /último día/],
+  ])("traduce %s", async (code, message) => {
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: code } });
+    const result = await submitCourseSurveyAnswers("course-1", { docentes: 5 });
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe(code);
+    expect(result.error).toMatch(message);
   });
 });

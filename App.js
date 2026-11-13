@@ -13,6 +13,7 @@ import WelcomeScreen from "./screens/WelcomeScreen";
 import DashboardScreen from "./screens/DashboardScreen";
 import ProfileEditScreen from "./screens/ProfileEditScreen";
 import ChangePasswordScreen from "./screens/ChangePasswordScreen";
+import LinkGoogleAccountScreen from "./screens/LinkGoogleAccountScreen";
 import OnboardingScreen from "./screens/OnboardingScreen";
 import { supabase } from "./config/supabase";
 import { DEV_E2E } from "./config/devConfig";
@@ -20,6 +21,7 @@ import {
   isHospitalCreatedResident,
   mustChangePassword,
 } from "./utils/passwordAccess";
+import { shouldOfferGoogleLink } from "./utils/googleLink";
 
 // En pruebas automáticas los avisos de LogBox tapan la parte baja de la pantalla;
 // los errores siguen saliendo en el log de Metro.
@@ -134,6 +136,10 @@ function AppContent() {
   // Contraseña provisional que puso el hospital (Trello #100): hasta cambiarla
   // no se entra a la app.
   const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
+  // Justo después de cambiar esa contraseña se ofrece una vez vincular Google
+  // (Hospital de Manresa, 2026-11-13). Solo vive en memoria: si cierra la app
+  // en ese momento, no se le vuelve a ofrecer.
+  const [googleLinkOffer, setGoogleLinkOffer] = useState(false);
   const gateSessionTrackedRef = useRef(null);
   const {
     needsUpdate,
@@ -213,6 +219,7 @@ function AppContent() {
         setResidentReviewGateState(null);
         setResidentEmailRejected(false);
         setResidentSeasonalLocked(false);
+        setGoogleLinkOffer(false);
         setIsAuthenticated(false);
         setNeedsOnboarding(false);
         setIsLoading(false);
@@ -322,6 +329,7 @@ function AppContent() {
     setResidentSeasonalLocked(false);
     setCurrentUserId(null);
     setPasswordChangeRequired(false);
+    setGoogleLinkOffer(false);
   };
 
   // Vuelca una instantánea ya resuelta sobre los estados de las puertas de
@@ -591,6 +599,16 @@ function AppContent() {
     }
   };
 
+  const handleRequiredPasswordChanged = async () => {
+    try {
+      const { user } = await getCurrentUser();
+      setGoogleLinkOffer(shouldOfferGoogleLink(user));
+    } catch (error) {
+      console.warn("No se pudo decidir si ofrecer vincular Google:", error);
+    }
+    await checkAuth({ forceProfileRefresh: true });
+  };
+
   const handleSignOut = async () => {
     // Resetear identificación de usuario en PostHog
     posthogLogger.reset();
@@ -598,6 +616,7 @@ function AppContent() {
     setCurrentUserId(null);
     setResidentReviewGateState(null);
     setPasswordChangeRequired(false);
+    setGoogleLinkOffer(false);
     // Forzar que el usuario vuelva a hacer login
     setIsAuthenticated(false);
     setNeedsOnboarding(false);
@@ -624,9 +643,11 @@ function AppContent() {
       ) : isAuthenticated && passwordChangeRequired ? (
         <ChangePasswordScreen
           mode="required"
-          onPasswordChanged={() => checkAuth({ forceProfileRefresh: true })}
+          onPasswordChanged={handleRequiredPasswordChanged}
           onSignOut={handleSignOut}
         />
+      ) : isAuthenticated && googleLinkOffer ? (
+        <LinkGoogleAccountScreen onDone={() => setGoogleLinkOffer(false)} />
       ) : isAuthenticated && needsOnboarding ? (
         <OnboardingScreen
           userId={currentUserId}

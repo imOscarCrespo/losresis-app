@@ -89,6 +89,12 @@ name: "#100 Acceso de residente creado por el hospital"
 - inputText: ${E2E_NEW_PASSWORD}
 - pressKey: Enter
 
+# Oferta de vincular Google (una vez, tras el cambio de contraseña)
+- extendedWaitUntil:
+    visible: "Ahora no"
+    timeout: 30000
+- tapOn: "Ahora no"
+
 # Dentro: sin onboarding y sin bloqueo de reseña
 - extendedWaitUntil:
     visible: "Nóminas"
