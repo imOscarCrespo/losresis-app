@@ -1,0 +1,35 @@
+appId: com.losresis.app
+---
+- tapOn:
+    id: "course-survey-open"
+- extendedWaitUntil:
+    visible: "Utilidad para tu práctica clínica"
+    timeout: 10000
+- assertVisible: "¿Repetirías un curso de este formato?"
+- assertNotVisible: "Ponentes"
+- takeScreenshot: manresa-survey-1-preguntas
+- tapOn:
+    id: "survey-utilidad-4"
+- scrollUntilVisible:
+    element:
+      id: "survey-submit"
+    centerElement: true
+- assertVisible: "Responde a todas las preguntas que no son opcionales para enviarla."
+- tapOn:
+    id: "survey-repetirias-no"
+- assertNotVisible: "Responde a todas las preguntas que no son opcionales para enviarla."
+- tapOn:
+    id: "survey-mejoras"
+- inputText: "Mas casos practicos"
+- runFlow:
+    when:
+      visible: "Done"
+    commands:
+      - tapOn: "Done"
+- takeScreenshot: manresa-survey-2-rellena
+- scrollUntilVisible:
+    element:
+      id: "survey-submit"
+    centerElement: true
+- tapOn:
+    id: "survey-submit"
