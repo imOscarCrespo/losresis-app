@@ -21,6 +21,11 @@ export const useKeyboardAwareScroll = ({
   bottomPadding = 24,
   extraScrollSpace = DEFAULT_EXTRA_SCROLL_SPACE,
   enabled = true,
+  // El contenedor (p. ej. una hoja con KeyboardAvoidingView) ya se coloca encima del
+  // teclado: el ScrollView no queda debajo de él, así que no hay que descontar su
+  // altura ni añadir insets. Si se descontara, el scroll se pasaría y el principio
+  // del contenido quedaría escondido bajo la cabecera (bug «Crear pregunta», 1.0.97).
+  keyboardHandledByParent = false,
 } = {}) => {
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef(null);
@@ -70,7 +75,7 @@ export const useKeyboardAwareScroll = ({
         const visibleBottom =
           scrollFrame.y +
           scrollFrame.height -
-          keyboardHeightRef.current -
+          (keyboardHandledByParent ? 0 : keyboardHeightRef.current) -
           (options.bottomMargin ?? 0);
         const targetSpacing = options.extraScrollSpace ?? extraScrollSpace;
         const inputBottom = inputFrame.y + inputFrame.height;
@@ -95,7 +100,7 @@ export const useKeyboardAwareScroll = ({
         // Ignore measurements that fail during transient layout changes.
       }
     },
-    [enabled, extraScrollSpace, getFocusedInputNode]
+    [enabled, extraScrollSpace, getFocusedInputNode, keyboardHandledByParent]
   );
 
   const scheduleScrollToFocusedInput = useCallback(
@@ -145,23 +150,34 @@ export const useKeyboardAwareScroll = ({
     };
   }, [clearScheduledScrolls, enabled, insets.bottom, scheduleScrollToFocusedInput]);
 
+  // Cuando el contenedor se recoloca (la hoja sube o baja con el teclado), el campo
+  // enfocado se vuelve a dejar a la vista con las medidas ya definitivas.
+  const handleLayout = useCallback(() => {
+    if (!keyboardHandledByParent) return;
+    const node = focusedInputRef.current;
+    if (node?.isFocused?.()) scheduleScrollToFocusedInput(node, {}, 16);
+  }, [keyboardHandledByParent, scheduleScrollToFocusedInput]);
+
   const scrollViewProps = useMemo(
     () => ({
       ref: scrollViewRef,
       keyboardShouldPersistTaps: "handled",
       keyboardDismissMode: Platform.OS === "ios" ? "interactive" : "on-drag",
-      automaticallyAdjustKeyboardInsets: Platform.OS === "ios",
-      contentInsetAdjustmentBehavior: "automatic",
+      automaticallyAdjustKeyboardInsets: Platform.OS === "ios" && !keyboardHandledByParent,
+      contentInsetAdjustmentBehavior: keyboardHandledByParent ? "never" : "automatic",
       scrollEventThrottle: 16,
+      onLayout: handleLayout,
       onScroll: (event) => {
         scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
       },
     }),
-    []
+    [handleLayout, keyboardHandledByParent]
   );
 
   const contentContainerBottomPadding =
-    bottomPadding + insets.bottom + (Platform.OS === "android" ? keyboardHeight : 0);
+    bottomPadding +
+    (keyboardHandledByParent ? 0 : insets.bottom) +
+    (Platform.OS === "android" && !keyboardHandledByParent ? keyboardHeight : 0);
 
   return {
     contentContainerBottomPadding,

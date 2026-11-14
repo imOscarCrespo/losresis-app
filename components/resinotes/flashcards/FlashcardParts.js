@@ -160,7 +160,7 @@ export const CardEditorSheet = ({ visible, title, initial, onSubmit, onClose, no
         onChangeText={setQuestion}
         maxLength={500}
         multiline
-        style={styles.input}
+        style={[styles.input, styles.inputQuestion]}
         placeholder="¿Qué quieres recordar?"
         placeholderTextColor={COLORS.TEXT_LIGHT}
         accessibilityLabel="Pregunta"
@@ -283,7 +283,11 @@ const styles = StyleSheet.create({
     minHeight: 52,
     textAlignVertical: "top",
   },
-  inputTall: { minHeight: 110 },
+  // Altura máxima: un texto largo se desplaza dentro del campo (como en un editor de
+  // notas) y iOS/Android mantienen la línea del cursor a la vista, en vez de crecer
+  // hasta salirse de la hoja y quedar bajo el teclado.
+  inputQuestion: { maxHeight: 132 },
+  inputTall: { minHeight: 110, maxHeight: 200 },
   notice: { fontSize: 13, color: COLORS.TEXT_LIGHT, marginTop: 10, lineHeight: 18 },
   infoBox: {
     flexDirection: "row",

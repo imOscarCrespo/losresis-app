@@ -59,7 +59,7 @@ export const ResiNotesSheet = ({ visible, title, onClose, onDismiss, children, f
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : keyboardAware ? "height" : undefined}
       >
         {/* accessible={false}: un Pressable accesible esconde a sus hijos a VoiceOver. */}
         <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
@@ -83,7 +83,15 @@ export const ResiNotesSheet = ({ visible, title, onClose, onDismiss, children, f
                 <Icon name="close" size={22} color={COLORS.TEXT_LIGHT} />
               </TouchableOpacity>
             </View>
-            <Body style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+            {/* Con teclado: el cuerpo encoge al hueco que queda, para que el pie (Guardar)
+                siga a la vista encima del teclado, y no descuenta el teclado otra vez
+                porque la hoja ya sube con él. */}
+            <Body
+              style={[styles.body, keyboardAware && styles.bodyShrink]}
+              contentContainerStyle={styles.bodyContent}
+              keyboardShouldPersistTaps="handled"
+              {...(keyboardAware ? { keyboardHandledByParent: true, bottomPadding: 12 } : null)}
+            >
               {children}
             </Body>
             {footer}
@@ -155,6 +163,7 @@ const styles = StyleSheet.create({
     color: COLORS.PRIMARY_DARK,
   },
   body: { flexGrow: 0 },
+  bodyShrink: { flexShrink: 1 },
   bodyContent: { paddingHorizontal: 20, paddingBottom: 12 },
   option: {
     flexDirection: "row",

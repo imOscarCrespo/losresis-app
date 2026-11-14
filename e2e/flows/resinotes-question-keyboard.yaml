@@ -1,0 +1,99 @@
+# ResiNotes · «Crear pregunta»: el teclado no tapa lo que se escribe (bug 1.0.97).
+#
+#   scripts/e2e.sh e2e/flows/resinotes-question-keyboard.yaml
+#
+# Con una pregunta y una respuesta largas (varias líneas), la hoja tenía que
+# subirse sobre el teclado sin cortar el principio del texto ni dejar el cursor
+# detrás del teclado. Comprueba:
+#   - la pregunta larga se ve entera tras escribirla y volver a tocarla con el
+#     teclado abierto (si estuviera tapada, el toque cae en una tecla y el texto
+#     deja de coincidir);
+#   - lo mismo con la respuesta larga, que es la que queda donde sale el teclado;
+#   - cerrar el teclado y volver a abrirlo no pierde el texto;
+#   - «Guardar» sigue accesible con el teclado abierto y guarda todo.
+# Repetible: el script reinicia los apuntes y tarjetas del residente de pruebas.
+appId: com.losresis.app
+name: "ResiNotes · teclado en Crear pregunta"
+---
+- runScript:
+    file: ../scripts/seed-124b4z9w5nh-resinotes.js
+    env:
+      MODE: reset
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+- waitForAnimationToEnd
+- tapOn: "ResiNotes"
+- extendedWaitUntil:
+    visible: "Tu biblioteca personal de apuntes."
+    timeout: 20000
+- tapOn: ".*Ginecología.*"
+- tapOn: "Nota Tratamiento de la hemorragia posparto.*"
+- extendedWaitUntil:
+    visible: "Masaje uterino bimanual"
+    timeout: 20000
+
+- scrollUntilVisible:
+    element:
+      id: "resinotes-create-question"
+- tapOn:
+    id: "resinotes-create-question"
+- extendedWaitUntil:
+    visible: "Crear pregunta"
+    timeout: 5000
+
+# ── Pregunta larga ──
+- tapOn:
+    id: "flashcard-editor-question"
+- inputText: "En una hemorragia posparto que no cede tras masaje uterino y oxitocina, cual es el siguiente farmaco de eleccion, a que dosis se administra y cuales son sus contraindicaciones principales en una paciente asmatica?"
+- takeScreenshot: question-keyboard-1-pregunta-larga
+- tapOn:
+    id: "flashcard-editor-question"
+- assertVisible:
+    id: "flashcard-editor-question"
+    text: "En una hemorragia posparto que no cede tras masaje uterino y oxitocina, cual es el siguiente farmaco de eleccion, a que dosis se administra y cuales son sus contraindicaciones principales en una paciente asmatica?"
+
+# ── Respuesta larga, en la mitad baja (donde sale el teclado) ──
+- tapOn:
+    id: "flashcard-editor-answer"
+- inputText: "Carbetocina o ergometrina segun el caso. Despues misoprostol 800 mcg sublingual. Carboprost 250 mcg IM cada 15 minutos hasta 8 dosis, contraindicado en asma. Si persiste, acido tranexamico 1 g IV y valorar balon de Bakri."
+- takeScreenshot: question-keyboard-2-respuesta-larga
+- tapOn:
+    id: "flashcard-editor-answer"
+- assertVisible:
+    id: "flashcard-editor-answer"
+    text: "Carbetocina o ergometrina segun el caso. Despues misoprostol 800 mcg sublingual. Carboprost 250 mcg IM cada 15 minutos hasta 8 dosis, contraindicado en asma. Si persiste, acido tranexamico 1 g IV y valorar balon de Bakri."
+
+# ── Volver a la pregunta con el teclado abierto: su principio se ve ──
+- tapOn:
+    id: "flashcard-editor-question"
+- assertVisible:
+    id: "flashcard-editor-question"
+    text: "En una hemorragia posparto.*"
+- takeScreenshot: question-keyboard-3-vuelta-a-pregunta
+
+# ── Cerrar el teclado y volver a abrirlo: no se pierde nada ──
+- hideKeyboard
+- takeScreenshot: question-keyboard-4-sin-teclado
+- tapOn:
+    id: "flashcard-editor-answer"
+- tapOn:
+    id: "flashcard-editor-answer"
+- assertVisible:
+    id: "flashcard-editor-answer"
+    text: "Carbetocina o ergometrina.*valorar balon de Bakri."
+
+# ── Guardar con el teclado abierto ──
+- assertVisible:
+    id: "flashcard-editor-save"
+- tapOn:
+    id: "flashcard-editor-save"
+# El aviso «Tarjeta guardada» dura ~2 s y Maestro a veces lo pierde: se comprueba que
+# la hoja se cierra y vuelve la nota (el contenido guardado se comprobó en la BD:
+# resinotes_flashcards del residente de pruebas, pregunta y respuesta completas).
+- extendedWaitUntil:
+    notVisible:
+      id: "flashcard-editor-save"
+    timeout: 10000
+- assertVisible: "Masaje uterino bimanual"
+- takeScreenshot: question-keyboard-5-guardada

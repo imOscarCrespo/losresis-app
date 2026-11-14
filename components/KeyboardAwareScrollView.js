@@ -15,6 +15,8 @@ export const KeyboardAwareScrollView = forwardRef(
       extraScrollSpace = 24,
       keyboardShouldPersistTaps = "handled",
       keyboardDismissMode,
+      keyboardHandledByParent = false,
+      onLayout,
       onScroll,
       ...rest
     },
@@ -23,6 +25,7 @@ export const KeyboardAwareScrollView = forwardRef(
     const keyboardAware = useKeyboardAwareScroll({
       bottomPadding,
       extraScrollSpace,
+      keyboardHandledByParent,
     });
 
     useImperativeHandle(forwardedRef, () => keyboardAware.scrollViewProps.ref.current, [
@@ -46,6 +49,10 @@ export const KeyboardAwareScrollView = forwardRef(
           keyboardDismissMode={
             keyboardDismissMode ?? keyboardAware.scrollViewProps.keyboardDismissMode
           }
+          onLayout={(event) => {
+            keyboardAware.scrollViewProps.onLayout(event);
+            onLayout?.(event);
+          }}
           onScroll={(event) => {
             keyboardAware.scrollViewProps.onScroll(event);
             onScroll?.(event);

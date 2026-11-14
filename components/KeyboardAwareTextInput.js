@@ -3,7 +3,7 @@ import { TextInput } from "react-native";
 import { useKeyboardAwareScrollContext } from "./KeyboardAwareScrollView";
 
 export const KeyboardAwareTextInput = forwardRef(
-  ({ keyboardAwareOptions, onFocus, ...props }, forwardedRef) => {
+  ({ keyboardAwareOptions, onFocus, onContentSizeChange, ...props }, forwardedRef) => {
     const localRef = useRef(null);
     const keyboardAware = useKeyboardAwareScrollContext();
 
@@ -18,7 +18,23 @@ export const KeyboardAwareTextInput = forwardRef(
       onFocus?.(event);
     };
 
-    return <TextInput ref={localRef} {...props} onFocus={handleFocus} />;
+    // Un campo multilínea crece al escribir: se recoloca para que la línea del cursor
+    // no acabe debajo del teclado.
+    const handleContentSizeChange = (event) => {
+      if (props.multiline && keyboardAware && localRef.current?.isFocused?.()) {
+        keyboardAware.scheduleScrollToFocusedInput(localRef, keyboardAwareOptions, 0);
+      }
+      onContentSizeChange?.(event);
+    };
+
+    return (
+      <TextInput
+        ref={localRef}
+        {...props}
+        onFocus={handleFocus}
+        onContentSizeChange={handleContentSizeChange}
+      />
+    );
   }
 );
 
