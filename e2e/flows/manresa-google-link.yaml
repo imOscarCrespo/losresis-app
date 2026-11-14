@@ -1,0 +1,56 @@
+# Manresa 2026-11-13 · Vincular Google tras el primer login con contraseña del hospital.
+# Comprueba que «Vincular con Google» abre el login de Google (manual linking activo en
+# Supabase: si no, sale «Ahora mismo no se puede vincular Google»). No completa el login
+# de Google (necesitaría una cuenta real); cancela el navegador y sigue con «Ahora no».
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-hospital.env scripts/e2e.sh e2e/flows/manresa-google-link.yaml
+appId: com.losresis.app
+name: "Manresa · oferta de vincular Google"
+---
+- runScript: ../scripts/reset-100-hospital-access.js
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "hospital-access-open"
+    timeout: 30000
+- tapOn:
+    id: "hospital-access-open"
+- tapOn:
+    id: "hospital-access-email"
+- eraseText: 60
+- inputText: ${E2E_EMAIL}
+- pressKey: Enter
+- inputText: ${E2E_PASSWORD}
+- pressKey: Enter
+- runFlow:
+    when:
+      visible: "Ahora no"
+    commands:
+      - tapOn: "Ahora no"
+- extendedWaitUntil:
+    visible: "Elige tu contraseña"
+    timeout: 30000
+- tapOn:
+    id: "new-password"
+- inputText: ${E2E_NEW_PASSWORD}
+- pressKey: Enter
+- tapOn:
+    id: "new-password-confirmation"
+- eraseText: 30
+- inputText: ${E2E_NEW_PASSWORD}
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "Vincular con Google"
+    timeout: 30000
+- tapOn: "Vincular con Google"
+# iOS pide permiso para abrir la sesión web de Google
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: ".*(Google|Inicia sesión|Sign in|accounts\\.google\\.com).*"
+    timeout: 30000
+- takeScreenshot: manresa-google-link-browser
+- assertNotVisible: "Ahora mismo no se puede vincular Google.*"

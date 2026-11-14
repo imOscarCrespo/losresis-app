@@ -91,15 +91,18 @@ name: "#100 Acceso de residente creado por el hospital"
 
 # Oferta de vincular Google (una vez, tras el cambio de contraseña)
 - extendedWaitUntil:
-    visible: "Ahora no"
+    visible: "Vincular con Google"
     timeout: 30000
+- assertVisible: "Entra más rápido"
+- takeScreenshot: trello-100-google-offer
 - tapOn: "Ahora no"
 
 # Dentro: sin onboarding y sin bloqueo de reseña
 - extendedWaitUntil:
-    visible: "Nóminas"
+    visible: "Libro de residentes"
     timeout: 30000
 - assertNotVisible: "Elige tu contraseña"
+- assertNotVisible: "Vincular con Google"
 - takeScreenshot: trello-100-dashboard
 
 # Perfil: la cuenta del hospital puede volver a cambiarla

@@ -63,23 +63,18 @@ export default function WelcomeScreen({ onAuthSuccess }) {
   const isCheckingRef = useRef(false);
 
   useEffect(() => {
-    // Configurar deep linking para OAuth callback. El listener se registra en
-    // síncrono para que el cleanup lo quite al desmontar: si sobrevive, recibe
-    // también el callback de vincular Google (linkIdentity) tras el login.
-    const subscription = Linking.addEventListener("url", (event) => {
-      handleAuthCallback(event.url);
-    });
-    Linking.getInitialURLAsync().then((url) => {
-      if (url) handleAuthCallback(url);
-    });
+    // Aquí había un listener de deep links para el callback de OAuth, pero
+    // llamaba a `Linking.getInitialURLAsync`, que no existe en expo-linking: la
+    // excepción se perdía dentro de una función async y el listener nunca se
+    // registraba. El login con Google/Apple y la vinculación de Google ya
+    // procesan el callback con el resultado de `openAuthSessionAsync`, así que
+    // se quita en vez de activarlo (activarlo procesaría el callback dos veces).
 
     // Verificar disponibilidad de biometría
     checkBiometricSetup();
 
     // Verificar si el usuario ya está autenticado
     checkAuth();
-
-    return () => subscription.remove();
   }, []);
 
   // Tracking de pantalla con PostHog
