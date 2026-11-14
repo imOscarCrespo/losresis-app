@@ -655,18 +655,20 @@ export default function HomeDashboardScreen({
           badge: "NUEVO",
         },
         {
-          label: "Comunidad",
-          icon: Users,
-          section: "residentsDirectory",
-          tint: "#DBEAFE",
-          color: "#2563EB",
-        },
-        {
+          // Nóminas ocupa el tercer hueco de la fila; Comunidad pasa a ser la
+          // primera de «Ver más opciones» (cambio de la 1.0.97).
           label: "Nóminas",
           icon: Money,
           section: "residentPayouts",
           tint: "#FFEDD5",
           color: "#F97316",
+        },
+        {
+          label: "Comunidad",
+          icon: Users,
+          section: "residentsDirectory",
+          tint: "#DBEAFE",
+          color: "#2563EB",
         },
         {
           label: "RoomiesMIR",

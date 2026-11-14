@@ -1,0 +1,61 @@
+# Inicio · «Nóminas» sustituye a «Comunidad» en los accesos rápidos (1.0.97).
+#
+#   scripts/e2e.sh e2e/flows/home-quick-action-nominas.yaml
+#
+# La fila queda: Libro de residentes · ResiNotes · Nóminas · Ver más opciones.
+# «Nóminas» abre la pantalla de nóminas existente y «Comunidad» sigue accesible
+# desde «Ver más opciones». No crea ni modifica datos. Repetible.
+appId: com.losresis.app
+name: "Inicio · acceso rápido a Nóminas"
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+- waitForAnimationToEnd
+# A veces la app abre otra pantalla (p. ej. «Nueva nómina»): volver a Inicio.
+- runFlow:
+    when:
+      visible: "Nueva nómina"
+    commands:
+      - back
+- tapOn: "Inicio"
+- extendedWaitUntil:
+    visible: "Libro de[\\s\\S]*residentes"
+    timeout: 20000
+- assertVisible: "ResiNotes"
+- assertVisible: "Nóminas"
+- assertVisible: "Ver más opciones"
+- assertNotVisible: "Comunidad"
+- takeScreenshot: home-nominas-1-fila
+
+# ── Nóminas abre la pantalla existente ──
+- tapOn: "Nóminas"
+# Entre el día 28 y el 3, Inicio carga tarde el aviso «Añade tu nómina» y desplaza el acceso:
+# si el toque cae en el aviso, se vuelve y se repite.
+- runFlow:
+    when:
+      visible: "Registro sugerido para.*"
+    commands:
+      - tapOn: "Volver"
+      - waitForAnimationToEnd
+      - tapOn: "Nóminas"
+- extendedWaitUntil:
+    visible: "Tus nóminas"
+    timeout: 20000
+- takeScreenshot: home-nominas-2-pantalla-nominas
+- tapOn: "Volver"
+
+# ── Comunidad sigue en «Ver más opciones» ──
+- extendedWaitUntil:
+    visible: "Ver más opciones"
+    timeout: 10000
+- tapOn: "Ver más opciones"
+- extendedWaitUntil:
+    visible: "Comunidad"
+    timeout: 5000
+- takeScreenshot: home-nominas-3-ver-mas
+- tapOn: "Comunidad"
+- extendedWaitUntil:
+    visible: "Residentes"
+    timeout: 20000
+- takeScreenshot: home-nominas-4-comunidad
