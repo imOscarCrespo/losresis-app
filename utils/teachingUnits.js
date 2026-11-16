@@ -16,3 +16,18 @@ export const isTeachingUnitName = (hospitalName) =>
 
 export const excludeTeachingUnits = (hospitals) =>
   (hospitals || []).filter((hospital) => !isTeachingUnitName(hospital?.name));
+
+/**
+ * Hospitales que enseña Explorar hospitales. Sin especialidad, las unidades
+ * docentes se esconden. Con una especialidad elegida tienen que salir: para
+ * especialidades como MFyC, Medicina del Trabajo, Preventiva o Psiquiatría
+ * Infantil la plaza MIR es la unidad docente, y esconderla deja el buscador
+ * casi vacío (MFyC pasaba de 194 a 3).
+ */
+export const catalogHospitalsForExplore = (
+  hospitals,
+  { hideTeachingUnits = false, selectedSpecialty = "" } = {}
+) =>
+  hideTeachingUnits && !selectedSpecialty
+    ? excludeTeachingUnits(hospitals)
+    : hospitals || [];

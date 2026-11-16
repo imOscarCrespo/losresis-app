@@ -1,4 +1,5 @@
 import {
+  catalogHospitalsForExplore,
   excludeTeachingUnits,
   isTeachingUnitName,
 } from "../../utils/teachingUnits";
@@ -44,5 +45,34 @@ describe("teachingUnits", () => {
     expect(visible.length).toBeGreaterThan(150);
     expect(visible.length).toBeLessThan(catalog.length);
     expect(visible.some((h) => isTeachingUnitName(h.name))).toBe(false);
+  });
+
+  it("con especialidad elegida enseña las unidades docentes que la ofrecen (MFyC)", () => {
+    const catalog = require("../../data/staticCatalog/hospitals.json");
+    const links = require("../../data/staticCatalog/hospital_speciality.json");
+    const mfyc = "a34a6d80-a608-48bc-93a2-415fcbb7148e";
+    const offering = new Set(
+      links.filter((l) => l.speciality_id === mfyc).map((l) => l.hospital_id)
+    );
+    const count = (list) => list.filter((h) => offering.has(h.id)).length;
+
+    const withoutSpecialty = catalogHospitalsForExplore(catalog, {
+      hideTeachingUnits: true,
+    });
+    const withSpecialty = catalogHospitalsForExplore(catalog, {
+      hideTeachingUnits: true,
+      selectedSpecialty: mfyc,
+    });
+
+    expect(withoutSpecialty.some((h) => isTeachingUnitName(h.name))).toBe(false);
+    expect(count(withoutSpecialty)).toBeLessThan(10);
+    expect(count(withSpecialty)).toBe(offering.size);
+    expect(count(withSpecialty)).toBeGreaterThan(150);
+  });
+
+  it("sin hideTeachingUnits devuelve el catálogo entero", () => {
+    const hospitals = [{ id: "1", name: "Ud X" }, { id: "2", name: "H. Y" }];
+    expect(catalogHospitalsForExplore(hospitals)).toEqual(hospitals);
+    expect(catalogHospitalsForExplore(null)).toEqual([]);
   });
 });

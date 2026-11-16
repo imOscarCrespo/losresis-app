@@ -1,0 +1,40 @@
+# Explorar hospitales · filtrar por especialidad enseña las unidades docentes
+#
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-student.env scripts/e2e.sh e2e/flows/hospitales-filtro-especialidad-ud.yaml
+#
+# Sin filtro, Explorar esconde las unidades docentes. Con MFyC elegida tienen que salir:
+# sus plazas son de unidades docentes (antes solo salían 3 hospitales). Solo lectura.
+appId: com.losresis.app
+name: "Hospitales · filtro MFyC enseña unidades docentes"
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+- extendedWaitUntil:
+    visible: "Hospitales|Ver más opciones"
+    timeout: 20000
+- runFlow:
+    when:
+      notVisible: "Hospitales"
+    commands:
+      - tapOn: "Ver más opciones"
+- tapOn: "Hospitales"
+- extendedWaitUntil:
+    visible: "\\d+ hospital(es)?"
+    timeout: 15000
+- assertNotVisible: "(?s)Udm Afyc.*"
+- takeScreenshot: hospitales-sin-filtro
+- tapOn: "Especialidad"
+- tapOn: "Buscar..."
+- inputText: "familiar"
+- tapOn: "(?i)medicina familiar y comunitaria"
+- tapOn: "Confirmar selección"
+- extendedWaitUntil:
+    visible: "1\\d\\d hospitales"
+    timeout: 15000
+- takeScreenshot: hospitales-mfyc
+- scrollUntilVisible:
+    element: "(?s).*Udm Afyc.*"
+    visibilityPercentage: 50
+    timeout: 20000
+- takeScreenshot: hospitales-mfyc-ud

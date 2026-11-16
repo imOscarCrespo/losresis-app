@@ -7,22 +7,18 @@ import {
 } from "../services/hospitalService";
 import { usePersistedFilters } from "./usePersistedFilters";
 import { compareByRankingMetadata } from "../utils/homeHospitalSections";
-import { excludeTeachingUnits } from "../utils/teachingUnits";
+import { catalogHospitalsForExplore } from "../utils/teachingUnits";
 
 /**
  * Hook para obtener y filtrar hospitales
  * @param {Object} [options]
  * @param {boolean} [options.hideTeachingUnits=false] Quita las unidades
- *   docentes del catálogo (listados donde el residente elige o explora
- *   hospitales). El simulador MIR no lo usa: allí tienen que salir.
+ *   docentes del catálogo mientras no haya especialidad seleccionada
+ *   (Explorar hospitales). El simulador MIR no lo usa: allí tienen que salir.
  * @returns {Object} Estado y funciones para manejar hospitales
  */
 export const useHospitals = ({ hideTeachingUnits = false } = {}) => {
   const [allHospitals, setHospitals] = useState([]);
-  const hospitals = useMemo(
-    () => (hideTeachingUnits ? excludeTeachingUnits(allHospitals) : allHospitals),
-    [allHospitals, hideTeachingUnits]
-  );
   const [specialties, setSpecialties] = useState([]);
   const [loadingHospitals, setLoadingHospitals] = useState(false);
   const [loadingSpecialties, setLoadingSpecialties] = useState(false);
@@ -57,6 +53,17 @@ export const useHospitals = ({ hideTeachingUnits = false } = {}) => {
   const selectedSpecialty = filters.selectedSpecialty;
   const sortMode = filters.sortMode || "ranking";
   const sponsorshipOnly = Boolean(filters.sponsorshipOnly);
+
+  // Con especialidad elegida, las unidades docentes son la plaza y tienen que
+  // salir (ver catalogHospitalsForExplore).
+  const hospitals = useMemo(
+    () =>
+      catalogHospitalsForExplore(allHospitals, {
+        hideTeachingUnits,
+        selectedSpecialty,
+      }),
+    [allHospitals, hideTeachingUnits, selectedSpecialty]
+  );
 
   // Setters que actualizan los filtros persistentes
   const setSearchTerm = useCallback(
