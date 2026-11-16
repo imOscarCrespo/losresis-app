@@ -139,8 +139,11 @@ const run = async () => {
         return {};
       }
     ),
+    // Solo MIR: las no MIR (EIR, PIR, FIR; specialities.is_mir = false) no
+    // se eligen en la app, solo las dan de alta sus hospitales desde el panel
+    // (losresis-db 20261116170000_non_mir_specialities).
     selectAll(supabase, "specialities", "id, name", (query) =>
-      query.order("name", { ascending: true })
+      query.or("is_mir.is.null,is_mir.eq.true").order("name", { ascending: true })
     ),
     selectAll(supabase, "hospital_speciality_grades", "*", (query) =>
       query
