@@ -5,6 +5,7 @@ jest.mock("../../config/supabase", () => ({
 const { supabase: mockSupabase } = jest.requireMock("../../config/supabase");
 
 import {
+  enrollInCourse,
   submitCourseSurvey,
   submitCourseSurveyAnswers,
 } from "../../services/courseEnrollmentService";
@@ -107,5 +108,19 @@ describe("submitCourseSurveyAnswers", () => {
     expect(result.success).toBe(false);
     expect(result.errorCode).toBe(code);
     expect(result.error).toMatch(message);
+  });
+});
+
+describe("enrollInCourse", () => {
+  it("traduce course_restricted (curso reservado a los residentes del hospital)", async () => {
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: "course_restricted" } });
+
+    const result = await enrollInCourse("course-1");
+
+    expect(mockSupabase.rpc).toHaveBeenCalledWith("enroll_in_course", { p_course_id: "course-1" });
+    expect(result).toMatchObject({ success: false, errorCode: "course_restricted" });
+    expect(result.error).toBe(
+      "Este curso está reservado a los residentes del hospital que lo organiza."
+    );
   });
 });

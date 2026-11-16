@@ -49,7 +49,7 @@ import {
 import {
   checkinSuccessMessage,
   describeCourseSessions,
-  todaySession,
+  todaySessions,
 } from "../utils/courseSessions";
 import posthogLogger from "../services/posthogService";
 import { getSpecialityByIdFromCatalog } from "../services/staticCatalogService";
@@ -373,16 +373,18 @@ export default function CourseDetailScreen({
     }
   }, [codeInput, checkingIn, runCheckIn]);
 
-  const attendedSet = useMemo(
-    () => new Set(summary?.attended_dates ?? []),
-    [summary?.attended_dates]
-  );
-  const attendedToday = Boolean(summary?.today && attendedSet.has(summary.today));
   const attendance = useMemo(() => describeCourseAttendance(summary), [summary]);
   const survey = useMemo(() => describeCourseSurvey(summary), [summary]);
   const surveyForm = useMemo(() => surveyFormFor(summary), [summary]);
   const sessionRows = useMemo(() => describeCourseSessions(summary), [summary]);
-  const sessionToday = useMemo(() => todaySession(summary), [summary]);
+  const sessionsToday = useMemo(() => todaySessions(summary), [summary]);
+  // Hoy puede haber varias sesiones: queda por fichar mientras falte alguna.
+  const attendedToday = sessionsToday.length
+    ? sessionsToday.every((s) => s.status === "attended")
+    : Boolean(summary?.today && summary?.attended_dates?.includes(summary.today));
+  const checkinOpenToday = sessionsToday.length
+    ? sessionsToday.some((s) => s.checkinOpen && s.status !== "attended")
+    : Boolean(summary?.checkin_open_now);
   const seatsLeft =
     summary?.seats_available != null
       ? Math.max(0, summary.seats_available - (summary.enrolled_count ?? 0))
@@ -886,22 +888,71 @@ export default function CourseDetailScreen({
         <View style={styles.content}>
           {isInApp && summary?.is_enrolled && summary.is_session_today ? (
             <SectionCard title="Asistencia de hoy">
-              {sessionToday ? (
+              {sessionsToday.length === 1 ? (
                 <Text style={styles.todaySessionText} testID="course-today-session">
-                  {[sessionToday.label, sessionToday.time, sessionToday.location]
+                  {[sessionsToday[0].label, sessionsToday[0].time, sessionsToday[0].location]
                     .filter(Boolean)
                     .join(" · ")}
                 </Text>
               ) : null}
+              {sessionsToday.length > 1 ? (
+                <View style={styles.todaySessionList}>
+                  {sessionsToday.map((session) => {
+                    const attended = session.status === "attended";
+                    const open = !attended && session.checkinOpen;
+                    return (
+                      <View
+                        key={session.id ?? session.date}
+                        style={styles.sessionRow}
+                        testID={`course-today-session-${session.id ?? session.date}`}
+                      >
+                        <View style={styles.sessionInfo}>
+                          <Text style={styles.timelineText}>{session.label}</Text>
+                          {session.time || session.location ? (
+                            <Text style={styles.sessionMeta}>
+                              {[session.time, session.location].filter(Boolean).join(" · ")}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <View
+                          style={[
+                            styles.sessionBadge,
+                            attended && styles.sessionBadgeAttended,
+                            open && styles.sessionBadgeOpen,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.sessionBadgeText,
+                              attended && styles.sessionBadgeTextAttended,
+                              open && styles.sessionBadgeTextOpen,
+                            ]}
+                          >
+                            {attended
+                              ? SESSION_STATUS_LABEL.attended
+                              : open
+                                ? "Fichaje abierto"
+                                : SESSION_STATUS_LABEL.pending}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null}
               {attendedToday ? (
                 <View style={styles.attendedRow}>
                   <Icon name="checkmark-circle" size={22} color={SECONDARY} />
-                  <Text style={styles.attendedText}>Asistencia registrada</Text>
+                  <Text style={styles.attendedText}>
+                    {sessionsToday.length > 1
+                      ? "Asistencia registrada en todas las sesiones de hoy"
+                      : "Asistencia registrada"}
+                  </Text>
                 </View>
               ) : (
                 <>
                   <Text style={styles.cardBody}>
-                    {summary.checkin_open_now
+                    {checkinOpenToday
                       ? "Escanea el QR de la sala o introduce el código que aparece en la pantalla."
                       : "Cuando la organización abra el fichaje, escanea el QR de la sala o introduce el código."}
                   </Text>
@@ -918,7 +969,7 @@ export default function CourseDetailScreen({
             </SectionCard>
           ) : null}
 
-          {isInApp && summary?.is_enrolled && summary.session_dates?.length ? (
+          {isInApp && summary?.is_enrolled && sessionRows.length ? (
             <SectionCard title="Tus sesiones">
               {attendance ? (
                 <View style={styles.attendanceSummary} testID="course-attendance-summary">
@@ -963,9 +1014,9 @@ export default function CourseDetailScreen({
               ) : null}
               {sessionRows.map((session) => (
                 <View
-                  key={session.date}
+                  key={session.id ?? session.date}
                   style={styles.sessionRow}
-                  testID={`course-session-${session.date}`}
+                  testID={`course-session-${session.id ?? session.date}`}
                 >
                   <View style={styles.sessionInfo}>
                     <Text style={styles.timelineText}>{session.label}</Text>
@@ -1575,6 +1626,15 @@ const styles = StyleSheet.create({
   },
   sessionBadgeTextMissed: {
     color: DANGER,
+  },
+  sessionBadgeOpen: {
+    backgroundColor: `${PRIMARY}14`,
+  },
+  sessionBadgeTextOpen: {
+    color: PRIMARY,
+  },
+  todaySessionList: {
+    marginBottom: 8,
   },
   modalOverlay: {
     flex: 1,

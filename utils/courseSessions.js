@@ -1,9 +1,17 @@
 /**
- * Sesiones de un curso con inscripción en la app (ClickUp 124b4z9vn8v). Una
- * sesión es un día del curso; `get_course_enrollment_summary` devuelve los
- * días (`session_dates`) y, desde la 1.0.95, sus datos opcionales
- * (`sessions`: nombre, horario y lugar). Con un resumen sin `sessions` (base
- * antigua) se enseñan solo las fechas, como antes.
+ * Sesiones de un curso con inscripción en la app (ClickUp 124b4z9vn8v).
+ *
+ * Desde 2026-11-16 (Althaia, migración losresis-db
+ * 20261116130000_course_sessions_same_day) un día puede tener varias sesiones
+ * en franjas distintas, cada una con su QR: `get_course_enrollment_summary`
+ * devuelve una entrada de `sessions` por sesión, con `id`, y la asistencia por
+ * sesión en `attended_session_ids` (y el fichaje abierto en
+ * `open_session_ids`).
+ *
+ * Con una base anterior (ADR 0039: una sesión es un día) las entradas de
+ * `sessions` no traen `id`: se enseña una fila por día de `session_dates` con
+ * la asistencia de `attended_dates`, como antes. Sin `sessions` (base aún más
+ * antigua) solo salen las fechas.
  */
 
 const STATUS = {
@@ -28,47 +36,97 @@ export const formatSessionTime = (startsAt, endsAt) => {
 export const sessionLabel = (title, index) =>
   (typeof title === "string" && title.trim()) || `Sesión ${index + 1}`;
 
-const sessionStatus = (date, today, attended) => {
-  if (attended.has(date)) return STATUS.attended;
+const statusFor = (date, today, attended) => {
+  if (attended) return STATUS.attended;
   if (today && date >= today) return STATUS.pending;
   return STATUS.missed;
 };
 
-/**
- * Filas de "Tus sesiones": una por día del curso, en orden, con su nombre,
- * horario, lugar y si asistió. [] si no hay resumen o no hay días.
- */
-export const describeCourseSessions = (summary) => {
+const textOrNull = (value) => (typeof value === "string" && value.trim()) || null;
+
+const sessionEntries = (summary) =>
+  (Array.isArray(summary?.sessions) ? summary.sessions : []).filter((s) => s && s.session_date);
+
+// Base nueva: todas las sesiones llevan `id`.
+const hasSessionIds = (entries) => entries.length > 0 && entries.every((s) => Boolean(s.id));
+
+const idSet = (value) => new Set(Array.isArray(value) ? value : []);
+
+// Orden de la base: día y hora de inicio (sin hora, primero).
+const bySessionOrder = (a, b) => {
+  if (a.session_date !== b.session_date) return a.session_date < b.session_date ? -1 : 1;
+  const sa = hourMinute(a.starts_at);
+  const sb = hourMinute(b.starts_at);
+  if (sa === sb) return 0;
+  if (!sa) return -1;
+  if (!sb) return 1;
+  return sa < sb ? -1 : 1;
+};
+
+const describeBySession = (summary, entries) => {
+  const attended = idSet(summary?.attended_session_ids);
+  const open = idSet(summary?.open_session_ids);
+  return [...entries].sort(bySessionOrder).map((data, index) => ({
+    id: data.id,
+    date: data.session_date,
+    label: sessionLabel(data.title, index),
+    time: formatSessionTime(data.starts_at, data.ends_at),
+    location: textOrNull(data.location),
+    status: statusFor(data.session_date, summary?.today, attended.has(data.id)),
+    checkinOpen: open.has(data.id),
+  }));
+};
+
+// Base anterior: una fila por día.
+const describeByDay = (summary, entries) => {
   const dates = Array.isArray(summary?.session_dates) ? summary.session_dates : [];
-  const byDate = new Map(
-    (Array.isArray(summary?.sessions) ? summary.sessions : [])
-      .filter((s) => s && s.session_date)
-      .map((s) => [s.session_date, s])
-  );
+  const byDate = new Map(entries.map((s) => [s.session_date, s]));
   const attended = new Set(Array.isArray(summary?.attended_dates) ? summary.attended_dates : []);
+  const today = summary?.today;
   return [...dates].sort().map((date, index) => {
     const data = byDate.get(date) ?? {};
     return {
+      id: null,
       date,
       label: sessionLabel(data.title, index),
       time: formatSessionTime(data.starts_at, data.ends_at),
-      location: (typeof data.location === "string" && data.location.trim()) || null,
-      status: sessionStatus(date, summary?.today, attended),
+      location: textOrNull(data.location),
+      status: statusFor(date, today, attended.has(date)),
+      checkinOpen: Boolean(today && date === today && summary?.checkin_open_now),
     };
   });
 };
 
-/** La sesión de hoy (o null), para la tarjeta "Asistencia de hoy". */
-export const todaySession = (summary) =>
-  describeCourseSessions(summary).find((s) => s.date === summary?.today) ?? null;
+/**
+ * Filas de "Tus sesiones": una por sesión (o por día con una base anterior),
+ * en orden, con `id` (null en base anterior), fecha, nombre, horario, lugar,
+ * estado (attended | pending | missed) y si su fichaje está abierto ahora.
+ * [] si no hay resumen o no hay sesiones.
+ */
+export const describeCourseSessions = (summary) => {
+  const entries = sessionEntries(summary);
+  return hasSessionIds(entries)
+    ? describeBySession(summary, entries)
+    : describeByDay(summary, entries);
+};
 
 /**
- * Mensaje tras fichar con `check_in_course`. Nombra el curso y la sesión si
- * la base los devuelve; si no (base antigua), el mensaje de siempre.
+ * Sesiones de hoy (puede haber varias), para la tarjeta "Asistencia de hoy".
+ * [] si hoy no hay sesión.
+ */
+export const todaySessions = (summary) =>
+  summary?.today ? describeCourseSessions(summary).filter((s) => s.date === summary.today) : [];
+
+/**
+ * Mensaje tras fichar con `check_in_course`. Nombra el curso y la sesión (su
+ * nombre o, sin nombre, su horario) si la base los devuelve; si no (base
+ * antigua), el mensaje de siempre.
  */
 export const checkinSuccessMessage = (data) => {
   const course = typeof data?.course_title === "string" ? data.course_title.trim() : "";
-  const session = typeof data?.session_title === "string" ? data.session_title.trim() : "";
+  const session =
+    textOrNull(data?.session_title) ||
+    formatSessionTime(data?.session_starts_at, data?.session_ends_at);
   const where = [course, session].filter(Boolean).join(" · ");
   if (data?.status === "already_checked_in") {
     return where
