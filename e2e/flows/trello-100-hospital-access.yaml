@@ -97,12 +97,21 @@ name: "#100 Acceso de residente creado por el hospital"
 - takeScreenshot: trello-100-google-offer
 - tapOn: "Ahora no"
 
+# Último paso: «Síguenos en Instagram» (2026-11-19)
+- extendedWaitUntil:
+    visible: "Síguenos en Instagram"
+    timeout: 15000
+- assertVisible: "Seguir en Instagram"
+- takeScreenshot: trello-100-instagram
+- tapOn: "Quizás más tarde"
+
 # Dentro: sin onboarding y sin bloqueo de reseña
 - extendedWaitUntil:
     visible: "Libro de residentes"
     timeout: 30000
 - assertNotVisible: "Elige tu contraseña"
 - assertNotVisible: "Vincular con Google"
+- assertNotVisible: "Síguenos en Instagram"
 - takeScreenshot: trello-100-dashboard
 
 # Perfil: la cuenta del hospital puede volver a cambiarla

@@ -14,6 +14,7 @@ import DashboardScreen from "./screens/DashboardScreen";
 import ProfileEditScreen from "./screens/ProfileEditScreen";
 import ChangePasswordScreen from "./screens/ChangePasswordScreen";
 import LinkGoogleAccountScreen from "./screens/LinkGoogleAccountScreen";
+import FollowInstagramScreen from "./screens/FollowInstagramScreen";
 import OnboardingScreen from "./screens/OnboardingScreen";
 import { supabase } from "./config/supabase";
 import { DEV_E2E } from "./config/devConfig";
@@ -22,6 +23,7 @@ import {
   mustChangePassword,
 } from "./utils/passwordAccess";
 import { shouldOfferGoogleLink } from "./utils/googleLink";
+import { shouldOfferInstagramFollow } from "./utils/instagramFollow";
 
 // En pruebas automáticas los avisos de LogBox tapan la parte baja de la pantalla;
 // los errores siguen saliendo en el log de Metro.
@@ -140,6 +142,7 @@ function AppContent() {
   // (Hospital de Manresa, 2026-11-13). Solo vive en memoria: si cierra la app
   // en ese momento, no se le vuelve a ofrecer.
   const [googleLinkOffer, setGoogleLinkOffer] = useState(false);
+  const [instagramOffer, setInstagramOffer] = useState(false);
   const gateSessionTrackedRef = useRef(null);
   const {
     needsUpdate,
@@ -220,6 +223,7 @@ function AppContent() {
         setResidentEmailRejected(false);
         setResidentSeasonalLocked(false);
         setGoogleLinkOffer(false);
+        setInstagramOffer(false);
         setIsAuthenticated(false);
         setNeedsOnboarding(false);
         setIsLoading(false);
@@ -330,6 +334,7 @@ function AppContent() {
     setCurrentUserId(null);
     setPasswordChangeRequired(false);
     setGoogleLinkOffer(false);
+    setInstagramOffer(false);
   };
 
   // Vuelca una instantánea ya resuelta sobre los estados de las puertas de
@@ -603,6 +608,8 @@ function AppContent() {
     try {
       const { user } = await getCurrentUser();
       setGoogleLinkOffer(shouldOfferGoogleLink(user));
+      // Último paso del primer acceso: «Síguenos en Instagram», después de Google.
+      setInstagramOffer(shouldOfferInstagramFollow(user));
     } catch (error) {
       console.warn("No se pudo decidir si ofrecer vincular Google:", error);
     }
@@ -617,6 +624,7 @@ function AppContent() {
     setResidentReviewGateState(null);
     setPasswordChangeRequired(false);
     setGoogleLinkOffer(false);
+    setInstagramOffer(false);
     // Forzar que el usuario vuelva a hacer login
     setIsAuthenticated(false);
     setNeedsOnboarding(false);
@@ -634,7 +642,9 @@ function AppContent() {
     <>
       {isVersionCheckLoading ? (
         <AppLoadingScreen />
-      ) : needsUpdate && isForceUpdate ? (
+      ) : needsUpdate && isForceUpdate && !DEV_E2E ? (
+        // En E2E el JS viene de Metro (siempre el actual): la versión nativa del
+        // .app del simulador puede ser vieja sin que eso afecte a la prueba.
         <ForceUpdateScreen
           updateUrl={updateUrl}
           currentVersion={currentVersion}
@@ -648,6 +658,8 @@ function AppContent() {
         />
       ) : isAuthenticated && googleLinkOffer ? (
         <LinkGoogleAccountScreen onDone={() => setGoogleLinkOffer(false)} />
+      ) : isAuthenticated && instagramOffer ? (
+        <FollowInstagramScreen onDone={() => setInstagramOffer(false)} />
       ) : isAuthenticated && needsOnboarding ? (
         <OnboardingScreen
           userId={currentUserId}

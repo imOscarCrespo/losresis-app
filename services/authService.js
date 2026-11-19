@@ -20,6 +20,7 @@ import {
   syncActiveProfileCacheUser,
 } from "./userProfileCacheService";
 import { mapPasswordSignInError } from "../utils/passwordAccess";
+import { INSTAGRAM_FOLLOW_OFFERED_KEY } from "../utils/instagramFollow";
 import {
   GOOGLE_LINK_OFFERED_KEY,
   hasGoogleIdentity,
@@ -597,6 +598,23 @@ export const markGoogleLinkOffered = async () => {
     return { success: true, error: null };
   } catch (error) {
     console.warn("⚠️ No se pudo guardar google_link_offered:", error);
+    return { success: false, error: error?.message ?? "unknown" };
+  }
+};
+
+/** Apunta en user_metadata que ya se le enseñó «Síguenos en Instagram». */
+export const markInstagramFollowOffered = async () => {
+  try {
+    const { error } = await supabase.auth.updateUser({
+      data: { [INSTAGRAM_FOLLOW_OFFERED_KEY]: true },
+    });
+    if (error) {
+      console.warn("⚠️ No se pudo guardar instagram_follow_offered:", error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true, error: null };
+  } catch (error) {
+    console.warn("⚠️ No se pudo guardar instagram_follow_offered:", error);
     return { success: false, error: error?.message ?? "unknown" };
   }
 };

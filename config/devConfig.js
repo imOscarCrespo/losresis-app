@@ -21,6 +21,8 @@ export const DEV_USER_TYPE = null;
  * En builds de tienda __DEV__ es false y todo lo que cuelga de aquí desaparece.
  *   - Muestra el acceso "Entrar como test" (email + contraseña) en WelcomeScreen.
  *   - No aplica el bloqueo de reseña obligatoria al residente de pruebas.
+ *   - No aplica la pantalla de actualización obligatoria (la versión nativa del
+ *     .app del simulador puede ir por detrás; el JS viene de Metro).
  */
 export const DEV_E2E = __DEV__ && process.env.EXPO_PUBLIC_E2E === "1";
 

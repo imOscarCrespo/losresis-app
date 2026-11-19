@@ -141,7 +141,7 @@ const DONE_STEP = {
   cta: "Continuar",
 };
 
-const INSTAGRAM_STEP = {
+export const INSTAGRAM_STEP = {
   id: "instagram",
   kind: "instagram",
   title: "Síguenos en Instagram",

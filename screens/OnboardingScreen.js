@@ -38,6 +38,7 @@ import {
   shouldShowEmailReview,
 } from "../utils/profileValidation";
 import posthogLogger from "../services/posthogService";
+import { INSTAGRAM_URL } from "../utils/instagramFollow";
 
 const MIR_ACADEMY_NONE = "none";
 const MIR_ACADEMY_OPTIONS = [
@@ -282,7 +283,7 @@ export default function OnboardingScreen({ userId, onComplete }) {
 
   const handleFollowInstagram = useCallback(async () => {
     try {
-      await Linking.openURL("https://www.instagram.com/losresis/");
+      await Linking.openURL(INSTAGRAM_URL);
     } catch (err) {
       console.warn("No se pudo abrir Instagram:", err);
     }

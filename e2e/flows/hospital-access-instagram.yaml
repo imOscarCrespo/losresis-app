@@ -1,0 +1,64 @@
+# 2026-11-19 · Último paso del primer acceso de un residente creado por el hospital:
+# «Síguenos en Instagram» después de la oferta de Google. Aquí se pulsa «Seguir en
+# Instagram» (el «Quizás más tarde» lo cubre trello-100-hospital-access.yaml).
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-hospital.env scripts/e2e.sh e2e/flows/hospital-access-instagram.yaml
+appId: com.losresis.app
+name: "Acceso del hospital · Síguenos en Instagram"
+---
+- runScript: ../scripts/reset-100-hospital-access.js
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "hospital-access-open"
+    timeout: 30000
+- tapOn:
+    id: "hospital-access-open"
+- tapOn:
+    id: "hospital-access-email"
+- eraseText: 60
+- inputText: ${E2E_EMAIL}
+- pressKey: Enter
+- inputText: ${E2E_PASSWORD}
+- pressKey: Enter
+- runFlow:
+    when:
+      visible: "Ahora no"
+    commands:
+      - tapOn: "Ahora no"
+- extendedWaitUntil:
+    visible: "Elige tu contraseña"
+    timeout: 30000
+- tapOn:
+    id: "new-password"
+- inputText: ${E2E_NEW_PASSWORD}
+- pressKey: Enter
+- tapOn:
+    id: "new-password-confirmation"
+- eraseText: 30
+- inputText: ${E2E_NEW_PASSWORD}
+- pressKey: Enter
+
+- extendedWaitUntil:
+    visible: "Vincular con Google"
+    timeout: 30000
+- tapOn: "Ahora no"
+
+- extendedWaitUntil:
+    visible: "Síguenos en Instagram"
+    timeout: 15000
+- takeScreenshot: hospital-access-instagram-1
+- tapOn: "Seguir en Instagram"
+# Sin la app de Instagram en el simulador, se abre en Safari.
+- extendedWaitUntil:
+    visible: ".*[Ii]nstagram.*"
+    timeout: 30000
+- takeScreenshot: hospital-access-instagram-2-safari
+
+# De vuelta a LosResis: ya dentro, sin volver a enseñar el paso.
+- launchApp
+- extendedWaitUntil:
+    visible: "Libro de residentes"
+    timeout: 30000
+- assertNotVisible: "Síguenos en Instagram"
+- runScript: ../scripts/check-instagram-follow-offered.js
