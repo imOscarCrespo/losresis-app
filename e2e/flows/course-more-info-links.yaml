@@ -1,0 +1,51 @@
+# Cursos: los enlaces de «Más información» se pueden pulsar (Althaia, 2026-11-19)
+#
+#   scripts/e2e.sh e2e/flows/course-more-info-links.yaml
+#
+# Curso de pruebas «E2E · Curso con documentos» del Hospital E2E
+# (3bde8e20-ad1e-4b33-9e40-17a61b0aa813), con more_info =
+# «Curso de pruebas automáticas (ClickUp 124b4z9vn8r).\nCuestionario: https://www.losresis.com/?e2e=more-info».
+# Se abre con el enlace de fichaje, que lleva al detalle del curso (ver
+# clickup-124b4z9vn8r-course-documents.yaml). Solo lee: repetible.
+appId: com.losresis.app
+name: "Enlaces en Más información del curso"
+---
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Cancel"
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- openLink: "losresis://course-checkin?c=3bde8e20-ad1e-4b33-9e40-17a61b0aa813&k=000000"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "E2E · Curso con documentos"
+    timeout: 30000
+
+- scrollUntilVisible:
+    element: "Más información"
+    centerElement: true
+- scrollUntilVisible:
+    element: ".*https://www.losresis.com/\\?e2e=more-info.*"
+    centerElement: true
+- takeScreenshot: course-more-info-1-enlace
+
+# El enlace es un <Text> anidado: Maestro ve el párrafo entero, así que se pulsa
+# sobre la segunda línea de la URL («e2e=more-info»), que empieza a la izquierda.
+- tapOn:
+    text: ".*https://www.losresis.com/\\?e2e=more-info.*"
+    point: "20%,85%"
+# Se abre el navegador integrado (SFSafariViewController) con su botón «Done».
+- extendedWaitUntil:
+    visible: "Done"
+    timeout: 20000
+- takeScreenshot: course-more-info-2-navegador
+- tapOn: "Done"
+- assertVisible: "Más información"

@@ -16,6 +16,7 @@ import * as WebBrowser from "expo-web-browser";
 import { Icon } from "../components/Icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HeroScreenLayout } from "../components/HeroScreenLayout";
+import { LinkifiedText } from "../components/LinkifiedText";
 import { ConfirmationModal } from "../components/ConfirmationModal";
 import {
   deleteCourse,
@@ -1231,7 +1232,16 @@ export default function CourseDetailScreen({
 
           {course.more_info ? (
             <SectionCard title="Más información">
-              <Text style={styles.cardBody}>{course.more_info}</Text>
+              <LinkifiedText
+                style={styles.cardBody}
+                onLinkPress={() =>
+                  posthogLogger.capture("course_more_info_link_opened", {
+                    course_id: courseId,
+                  })
+                }
+              >
+                {course.more_info}
+              </LinkifiedText>
             </SectionCard>
           ) : null}
         </View>
