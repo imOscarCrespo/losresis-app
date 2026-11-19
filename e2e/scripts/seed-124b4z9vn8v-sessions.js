@@ -2,7 +2,9 @@
 // Hospital E2E (en borrador, sin avisos, QR fijo) con 4 sesiones: anteayer,
 // ayer, hoy y mañana. El residente de pruebas queda inscrito con las dos
 // primeras marcadas a mano y la de hoy sin fichar, y el fichaje de hoy
-// abierto. Devuelve el código de la sesión de hoy y el de la de mañana.
+// abierto. Sin actividades (ADR 0046 del panel): las quita si las dejó otro
+// flujo, porque set_course_sessions conserva la actividad si no se envía.
+// Devuelve el código de la sesión de hoy y el de la de mañana.
 // Lo hace el owner del panel del Hospital E2E, como desde el panel.
 // Variables: PANEL_OWNER_EMAIL, PANEL_OWNER_PASSWORD, E2E_EMAIL, SUPABASE_URL,
 // SUPABASE_ANON_KEY (las pasa scripts/e2e.sh).
@@ -62,16 +64,17 @@ if (updated.status !== 200 || json(updated.body).length !== 1) {
 rpc("set_course_sessions", {
   p_course_id: COURSE,
   p_sessions: [
-    { session_date: DAYS[0], title: "Teoría", starts_at: "09:00", ends_at: "14:00", location: "Aula 1" },
-    { session_date: DAYS[1], title: "Casos clínicos" },
+    { session_date: DAYS[0], title: "Teoría", starts_at: "09:00", ends_at: "14:00", location: "Aula 1", activity: null },
+    { session_date: DAYS[1], title: "Casos clínicos", activity: null },
     {
       session_date: DAYS[2],
       title: "Sesión práctica",
       starts_at: "16:00",
       ends_at: "20:00",
       location: "Sala de simulación",
+      activity: null,
     },
-    { session_date: DAYS[3], title: "Evaluación" },
+    { session_date: DAYS[3], title: "Evaluación", activity: null },
   ],
 });
 

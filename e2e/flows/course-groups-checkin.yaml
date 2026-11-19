@@ -1,0 +1,145 @@
+# Ensayo del fichaje de los cursos de Althaia (noviembre de 2026): grupos a la
+# vez (ADR 0042 del panel) y una actividad repetida para cada grupo (ADR 0046).
+#
+#   scripts/e2e.sh e2e/flows/course-groups-checkin.yaml
+#
+# Curso de pruebas «E2E · Curso con sesiones» del Hospital E2E, con QR
+# dinámico y mínimo del 80 %; ver e2e/scripts/seed-course-groups.js. Los
+# códigos se piden al servidor justo antes de usarlos, como si se leyeran de
+# la pantalla del panel (caducan en 30–60 s). Repetible.
+appId: com.losresis.app
+name: "Fichaje con grupos y actividades repetidas"
+---
+- runScript: ../scripts/seed-course-groups.js
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Cancel"
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+# 1. Un código que no es el de ninguna sala abierta no ficha.
+- openLink: "losresis://course-checkin?c=e2e0b92a-0000-4000-8000-000000000003&k=000000"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "E2E · Curso con sesiones"
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "Código incorrecto o caducado."
+    timeout: 15000
+- takeScreenshot: groups-1-codigo-incorrecto
+
+# 2. Escanea el QR de la sala del grupo A: ficha en el grupo A.
+- runScript:
+    file: ../scripts/course-session-code.js
+    env:
+      SESSION: "Grup A"
+      OUT: codeA
+- openLink: "losresis://course-checkin?c=e2e0b92a-0000-4000-8000-000000000003&k=${output.codeA}"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "Asistencia registrada: E2E · Curso con sesiones · Grup A."
+    timeout: 30000
+- takeScreenshot: groups-2-fichado-grup-a
+
+# 3. Escanea también el QR de la otra sala (grupo B, a la vez): no ficha dos
+#    veces; le dice en qué sesión fichó.
+- runScript:
+    file: ../scripts/course-session-code.js
+    env:
+      SESSION: "Grup B"
+      OUT: codeB
+- openLink: "losresis://course-checkin?c=e2e0b92a-0000-4000-8000-000000000003&k=${output.codeB}"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "Ya tenías registrada tu asistencia: E2E · Curso con sesiones · Grup A."
+    timeout: 30000
+- takeScreenshot: groups-3-grup-b-ya-fichado
+
+# 4. Se abre la sesión de la tarde (Pràctic S1 del grupo 1) y el residente
+#    escribe el código a mano en vez de escanear.
+- runScript:
+    file: ../scripts/course-session-code.js
+    env:
+      SESSION: "Pràctic S1 (Grup 1)"
+      OUT: codeP1
+      OPEN: "1"
+# El botón está debajo de «Asistencia de hoy».
+- scrollUntilVisible:
+    element:
+      text: "Fichar"
+    direction: DOWN
+    centerElement: true
+- tapOn: "Fichar"
+- extendedWaitUntil:
+    visible: "Fichar asistencia"
+    timeout: 10000
+- tapOn: "000000"
+- inputText: ${output.codeP1}
+# Con el modal abierto, el único «Fichar» accesible es el del modal.
+- tapOn: "Fichar"
+- extendedWaitUntil:
+    visible: "Asistencia registrada: E2E · Curso con sesiones · Pràctic S1 \\(Grup 1\\)."
+    timeout: 30000
+- takeScreenshot: groups-4-codigo-a-mano-practic-g1
+
+# 5. El QR del grupo A ya no vale: al abrir la sesión de la tarde se cerró.
+- openLink: "losresis://course-checkin?c=e2e0b92a-0000-4000-8000-000000000003&k=${output.codeA}"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "Código incorrecto o caducado."
+    timeout: 30000
+
+# 6. La misma actividad para el grupo 2: no ficha otra vez; cuenta la del grupo 1.
+- runScript:
+    file: ../scripts/course-session-code.js
+    env:
+      SESSION: "Pràctic S1 (Grup 2)"
+      OUT: codeP2
+      OPEN: "1"
+- openLink: "losresis://course-checkin?c=e2e0b92a-0000-4000-8000-000000000003&k=${output.codeP2}"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "Ya tenías registrada tu asistencia: E2E · Curso con sesiones · Pràctic S1 \\(Grup 1\\)."
+    timeout: 30000
+- takeScreenshot: groups-5-practic-g2-ya-fichado
+
+# 7. Tu asistencia: 2 de 3 unidades = 66 %. No ve el grupo B ni el Pràctic S1
+#    del grupo 2 (son otras ediciones de lo que ya fichó); Simulació, pendiente.
+- scrollUntilVisible:
+    element:
+      text: "Tus sesiones"
+    centerElement: true
+- assertVisible: "66 %"
+- scrollUntilVisible:
+    element:
+      text: "Simulació"
+    centerElement: true
+- assertVisible: "Grup A"
+- assertNotVisible: "Grup B"
+- assertVisible: "Pràctic S1 \\(Grup 1\\)"
+- assertNotVisible: "Pràctic S1 \\(Grup 2\\)"
+- assertVisible: "Pendiente"
+- takeScreenshot: groups-6-tus-sesiones
