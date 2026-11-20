@@ -1,0 +1,36 @@
+# Cursos: inscripción solo por invitación (Althaia, 2026-11-20)
+#
+#   scripts/e2e.sh e2e/flows/course-invitation-only.yaml
+#
+# Curso de pruebas «E2E · Curso por invitación» del Hospital E2E
+# (e2e0b92a-0000-4000-8000-000000000005): borrador, inscripción en la app,
+# self_enrollment_enabled = false, 15 jun 2027. El residente de pruebas no está
+# inscrito, así que no ve «Inscribirme» sino «Inscripción por invitación».
+# Se abre con el enlace de fichaje, que lleva al detalle. Solo lee: repetible.
+appId: com.losresis.app
+name: "Curso con inscripción por invitación"
+---
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Cancel"
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/login.yaml
+
+- openLink: "losresis://course-checkin?c=e2e0b92a-0000-4000-8000-000000000005&k=000000"
+- runFlow:
+    when:
+      visible: "Open in .*LosResis.*"
+    commands:
+      - tapOn: "Open"
+- extendedWaitUntil:
+    visible: "E2E · Curso por invitación"
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "Inscripción por invitación"
+    timeout: 20000
+- assertVisible: "Solo asisten los residentes que inscribe el hospital."
+- assertNotVisible: "Inscribirme"
+- takeScreenshot: course-invitation-only-1

@@ -812,6 +812,15 @@ export default function CourseDetailScreen({
                     {summary.is_finished ? "Curso finalizado" : "Completo"}
                   </Text>
                 </View>
+              ) : course.self_enrollment_enabled === false ? (
+                // El hospital inscribe a los asistentes desde el panel.
+                <View
+                  testID="course-invitation-only"
+                  style={[styles.primaryButton, styles.primaryButtonDisabled]}
+                >
+                  <Icon name="lock-closed" size={16} color="#FFFFFF" />
+                  <Text style={styles.primaryButtonText}>Inscripción por invitación</Text>
+                </View>
               ) : (
                 <TouchableOpacity
                   style={[
@@ -846,7 +855,13 @@ export default function CourseDetailScreen({
 
           {isInApp && summary ? (
             <View style={styles.enrollmentMeta}>
-              {seatsLeft != null && !summary.is_enrolled && !summary.is_finished ? (
+              {course.self_enrollment_enabled === false &&
+              !summary.is_enrolled &&
+              !summary.is_finished ? (
+                <Text style={styles.enrollmentMetaText}>
+                  Solo asisten los residentes que inscribe el hospital.
+                </Text>
+              ) : seatsLeft != null && !summary.is_enrolled && !summary.is_finished ? (
                 <Text style={styles.enrollmentMetaText}>
                   {seatsLeft === 1 ? "Queda 1 plaza" : `Quedan ${seatsLeft} plazas`}
                 </Text>
