@@ -2,7 +2,7 @@
   "expo": {
     "name": "LosResis",
     "slug": "losresis-react-app",
-    "version": "1.0.98",
+    "version": "1.0.99",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.losresis.app",
-      "buildNumber": "129",
+      "buildNumber": "130",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -31,7 +31,7 @@
       },
       "googleServicesFile": "./google-services.json",
       "package": "com.losresis.app",
-      "versionCode": 129,
+      "versionCode": 131,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
@@ -81,6 +81,7 @@
       }
     },
     "plugins": [
+      "./plugins/withOptionalScreenFeatures",
       "expo-localization",
       "expo-notifications",
       "@react-native-community/datetimepicker",
