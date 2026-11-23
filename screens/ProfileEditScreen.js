@@ -16,6 +16,7 @@ import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { SelectFilter } from "../components/SelectFilter";
 import { Button } from "../components/Button";
 import { EmailReviewSection } from "../components/EmailReviewSection";
+import MergeHospitalAccessSheet from "../components/MergeHospitalAccessSheet";
 import { ProfileStatusCard } from "../components/ProfileStatusCard";
 import { UserTypeSelector } from "../components/UserTypeSelector";
 import { useHospitals } from "../hooks/useHospitals";
@@ -117,6 +118,8 @@ export default function ProfileEditScreen({
     getCurrentUserType,
     handleWorkEmailChange,
     handleSubmit: originalHandleSubmit,
+    mergeOffer,
+    clearMergeOffer,
   } = useProfileForm();
   const insets = useSafeAreaInsets();
 
@@ -699,6 +702,7 @@ export default function ProfileEditScreen({
                           ? "Selecciona hospital y especialidad primero"
                           : "tu.email@hospital.com"
                       }
+                      testID="profile-work-email"
                       value={formData.work_email}
                       onChangeText={handleWorkEmailChange}
                       keyboardType="email-address"
@@ -798,6 +802,19 @@ export default function ProfileEditScreen({
           </View>
         </View>
       ) : null}
+      <MergeHospitalAccessSheet
+        visible={Boolean(mergeOffer)}
+        email={mergeOffer?.email}
+        orgName={mergeOffer?.orgName}
+        source="profile"
+        onClose={clearMergeOffer}
+        onMerged={async () => {
+          // Ya estamos en la cuenta unida (App.js recarga con SIGNED_IN).
+          clearMergeOffer();
+          await loadUserProfile({ forceRefresh: true }).catch(() => {});
+          await onProfileUpdated?.();
+        }}
+      />
     </HeroScreenLayout>
   );
 }

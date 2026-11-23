@@ -27,6 +27,8 @@ import { useEmailDomainValidation } from "../hooks/useEmailDomainValidation";
 import { useEmailReview } from "../hooks/useEmailReview";
 import { updateUserProfile } from "../services/userService";
 import { leaveIncompleteSignup } from "../services/authService";
+import { checkHospitalAccess } from "../services/accountMergeService";
+import MergeHospitalAccessSheet from "../components/MergeHospitalAccessSheet";
 import { uploadRoommateAvatar } from "../services/roommateService";
 import { MOCK_SOURCES } from "../services/mirProjectionService";
 import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
@@ -106,6 +108,9 @@ export default function OnboardingScreen({ userId, onComplete, onLeave }) {
   const [showEmailReviewSection, setShowEmailReviewSection] = useState(false);
   const [transitionConfig, setTransitionConfig] = useState(null);
   const [leaving, setLeaving] = useState(false);
+  // Email corporativo que ya es de un acceso de hospital: se ofrece unir cuentas.
+  const [mergeOffer, setMergeOffer] = useState(null);
+  const [checkingAccess, setCheckingAccess] = useState(false);
 
   const { hospitals, specialties, uniqueCities } = useHospitals();
   // El residente elige su hospital, no su unidad docente (la deduce el panel
@@ -251,6 +256,16 @@ export default function OnboardingScreen({ userId, onComplete, onLeave }) {
             transitionConfig?.ends_at || null,
         }));
         advance();
+        return;
+      }
+
+      // Si su hospital ya le dio un acceso con este email, no creamos otra
+      // cuenta de residente: se ofrece unirla con ese acceso.
+      setCheckingAccess(true);
+      const access = await checkHospitalAccess(email);
+      setCheckingAccess(false);
+      if (access.exists) {
+        setMergeOffer({ email, orgName: access.orgName });
         return;
       }
 
@@ -700,7 +715,7 @@ export default function OnboardingScreen({ userId, onComplete, onLeave }) {
     : ctaDisabled;
   const ctaLoadingOverride = showEmailReviewSection
     ? submittingReview
-    : submitting || validatingEmail;
+    : submitting || validatingEmail || checkingAccess;
   const onCtaPressOverride = showEmailReviewSection
     ? handleSubmitReviewRequest
     : handleNext;
@@ -711,35 +726,45 @@ export default function OnboardingScreen({ userId, onComplete, onLeave }) {
     currentStep.kind === "done" || currentStep.kind === "instagram";
 
   return (
-    <OnboardingStepLayout
-      currentStep={safeIndex}
-      totalSteps={totalSteps}
-      stepLabel={`PASO ${safeIndex + 1} DE ${totalSteps}`}
-      onBack={safeIndex > 0 && !isTerminal ? handleBack : null}
-      title={currentStep.title}
-      subtitle={currentStep.subtitle}
-      ctaLabel={
-        ctaLabelOverride ||
-        currentStep.cta ||
-        (stepOptional ? "Continuar" : "Siguiente")
-      }
-      ctaDisabled={ctaDisabledOverride}
-      ctaLoading={ctaLoadingOverride}
-      ctaHidden={!showCta}
-      onCtaPress={onCtaPressOverride}
-      secondaryLabel={
-        showSkip
-          ? secondaryLabelOverride || currentStep.skipLabel || "Saltar"
-          : null
-      }
-      onSecondaryPress={onSecondaryPressOverride}
-      footerHint={currentStep.footerHint}
-      errorText={submitError}
-      onSignOut={isTerminal ? null : () => leave()}
-      signOutDisabled={leaving || submitting}
-    >
-      {renderBody()}
-    </OnboardingStepLayout>
+    <>
+      <OnboardingStepLayout
+        currentStep={safeIndex}
+        totalSteps={totalSteps}
+        stepLabel={`PASO ${safeIndex + 1} DE ${totalSteps}`}
+        onBack={safeIndex > 0 && !isTerminal ? handleBack : null}
+        title={currentStep.title}
+        subtitle={currentStep.subtitle}
+        ctaLabel={
+          ctaLabelOverride ||
+          currentStep.cta ||
+          (stepOptional ? "Continuar" : "Siguiente")
+        }
+        ctaDisabled={ctaDisabledOverride}
+        ctaLoading={ctaLoadingOverride}
+        ctaHidden={!showCta}
+        onCtaPress={onCtaPressOverride}
+        secondaryLabel={
+          showSkip
+            ? secondaryLabelOverride || currentStep.skipLabel || "Saltar"
+            : null
+        }
+        onSecondaryPress={onSecondaryPressOverride}
+        footerHint={currentStep.footerHint}
+        errorText={submitError}
+        onSignOut={isTerminal ? null : () => leave()}
+        signOutDisabled={leaving || submitting}
+      >
+        {renderBody()}
+      </OnboardingStepLayout>
+      <MergeHospitalAccessSheet
+        visible={Boolean(mergeOffer)}
+        email={mergeOffer?.email}
+        orgName={mergeOffer?.orgName}
+        source="onboarding"
+        onClose={() => setMergeOffer(null)}
+        onMerged={() => setMergeOffer(null)}
+      />
+    </>
   );
 }
 

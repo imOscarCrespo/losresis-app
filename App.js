@@ -16,6 +16,12 @@ import ChangePasswordScreen from "./screens/ChangePasswordScreen";
 import LinkGoogleAccountScreen from "./screens/LinkGoogleAccountScreen";
 import FollowInstagramScreen from "./screens/FollowInstagramScreen";
 import OnboardingScreen from "./screens/OnboardingScreen";
+import MergeHospitalAccessSheet from "./components/MergeHospitalAccessSheet";
+import {
+  checkHospitalAccess,
+  clearPendingHospitalMerge,
+  getPendingHospitalMerge,
+} from "./services/accountMergeService";
 import { supabase } from "./config/supabase";
 import { DEV_E2E } from "./config/devConfig";
 import {
@@ -146,6 +152,9 @@ function AppContent() {
   // Al salir del onboarding con «¿Te ha dado de alta tu hospital?», la
   // bienvenida abre directamente el acceso del hospital.
   const [welcomeHospitalAccess, setWelcomeHospitalAccess] = useState(false);
+  // Fusión pendiente: entró con el acceso del hospital, su Google ya tenía otra
+  // cuenta y ha vuelto a entrar con ese Google para unirlas.
+  const [pendingMerge, setPendingMerge] = useState(null);
   const gateSessionTrackedRef = useRef(null);
   const {
     needsUpdate,
@@ -638,6 +647,39 @@ function AppContent() {
     await checkAuth();
   };
 
+  useEffect(() => {
+    if (!isAuthenticated || !currentUserId) {
+      setPendingMerge(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const pending = await getPendingHospitalMerge();
+      if (!pending || cancelled) return;
+      const { data } = await supabase.auth.getUser();
+      const currentEmail = String(data?.user?.email || "").toLowerCase();
+      if (currentEmail === pending.email) {
+        // Sigue en el acceso del hospital (no ha cambiado de cuenta todavía).
+        return;
+      }
+      const access = await checkHospitalAccess(pending.email);
+      if (cancelled) return;
+      if (!access.exists) {
+        await clearPendingHospitalMerge();
+        return;
+      }
+      setPendingMerge({ email: pending.email, orgName: access.orgName });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, currentUserId]);
+
+  const closePendingMerge = async () => {
+    setPendingMerge(null);
+    await clearPendingHospitalMerge();
+  };
+
   const handleOnboardingLeft = async ({ hospitalAccess }) => {
     setWelcomeHospitalAccess(Boolean(hospitalAccess));
     await handleSignOut();
@@ -668,7 +710,10 @@ function AppContent() {
           onSignOut={handleSignOut}
         />
       ) : isAuthenticated && googleLinkOffer ? (
-        <LinkGoogleAccountScreen onDone={() => setGoogleLinkOffer(false)} />
+        <LinkGoogleAccountScreen
+          onDone={() => setGoogleLinkOffer(false)}
+          onSignOut={handleSignOut}
+        />
       ) : isAuthenticated && instagramOffer ? (
         <FollowInstagramScreen onDone={() => setInstagramOffer(false)} />
       ) : isAuthenticated && needsOnboarding ? (
@@ -709,6 +754,14 @@ function AppContent() {
           openHospitalAccess={welcomeHospitalAccess}
         />
       )}
+      <MergeHospitalAccessSheet
+        visible={Boolean(pendingMerge)}
+        email={pendingMerge?.email}
+        orgName={pendingMerge?.orgName}
+        source="google_link"
+        onClose={closePendingMerge}
+        onMerged={closePendingMerge}
+      />
     </>
   );
 }

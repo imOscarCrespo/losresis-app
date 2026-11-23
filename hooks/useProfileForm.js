@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Alert } from "react-native";
 import { getCurrentUser, getUserProfile } from "../services/authService";
 import { updateUserProfile } from "../services/userService";
+import { checkHospitalAccess } from "../services/accountMergeService";
 import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
 import { isHospitalCreatedResident } from "../utils/passwordAccess";
 import {
@@ -42,6 +43,9 @@ export const useProfileForm = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [message, setMessage] = useState(null);
   const [showEmailReviewSection, setShowEmailReviewSection] = useState(false);
+  // Email corporativo que ya es de un acceso de hospital: se ofrece unir cuentas
+  // en vez de guardarlo (Althaia, 2026-11-23).
+  const [mergeOffer, setMergeOffer] = useState(null);
 
   /**
    * Carga el perfil del usuario desde la base de datos
@@ -221,6 +225,23 @@ export const useProfileForm = () => {
           return;
         }
 
+        // Si el email corporativo nuevo ya es de un acceso que creó un
+        // hospital, no se guarda: se ofrece unir esta cuenta con ese acceso.
+        const newWorkEmail = String(normalizedFormData.work_email || "").trim().toLowerCase();
+        const currentWorkEmail = String(userProfile?.work_email || "").trim().toLowerCase();
+        if (
+          (normalizedFormData.is_resident || normalizedFormData.is_doctor) &&
+          newWorkEmail &&
+          newWorkEmail !== currentWorkEmail
+        ) {
+          const access = await checkHospitalAccess(newWorkEmail);
+          if (access.exists) {
+            setMergeOffer({ email: newWorkEmail, orgName: access.orgName });
+            setLoading(false);
+            return;
+          }
+        }
+
         // Validar email de trabajo para residentes y doctores
         let emailValidation = { isValid: true };
         // El email de una cuenta creada por el hospital ya lo verificó el panel
@@ -375,5 +396,7 @@ export const useProfileForm = () => {
     getCurrentUserType,
     handleWorkEmailChange,
     handleSubmit,
+    mergeOffer,
+    clearMergeOffer: () => setMergeOffer(null),
   };
 };

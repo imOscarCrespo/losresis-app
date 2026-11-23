@@ -1,0 +1,90 @@
+# Unir cuentas (Althaia, 2026-11-23)
+#
+# Caso Daunel: un residente con cuenta propia escribe en su perfil el email
+# corporativo con el que su hospital ya le dio un acceso. En vez de guardarlo
+# (y quedar dos cuentas), la app pide la contraseña de ese acceso y las une:
+# sobrevive el acceso del hospital con los datos de la cuenta propia.
+# Usa el residente de hospital de pruebas:
+#   E2E_CREDENTIALS=~/.config/losresis/e2e-hospital.env scripts/e2e.sh e2e/flows/account-merge.yaml
+appId: com.losresis.app
+name: "Unir cuenta propia con el acceso del hospital"
+---
+# El acceso del hospital vuelve a su contraseña provisional
+- runScript: ../scripts/reset-100-hospital-access.js
+- runScript: ../scripts/seed-account-merge.js
+- launchApp:
+    clearState: true
+- runFlow:
+    file: ../subflows/login.yaml
+    env:
+      E2E_EMAIL: ${output.OWN_EMAIL}
+      E2E_PASSWORD: ${output.OWN_PASSWORD}
+- runFlow:
+    when:
+      visible: "Ahora no"
+    commands:
+      - tapOn: "Ahora no"
+
+# Sin email corporativo fuera de la ventana MIR, la app abre el perfil
+- extendedWaitUntil:
+    visible: "Editar perfil"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: "profile-work-email"
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: "profile-work-email"
+- eraseText: 60
+- inputText: ${E2E_EMAIL}
+- hideKeyboard
+# En iOS, ocultar el teclado ya puede enviar el formulario: solo se pulsa
+# «Guardar cambios» si la hoja no ha salido.
+- runFlow:
+    when:
+      notVisible:
+        id: "account-merge-sheet"
+    commands:
+      - scrollUntilVisible:
+          element: "Guardar cambios"
+          direction: DOWN
+          visibilityPercentage: 50
+      - tapOn: "Guardar cambios"
+
+- extendedWaitUntil:
+    visible:
+      id: "account-merge-sheet"
+    timeout: 20000
+- assertVisible: "Ya tienes un acceso de tu hospital"
+- takeScreenshot: account-merge-1-sheet
+
+# Contraseña equivocada: no se une
+- tapOn:
+    id: "account-merge-password"
+- inputText: "no-es-esta"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible:
+      id: "account-merge-error"
+    timeout: 15000
+- assertVisible: "Esa no es la contraseña.*"
+- takeScreenshot: account-merge-2-wrong-password
+
+# La buena (provisional): se unen y entra en el acceso del hospital
+- tapOn:
+    id: "account-merge-password"
+- eraseText: 40
+- inputText: ${E2E_PASSWORD}
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "Elige tu contraseña"
+    timeout: 30000
+- takeScreenshot: account-merge-3-hospital-access
+
+- runScript:
+    file: ../scripts/check-account-merge.js
+    env:
+      OWN_EMAIL: ${output.OWN_EMAIL}
+      OWN_PASSWORD: ${output.OWN_PASSWORD}
+      MARKER: ${output.MARKER}

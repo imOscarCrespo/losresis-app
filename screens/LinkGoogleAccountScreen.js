@@ -5,19 +5,29 @@ import { HeroScreenLayout } from "../components/HeroScreenLayout";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { COLORS } from "../constants/colors";
-import { linkGoogleIdentity, markGoogleLinkOffered } from "../services/authService";
+import {
+  getCurrentUser,
+  linkGoogleIdentity,
+  markGoogleLinkOffered,
+  signOut,
+} from "../services/authService";
+import { setPendingHospitalMerge } from "../services/accountMergeService";
+import { GOOGLE_LINK_ERRORS } from "../utils/googleLink";
 import posthogLogger from "../services/posthogService";
 
 // Oferta única de vincular Google (petición del Hospital de Manresa,
 // 2026-11-13). Puerta en App.js justo después de que un residente creado por el
 // hospital cambie su contraseña provisional. Tanto si vincula como si dice
 // «Ahora no» se apunta `google_link_offered` y no se vuelve a enseñar.
-export default function LinkGoogleAccountScreen({ onDone }) {
+export default function LinkGoogleAccountScreen({ onDone, onSignOut }) {
   const [linking, setLinking] = useState(false);
   const [skipping, setSkipping] = useState(false);
   const [linked, setLinked] = useState(false);
   const [error, setError] = useState(null);
-  const busy = linking || skipping;
+  const [mergingStart, setMergingStart] = useState(false);
+  const busy = linking || skipping || mergingStart;
+  // Ese Google ya tiene otra cuenta de LosResis: se ofrece unirlas.
+  const googleInUse = error === GOOGLE_LINK_ERRORS.alreadyInUse;
 
   useEffect(() => {
     posthogLogger.logScreen("LinkGoogleAccountScreen");
@@ -37,6 +47,20 @@ export default function LinkGoogleAccountScreen({ onDone }) {
       setError(result.error);
     }
     setLinking(false);
+  };
+
+  // Para unirlas hay que entrar con ese Google: se apunta este acceso, se cierra
+  // sesión y, al volver a entrar con Google, App.js pide la contraseña del
+  // hospital (MergeHospitalAccessSheet).
+  const handleStartMerge = async () => {
+    if (busy) return;
+    setMergingStart(true);
+    const { user } = await getCurrentUser();
+    if (user?.email) await setPendingHospitalMerge(user.email);
+    markGoogleLinkOffered().catch(() => {});
+    posthogLogger.capture("account_merge_started", { source: "google_link" });
+    await signOut();
+    onSignOut?.();
   };
 
   const handleSkip = async () => {
@@ -83,10 +107,29 @@ export default function LinkGoogleAccountScreen({ onDone }) {
                 usándolos si lo prefieres.
               </Text>
 
-              {error ? (
+              {error && !googleInUse ? (
                 <Text testID="link-google-error" style={styles.error}>
                   {error}
                 </Text>
+              ) : null}
+
+              {googleInUse ? (
+                <View testID="link-google-in-use" style={styles.mergeBox}>
+                  <Text style={styles.mergeTitle}>
+                    Ese Google ya tiene otra cuenta de LosResis
+                  </Text>
+                  <Text style={styles.mergeText}>
+                    Podemos unirlas sin que pierdas nada. Cerraremos esta sesión:
+                    entra con «Continuar con Google» y te pediremos la contraseña
+                    de tu hospital para juntar las dos cuentas.
+                  </Text>
+                  <Button
+                    title="Unir mis cuentas"
+                    onPress={handleStartMerge}
+                    loading={mergingStart}
+                    style={styles.mergeButton}
+                  />
+                </View>
               ) : null}
 
               <Button
@@ -114,6 +157,27 @@ export default function LinkGoogleAccountScreen({ onDone }) {
 }
 
 const styles = StyleSheet.create({
+  mergeBox: {
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+  },
+  mergeTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.GRAY_DARK,
+    marginBottom: 6,
+  },
+  mergeText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: COLORS.GRAY_DARK,
+    marginBottom: 12,
+  },
+  mergeButton: {
+    width: "100%",
+  },
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.BACKGROUND,
