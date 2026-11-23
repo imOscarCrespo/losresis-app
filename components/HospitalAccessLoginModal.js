@@ -19,6 +19,12 @@ import { validateHospitalAccessForm } from "../utils/passwordAccess";
 // Login con email + contraseña para residentes cuya cuenta ha creado su
 // hospital desde el panel (Trello #100). No hay autoalta ni "he olvidado mi
 // contraseña": la regenera el hospital.
+//
+// Al entrar, App cambia la bienvenida por «Elige tu contraseña» en cuanto
+// Supabase emite SIGNED_IN. Si en ese momento la hoja seguía con su animación
+// de salida, iOS dejaba un RCTFabricModalHost transparente encima que se comía
+// todos los toques (PostHog, 2026-11-23: ~20 de 28 usuarios de iPhone tuvieron
+// que cerrar la app). Por eso, tras entrar, se cierra sin animación.
 export default function HospitalAccessLoginModal({ visible, onClose, onSignedIn }) {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
@@ -26,6 +32,7 @@ export default function HospitalAccessLoginModal({ visible, onClose, onSignedIn 
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [closeInstantly, setCloseInstantly] = useState(false);
   const passwordRef = useRef(null);
 
   const handleClose = () => {
@@ -54,11 +61,19 @@ export default function HospitalAccessLoginModal({ visible, onClose, onSignedIn 
     }
 
     setPassword("");
+    // Mismo render que el visible=false del padre (React agrupa los dos).
+    setCloseInstantly(true);
     onSignedIn?.();
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType={closeInstantly ? "none" : "slide"}
+      onShow={() => setCloseInstantly(false)}
+      onRequestClose={handleClose}
+    >
       <KeyboardAvoidingView
         style={styles.backdrop}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

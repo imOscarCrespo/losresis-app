@@ -660,17 +660,17 @@ export default function WelcomeScreen({ onAuthSuccess, openHospitalAccess = fals
   };
 
   // Login con la cuenta que ha creado el hospital desde el panel (Trello #100).
-  // Termina igual que Google/Apple: prompt de Face ID y luego onAuthSuccess.
-  const handleHospitalAccessSignedIn = async () => {
+  // Sin prompt de Face ID: App cambia esta pantalla por «Elige tu contraseña»
+  // en cuanto llega SIGNED_IN, así que el prompt nunca llegaba a verse y, al
+  // presentarse un Modal mientras se desmontaba la pantalla, iOS dejaba una capa
+  // invisible que bloqueaba la siguiente (2026-11-23).
+  const handleHospitalAccessSignedIn = () => {
     setShowHospitalAccess(false);
     posthogLogger.capture("Auth Completed", {
       provider: "password",
       platform: Platform.OS,
     });
-    const promptShown = await checkBiometricPromptAfterLogin();
-    if (!promptShown && onAuthSuccess) {
-      onAuthSuccess();
-    }
+    onAuthSuccess?.();
   };
 
   if (isLoading) {
