@@ -46,12 +46,21 @@ import posthogLogger from "../services/posthogService";
 const isDevelopment = __DEV__;
 const isIOS = Platform.OS === "ios";
 
-export default function WelcomeScreen({ onAuthSuccess }) {
+export default function WelcomeScreen({ onAuthSuccess, openHospitalAccess = false }) {
   const insets = useSafeAreaInsets();
   const [isChecking, setIsChecking] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [signingInProvider, setSigningInProvider] = useState(null); // 'google' | 'apple' | 'biometric' | null
-  const [showHospitalAccess, setShowHospitalAccess] = useState(false);
+  // `openHospitalAccess`: viene de «¿Te ha dado de alta tu hospital?» en el
+  // onboarding, así que abrimos directamente el acceso del hospital.
+  const [showHospitalAccess, setShowHospitalAccess] = useState(
+    Boolean(openHospitalAccess)
+  );
+  // El cierre de sesión monta esta pantalla antes de que App marque la
+  // petición, así que también hay que reaccionar cuando llega después.
+  useEffect(() => {
+    if (openHospitalAccess) setShowHospitalAccess(true);
+  }, [openHospitalAccess]);
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState(null);
@@ -773,6 +782,7 @@ export default function WelcomeScreen({ onAuthSuccess }) {
                 }}
                 disabled={!!isChecking || signingInWithBiometric}
               >
+                <Icon name="business-outline" size={20} color={COLORS.PRIMARY} />
                 <Text style={styles.hospitalAccessLinkText}>
                   Tengo un acceso de mi hospital
                 </Text>
@@ -1150,16 +1160,24 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#1B0977",
   },
+  // Mismo tamaño que «Continuar con Google»: los residentes dados de alta por
+  // su hospital lo pasaban por alto y entraban con Google (Althaia, 2026-11-23).
   hospitalAccessLink: {
-    marginTop: -4,
-    alignSelf: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    width: "100%",
+    height: 56,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: COLORS.PRIMARY,
+    backgroundColor: COLORS.WHITE,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
   },
   hospitalAccessLinkText: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "600",
     color: COLORS.PRIMARY,
-    textDecorationLine: "underline",
   },
 });

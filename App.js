@@ -143,6 +143,9 @@ function AppContent() {
   // en ese momento, no se le vuelve a ofrecer.
   const [googleLinkOffer, setGoogleLinkOffer] = useState(false);
   const [instagramOffer, setInstagramOffer] = useState(false);
+  // Al salir del onboarding con «¿Te ha dado de alta tu hospital?», la
+  // bienvenida abre directamente el acceso del hospital.
+  const [welcomeHospitalAccess, setWelcomeHospitalAccess] = useState(false);
   const gateSessionTrackedRef = useRef(null);
   const {
     needsUpdate,
@@ -475,6 +478,9 @@ function AppContent() {
   };
 
   const handleAuthSuccess = async () => {
+    // El acceso del hospital ya se ha usado: la próxima bienvenida (tras cerrar
+    // sesión desde el perfil) no debe abrirlo sola.
+    setWelcomeHospitalAccess(false);
     // Refrescar versión tras auth para cubrir logins explícitos y cambios de
     // sesión sin depender del hook inicial.
     try {
@@ -632,6 +638,11 @@ function AppContent() {
     await checkAuth();
   };
 
+  const handleOnboardingLeft = async ({ hospitalAccess }) => {
+    setWelcomeHospitalAccess(Boolean(hospitalAccess));
+    await handleSignOut();
+  };
+
   // Nunca devolvemos null durante el arranque: en red fría eso dejaba una
   // pantalla en blanco de varios segundos y la app parecía haberse colgado.
   if (isLoading) {
@@ -664,6 +675,7 @@ function AppContent() {
         <OnboardingScreen
           userId={currentUserId}
           onComplete={handleProfileComplete}
+          onLeave={handleOnboardingLeft}
         />
       ) : isAuthenticated && (residentEmailRejected || residentSeasonalLocked) ? (
         // SafeAreaView aplica el inset top que normalmente añade ScreenLayout
@@ -692,7 +704,10 @@ function AppContent() {
           updateUrl={updateUrl}
         />
       ) : (
-        <WelcomeScreen onAuthSuccess={handleAuthSuccess} />
+        <WelcomeScreen
+          onAuthSuccess={handleAuthSuccess}
+          openHospitalAccess={welcomeHospitalAccess}
+        />
       )}
     </>
   );

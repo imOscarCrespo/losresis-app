@@ -26,6 +26,7 @@ import { excludeTeachingUnits } from "../utils/teachingUnits";
 import { useEmailDomainValidation } from "../hooks/useEmailDomainValidation";
 import { useEmailReview } from "../hooks/useEmailReview";
 import { updateUserProfile } from "../services/userService";
+import { leaveIncompleteSignup } from "../services/authService";
 import { uploadRoommateAvatar } from "../services/roommateService";
 import { MOCK_SOURCES } from "../services/mirProjectionService";
 import { getResidentTransitionConfig } from "../services/residentTransitionConfigService";
@@ -97,13 +98,14 @@ const buildProfilePayload = (answers) => {
   return payload;
 };
 
-export default function OnboardingScreen({ userId, onComplete }) {
+export default function OnboardingScreen({ userId, onComplete, onLeave }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [answers, setAnswers] = useState(INITIAL_ANSWERS);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [showEmailReviewSection, setShowEmailReviewSection] = useState(false);
   const [transitionConfig, setTransitionConfig] = useState(null);
+  const [leaving, setLeaving] = useState(false);
 
   const { hospitals, specialties, uniqueCities } = useHospitals();
   // El residente elige su hospital, no su unidad docente (la deduce el panel
@@ -149,6 +151,23 @@ export default function OnboardingScreen({ userId, onComplete }) {
   const setAnswer = useCallback((field, value) => {
     setAnswers((prev) => ({ ...prev, [field]: value }));
   }, []);
+
+  // Salida del onboarding: quien entró con Google o Apple por error (p. ej. un
+  // residente al que su hospital ya dio un acceso) no se queda atrapado. El
+  // servidor borra la cuenta si está vacía y se cierra la sesión.
+  const leave = useCallback(
+    async ({ hospitalAccess = false } = {}) => {
+      if (leaving) return;
+      setLeaving(true);
+      posthogLogger.capture("Onboarding Left", {
+        reason: hospitalAccess ? "hospital_access" : "sign_out",
+        step_id: currentStep?.id ?? null,
+      });
+      const { outcome } = await leaveIncompleteSignup();
+      onLeave?.({ hospitalAccess, outcome });
+    },
+    [currentStep?.id, leaving, onLeave]
+  );
 
   const handleBack = useCallback(() => {
     setSubmitError(null);
@@ -444,10 +463,35 @@ export default function OnboardingScreen({ userId, onComplete }) {
     switch (currentStep.kind) {
       case "userType":
         return (
-          <OnboardingUserTypeCards
-            selectedType={answers.userType}
-            onSelect={handleUserTypePick}
-          />
+          <View>
+            <OnboardingUserTypeCards
+              selectedType={answers.userType}
+              onSelect={handleUserTypePick}
+            />
+            <Pressable
+              testID="onboarding-hospital-access"
+              onPress={() => leave({ hospitalAccess: true })}
+              disabled={leaving}
+              style={styles.hospitalAccessCard}
+              accessibilityRole="button"
+            >
+              <Icon
+                name="business-outline"
+                size={20}
+                color="#FFFFFF"
+                style={styles.hospitalAccessIcon}
+              />
+              <View style={styles.flexText}>
+                <Text style={styles.hospitalAccessTitle}>
+                  ¿Te ha dado de alta tu hospital?
+                </Text>
+                <Text style={styles.hospitalAccessText}>
+                  No sigas aquí: pulsa para entrar con el usuario y la
+                  contraseña que te enviaron por email.
+                </Text>
+              </View>
+            </Pressable>
+          </View>
         );
       case "text": {
         if (currentStep.id === "workEmail") {
@@ -691,6 +735,8 @@ export default function OnboardingScreen({ userId, onComplete }) {
       onSecondaryPress={onSecondaryPressOverride}
       footerHint={currentStep.footerHint}
       errorText={submitError}
+      onSignOut={isTerminal ? null : () => leave()}
+      signOutDisabled={leaving || submitting}
     >
       {renderBody()}
     </OnboardingStepLayout>
@@ -698,6 +744,32 @@ export default function OnboardingScreen({ userId, onComplete }) {
 }
 
 const styles = StyleSheet.create({
+  hospitalAccessCard: {
+    marginTop: 20,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  hospitalAccessIcon: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+  flexText: { flex: 1 },
+  hospitalAccessTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  hospitalAccessText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(255,255,255,0.85)",
+  },
   textInput: {
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.35)",

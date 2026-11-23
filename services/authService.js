@@ -620,6 +620,32 @@ export const markInstagramFollowOffered = async () => {
 };
 
 /**
+ * Salir del onboarding sin terminarlo. Quien entra con Google o Apple por error
+ * (p. ej. un residente al que su hospital ya dio un acceso) crea una cuenta
+ * vacía; el servidor la borra si no tiene datos (`discard_incomplete_signup`),
+ * y así su Google o Apple queda libre para vincularlo a la cuenta buena.
+ * Pase lo que pase con el borrado, se cierra la sesión.
+ * @returns {Promise<{success: boolean, outcome: string|null, error: string|null}>}
+ */
+export const leaveIncompleteSignup = async () => {
+  let outcome = null;
+  try {
+    const { data, error } = await supabase.rpc("discard_incomplete_signup");
+    if (error) {
+      console.warn("⚠️ No se pudo descartar la cuenta sin terminar:", error.message);
+    } else {
+      outcome = data ?? null;
+    }
+  } catch (error) {
+    console.warn("⚠️ No se pudo descartar la cuenta sin terminar:", error);
+  }
+  // Si la cuenta ya no existe, el logout del servidor no tiene nada que cerrar:
+  // basta con borrar la sesión local.
+  const result = await signOut(outcome === "discarded" ? { scope: "local" } : {});
+  return { success: result.success, outcome, error: result.error };
+};
+
+/**
  * Obtener el usuario actual
  * @returns {Promise<{success: boolean, user: object|null, error: string|null}>}
  */
@@ -734,14 +760,18 @@ export const hasCompleteProfile = (profile) => {
 
 /**
  * Cerrar sesión y limpiar toda la información de autenticación
+ * @param {{scope?: "global"|"local"}} [options] `local` no cierra las demás
+ *   sesiones en el servidor (sirve cuando la cuenta ya se ha borrado).
  * @returns {Promise<{success: boolean, error: string|null}>}
  */
-export const signOut = async () => {
+export const signOut = async ({ scope } = {}) => {
   try {
     console.log("🔐 Cerrando sesión...");
 
     // Cerrar sesión en Supabase (esto elimina tokens y sesión)
-    const { error: signOutError } = await supabase.auth.signOut();
+    const { error: signOutError } = await supabase.auth.signOut(
+      scope ? { scope } : undefined
+    );
 
     if (signOutError) {
       console.error("❌ Error al cerrar sesión en Supabase:", signOutError);

@@ -1,0 +1,88 @@
+# Salida del onboarding (Althaia, 2026-11-23)
+#
+# Dos residentes dados de alta por Althaia entraron con «Continuar con Google»
+# y su Gmail personal: se les creó otra cuenta, vacía, y el onboarding no tenía
+# salida. Ahora:
+#   1. «¿Te ha dado de alta tu hospital?» en el primer paso cierra la sesión,
+#      borra la cuenta vacía y abre directamente «Acceso de tu hospital».
+#   2. «Cerrar sesión» en la cabecera de cualquier paso hace lo mismo y vuelve
+#      a la bienvenida.
+# Cada caso crea su propia cuenta vacía (registro por email, como la de Google)
+# y comprueba al final que ya no existe.
+appId: com.losresis.app
+name: "Onboarding · salir con el acceso del hospital o cerrando sesión"
+---
+# 1 · «¿Te ha dado de alta tu hospital?»
+- runScript: ../scripts/seed-onboarding-exit.js
+- launchApp:
+    clearState: true
+- runFlow:
+    file: ../subflows/login.yaml
+    env:
+      E2E_EMAIL: ${output.SELF_EMAIL}
+      E2E_PASSWORD: ${output.SELF_PASSWORD}
+- runFlow:
+    when:
+      visible: "Ahora no"
+    commands:
+      - tapOn: "Ahora no"
+- extendedWaitUntil:
+    visible: "¿En qué momento estás?"
+    timeout: 30000
+- assertVisible:
+    id: "onboarding-hospital-access"
+- assertVisible:
+    id: "onboarding-sign-out"
+- takeScreenshot: onboarding-exit-1-first-step
+- tapOn:
+    id: "onboarding-hospital-access"
+- extendedWaitUntil:
+    visible: "Acceso de tu hospital"
+    timeout: 30000
+- takeScreenshot: onboarding-exit-2-hospital-access
+- runScript:
+    file: ../scripts/check-onboarding-exit-deleted.js
+    env:
+      SELF_EMAIL: ${output.SELF_EMAIL}
+      SELF_PASSWORD: ${output.SELF_PASSWORD}
+
+# 2 · «Cerrar sesión» en un paso intermedio
+- runScript: ../scripts/seed-onboarding-exit.js
+- launchApp:
+    clearState: true
+- runFlow:
+    file: ../subflows/login.yaml
+    env:
+      E2E_EMAIL: ${output.SELF_EMAIL}
+      E2E_PASSWORD: ${output.SELF_PASSWORD}
+- runFlow:
+    when:
+      visible: "Ahora no"
+    commands:
+      - tapOn: "Ahora no"
+- extendedWaitUntil:
+    visible: "¿En qué momento estás?"
+    timeout: 30000
+- tapOn: "Preparando el MIR[\\s\\S]*"
+- runFlow:
+    when:
+      notVisible: "¿Cuál es tu nombre?"
+    commands:
+      - tapOn: "Siguiente"
+- extendedWaitUntil:
+    visible: "¿Cuál es tu nombre?"
+    timeout: 10000
+- takeScreenshot: onboarding-exit-3-name-step
+- tapOn:
+    id: "onboarding-sign-out"
+- extendedWaitUntil:
+    visible:
+      id: "hospital-access-open"
+    timeout: 30000
+- assertNotVisible: "Acceso de tu hospital"
+- takeScreenshot: onboarding-exit-4-welcome
+- runScript:
+    file: ../scripts/check-onboarding-exit-deleted.js
+    env:
+      SELF_EMAIL: ${output.SELF_EMAIL}
+      SELF_PASSWORD: ${output.SELF_PASSWORD}

@@ -31,6 +31,8 @@ export const OnboardingStepLayout = ({
   onSecondaryPress,
   footerHint,
   errorText,
+  onSignOut,
+  signOutDisabled = false,
 }) => {
   const insets = useSafeAreaInsets();
 
@@ -41,15 +43,33 @@ export const OnboardingStepLayout = ({
           currentStep={currentStep}
           totalSteps={totalSteps}
         />
-        {onBack ? (
-          <Pressable
-            onPress={onBack}
-            hitSlop={12}
-            style={styles.backButton}
-            accessibilityLabel="Volver"
-          >
-            <Icon name="chevron-back" size={22} color="#FFFFFF" />
-          </Pressable>
+        {onBack || onSignOut ? (
+          <View style={styles.headerRow}>
+            {onBack ? (
+              <Pressable
+                onPress={onBack}
+                hitSlop={12}
+                style={styles.backButton}
+                accessibilityLabel="Volver"
+              >
+                <Icon name="chevron-back" size={22} color="#FFFFFF" />
+              </Pressable>
+            ) : (
+              <View />
+            )}
+            {onSignOut ? (
+              <Pressable
+                testID="onboarding-sign-out"
+                onPress={onSignOut}
+                disabled={signOutDisabled}
+                hitSlop={12}
+                style={styles.signOutButton}
+                accessibilityRole="button"
+              >
+                <Text style={styles.signOutLabel}>Cerrar sesión</Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
       </View>
 
@@ -115,6 +135,20 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 12,
     gap: 14,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  signOutButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  signOutLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.85)",
   },
   backButton: {
     width: 36,
